@@ -1,8 +1,13 @@
+from datetime import timedelta
+
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
+from django.shortcuts import render
+from django.urls import reverse
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
@@ -11,9 +16,15 @@ from django.views.generic import CreateView, FormView, ListView, UpdateView
 from accounts.models import UserProfile
 from accounts.permissions import FinanceAccessMixin, RoleRequiredMixin, get_profile
 from core.views import FormContextMixin, SearchableListView
-from patients.models import ProfessionalPatientAssignment
-from scheduling.forms import AppointmentForm, AppointmentRescheduleForm, ProfessionalAvailabilityForm, ServicePackageForm
+from scheduling.forms import (
+    AppointmentForm,
+    AppointmentRescheduleSlotForm,
+    AppointmentSlotSearchForm,
+    ProfessionalAvailabilityForm,
+    ServicePackageForm,
+)
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.slots import generate_available_slots, make_local_datetime, slot_is_available
 
 
 class AppointmentAccessMixin(RoleRequiredMixin):
@@ -54,6 +65,16 @@ def profile_booking_source(profile):
     return Appointment.BookingSource.ADMINISTRATION
 
 
+def add_model_validation_errors(form, error):
+    if hasattr(error, "message_dict"):
+        for field_messages in error.message_dict.values():
+            for message in field_messages:
+                form.add_error(None, message)
+        return
+    for message in error.messages:
+        form.add_error(None, message)
+
+
 class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
     model = Appointment
     template_name = "scheduling/appointment_list.html"
@@ -65,30 +86,139 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
         return appointments_for_user(self.request.user)
 
 
-class AppointmentCreateView(FormContextMixin, AppointmentAccessMixin, CreateView):
-    model = Appointment
-    form_class = AppointmentForm
-    template_name = "core/form.html"
-    success_url = reverse_lazy("scheduling:appointments")
-    page_title = "Agendamento"
+class SlotSelectionMixin:
+    template_name = "scheduling/slot_form.html"
     section_label = "Agenda"
     back_url_name = "scheduling:appointments"
+    submit_label = "Ver horarios livres"
+    slot_select_label = "Agendar neste horario"
 
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["request"] = self.request
-        return kwargs
+    def get_context_data(self, form, slots=None, searched=False, booking_values=None):
+        search_field_names = [
+            name
+            for name in ["patient", "professional", "appointment_date", "duration_minutes", "service_units"]
+            if name in form.fields
+        ]
+        return {
+            "form": form,
+            "search_fields": [form[name] for name in search_field_names],
+            "slots": slots or [],
+            "searched": searched,
+            "booking_values": booking_values or {},
+            "page_title": self.page_title,
+            "section_label": self.section_label,
+            "back_url": reverse(self.back_url_name),
+            "submit_label": self.submit_label,
+            "slot_select_label": self.slot_select_label,
+        }
 
-    def form_valid(self, form):
-        profile = get_profile(self.request.user)
-        form.instance.booked_by = self.request.user
-        if profile:
-            form.instance.booking_source = profile_booking_source(profile)
-            if profile.role == UserProfile.Role.PATIENT:
-                form.instance.booking_source = Appointment.BookingSource.PATIENT
-                form.instance.status = Appointment.Status.REQUESTED
-        messages.success(self.request, "Agendamento cadastrado com sucesso.")
-        return super().form_valid(form)
+    def booking_values_from_form(self, form):
+        values = {
+            "professional": form.cleaned_data["professional"].pk,
+            "appointment_date": form.cleaned_data["appointment_date"].isoformat(),
+            "duration_minutes": form.cleaned_data["duration_minutes"],
+            "notes": form.cleaned_data.get("notes", ""),
+        }
+        if "patient" in form.cleaned_data:
+            values["patient"] = form.cleaned_data["patient"].pk
+        if "service_units" in form.cleaned_data:
+            values["service_units"] = form.cleaned_data["service_units"]
+        return values
+
+    def render_slot_page(self, form, slots=None, searched=False, booking_values=None):
+        return render(
+            self.request,
+            self.template_name,
+            self.get_context_data(
+                form=form,
+                slots=slots,
+                searched=searched,
+                booking_values=booking_values,
+            ),
+        )
+
+    def get_slots(self, form):
+        slots = generate_available_slots(
+            professional=form.cleaned_data["professional"],
+            day=form.cleaned_data["appointment_date"],
+            duration_minutes=form.cleaned_data["duration_minutes"],
+            exclude_appointment=getattr(self, "original_appointment", None),
+        )
+        original = getattr(self, "original_appointment", None)
+        if original and form.cleaned_data["professional"].pk == original.professional_id:
+            slots = [
+                slot
+                for slot in slots
+                if not (slot["starts_at"] == original.starts_at and slot["ends_at"] == original.ends_at)
+            ]
+        return slots
+
+    def selected_interval_from_form(self, form):
+        selected_start = form.cleaned_data.get("selected_start")
+        if not selected_start:
+            form.add_error(None, "Selecione um dos horarios livres antes de confirmar.")
+            return None, None
+
+        starts_at = make_local_datetime(form.cleaned_data["appointment_date"], selected_start)
+        ends_at = starts_at + timedelta(minutes=form.cleaned_data["duration_minutes"])
+        exclude_appointment = getattr(self, "original_appointment", None)
+        if not slot_is_available(form.cleaned_data["professional"], starts_at, ends_at, exclude_appointment):
+            form.add_error(None, "Este horario acabou de ficar indisponivel. Escolha outro horario livre.")
+            return None, None
+        return starts_at, ends_at
+
+
+class AppointmentCreateView(SlotSelectionMixin, AppointmentAccessMixin, View):
+    form_class = AppointmentSlotSearchForm
+    success_url = reverse_lazy("scheduling:appointments")
+    page_title = "Agendamento"
+    slot_select_label = "Agendar neste horario"
+
+    def get_form(self, data=None):
+        return self.form_class(data=data, request=self.request)
+
+    def get(self, request, *args, **kwargs):
+        form = self.get_form(request.GET or None)
+        slots = []
+        booking_values = {}
+        searched = form.is_bound
+        if form.is_bound and form.is_valid():
+            slots = self.get_slots(form)
+            booking_values = self.booking_values_from_form(form)
+        return self.render_slot_page(form, slots=slots, searched=searched, booking_values=booking_values)
+
+    def post(self, request, *args, **kwargs):
+        form = self.get_form(request.POST)
+        slots = []
+        booking_values = {}
+        if form.is_valid():
+            slots = self.get_slots(form)
+            booking_values = self.booking_values_from_form(form)
+            starts_at, ends_at = self.selected_interval_from_form(form)
+            if starts_at and ends_at:
+                profile = get_profile(request.user)
+                status = Appointment.Status.REQUESTED if profile and profile.is_patient else Appointment.Status.SCHEDULED
+                appointment = Appointment(
+                    patient=form.cleaned_data["patient"],
+                    professional=form.cleaned_data["professional"],
+                    starts_at=starts_at,
+                    ends_at=ends_at,
+                    status=status,
+                    booking_source=profile_booking_source(profile),
+                    booked_by=request.user,
+                    service_units=form.cleaned_data["service_units"],
+                    notes=form.cleaned_data.get("notes", ""),
+                )
+                try:
+                    appointment.full_clean()
+                    appointment.save()
+                except ValidationError as error:
+                    add_model_validation_errors(form, error)
+                    return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+                messages.success(request, "Agendamento cadastrado com sucesso.")
+                return redirect(self.success_url)
+
+        return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
 
 class AppointmentUpdateView(FormContextMixin, AppointmentAccessMixin, UpdateView):
@@ -138,69 +268,86 @@ class AppointmentCancelView(AppointmentAccessMixin, View):
         return redirect("scheduling:appointments")
 
 
-class AppointmentRescheduleView(FormContextMixin, AppointmentAccessMixin, FormView):
-    form_class = AppointmentRescheduleForm
-    template_name = "core/form.html"
+class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, FormView):
+    form_class = AppointmentRescheduleSlotForm
     success_url = reverse_lazy("scheduling:appointments")
     page_title = "Reagendamento"
-    section_label = "Agenda"
-    back_url_name = "scheduling:appointments"
+    submit_label = "Ver novos horarios"
+    slot_select_label = "Reagendar para este horario"
 
     def dispatch(self, request, *args, **kwargs):
         self.original_appointment = get_object_or_404(appointments_for_user(request.user), pk=kwargs["pk"])
+        if self.original_appointment.status in {
+            Appointment.Status.COMPLETED,
+            Appointment.Status.CANCELED,
+            Appointment.Status.RESCHEDULED,
+        } or hasattr(self.original_appointment, "service_usage"):
+            messages.error(request, "Este agendamento nao pode ser reagendado.")
+            return redirect("scheduling:appointments")
         return super().dispatch(request, *args, **kwargs)
 
-    def get_initial(self):
-        initial = super().get_initial()
-        initial.update(
-            {
-                "professional": self.original_appointment.professional,
-                "starts_at": self.original_appointment.starts_at,
-                "ends_at": self.original_appointment.ends_at,
-                "notes": self.original_appointment.notes,
-            }
-        )
-        return initial
+    def get_form(self, data=None):
+        return self.form_class(data=data, request=self.request, original_appointment=self.original_appointment)
 
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["request"] = self.request
-        kwargs["original_appointment"] = self.original_appointment
-        return kwargs
+    def get(self, request, *args, **kwargs):
+        form = self.get_form(request.GET or None)
+        slots = []
+        booking_values = {}
+        searched = form.is_bound
+        if form.is_bound and form.is_valid():
+            slots = self.get_slots(form)
+            booking_values = self.booking_values_from_form(form)
+        return self.render_slot_page(form, slots=slots, searched=searched, booking_values=booking_values)
 
-    def form_valid(self, form):
-        if self.original_appointment.status == Appointment.Status.COMPLETED or hasattr(
-            self.original_appointment, "service_usage"
+    def post(self, request, *args, **kwargs):
+        form = self.get_form(request.POST)
+        slots = []
+        booking_values = {}
+        if not form.is_valid():
+            return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+
+        slots = self.get_slots(form)
+        booking_values = self.booking_values_from_form(form)
+        starts_at, ends_at = self.selected_interval_from_form(form)
+        if not starts_at or not ends_at:
+            return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+        if (
+            form.cleaned_data["professional"].pk == self.original_appointment.professional_id
+            and starts_at == self.original_appointment.starts_at
+            and ends_at == self.original_appointment.ends_at
         ):
-            messages.error(self.request, "Atendimento ja baixado nao pode ser reagendado.")
-            return redirect("scheduling:appointments")
+            form.add_error(None, "Escolha um horario diferente do agendamento atual.")
+            return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
-        profile = get_profile(self.request.user)
+        profile = get_profile(request.user)
         new_status = Appointment.Status.REQUESTED if profile and profile.is_patient else Appointment.Status.SCHEDULED
-
         with transaction.atomic():
             original = Appointment.objects.select_for_update().get(pk=self.original_appointment.pk)
             original.status = Appointment.Status.RESCHEDULED
             original.full_clean()
             original.save(update_fields=["status", "updated_at"])
-
             new_appointment = Appointment(
                 patient=original.patient,
                 professional=form.cleaned_data["professional"],
-                starts_at=form.cleaned_data["starts_at"],
-                ends_at=form.cleaned_data["ends_at"],
+                starts_at=starts_at,
+                ends_at=ends_at,
                 status=new_status,
                 booking_source=profile_booking_source(profile),
-                booked_by=self.request.user,
+                booked_by=request.user,
                 rescheduled_from=original,
                 service_units=original.service_units,
                 notes=form.cleaned_data.get("notes", ""),
             )
-            new_appointment.full_clean()
-            new_appointment.save()
+            try:
+                new_appointment.full_clean()
+                new_appointment.save()
+            except ValidationError as error:
+                add_model_validation_errors(form, error)
+                transaction.set_rollback(True)
+                return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
-        messages.success(self.request, "Agendamento reagendado sem consumo de credito.")
-        return super().form_valid(form)
+        messages.success(request, "Agendamento reagendado sem consumo de credito.")
+        return redirect(self.success_url)
 
 
 class AppointmentCompleteView(AppointmentAccessMixin, View):

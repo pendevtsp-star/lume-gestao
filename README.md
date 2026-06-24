@@ -20,6 +20,7 @@ Sistema local de gestao para uma clinica de fisioterapia e pilates.
 - Agenda com solicitacao, agendamento, cancelamento, falta e baixa de atendimento.
 - Reagendamento e cancelamento sem consumo de creditos do pacote.
 - Disponibilidade recorrente por profissional para orientar os horarios possiveis.
+- Criacao e reagendamento guiados por horarios livres, sem entrada manual de data/hora pelo usuario.
 - Pacotes de atendimentos com contador de aulas/sessoes restantes.
 - Despesas e cobrancas avulsas no painel financeiro.
 - Lembrete configuravel de mensalidades proximas do vencimento.

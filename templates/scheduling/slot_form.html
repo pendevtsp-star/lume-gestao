@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ section_label }}</p>
+    <h1>{{ page_title }}</h1>
+  </div>
+  <a class="button secondary" href="{{ back_url }}">Voltar</a>
+</section>
+
+<form method="get" class="panel form-panel slot-search-panel">
+  {% if form.non_field_errors %}
+    <div class="form-errors">{{ form.non_field_errors }}</div>
+  {% endif %}
+  {% for hidden_field in form.hidden_fields %}
+    {% for error in hidden_field.errors %}
+      <div class="form-errors">{{ hidden_field.label }}: {{ error }}</div>
+    {% endfor %}
+  {% endfor %}
+
+  <div class="form-grid">
+    {% for field in search_fields %}
+      {% if field.is_hidden %}
+        {{ field }}
+      {% else %}
+        <label class="form-field">
+          <span>{{ field.label }}</span>
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="form-actions">
+    <a class="button secondary" href="{{ back_url }}">Cancelar</a>
+    <button class="button primary" type="submit">{{ submit_label }}</button>
+  </div>
+</form>
+
+{% if searched %}
+  <section class="panel slot-panel">
+    <div class="panel-header">
+      <div>
+        <h2>Horarios livres</h2>
+        <p>Escolha um dos horarios calculados pela disponibilidade recorrente do profissional.</p>
+      </div>
+    </div>
+
+    {% if slots %}
+      <form method="post" class="slot-booking">
+        {% csrf_token %}
+        {% if booking_values.patient %}
+          <input type="hidden" name="patient" value="{{ booking_values.patient }}">
+        {% endif %}
+        <input type="hidden" name="professional" value="{{ booking_values.professional }}">
+        <input type="hidden" name="appointment_date" value="{{ booking_values.appointment_date }}">
+        <input type="hidden" name="duration_minutes" value="{{ booking_values.duration_minutes }}">
+        {% if booking_values.service_units %}
+          <input type="hidden" name="service_units" value="{{ booking_values.service_units }}">
+        {% endif %}
+
+        <label class="form-field slot-notes">
+          <span>Observacoes</span>
+          <textarea class="field-control" name="notes" rows="3">{{ booking_values.notes }}</textarea>
+        </label>
+
+        <div class="slot-grid">
+          {% for slot in slots %}
+            <button class="slot-button" type="submit" name="selected_start" value="{{ slot.start_value }}">
+              <strong>{{ slot.label }}</strong>
+              <span>{{ slot_select_label }}</span>
+            </button>
+          {% endfor %}
+        </div>
+      </form>
+    {% else %}
+      <div class="slot-empty">
+        Nenhum horario livre para esta data. Ajuste a data, duracao ou disponibilidade do profissional.
+      </div>
+    {% endif %}
+  </section>
+{% endif %}
+{% endblock %}

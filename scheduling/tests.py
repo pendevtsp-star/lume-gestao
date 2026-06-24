@@ -11,6 +11,7 @@ from accounts.models import UserProfile
 from billing.models import Membership, ServicePlan
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.slots import generate_available_slots
 from team.models import Professional
 
 
@@ -131,8 +132,17 @@ class SchedulingTests(TestCase):
             defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
         )
         package = ServicePackage.objects.create(membership=self.membership, total_sessions=4, used_sessions=1)
-        start = timezone.now() + timedelta(days=3)
-        new_start = start + timedelta(days=1)
+        day = timezone.localdate() + timedelta(days=3)
+        new_day = day + timedelta(days=1)
+        start = timezone.make_aware(datetime.combine(day, time(9, 0)))
+        new_start = timezone.make_aware(datetime.combine(new_day, time(10, 0)))
+        ProfessionalAvailability.objects.create(
+            professional=self.professional,
+            weekday=new_day.weekday(),
+            starts_at=time(8, 0),
+            ends_at=time(12, 0),
+            valid_from=new_day,
+        )
         appointment = Appointment.objects.create(
             patient=self.patient,
             professional=self.professional,
@@ -146,8 +156,9 @@ class SchedulingTests(TestCase):
             reverse("scheduling:appointment_reschedule", args=[appointment.pk]),
             {
                 "professional": self.professional.pk,
-                "starts_at": new_start.strftime("%Y-%m-%dT%H:%M"),
-                "ends_at": (new_start + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M"),
+                "appointment_date": new_day.isoformat(),
+                "duration_minutes": "60",
+                "selected_start": new_start.strftime("%H:%M"),
                 "notes": "Novo horario solicitado.",
             },
         )
@@ -162,5 +173,104 @@ class SchedulingTests(TestCase):
                 patient=self.patient,
                 rescheduled_from=appointment,
                 status=Appointment.Status.REQUESTED,
+            ).exists()
+        )
+
+    def test_available_slots_skip_occupied_times(self):
+        day = timezone.localdate() + timedelta(days=5)
+        occupied_start = timezone.make_aware(datetime.combine(day, time(9, 0)))
+        ProfessionalAvailability.objects.create(
+            professional=self.professional,
+            weekday=day.weekday(),
+            starts_at=time(8, 0),
+            ends_at=time(11, 0),
+            valid_from=day,
+        )
+        Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=occupied_start,
+            ends_at=occupied_start + timedelta(hours=1),
+        )
+
+        labels = [slot["label"] for slot in generate_available_slots(self.professional, day, 60)]
+
+        self.assertEqual(labels, ["08:00 - 09:00", "10:00 - 11:00"])
+
+    def test_patient_create_view_lists_only_free_slots(self):
+        user = get_user_model().objects.create_user(username="paciente-slots", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
+        )
+        day = timezone.localdate() + timedelta(days=6)
+        occupied_start = timezone.make_aware(datetime.combine(day, time(9, 0)))
+        ProfessionalAvailability.objects.create(
+            professional=self.professional,
+            weekday=day.weekday(),
+            starts_at=time(8, 0),
+            ends_at=time(11, 0),
+            valid_from=day,
+        )
+        Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=occupied_start,
+            ends_at=occupied_start + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(
+            reverse("scheduling:appointment_create"),
+            {
+                "patient": self.patient.pk,
+                "professional": self.professional.pk,
+                "appointment_date": day.isoformat(),
+                "duration_minutes": "60",
+                "service_units": "1",
+            },
+        )
+
+        self.assertContains(response, "08:00 - 09:00")
+        self.assertContains(response, "10:00 - 11:00")
+        self.assertNotContains(response, "09:00 - 10:00")
+
+    def test_patient_can_create_requested_appointment_from_free_slot(self):
+        user = get_user_model().objects.create_user(username="paciente-cria-slot", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
+        )
+        day = timezone.localdate() + timedelta(days=7)
+        ProfessionalAvailability.objects.create(
+            professional=self.professional,
+            weekday=day.weekday(),
+            starts_at=time(8, 0),
+            ends_at=time(11, 0),
+            valid_from=day,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:appointment_create"),
+            {
+                "patient": self.patient.pk,
+                "professional": self.professional.pk,
+                "appointment_date": day.isoformat(),
+                "duration_minutes": "60",
+                "service_units": "1",
+                "selected_start": "08:00",
+                "notes": "Solicitado pelo portal.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Appointment.objects.filter(
+                patient=self.patient,
+                professional=self.professional,
+                status=Appointment.Status.REQUESTED,
+                booking_source=Appointment.BookingSource.PATIENT,
+                notes="Solicitado pelo portal.",
             ).exists()
         )

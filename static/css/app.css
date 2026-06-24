@@ -496,6 +496,66 @@ td small {
   margin-top: 20px;
 }
 
+.slot-search-panel {
+  margin-bottom: 18px;
+}
+
+.slot-panel {
+  max-width: 980px;
+}
+
+.slot-booking {
+  display: grid;
+  gap: 18px;
+  padding: 18px 20px 20px;
+}
+
+.slot-notes {
+  max-width: 620px;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.slot-button {
+  display: grid;
+  gap: 5px;
+  min-height: 74px;
+  padding: 12px;
+  border: 1px solid #d8d0bc;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.slot-button:hover,
+.slot-button:focus-visible {
+  border-color: var(--sage-dark);
+  box-shadow: 0 10px 24px rgba(98, 105, 71, 0.16);
+  transform: translateY(-1px);
+}
+
+.slot-button strong {
+  font-size: 18px;
+}
+
+.slot-button span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.slot-empty {
+  padding: 26px 20px;
+  color: var(--muted);
+}
+
 .messages {
   display: grid;
   gap: 8px;

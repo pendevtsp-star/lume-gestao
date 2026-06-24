@@ -11,6 +11,7 @@ class Appointment(TimeStampedModel):
         REQUESTED = "requested", "Solicitado"
         SCHEDULED = "scheduled", "Agendado"
         COMPLETED = "completed", "Realizado"
+        RESCHEDULED = "rescheduled", "Reagendado"
         CANCELED = "canceled", "Cancelado"
         NO_SHOW = "no_show", "Faltou"
 
@@ -38,6 +39,13 @@ class Appointment(TimeStampedModel):
         blank=True,
         related_name="booked_appointments",
     )
+    rescheduled_from = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="rescheduled_to",
+    )
     service_units = models.PositiveSmallIntegerField("atendimentos consumidos", default=1)
     notes = models.TextField("observacoes", blank=True)
     external_provider = models.CharField("provedor externo", max_length=40, blank=True)
@@ -58,6 +66,18 @@ class Appointment(TimeStampedModel):
 
     def __str__(self):
         return f"{self.patient} com {self.professional} em {self.starts_at:%d/%m/%Y %H:%M}"
+
+    @property
+    def consumes_credit(self):
+        return self.status == self.Status.COMPLETED and hasattr(self, "service_usage")
+
+    @property
+    def displayed_credit_units(self):
+        if self.status in {self.Status.CANCELED, self.Status.RESCHEDULED}:
+            return 0
+        if self.consumes_credit:
+            return self.service_usage.units
+        return self.service_units
 
     def clean(self):
         super().clean()
@@ -80,9 +100,78 @@ class Appointment(TimeStampedModel):
                 overlaps = overlaps.exclude(pk=self.pk)
             if overlaps.exists():
                 raise ValidationError("Este profissional ja possui atendimento nesse horario.")
+            has_availability = ProfessionalAvailability.objects.filter(
+                professional_id=self.professional_id,
+                active=True,
+            ).exists()
+            if has_availability and not ProfessionalAvailability.objects.slot_available(
+                professional_id=self.professional_id,
+                starts_at=self.starts_at,
+                ends_at=self.ends_at,
+            ):
+                raise ValidationError("Este horario esta fora da disponibilidade recorrente do profissional.")
 
         if self.status == self.Status.COMPLETED and not self.completed_at:
             self.completed_at = timezone.now()
+
+
+class ProfessionalAvailabilityQuerySet(models.QuerySet):
+    def slot_available(self, professional_id, starts_at, ends_at):
+        local_start = timezone.localtime(starts_at)
+        local_end = timezone.localtime(ends_at)
+        if local_start.date() != local_end.date():
+            return False
+        return self.filter(
+            professional_id=professional_id,
+            active=True,
+            weekday=local_start.weekday(),
+            valid_from__lte=local_start.date(),
+            starts_at__lte=local_start.time(),
+            ends_at__gte=local_end.time(),
+        ).filter(models.Q(valid_until__isnull=True) | models.Q(valid_until__gte=local_start.date())).exists()
+
+
+class ProfessionalAvailability(TimeStampedModel):
+    class Weekday(models.IntegerChoices):
+        MONDAY = 0, "Segunda"
+        TUESDAY = 1, "Terca"
+        WEDNESDAY = 2, "Quarta"
+        THURSDAY = 3, "Quinta"
+        FRIDAY = 4, "Sexta"
+        SATURDAY = 5, "Sabado"
+        SUNDAY = 6, "Domingo"
+
+    professional = models.ForeignKey("team.Professional", on_delete=models.CASCADE, related_name="availabilities")
+    weekday = models.PositiveSmallIntegerField("dia da semana", choices=Weekday.choices)
+    starts_at = models.TimeField("inicio")
+    ends_at = models.TimeField("fim")
+    valid_from = models.DateField("valido a partir de", default=timezone.localdate)
+    valid_until = models.DateField("valido ate", null=True, blank=True)
+    active = models.BooleanField("ativo", default=True)
+    notes = models.CharField("observacoes", max_length=180, blank=True)
+
+    objects = ProfessionalAvailabilityQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["professional__full_name", "weekday", "starts_at"]
+        verbose_name = "disponibilidade profissional"
+        verbose_name_plural = "disponibilidades profissionais"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["professional", "weekday", "starts_at", "ends_at", "valid_from"],
+                name="unique_professional_availability_window",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.professional} - {self.get_weekday_display()} {self.starts_at:%H:%M}-{self.ends_at:%H:%M}"
+
+    def clean(self):
+        super().clean()
+        if self.ends_at <= self.starts_at:
+            raise ValidationError({"ends_at": "O fim deve ser posterior ao inicio."})
+        if self.valid_until and self.valid_until < self.valid_from:
+            raise ValidationError({"valid_until": "A data final nao pode ser anterior ao inicio."})
 
 
 class ServicePackage(TimeStampedModel):

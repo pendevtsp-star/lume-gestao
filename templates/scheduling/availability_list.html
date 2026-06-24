@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Disponibilidade | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Agenda</p>
+    <h1>Disponibilidade</h1>
+  </div>
+  <a class="button primary" href="{% url 'scheduling:availability_create' %}">Nova disponibilidade</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar profissional ou observacao">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Profissional</th>
+          <th>Recorrencia</th>
+          <th>Horario</th>
+          <th>Periodo</th>
+          <th>Status</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for availability in availabilities %}
+          <tr>
+            <td><strong>{{ availability.professional.full_name }}</strong></td>
+            <td>{{ availability.get_weekday_display }}</td>
+            <td>{{ availability.starts_at|time:"H:i" }} ate {{ availability.ends_at|time:"H:i" }}</td>
+            <td>
+              {{ availability.valid_from|date:"d/m/Y" }}
+              <small>{% if availability.valid_until %}ate {{ availability.valid_until|date:"d/m/Y" }}{% else %}sem data final{% endif %}</small>
+            </td>
+            <td><span class="badge {% if availability.active %}active{% else %}canceled{% endif %}">{% if availability.active %}Ativa{% else %}Inativa{% endif %}</span></td>
+            <td class="right"><a class="table-action" href="{% url 'scheduling:availability_update' availability.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">Nenhuma disponibilidade cadastrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

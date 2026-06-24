@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from core.serializers import ModelCleanSerializerMixin
-from scheduling.models import Appointment, ServicePackage, ServiceUsage
+from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
 
 
 class AppointmentSerializer(ModelCleanSerializerMixin, serializers.ModelSerializer):
@@ -10,6 +10,14 @@ class AppointmentSerializer(ModelCleanSerializerMixin, serializers.ModelSerializ
 
     class Meta:
         model = Appointment
+        fields = "__all__"
+
+
+class ProfessionalAvailabilitySerializer(ModelCleanSerializerMixin, serializers.ModelSerializer):
+    professional_name = serializers.CharField(source="professional.full_name", read_only=True)
+
+    class Meta:
+        model = ProfessionalAvailability
         fields = "__all__"
 
 

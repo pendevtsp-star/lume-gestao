@@ -88,7 +88,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             upcoming_payments = upcoming_payments.none()
             overdue_payments = overdue_payments.none()
 
-        appointment_queryset = Appointment.objects.select_related("patient", "professional").filter(starts_at__date__gte=today)
+        appointment_queryset = (
+            Appointment.objects.select_related("patient", "professional")
+            .filter(starts_at__date__gte=today)
+            .exclude(status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED])
+        )
         if not self.request.user.is_superuser:
             if profile and profile.is_patient and profile.patient_id:
                 appointment_queryset = appointment_queryset.filter(patient=profile.patient)

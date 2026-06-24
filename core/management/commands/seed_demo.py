@@ -9,7 +9,7 @@ from accounts.models import UserProfile
 from billing.models import Charge, Expense, Membership, Payment, ServicePlan
 from core.models import ClinicSettings
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
-from scheduling.models import Appointment, ServicePackage
+from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage
 from team.models import Employee, Professional
 
 
@@ -111,6 +111,20 @@ class Command(BaseCommand):
                 professional=laura,
                 defaults={"active": True, "notes": "Aulas de pilates."},
             )
+
+        for professional in (helena, laura):
+            for weekday in range(0, 5):
+                ProfessionalAvailability.objects.update_or_create(
+                    professional=professional,
+                    weekday=weekday,
+                    starts_at=time(8, 0),
+                    ends_at=time(18, 0),
+                    valid_from=timezone.localdate().replace(day=1),
+                    defaults={
+                        "active": True,
+                        "notes": "Grade recorrente demonstrativa.",
+                    },
+                )
 
         pilates, _ = ServicePlan.objects.update_or_create(
             name="Pilates 2x por semana",

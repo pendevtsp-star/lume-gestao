@@ -20,8 +20,13 @@
 
       <nav class="nav">
         <a href="{% url 'dashboard' %}">Dashboard</a>
-        <a href="{% url 'patients:list' %}">Pacientes</a>
+        {% if request.user.profile.role != "patient" %}
+          <a href="{% url 'patients:list' %}">Pacientes</a>
+        {% endif %}
         <a href="{% url 'scheduling:appointments' %}">Agenda</a>
+        {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
+          <a href="{% url 'scheduling:availabilities' %}">Disponibilidade</a>
+        {% endif %}
         <a href="{% url 'patients:notes' %}">Anotacoes</a>
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
           <a href="{% url 'billing:memberships' %}">Mensalidades</a>

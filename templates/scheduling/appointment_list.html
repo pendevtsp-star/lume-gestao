@@ -8,7 +8,12 @@
     <p class="eyebrow">Agenda</p>
     <h1>Agendamentos</h1>
   </div>
-  <a class="button primary" href="{% url 'scheduling:appointment_create' %}">Novo agendamento</a>
+  <div class="panel-actions">
+    {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
+      <a class="button secondary" href="{% url 'scheduling:availabilities' %}">Disponibilidade</a>
+    {% endif %}
+    <a class="button primary" href="{% url 'scheduling:appointment_create' %}">Novo agendamento</a>
+  </div>
 </section>
 
 <section class="panel">
@@ -24,7 +29,7 @@
           <th>Paciente</th>
           <th>Profissional</th>
           <th>Status</th>
-          <th>Consumo</th>
+          <th>Creditos</th>
           <th class="right">Acao</th>
         </tr>
       </thead>
@@ -35,10 +40,19 @@
             <td>{{ appointment.patient.full_name }}</td>
             <td>{{ appointment.professional.full_name }}</td>
             <td><span class="badge {{ appointment.status }}">{{ appointment.get_status_display }}</span></td>
-            <td>{{ appointment.service_units }}</td>
+            <td>{{ appointment.displayed_credit_units }}</td>
             <td class="right table-actions">
-              <a class="table-action" href="{% url 'scheduling:appointment_update' appointment.pk %}">Editar</a>
-              {% if appointment.status != "completed" and request.user.profile.role != "patient" %}
+              {% if request.user.profile.role != "patient" %}
+                <a class="table-action" href="{% url 'scheduling:appointment_update' appointment.pk %}">Editar</a>
+              {% endif %}
+              {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" %}
+                <a class="table-action" href="{% url 'scheduling:appointment_reschedule' appointment.pk %}">Reagendar</a>
+                <form method="post" action="{% url 'scheduling:appointment_cancel' appointment.pk %}">
+                  {% csrf_token %}
+                  <button class="table-action button-link" type="submit">Cancelar</button>
+                </form>
+              {% endif %}
+              {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" and request.user.profile.role != "patient" %}
                 <form method="post" action="{% url 'scheduling:appointment_complete' appointment.pk %}">
                   {% csrf_token %}
                   <button class="table-action button-link" type="submit">Baixar</button>

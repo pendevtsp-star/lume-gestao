@@ -8,7 +8,9 @@
     <p class="eyebrow">Visao geral</p>
     <h1>Dashboard</h1>
   </div>
-  <a class="button primary" href="{% url 'patients:create' %}">Novo paciente</a>
+  {% if finance_visible %}
+    <a class="button primary" href="{% url 'patients:create' %}">Novo paciente</a>
+  {% endif %}
 </section>
 
 <section class="metric-grid">
@@ -85,7 +87,12 @@
       <h2>Agenda</h2>
       <p>Proximos atendimentos agendados ou solicitados.</p>
     </div>
-    <a class="button secondary" href="{% url 'scheduling:appointments' %}">Ver agenda</a>
+    <div class="panel-actions">
+      {% if request.user.profile.role == "professional" or finance_visible %}
+        <a class="button secondary" href="{% url 'scheduling:availabilities' %}">Disponibilidade</a>
+      {% endif %}
+      <a class="button secondary" href="{% url 'scheduling:appointments' %}">Ver agenda</a>
+    </div>
   </header>
 
   <div class="table-wrap">

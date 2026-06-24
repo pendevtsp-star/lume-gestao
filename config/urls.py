@@ -22,7 +22,12 @@ from rest_framework.routers import DefaultRouter
 from accounts.api import UserProfileViewSet
 from billing.api import ChargeViewSet, ExpenseViewSet, MembershipViewSet, PaymentViewSet, ServicePlanViewSet
 from patients.api import PatientViewSet, ProfessionalNoteViewSet, ProfessionalPatientAssignmentViewSet
-from scheduling.api import AppointmentViewSet, ServicePackageViewSet, ServiceUsageViewSet
+from scheduling.api import (
+    AppointmentViewSet,
+    ProfessionalAvailabilityViewSet,
+    ServicePackageViewSet,
+    ServiceUsageViewSet,
+)
 from team.api import EmployeeViewSet, ProfessionalViewSet
 
 router = DefaultRouter()
@@ -38,6 +43,7 @@ router.register(r'payments', PaymentViewSet)
 router.register(r'expenses', ExpenseViewSet)
 router.register(r'charges', ChargeViewSet)
 router.register(r'appointments', AppointmentViewSet)
+router.register(r'professional-availabilities', ProfessionalAvailabilityViewSet)
 router.register(r'service-packages', ServicePackageViewSet)
 router.register(r'service-usages', ServiceUsageViewSet)
 

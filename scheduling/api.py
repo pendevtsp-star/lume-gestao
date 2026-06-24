@@ -1,7 +1,12 @@
 from rest_framework.viewsets import ModelViewSet
 
-from scheduling.models import Appointment, ServicePackage, ServiceUsage
-from scheduling.serializers import AppointmentSerializer, ServicePackageSerializer, ServiceUsageSerializer
+from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.serializers import (
+    AppointmentSerializer,
+    ProfessionalAvailabilitySerializer,
+    ServicePackageSerializer,
+    ServiceUsageSerializer,
+)
 
 
 class AppointmentViewSet(ModelViewSet):
@@ -10,6 +15,14 @@ class AppointmentViewSet(ModelViewSet):
     filterset_fields = ["status", "patient", "professional", "starts_at"]
     search_fields = ["patient__full_name", "professional__full_name", "notes"]
     ordering_fields = ["starts_at", "ends_at", "created_at"]
+
+
+class ProfessionalAvailabilityViewSet(ModelViewSet):
+    queryset = ProfessionalAvailability.objects.select_related("professional")
+    serializer_class = ProfessionalAvailabilitySerializer
+    filterset_fields = ["active", "professional", "weekday"]
+    search_fields = ["professional__full_name", "notes"]
+    ordering_fields = ["weekday", "starts_at", "created_at"]
 
 
 class ServicePackageViewSet(ModelViewSet):

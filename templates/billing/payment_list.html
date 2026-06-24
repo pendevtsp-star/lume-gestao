@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Pagamentos | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Financeiro</p>
+    <h1>Pagamentos</h1>
+  </div>
+  <a class="button primary" href="{% url 'billing:payment_create' %}">Novo pagamento</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, plano, status ou metodo">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Referencia</th>
+          <th>Vencimento</th>
+          <th>Status</th>
+          <th>Metodo</th>
+          <th class="right">Valor</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for payment in payments %}
+          <tr>
+            <td>
+              <strong>{{ payment.membership.patient.full_name }}</strong>
+              <small>{{ payment.membership.plan.name }}</small>
+            </td>
+            <td>{{ payment.reference_month|date:"m/Y" }}</td>
+            <td>{{ payment.due_date|date:"d/m/Y" }}</td>
+            <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
+            <td>{{ payment.get_method_display }}</td>
+            <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
+            <td class="right"><a class="table-action" href="{% url 'billing:payment_update' payment.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="empty">Nenhum pagamento encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

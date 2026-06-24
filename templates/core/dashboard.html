@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Visao geral</p>
+    <h1>Dashboard</h1>
+  </div>
+  <a class="button primary" href="{% url 'patients:create' %}">Novo paciente</a>
+</section>
+
+<section class="metric-grid">
+  <article class="metric">
+    <span>Pacientes ativos</span>
+    <strong>{{ active_patients }}</strong>
+  </article>
+  <article class="metric">
+    <span>Mensalidades ativas</span>
+    <strong>{{ active_memberships }}</strong>
+  </article>
+  <article class="metric">
+    <span>Profissionais</span>
+    <strong>{{ active_professionals }}</strong>
+  </article>
+  <article class="metric">
+    <span>Planos ativos</span>
+    <strong>{{ active_plans }}</strong>
+  </article>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Financeiro</h2>
+        <p>Resumo do controle manual de mensalidades.</p>
+      </div>
+    </header>
+    <div class="finance-totals">
+      <div>
+        <span>Pendente/vencido</span>
+        <strong>R$ {{ pending_total|floatformat:2 }}</strong>
+      </div>
+      <div>
+        <span>Recebido no mes</span>
+        <strong>R$ {{ paid_month_total|floatformat:2 }}</strong>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Equipe</h2>
+        <p>Base operacional cadastrada.</p>
+      </div>
+    </header>
+    <div class="finance-totals">
+      <div>
+        <span>Funcionarios</span>
+        <strong>{{ employees }}</strong>
+      </div>
+      <div>
+        <span>Profissionais ativos</span>
+        <strong>{{ active_professionals }}</strong>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="panel">
+  <header class="panel-header">
+    <div>
+      <h2>Proximos pagamentos</h2>
+      <p>Pagamentos pendentes e vencidos para acompanhamento.</p>
+    </div>
+    <a class="button secondary" href="{% url 'billing:payments' %}">Ver todos</a>
+  </header>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Plano</th>
+          <th>Vencimento</th>
+          <th>Status</th>
+          <th class="right">Valor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for payment in next_payments %}
+          <tr>
+            <td>{{ payment.membership.patient.full_name }}</td>
+            <td>{{ payment.membership.plan.name }}</td>
+            <td>{{ payment.due_date|date:"d/m/Y" }}</td>
+            <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
+            <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" class="empty">Nenhum pagamento pendente.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

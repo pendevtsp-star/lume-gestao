@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Funcionarios | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Equipe</p>
+    <h1>Funcionarios</h1>
+  </div>
+  <a class="button primary" href="{% url 'team:employee_create' %}">Novo funcionario</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar funcionarios">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Funcao</th>
+          <th>Contato</th>
+          <th>Status</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for employee in employees %}
+          <tr>
+            <td><strong>{{ employee.full_name }}</strong></td>
+            <td>{{ employee.get_role_display }}</td>
+            <td>{{ employee.phone|default:employee.email|default:"-" }}</td>
+            <td><span class="badge {% if employee.active %}active{% else %}canceled{% endif %}">{% if employee.active %}Ativo{% else %}Inativo{% endif %}</span></td>
+            <td class="right"><a class="table-action" href="{% url 'team:employee_update' employee.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty">Nenhum funcionario encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

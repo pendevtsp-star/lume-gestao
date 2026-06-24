@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Planos | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Financeiro</p>
+    <h1>Planos</h1>
+  </div>
+  <a class="button primary" href="{% url 'billing:plan_create' %}">Novo plano</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar planos">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Plano</th>
+          <th>Categoria</th>
+          <th>Sessoes/semana</th>
+          <th>Status</th>
+          <th class="right">Valor</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for plan in plans %}
+          <tr>
+            <td><strong>{{ plan.name }}</strong></td>
+            <td>{{ plan.get_category_display }}</td>
+            <td>{{ plan.sessions_per_week }}</td>
+            <td><span class="badge {% if plan.active %}active{% else %}canceled{% endif %}">{% if plan.active %}Ativo{% else %}Inativo{% endif %}</span></td>
+            <td class="right">R$ {{ plan.monthly_price|floatformat:2 }}</td>
+            <td class="right"><a class="table-action" href="{% url 'billing:plan_update' plan.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">Nenhum plano encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

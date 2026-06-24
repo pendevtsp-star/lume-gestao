@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Profissionais | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Equipe</p>
+    <h1>Profissionais</h1>
+  </div>
+  <a class="button primary" href="{% url 'team:professional_create' %}">Novo profissional</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar profissionais">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Especialidade</th>
+          <th>Registro</th>
+          <th>Status</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for professional in professionals %}
+          <tr>
+            <td>
+              <strong>{{ professional.full_name }}</strong>
+              {% if professional.phone %}<small>{{ professional.phone }}</small>{% endif %}
+            </td>
+            <td>{{ professional.get_specialty_display }}</td>
+            <td>{{ professional.registration_number|default:"-" }}</td>
+            <td><span class="badge {% if professional.active %}active{% else %}canceled{% endif %}">{% if professional.active %}Ativo{% else %}Inativo{% endif %}</span></td>
+            <td class="right"><a class="table-action" href="{% url 'team:professional_update' professional.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty">Nenhum profissional encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

@@ -1,26 +1,53 @@
-from rest_framework.viewsets import ModelViewSet
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.viewsets import ModelViewSet
 
+from accounts.models import UserProfile
 from accounts.permissions import get_profile
+from core.api_permissions import ClinicApiPermission, FinanceApiPermission, ProfessionalApiPermission
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
 from patients.serializers import (
     PatientSerializer,
     ProfessionalNoteSerializer,
     ProfessionalPatientAssignmentSerializer,
 )
+from patients.views import patients_for_user
 
 
 class PatientViewSet(ModelViewSet):
     queryset = Patient.objects.all()
     serializer_class = PatientSerializer
+    permission_classes = [ClinicApiPermission]
     filterset_fields = ["active"]
     search_fields = ["full_name", "cpf", "phone", "email"]
     ordering_fields = ["full_name", "created_at"]
+
+    def get_queryset(self):
+        return patients_for_user(self.request.user)
+
+    def require_administration(self):
+        if self.request.user.is_superuser:
+            return
+        profile = get_profile(self.request.user)
+        if not profile or profile.role not in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+            raise PermissionDenied("Apenas administracao ou gerencia podem alterar pacientes pela API.")
+
+    def perform_create(self, serializer):
+        self.require_administration()
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self.require_administration()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self.require_administration()
+        instance.delete()
 
 
 class ProfessionalPatientAssignmentViewSet(ModelViewSet):
     queryset = ProfessionalPatientAssignment.objects.select_related("patient", "professional")
     serializer_class = ProfessionalPatientAssignmentSerializer
+    permission_classes = [FinanceApiPermission]
     filterset_fields = ["active", "patient", "professional"]
     search_fields = ["patient__full_name", "professional__full_name", "notes"]
     ordering_fields = ["created_at", "updated_at"]
@@ -29,6 +56,7 @@ class ProfessionalPatientAssignmentViewSet(ModelViewSet):
 class ProfessionalNoteViewSet(ModelViewSet):
     queryset = ProfessionalNote.objects.select_related("patient", "professional")
     serializer_class = ProfessionalNoteSerializer
+    permission_classes = [ProfessionalApiPermission]
     filterset_fields = ["patient", "professional"]
     search_fields = ["patient__full_name", "professional__full_name", "title", "body"]
     ordering_fields = ["created_at", "updated_at"]

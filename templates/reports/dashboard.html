@@ -8,6 +8,10 @@
     <p class="eyebrow">Gestao comercial</p>
     <h1>Relatorios</h1>
   </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'reports:export' 'pdf' %}?start={{ start }}&end={{ end }}">Exportar PDF</a>
+    <a class="button secondary" href="{% url 'reports:export' 'xlsx' %}?start={{ start }}&end={{ end }}">Exportar Excel</a>
+  </div>
 </section>
 
 <section class="panel report-filter-panel">

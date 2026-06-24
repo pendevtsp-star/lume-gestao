@@ -62,6 +62,20 @@ class ReportsAccessTests(TestCase):
         self.assertContains(response, "R$ 400,00")
         self.assertContains(response, "Dra. Relatorio")
 
+    def test_management_can_export_reports_pdf_and_excel(self):
+        self.client.force_login(self.user)
+
+        pdf_response = self.client.get(reverse("reports:export", args=["pdf"]))
+        xlsx_response = self.client.get(reverse("reports:export", args=["xlsx"]))
+
+        self.assertEqual(pdf_response.status_code, 200)
+        self.assertEqual(pdf_response["Content-Type"], "application/pdf")
+        self.assertEqual(xlsx_response.status_code, 200)
+        self.assertEqual(
+            xlsx_response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
     def test_patient_cannot_access_reports(self):
         patient = Patient.objects.create(full_name="Paciente Sem Relatorio")
         user = get_user_model().objects.create_user(username="paciente-relatorio", password="Senha@123")

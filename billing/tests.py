@@ -123,3 +123,12 @@ class BillingModelTests(TestCase):
         self.assertContains(response, "Aluguel sala")
         self.assertNotContains(response, "Faixas elasticas")
         self.assertContains(response, "R$ 1000,00")
+
+    def test_patient_cannot_access_finance_api(self):
+        user = get_user_model().objects.create_user(username="paciente-finance-api", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient})
+        self.client.force_login(user)
+
+        response = self.client.get("/api/v1/payments/")
+
+        self.assertEqual(response.status_code, 403)

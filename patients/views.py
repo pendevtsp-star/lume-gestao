@@ -4,10 +4,12 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.urls import reverse_lazy
+from django.views import View
 from django.views.generic import CreateView, ListView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.permissions import RoleRequiredMixin, get_profile
+from core.exports import pdf_response, xlsx_response
 from core.views import FormContextMixin, SearchableListView
 from patients.forms import PatientForm, ProfessionalNoteForm, ProfessionalPatientAssignmentForm
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
@@ -261,5 +263,91 @@ class ProfessionalNoteUpdateView(ProfessionalNoteFormMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Evolucao atualizada com sucesso.")
         return super().form_valid(form)
+
+
+class ProfessionalRecordExportView(ProfessionalRecordAccessMixin, View):
+    def dispatch(self, request, *args, **kwargs):
+        self.patient = get_object_or_404(patients_for_user(request.user), pk=kwargs["patient_pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_notes(self):
+        professional = self.get_professional()
+        if not professional:
+            return ProfessionalNote.objects.none()
+        return ProfessionalNote.objects.filter(patient=self.patient, professional=professional).order_by("created_at")
+
+    def patient_rows(self):
+        patient = self.patient
+        return [
+            ("Nome", patient.full_name),
+            ("CPF", patient.cpf or "-"),
+            ("Nascimento", patient.birth_date.strftime("%d/%m/%Y") if patient.birth_date else "-"),
+            ("Telefone", patient.phone or "-"),
+            ("E-mail", patient.email or "-"),
+            ("Contato de emergencia", patient.emergency_contact or "-"),
+            ("Endereco", patient.address or "-"),
+            ("Observacoes clinicas", patient.clinical_notes or "-"),
+            ("Status", "Ativo" if patient.active else "Inativo"),
+        ]
+
+    def professional_rows(self):
+        professional = self.get_professional()
+        return [
+            ("Nome", professional.full_name),
+            ("Especialidade", professional.get_specialty_display()),
+            ("Registro", professional.registration_number or "-"),
+            ("Telefone", professional.phone or "-"),
+            ("E-mail", professional.email or "-"),
+            ("Observacoes", professional.bio or "-"),
+        ]
+
+    def note_rows(self):
+        return [
+            (
+                note.created_at.strftime("%d/%m/%Y %H:%M"),
+                note.updated_at.strftime("%d/%m/%Y %H:%M"),
+                note.title,
+                note.body,
+            )
+            for note in self.get_notes()
+        ]
+
+    def get(self, request, *args, **kwargs):
+        export_format = kwargs["export_format"]
+        if export_format == "xlsx":
+            return self.export_xlsx()
+        return self.export_pdf()
+
+    def export_xlsx(self):
+        safe_name = self.patient.full_name.lower().replace(" ", "_")
+        return xlsx_response(
+            f"prontuario_{safe_name}.xlsx",
+            [
+                ("Paciente", ["Campo", "Valor"], self.patient_rows()),
+                ("Profissional", ["Campo", "Valor"], self.professional_rows()),
+                ("Evolucoes", ["Criado em", "Atualizado em", "Titulo", "Evolucao"], self.note_rows()),
+            ],
+        )
+
+    def export_pdf(self):
+        sections = [
+            ("Paciente", [f"{label}: {value}" for label, value in self.patient_rows()]),
+            ("Profissional", [f"{label}: {value}" for label, value in self.professional_rows()]),
+        ]
+        tables = [
+            (
+                "Evolucoes registradas pelo profissional",
+                ["Criado em", "Atualizado em", "Titulo", "Evolucao"],
+                self.note_rows(),
+            )
+        ]
+        safe_name = self.patient.full_name.lower().replace(" ", "_")
+        return pdf_response(
+            f"prontuario_{safe_name}.pdf",
+            f"Prontuario - {self.patient.full_name}",
+            sections=sections,
+            tables=tables,
+            landscape_page=True,
+        )
 
 # Create your views here.

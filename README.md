@@ -21,6 +21,7 @@ Sistema local de gestao para uma clinica de fisioterapia e pilates.
 - Reagendamento e cancelamento sem consumo de creditos do pacote.
 - Disponibilidade recorrente por profissional para orientar os horarios possiveis.
 - Criacao e reagendamento guiados por horarios livres, sem entrada manual de data/hora pelo usuario.
+- Exportacao de relatorios e prontuarios em PDF e Excel.
 - Pacotes de atendimentos com contador de aulas/sessoes restantes.
 - Despesas e cobrancas avulsas no painel financeiro.
 - Categorias editaveis de despesas, com controle de tipo fixo ou variavel.
@@ -28,6 +29,7 @@ Sistema local de gestao para uma clinica de fisioterapia e pilates.
 - Lembrete configuravel de mensalidades proximas do vencimento.
 - Painel de inadimplentes.
 - Auditoria automatica com filtros por periodo, acao, modelo e detalhamento de campos alterados.
+- API com filtragem por perfil e permissao por objeto para dados clinicos, agenda e financeiro.
 
 ## Rodando localmente no Windows
 
@@ -78,6 +80,43 @@ Para parar o container:
 ```bash
 docker compose down
 ```
+
+## Rodando em outra maquina Linux
+
+Em uma maquina Linux com Docker e Docker Compose instalados:
+
+```bash
+git clone https://github.com/pendevtsp-star/lume-gestao.git
+cd lume-gestao
+cp .env.example .env
+```
+
+Edite o `.env` e inclua o IP da maquina Linux em `ALLOWED_HOSTS`, por exemplo:
+
+```text
+ALLOWED_HOSTS=127.0.0.1,localhost,192.168.0.50
+DEBUG=True
+```
+
+Depois suba o sistema:
+
+```bash
+docker compose up --build
+```
+
+Na propria maquina Linux, acesse:
+
+```text
+http://127.0.0.1:8000
+```
+
+Em outro computador da mesma rede, acesse pelo IP da maquina Linux:
+
+```text
+http://192.168.0.50:8000
+```
+
+Se o navegador de outra maquina nao abrir, verifique firewall/liberacao da porta `8000` na maquina Linux. Para testar com dados demonstrativos, basta iniciar o container; para levar dados reais de outra instalacao SQLite, copie tambem o arquivo `db.sqlite3` com o sistema parado.
 
 ## Versionamento
 

@@ -107,3 +107,49 @@ class PatientAccessTests(TestCase):
         response = self.client.get(reverse("patients:note_update", args=[patient.pk, note.pk]))
 
         self.assertEqual(response.status_code, 404)
+
+    def test_professional_can_export_own_patient_record(self):
+        patient = Patient.objects.create(full_name="Paciente Exportacao", phone="11999998888")
+        professional = Professional.objects.create(
+            full_name="Dra. Exportadora",
+            specialty=Professional.Specialty.PHYSIOTHERAPY,
+            registration_number="CREFITO-999",
+        )
+        ProfessionalPatientAssignment.objects.create(patient=patient, professional=professional)
+        ProfessionalNote.objects.create(
+            patient=patient,
+            professional=professional,
+            title="Evolucao exportavel",
+            body="Paciente evoluindo bem.",
+        )
+        user = get_user_model().objects.create_user(username="prof-exporta", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": professional},
+        )
+        self.client.force_login(user)
+
+        pdf_response = self.client.get(reverse("patients:note_export", args=[patient.pk, "pdf"]))
+        xlsx_response = self.client.get(reverse("patients:note_export", args=[patient.pk, "xlsx"]))
+
+        self.assertEqual(pdf_response.status_code, 200)
+        self.assertEqual(pdf_response["Content-Type"], "application/pdf")
+        self.assertEqual(xlsx_response.status_code, 200)
+        self.assertEqual(
+            xlsx_response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    def test_patient_api_only_returns_own_patient(self):
+        own = Patient.objects.create(full_name="Paciente API Proprio")
+        other = Patient.objects.create(full_name="Paciente API Outro")
+        user = get_user_model().objects.create_user(username="paciente-api", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.PATIENT, "patient": own})
+        self.client.force_login(user)
+
+        list_response = self.client.get("/api/v1/patients/")
+        detail_response = self.client.get(f"/api/v1/patients/{other.pk}/")
+
+        self.assertContains(list_response, own.full_name)
+        self.assertNotContains(list_response, other.full_name)
+        self.assertEqual(detail_response.status_code, 404)

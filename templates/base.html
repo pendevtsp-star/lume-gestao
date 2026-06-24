@@ -21,11 +21,23 @@
       <nav class="nav">
         <a href="{% url 'dashboard' %}">Dashboard</a>
         <a href="{% url 'patients:list' %}">Pacientes</a>
-        <a href="{% url 'billing:memberships' %}">Mensalidades</a>
-        <a href="{% url 'billing:payments' %}">Pagamentos</a>
-        <a href="{% url 'billing:plans' %}">Planos</a>
-        <a href="{% url 'team:professionals' %}">Profissionais</a>
-        <a href="{% url 'team:employees' %}">Funcionarios</a>
+        <a href="{% url 'scheduling:appointments' %}">Agenda</a>
+        <a href="{% url 'patients:notes' %}">Anotacoes</a>
+        {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+          <a href="{% url 'billing:memberships' %}">Mensalidades</a>
+          <a href="{% url 'billing:payments' %}">Pagamentos</a>
+          <a href="{% url 'billing:charges' %}">Cobrancas</a>
+          <a href="{% url 'billing:expenses' %}">Despesas</a>
+          <a href="{% url 'scheduling:packages' %}">Pacotes</a>
+          <a href="{% url 'billing:plans' %}">Planos</a>
+          <a href="{% url 'patients:assignments' %}">Vinculos</a>
+          <a href="{% url 'team:professionals' %}">Profissionais</a>
+          <a href="{% url 'team:employees' %}">Funcionarios</a>
+        {% endif %}
+        {% if request.user.is_superuser or request.user.profile.role == "management" %}
+          <a href="{% url 'accounts:list' %}">Usuarios</a>
+          <a href="{% url 'audit' %}">Auditoria</a>
+        {% endif %}
       </nav>
 
       <div class="sidebar-footer">

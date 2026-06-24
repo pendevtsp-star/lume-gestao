@@ -1,12 +1,15 @@
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from billing.models import Membership, Payment, ServicePlan
-from patients.models import Patient
+from accounts.models import UserProfile
+from billing.models import Charge, Expense, Membership, Payment, ServicePlan
+from core.models import ClinicSettings
+from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
+from scheduling.models import Appointment, ServicePackage
 from team.models import Employee, Professional
 
 
@@ -29,6 +32,8 @@ class Command(BaseCommand):
         if created:
             user.set_password("Lume@12345")
             user.save(update_fields=["password"])
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        ClinicSettings.load()
 
         patients = [
             ("Marina Alves", "11987654321", "marina@example.com", "12345678901"),
@@ -51,7 +56,7 @@ class Command(BaseCommand):
             )
             patient_objects.append(patient)
 
-        Employee.objects.update_or_create(
+        reception_employee, _ = Employee.objects.update_or_create(
             full_name="Sofia Martins",
             defaults={"role": Employee.Role.RECEPTION, "phone": "11911112222", "email": "sofia@lume.local"},
         )
@@ -60,7 +65,7 @@ class Command(BaseCommand):
             defaults={"role": Employee.Role.FINANCE, "phone": "11933334444", "email": "lucas@lume.local"},
         )
 
-        Professional.objects.update_or_create(
+        helena, _ = Professional.objects.update_or_create(
             full_name="Dra. Helena Prado",
             defaults={
                 "specialty": Professional.Specialty.PHYSIOTHERAPY,
@@ -69,7 +74,7 @@ class Command(BaseCommand):
                 "email": "helena@lume.local",
             },
         )
-        Professional.objects.update_or_create(
+        laura, _ = Professional.objects.update_or_create(
             full_name="Laura Menezes",
             defaults={
                 "specialty": Professional.Specialty.PILATES,
@@ -78,6 +83,34 @@ class Command(BaseCommand):
                 "email": "laura@lume.local",
             },
         )
+
+        demo_users = [
+            ("recepcao", "Recepcao@123", UserProfile.Role.ADMINISTRATION, None, None),
+            ("helena", "Helena@123", UserProfile.Role.PROFESSIONAL, None, helena),
+            ("marina", "Marina@123", UserProfile.Role.PATIENT, patient_objects[0], None),
+        ]
+        for username, password, role, patient, professional in demo_users:
+            demo_user, demo_created = user_model.objects.get_or_create(username=username)
+            if demo_created:
+                demo_user.set_password(password)
+                demo_user.email = f"{username}@lume.local"
+                demo_user.save()
+            UserProfile.objects.update_or_create(
+                user=demo_user,
+                defaults={"role": role, "patient": patient, "professional": professional},
+            )
+
+        for patient in patient_objects[:3]:
+            ProfessionalPatientAssignment.objects.update_or_create(
+                patient=patient,
+                professional=helena,
+                defaults={"active": True, "notes": "Acompanhamento fisioterapeutico."},
+            )
+            ProfessionalPatientAssignment.objects.update_or_create(
+                patient=patient,
+                professional=laura,
+                defaults={"active": True, "notes": "Aulas de pilates."},
+            )
 
         pilates, _ = ServicePlan.objects.update_or_create(
             name="Pilates 2x por semana",
@@ -147,5 +180,71 @@ class Command(BaseCommand):
                     "paid_at": paid_at,
                 },
             )
+
+        for membership in membership_objects:
+            ServicePackage.objects.update_or_create(
+                membership=membership,
+                status=ServicePackage.Status.ACTIVE,
+                defaults={
+                    "total_sessions": 8,
+                    "used_sessions": 2 if membership == membership_objects[0] else 1,
+                    "starts_on": current_month,
+                    "expires_on": add_months(current_month, 1),
+                },
+            )
+
+        today = timezone.localdate()
+
+        def aware_at(day_offset, hour, minute=0):
+            return timezone.make_aware(datetime.combine(today + timedelta(days=day_offset), time(hour, minute)))
+
+        Appointment.objects.update_or_create(
+            patient=patient_objects[0],
+            professional=helena,
+            starts_at=aware_at(1, 9),
+            defaults={
+                "ends_at": aware_at(1, 10),
+                "status": Appointment.Status.SCHEDULED,
+                "booking_source": Appointment.BookingSource.ADMINISTRATION,
+                "booked_by": user,
+                "service_units": 1,
+                "notes": "Sessao de reavaliacao.",
+            },
+        )
+        Appointment.objects.update_or_create(
+            patient=patient_objects[1],
+            professional=laura,
+            starts_at=aware_at(2, 14),
+            defaults={
+                "ends_at": aware_at(2, 15),
+                "status": Appointment.Status.REQUESTED,
+                "booking_source": Appointment.BookingSource.PATIENT,
+                "service_units": 1,
+                "notes": "Solicitacao demonstrativa pelo paciente.",
+            },
+        )
+
+        ProfessionalNote.objects.update_or_create(
+            patient=patient_objects[0],
+            professional=helena,
+            title="Evolucao inicial",
+            defaults={"body": "Paciente relata melhora de mobilidade. Manter acompanhamento semanal."},
+        )
+
+        Expense.objects.update_or_create(
+            description="Aluguel da sala",
+            due_date=date(today.year, today.month, 5),
+            defaults={
+                "category": Expense.Category.RENT,
+                "amount": Decimal("1800.00"),
+                "status": Expense.Status.OPEN,
+            },
+        )
+        Charge.objects.update_or_create(
+            description="Sessao avulsa de massagem",
+            patient=patient_objects[3],
+            due_date=today + timedelta(days=3),
+            defaults={"amount": Decimal("160.00"), "status": Charge.Status.OPEN},
+        )
 
         self.stdout.write(self.style.SUCCESS("Dados demonstrativos criados. Usuario: admin | Senha: Lume@12345"))

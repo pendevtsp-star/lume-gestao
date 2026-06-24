@@ -244,6 +244,10 @@ h2 {
   margin-bottom: 18px;
 }
 
+.stacked-panel {
+  margin-top: 18px;
+}
+
 .panel {
   overflow: hidden;
 }
@@ -363,8 +367,19 @@ td small {
 }
 
 .table-action {
+  border: 0;
+  background: transparent;
   color: var(--sage-dark);
+  cursor: pointer;
   font-weight: 800;
+  padding: 0;
+}
+
+.table-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  white-space: nowrap;
 }
 
 .empty {

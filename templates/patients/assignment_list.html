@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Vinculos | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Pacientes</p>
+    <h1>Vinculos</h1>
+  </div>
+  <a class="button primary" href="{% url 'patients:assignment_create' %}">Novo vinculo</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar paciente ou profissional">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Profissional</th>
+          <th>Status</th>
+          <th>Observacoes</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for assignment in assignments %}
+          <tr>
+            <td><strong>{{ assignment.patient.full_name }}</strong></td>
+            <td>{{ assignment.professional.full_name }}</td>
+            <td><span class="badge {% if assignment.active %}active{% else %}canceled{% endif %}">{% if assignment.active %}Ativo{% else %}Inativo{% endif %}</span></td>
+            <td>{{ assignment.notes|default:"-" }}</td>
+            <td class="right"><a class="table-action" href="{% url 'patients:assignment_update' assignment.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty">Nenhum vinculo encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from billing.models import Membership, Payment, ServicePlan
+from billing.models import Charge, Expense, Membership, Payment, ServicePlan
 
 
 @admin.register(ServicePlan)
@@ -22,3 +22,17 @@ class PaymentAdmin(admin.ModelAdmin):
     list_display = ("membership", "reference_month", "due_date", "amount", "status", "method")
     list_filter = ("status", "method", "due_date")
     search_fields = ("membership__patient__full_name", "membership__plan__name")
+
+
+@admin.register(Expense)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display = ("description", "category", "due_date", "amount", "status")
+    list_filter = ("category", "status", "due_date")
+    search_fields = ("description",)
+
+
+@admin.register(Charge)
+class ChargeAdmin(admin.ModelAdmin):
+    list_display = ("description", "patient", "due_date", "amount", "status")
+    list_filter = ("status", "due_date")
+    search_fields = ("description", "patient__full_name")

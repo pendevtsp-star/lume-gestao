@@ -1,5 +1,7 @@
 from django import forms
 
+from core.models import ClinicSettings
+
 
 class StyledModelForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
@@ -10,3 +12,9 @@ class StyledModelForm(forms.ModelForm):
                 widget.attrs.setdefault("class", "checkbox")
             else:
                 widget.attrs.setdefault("class", "field-control")
+
+
+class ClinicSettingsForm(StyledModelForm):
+    class Meta:
+        model = ClinicSettings
+        fields = ["membership_due_reminder_days"]

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Agenda | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Agenda</p>
+    <h1>Agendamentos</h1>
+  </div>
+  <a class="button primary" href="{% url 'scheduling:appointment_create' %}">Novo agendamento</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, profissional ou status">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Quando</th>
+          <th>Paciente</th>
+          <th>Profissional</th>
+          <th>Status</th>
+          <th>Consumo</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for appointment in appointments %}
+          <tr>
+            <td><strong>{{ appointment.starts_at|date:"d/m/Y H:i" }}</strong><small>ate {{ appointment.ends_at|date:"H:i" }}</small></td>
+            <td>{{ appointment.patient.full_name }}</td>
+            <td>{{ appointment.professional.full_name }}</td>
+            <td><span class="badge {{ appointment.status }}">{{ appointment.get_status_display }}</span></td>
+            <td>{{ appointment.service_units }}</td>
+            <td class="right table-actions">
+              <a class="table-action" href="{% url 'scheduling:appointment_update' appointment.pk %}">Editar</a>
+              {% if appointment.status != "completed" and request.user.profile.role != "patient" %}
+                <form method="post" action="{% url 'scheduling:appointment_complete' appointment.pk %}">
+                  {% csrf_token %}
+                  <button class="table-action button-link" type="submit">Baixar</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">Nenhum agendamento encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

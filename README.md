@@ -12,6 +12,18 @@ Sistema local de gestao para uma clinica de fisioterapia e pilates.
 - API autenticada em `/api/v1/` para evolucao futura do app mobile.
 - Testes automatizados para regras sensiveis de cadastro e financeiro.
 
+## Fase 2
+
+- Perfis de acesso: paciente, profissional, administracao e gerencia.
+- Vinculo de pacientes a um ou mais profissionais.
+- Anotacoes profissionais por paciente.
+- Agenda com solicitacao, agendamento, cancelamento, falta e baixa de atendimento.
+- Pacotes de atendimentos com contador de aulas/sessoes restantes.
+- Despesas e cobrancas avulsas no painel financeiro.
+- Lembrete configuravel de mensalidades proximas do vencimento.
+- Painel de inadimplentes.
+- Auditoria automatica de criacoes, alteracoes e exclusoes.
+
 ## Rodando localmente no Windows
 
 ```powershell
@@ -31,6 +43,15 @@ Usuario: admin
 Senha: Lume@12345
 ```
 
+Usuarios demonstrativos:
+
+```text
+Gerencia: admin / Lume@12345
+Administracao: recepcao / Recepcao@123
+Profissional: helena / Helena@123
+Paciente: marina / Marina@123
+```
+
 Para encerrar o servidor local iniciado em segundo plano:
 
 ```powershell
@@ -44,8 +65,22 @@ Docker e uma boa escolha para este projeto porque padroniza ambiente, facilita b
 Quando Docker Desktop estiver instalado:
 
 ```bash
-cp .env.example .env
 docker compose up --build
+```
+
+Para parar o container:
+
+```bash
+docker compose down
+```
+
+## Versionamento
+
+O projeto esta em Git local na branch `main`. Para enviar ao GitHub, crie um repositorio privado e conecte o remoto:
+
+```bash
+git remote add origin https://github.com/SEU_USUARIO/lume-gestao.git
+git push -u origin main
 ```
 
 ## Proximas fases sugeridas

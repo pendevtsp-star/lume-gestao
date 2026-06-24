@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Cobrancas | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Financeiro</p>
+    <h1>Cobrancas</h1>
+  </div>
+  <a class="button primary" href="{% url 'billing:charge_create' %}">Nova cobranca</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar cobrancas">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Descricao</th>
+          <th>Paciente</th>
+          <th>Vencimento</th>
+          <th>Status</th>
+          <th class="right">Valor</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for charge in charges %}
+          <tr>
+            <td><strong>{{ charge.description }}</strong></td>
+            <td>{{ charge.patient.full_name|default:"-" }}</td>
+            <td>{{ charge.due_date|date:"d/m/Y" }}</td>
+            <td><span class="badge {{ charge.status }}">{{ charge.get_status_display }}</span></td>
+            <td class="right">R$ {{ charge.amount|floatformat:2 }}</td>
+            <td class="right"><a class="table-action" href="{% url 'billing:charge_update' charge.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">Nenhuma cobranca encontrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

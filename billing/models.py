@@ -136,4 +136,75 @@ class Payment(TimeStampedModel):
         if self.reference_month and self.reference_month.day != 1:
             raise ValidationError({"reference_month": "Use sempre o primeiro dia do mes de referencia."})
 
-# Create your models here.
+
+class Expense(TimeStampedModel):
+    class Status(models.TextChoices):
+        OPEN = "open", "Aberta"
+        PAID = "paid", "Paga"
+        CANCELED = "canceled", "Cancelada"
+
+    class Category(models.TextChoices):
+        RENT = "rent", "Aluguel"
+        PAYROLL = "payroll", "Equipe"
+        SUPPLIES = "supplies", "Insumos"
+        TAXES = "taxes", "Impostos"
+        SYSTEMS = "systems", "Sistemas"
+        OTHER = "other", "Outros"
+
+    description = models.CharField("descricao", max_length=180)
+    category = models.CharField("categoria", max_length=30, choices=Category.choices, default=Category.OTHER)
+    amount = models.DecimalField("valor", max_digits=10, decimal_places=2)
+    due_date = models.DateField("vencimento")
+    paid_at = models.DateField("pago em", null=True, blank=True)
+    status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.OPEN)
+    notes = models.TextField("observacoes", blank=True)
+
+    class Meta:
+        ordering = ["-due_date"]
+        verbose_name = "despesa"
+        verbose_name_plural = "despesas"
+
+    def __str__(self):
+        return self.description
+
+    def clean(self):
+        super().clean()
+        if self.amount is not None and self.amount <= Decimal("0"):
+            raise ValidationError({"amount": "O valor deve ser maior que zero."})
+        if self.status == self.Status.PAID and not self.paid_at:
+            raise ValidationError({"paid_at": "Informe a data de pagamento."})
+        if self.status != self.Status.PAID and self.paid_at:
+            raise ValidationError({"paid_at": "Use data de pagamento apenas quando a despesa estiver paga."})
+
+
+class Charge(TimeStampedModel):
+    class Status(models.TextChoices):
+        OPEN = "open", "Aberta"
+        RECEIVED = "received", "Recebida"
+        OVERDUE = "overdue", "Vencida"
+        CANCELED = "canceled", "Cancelada"
+
+    patient = models.ForeignKey(Patient, on_delete=models.PROTECT, null=True, blank=True, related_name="charges")
+    description = models.CharField("descricao", max_length=180)
+    due_date = models.DateField("vencimento")
+    amount = models.DecimalField("valor", max_digits=10, decimal_places=2)
+    status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.OPEN)
+    received_at = models.DateField("recebida em", null=True, blank=True)
+    notes = models.TextField("observacoes", blank=True)
+
+    class Meta:
+        ordering = ["-due_date"]
+        verbose_name = "cobranca avulsa"
+        verbose_name_plural = "cobrancas avulsas"
+
+    def __str__(self):
+        return self.description
+
+    def clean(self):
+        super().clean()
+        if self.amount is not None and self.amount <= Decimal("0"):
+            raise ValidationError({"amount": "O valor deve ser maior que zero."})
+        if self.status == self.Status.RECEIVED and not self.received_at:
+            raise ValidationError({"received_at": "Informe a data de recebimento."})
+        if self.status != self.Status.RECEIVED and self.received_at:
+            raise ValidationError({"received_at": "Use recebimento apenas quando a cobranca estiver recebida."})

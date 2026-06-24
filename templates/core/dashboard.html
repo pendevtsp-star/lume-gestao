@@ -16,65 +16,144 @@
     <span>Pacientes ativos</span>
     <strong>{{ active_patients }}</strong>
   </article>
-  <article class="metric">
-    <span>Mensalidades ativas</span>
-    <strong>{{ active_memberships }}</strong>
-  </article>
-  <article class="metric">
-    <span>Profissionais</span>
-    <strong>{{ active_professionals }}</strong>
-  </article>
-  <article class="metric">
-    <span>Planos ativos</span>
-    <strong>{{ active_plans }}</strong>
-  </article>
+  {% if finance_visible %}
+    <article class="metric">
+      <span>Mensalidades ativas</span>
+      <strong>{{ active_memberships }}</strong>
+    </article>
+    <article class="metric">
+      <span>Profissionais</span>
+      <strong>{{ active_professionals }}</strong>
+    </article>
+    <article class="metric">
+      <span>Planos ativos</span>
+      <strong>{{ active_plans }}</strong>
+    </article>
+  {% else %}
+    <article class="metric">
+      <span>Proximos atendimentos</span>
+      <strong>{{ next_appointments|length }}</strong>
+    </article>
+  {% endif %}
 </section>
 
-<section class="split-grid">
-  <article class="panel">
-    <header class="panel-header">
-      <div>
-        <h2>Financeiro</h2>
-        <p>Resumo do controle manual de mensalidades.</p>
+{% if finance_visible %}
+  <section class="split-grid">
+    <article class="panel">
+      <header class="panel-header">
+        <div>
+          <h2>Financeiro</h2>
+          <p>Resumo do controle manual de mensalidades.</p>
+        </div>
+      </header>
+      <div class="finance-totals">
+        <div>
+          <span>Pendente/vencido</span>
+          <strong>R$ {{ pending_total|floatformat:2 }}</strong>
+        </div>
+        <div>
+          <span>Recebido no mes</span>
+          <strong>R$ {{ paid_month_total|floatformat:2 }}</strong>
+        </div>
       </div>
-    </header>
-    <div class="finance-totals">
-      <div>
-        <span>Pendente/vencido</span>
-        <strong>R$ {{ pending_total|floatformat:2 }}</strong>
-      </div>
-      <div>
-        <span>Recebido no mes</span>
-        <strong>R$ {{ paid_month_total|floatformat:2 }}</strong>
-      </div>
-    </div>
-  </article>
+    </article>
 
-  <article class="panel">
-    <header class="panel-header">
-      <div>
-        <h2>Equipe</h2>
-        <p>Base operacional cadastrada.</p>
+    <article class="panel">
+      <header class="panel-header">
+        <div>
+          <h2>Equipe</h2>
+          <p>Base operacional cadastrada.</p>
+        </div>
+      </header>
+      <div class="finance-totals">
+        <div>
+          <span>Funcionarios</span>
+          <strong>{{ employees }}</strong>
+        </div>
+        <div>
+          <span>Profissionais ativos</span>
+          <strong>{{ active_professionals }}</strong>
+        </div>
       </div>
-    </header>
-    <div class="finance-totals">
-      <div>
-        <span>Funcionarios</span>
-        <strong>{{ employees }}</strong>
-      </div>
-      <div>
-        <span>Profissionais ativos</span>
-        <strong>{{ active_professionals }}</strong>
-      </div>
-    </div>
-  </article>
-</section>
+    </article>
+  </section>
+{% endif %}
 
 <section class="panel">
   <header class="panel-header">
     <div>
-      <h2>Proximos pagamentos</h2>
-      <p>Pagamentos pendentes e vencidos para acompanhamento.</p>
+      <h2>Agenda</h2>
+      <p>Proximos atendimentos agendados ou solicitados.</p>
+    </div>
+    <a class="button secondary" href="{% url 'scheduling:appointments' %}">Ver agenda</a>
+  </header>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Quando</th>
+          <th>Paciente</th>
+          <th>Profissional</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for appointment in next_appointments %}
+          <tr>
+            <td>{{ appointment.starts_at|date:"d/m/Y H:i" }}</td>
+            <td>{{ appointment.patient.full_name }}</td>
+            <td>{{ appointment.professional.full_name }}</td>
+            <td><span class="badge {{ appointment.status }}">{{ appointment.get_status_display }}</span></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty">Nenhum atendimento proximo.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if finance_visible %}
+<section class="panel stacked-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Lembretes de vencimento</h2>
+      <p>Mensalidades que vencem nos proximos {{ reminder_days }} dias.</p>
+    </div>
+    <a class="button secondary" href="{% url 'settings' %}">Ajustar lembrete</a>
+  </header>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Plano</th>
+          <th>Vencimento</th>
+          <th class="right">Valor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for payment in upcoming_payments %}
+          <tr>
+            <td>{{ payment.membership.patient.full_name }}</td>
+            <td>{{ payment.membership.plan.name }}</td>
+            <td>{{ payment.due_date|date:"d/m/Y" }}</td>
+            <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty">Nenhum vencimento proximo.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel stacked-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Inadimplentes</h2>
+      <p>Pagamentos vencidos para acompanhamento da gerencia.</p>
     </div>
     <a class="button secondary" href="{% url 'billing:payments' %}">Ver todos</a>
   </header>
@@ -91,7 +170,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for payment in next_payments %}
+        {% for payment in overdue_payments %}
           <tr>
             <td>{{ payment.membership.patient.full_name }}</td>
             <td>{{ payment.membership.plan.name }}</td>
@@ -100,12 +179,11 @@
             <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
           </tr>
         {% empty %}
-          <tr>
-            <td colspan="5" class="empty">Nenhum pagamento pendente.</td>
-          </tr>
+          <tr><td colspan="5" class="empty">Nenhum pagamento vencido.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </section>
+{% endif %}
 {% endblock %}

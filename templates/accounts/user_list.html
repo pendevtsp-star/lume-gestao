@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Usuarios | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Acessos</p>
+    <h1>Usuarios</h1>
+  </div>
+  <a class="button primary" href="{% url 'accounts:create' %}">Novo usuario</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar usuarios">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Usuario</th>
+          <th>Perfil</th>
+          <th>Vinculo</th>
+          <th>Status</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+          <tr>
+            <td><strong>{{ user.username }}</strong><small>{{ user.email|default:"-" }}</small></td>
+            <td>{{ user.profile.get_role_display|default:"-" }}</td>
+            <td>
+              {% if user.profile.patient %}{{ user.profile.patient.full_name }}{% elif user.profile.professional %}{{ user.profile.professional.full_name }}{% else %}-{% endif %}
+            </td>
+            <td><span class="badge {% if user.is_active %}active{% else %}canceled{% endif %}">{% if user.is_active %}Ativo{% else %}Inativo{% endif %}</span></td>
+            <td class="right"><a class="table-action" href="{% url 'accounts:update' user.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty">Nenhum usuario encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

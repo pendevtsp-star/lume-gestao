@@ -1,14 +1,14 @@
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, ListView, UpdateView
 
-from billing.forms import MembershipForm, PaymentForm, ServicePlanForm
-from billing.models import Membership, Payment, ServicePlan
+from accounts.permissions import FinanceAccessMixin
+from billing.forms import ChargeForm, ExpenseForm, MembershipForm, PaymentForm, ServicePlanForm
+from billing.models import Charge, Expense, Membership, Payment, ServicePlan
 from core.views import FormContextMixin, SearchableListView
 
 
-class ServicePlanListView(SearchableListView, ListView):
+class ServicePlanListView(FinanceAccessMixin, SearchableListView, ListView):
     model = ServicePlan
     template_name = "billing/plan_list.html"
     context_object_name = "plans"
@@ -16,7 +16,7 @@ class ServicePlanListView(SearchableListView, ListView):
     search_fields = ["name", "category", "description"]
 
 
-class ServicePlanCreateView(FormContextMixin, LoginRequiredMixin, CreateView):
+class ServicePlanCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
     model = ServicePlan
     form_class = ServicePlanForm
     template_name = "core/form.html"
@@ -30,7 +30,7 @@ class ServicePlanCreateView(FormContextMixin, LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class ServicePlanUpdateView(FormContextMixin, LoginRequiredMixin, UpdateView):
+class ServicePlanUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
     model = ServicePlan
     form_class = ServicePlanForm
     template_name = "core/form.html"
@@ -44,7 +44,7 @@ class ServicePlanUpdateView(FormContextMixin, LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class MembershipListView(SearchableListView, ListView):
+class MembershipListView(FinanceAccessMixin, SearchableListView, ListView):
     model = Membership
     template_name = "billing/membership_list.html"
     context_object_name = "memberships"
@@ -55,7 +55,7 @@ class MembershipListView(SearchableListView, ListView):
         return super().get_queryset().select_related("patient", "plan")
 
 
-class MembershipCreateView(FormContextMixin, LoginRequiredMixin, CreateView):
+class MembershipCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
     model = Membership
     form_class = MembershipForm
     template_name = "core/form.html"
@@ -69,7 +69,7 @@ class MembershipCreateView(FormContextMixin, LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class MembershipUpdateView(FormContextMixin, LoginRequiredMixin, UpdateView):
+class MembershipUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
     model = Membership
     form_class = MembershipForm
     template_name = "core/form.html"
@@ -83,7 +83,7 @@ class MembershipUpdateView(FormContextMixin, LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class PaymentListView(SearchableListView, ListView):
+class PaymentListView(FinanceAccessMixin, SearchableListView, ListView):
     model = Payment
     template_name = "billing/payment_list.html"
     context_object_name = "payments"
@@ -94,7 +94,7 @@ class PaymentListView(SearchableListView, ListView):
         return super().get_queryset().select_related("membership__patient", "membership__plan")
 
 
-class PaymentCreateView(FormContextMixin, LoginRequiredMixin, CreateView):
+class PaymentCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
     model = Payment
     form_class = PaymentForm
     template_name = "core/form.html"
@@ -108,7 +108,7 @@ class PaymentCreateView(FormContextMixin, LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class PaymentUpdateView(FormContextMixin, LoginRequiredMixin, UpdateView):
+class PaymentUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
     model = Payment
     form_class = PaymentForm
     template_name = "core/form.html"
@@ -119,6 +119,81 @@ class PaymentUpdateView(FormContextMixin, LoginRequiredMixin, UpdateView):
 
     def form_valid(self, form):
         messages.success(self.request, "Pagamento atualizado com sucesso.")
+        return super().form_valid(form)
+
+
+class ExpenseListView(FinanceAccessMixin, SearchableListView, ListView):
+    model = Expense
+    template_name = "billing/expense_list.html"
+    context_object_name = "expenses"
+    paginate_by = 12
+    search_fields = ["description", "category", "status"]
+
+
+class ExpenseCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
+    model = Expense
+    form_class = ExpenseForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("billing:expenses")
+    page_title = "Despesa"
+    section_label = "Financeiro"
+    back_url_name = "billing:expenses"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Despesa cadastrada com sucesso.")
+        return super().form_valid(form)
+
+
+class ExpenseUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
+    model = Expense
+    form_class = ExpenseForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("billing:expenses")
+    page_title = "Despesa"
+    section_label = "Financeiro"
+    back_url_name = "billing:expenses"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Despesa atualizada com sucesso.")
+        return super().form_valid(form)
+
+
+class ChargeListView(FinanceAccessMixin, SearchableListView, ListView):
+    model = Charge
+    template_name = "billing/charge_list.html"
+    context_object_name = "charges"
+    paginate_by = 12
+    search_fields = ["patient__full_name", "description", "status"]
+
+    def get_queryset(self):
+        return super().get_queryset().select_related("patient")
+
+
+class ChargeCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
+    model = Charge
+    form_class = ChargeForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("billing:charges")
+    page_title = "Cobranca"
+    section_label = "Financeiro"
+    back_url_name = "billing:charges"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Cobranca cadastrada com sucesso.")
+        return super().form_valid(form)
+
+
+class ChargeUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
+    model = Charge
+    form_class = ChargeForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("billing:charges")
+    page_title = "Cobranca"
+    section_label = "Financeiro"
+    back_url_name = "billing:charges"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Cobranca atualizada com sucesso.")
         return super().form_valid(form)
 
 # Create your views here.

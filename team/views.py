@@ -1,14 +1,19 @@
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, ListView, UpdateView
 
+from accounts.models import UserProfile
+from accounts.permissions import RoleRequiredMixin
 from core.views import FormContextMixin, SearchableListView
 from team.forms import EmployeeForm, ProfessionalForm
 from team.models import Employee, Professional
 
 
-class EmployeeListView(SearchableListView, ListView):
+class TeamAdminMixin(RoleRequiredMixin):
+    allowed_roles = [UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT]
+
+
+class EmployeeListView(TeamAdminMixin, SearchableListView, ListView):
     model = Employee
     template_name = "team/employee_list.html"
     context_object_name = "employees"
@@ -16,7 +21,7 @@ class EmployeeListView(SearchableListView, ListView):
     search_fields = ["full_name", "email", "phone", "role"]
 
 
-class EmployeeCreateView(FormContextMixin, LoginRequiredMixin, CreateView):
+class EmployeeCreateView(FormContextMixin, TeamAdminMixin, CreateView):
     model = Employee
     form_class = EmployeeForm
     template_name = "core/form.html"
@@ -30,7 +35,7 @@ class EmployeeCreateView(FormContextMixin, LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class EmployeeUpdateView(FormContextMixin, LoginRequiredMixin, UpdateView):
+class EmployeeUpdateView(FormContextMixin, TeamAdminMixin, UpdateView):
     model = Employee
     form_class = EmployeeForm
     template_name = "core/form.html"
@@ -44,7 +49,7 @@ class EmployeeUpdateView(FormContextMixin, LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class ProfessionalListView(SearchableListView, ListView):
+class ProfessionalListView(TeamAdminMixin, SearchableListView, ListView):
     model = Professional
     template_name = "team/professional_list.html"
     context_object_name = "professionals"
@@ -52,7 +57,7 @@ class ProfessionalListView(SearchableListView, ListView):
     search_fields = ["full_name", "email", "phone", "specialty", "registration_number"]
 
 
-class ProfessionalCreateView(FormContextMixin, LoginRequiredMixin, CreateView):
+class ProfessionalCreateView(FormContextMixin, TeamAdminMixin, CreateView):
     model = Professional
     form_class = ProfessionalForm
     template_name = "core/form.html"
@@ -66,7 +71,7 @@ class ProfessionalCreateView(FormContextMixin, LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class ProfessionalUpdateView(FormContextMixin, LoginRequiredMixin, UpdateView):
+class ProfessionalUpdateView(FormContextMixin, TeamAdminMixin, UpdateView):
     model = Professional
     form_class = ProfessionalForm
     template_name = "core/form.html"

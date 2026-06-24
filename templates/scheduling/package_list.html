@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Pacotes | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Agenda</p>
+    <h1>Pacotes</h1>
+  </div>
+  <a class="button primary" href="{% url 'scheduling:package_create' %}">Novo pacote</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente ou plano">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Plano</th>
+          <th>Uso</th>
+          <th>Validade</th>
+          <th>Status</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for package in packages %}
+          <tr>
+            <td><strong>{{ package.membership.patient.full_name }}</strong></td>
+            <td>{{ package.membership.plan.name }}</td>
+            <td>{{ package.used_sessions }}/{{ package.total_sessions }} usados <small>{{ package.remaining_sessions }} restantes</small></td>
+            <td>{{ package.expires_on|date:"d/m/Y"|default:"-" }}</td>
+            <td><span class="badge {{ package.status }}">{{ package.get_status_display }}</span></td>
+            <td class="right"><a class="table-action" href="{% url 'scheduling:package_update' package.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">Nenhum pacote encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

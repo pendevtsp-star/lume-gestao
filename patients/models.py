@@ -38,4 +38,35 @@ class Patient(TimeStampedModel):
             raise ValidationError({"cpf": "Informe um CPF com 11 digitos."})
         self.cpf = digits
 
-# Create your models here.
+
+class ProfessionalPatientAssignment(TimeStampedModel):
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="professional_assignments")
+    professional = models.ForeignKey("team.Professional", on_delete=models.PROTECT, related_name="patient_assignments")
+    active = models.BooleanField("ativo", default=True)
+    notes = models.CharField("observacoes", max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["patient__full_name", "professional__full_name"]
+        constraints = [
+            models.UniqueConstraint(fields=["patient", "professional"], name="unique_patient_professional_assignment")
+        ]
+        verbose_name = "vinculo paciente-profissional"
+        verbose_name_plural = "vinculos paciente-profissional"
+
+    def __str__(self):
+        return f"{self.patient} -> {self.professional}"
+
+
+class ProfessionalNote(TimeStampedModel):
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="professional_notes")
+    professional = models.ForeignKey("team.Professional", on_delete=models.PROTECT, related_name="patient_notes")
+    title = models.CharField("titulo", max_length=140)
+    body = models.TextField("anotacao")
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "anotacao profissional"
+        verbose_name_plural = "anotacoes profissionais"
+
+    def __str__(self):
+        return f"{self.patient} - {self.title}"

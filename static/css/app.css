@@ -628,7 +628,9 @@ td small {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: var(--ink);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 253, 246, 0.88), transparent 34%),
+    linear-gradient(180deg, #f4ecdc 0%, #e8ddc8 100%);
 }
 
 .login-panel {
@@ -642,7 +644,7 @@ td small {
   grid-template-columns: 54px 1fr;
   gap: 12px;
   align-items: center;
-  color: #fffdf4;
+  color: var(--ink);
 }
 
 .login-brand strong {
@@ -652,17 +654,38 @@ td small {
 
 .login-brand small {
   display: block;
-  color: #d7d2c6;
+  color: var(--muted);
 }
 
 .login-panel .form-panel {
   padding: 24px;
   max-width: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 246, 0.96);
+  box-shadow: var(--shadow);
 }
 
 .login-panel h1 {
   margin-bottom: 6px;
-  font-size: 28px;
+  color: var(--ink);
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.login-panel .form-field span {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.login-panel input {
+  min-height: 48px;
+  border-color: #b9ad95;
+}
+
+.login-panel .button.full {
+  min-height: 50px;
 }
 
 @media (max-width: 980px) {

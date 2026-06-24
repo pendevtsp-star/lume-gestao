@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Categorias de despesa | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Financeiro</p>
+    <h1>Categorias de despesa</h1>
+  </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'billing:expenses' %}">Despesas</a>
+    <a class="button primary" href="{% url 'billing:expense_category_create' %}">Nova categoria</a>
+  </div>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar categorias">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Categoria</th>
+          <th>Tipo padrao</th>
+          <th>Status</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for category in categories %}
+          <tr>
+            <td><strong>{{ category.name }}</strong></td>
+            <td>{{ category.get_kind_display }}</td>
+            <td><span class="badge {% if category.active %}active{% else %}canceled{% endif %}">{% if category.active %}Ativa{% else %}Inativa{% endif %}</span></td>
+            <td class="right">
+              <a class="table-action" href="{% url 'billing:expense_category_update' category.pk %}">Editar</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty">Nenhuma categoria encontrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

@@ -152,6 +152,22 @@ textarea {
     var(--page);
 }
 
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-height: 32px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.topbar-logout {
+  color: var(--sage-dark);
+}
+
 .page-heading {
   display: flex;
   align-items: flex-end;
@@ -315,6 +331,16 @@ h2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #fffdf6, #fbf7ee);
+}
+
+.filter-panel {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
   padding: 16px;
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, #fffdf6, #fbf7ee);
@@ -556,6 +582,30 @@ td small {
   color: var(--muted);
 }
 
+.report-filter-panel {
+  margin-bottom: 18px;
+}
+
+.compact-table {
+  min-width: 520px;
+}
+
+.audit-changes {
+  display: grid;
+  gap: 7px;
+  max-width: 460px;
+}
+
+.audit-changes div {
+  padding-bottom: 7px;
+  border-bottom: 1px solid #eee8db;
+}
+
+.audit-changes div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 .messages {
   display: grid;
   gap: 8px;
@@ -648,7 +698,8 @@ td small {
   .split-grid,
   .finance-totals,
   .form-grid,
-  .toolbar {
+  .toolbar,
+  .filter-panel {
     grid-template-columns: 1fr;
   }
 

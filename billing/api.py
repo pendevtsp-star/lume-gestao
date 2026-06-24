@@ -1,8 +1,9 @@
 from rest_framework.viewsets import ModelViewSet
 
-from billing.models import Charge, Expense, Membership, Payment, ServicePlan
+from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from billing.serializers import (
     ChargeSerializer,
+    ExpenseCategorySerializer,
     ExpenseSerializer,
     MembershipSerializer,
     PaymentSerializer,
@@ -35,11 +36,19 @@ class PaymentViewSet(ModelViewSet):
 
 
 class ExpenseViewSet(ModelViewSet):
-    queryset = Expense.objects.all()
+    queryset = Expense.objects.select_related("category")
     serializer_class = ExpenseSerializer
-    filterset_fields = ["status", "category", "due_date"]
-    search_fields = ["description", "notes"]
+    filterset_fields = ["status", "kind", "category", "due_date"]
+    search_fields = ["description", "category__name", "notes"]
     ordering_fields = ["due_date", "amount", "created_at"]
+
+
+class ExpenseCategoryViewSet(ModelViewSet):
+    queryset = ExpenseCategory.objects.all()
+    serializer_class = ExpenseCategorySerializer
+    filterset_fields = ["active", "kind"]
+    search_fields = ["name"]
+    ordering_fields = ["name", "created_at"]
 
 
 class ChargeViewSet(ModelViewSet):

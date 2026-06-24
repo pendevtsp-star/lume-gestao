@@ -127,7 +127,42 @@ class AuditLogListView(ManagementAccessMixin, SearchableListView, ListView):
     search_fields = ["actor__username", "model_name", "object_repr", "action"]
 
     def get_queryset(self):
-        return super().get_queryset().select_related("actor")
+        queryset = super().get_queryset().select_related("actor")
+        action = self.request.GET.get("action", "").strip()
+        model_name = self.request.GET.get("model", "").strip()
+        date_from = self.request.GET.get("date_from", "").strip()
+        date_to = self.request.GET.get("date_to", "").strip()
+        if action:
+            queryset = queryset.filter(action=action)
+        if model_name:
+            queryset = queryset.filter(model_name=model_name)
+        if date_from:
+            queryset = queryset.filter(created_at__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(created_at__date__lte=date_to)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        base_queryset = AuditLog.objects.all()
+        filtered = self.get_queryset()
+        context.update(
+            {
+                "action_choices": AuditLog.Action.choices,
+                "model_choices": base_queryset.order_by("model_name")
+                .values_list("model_name", flat=True)
+                .distinct(),
+                "selected_action": self.request.GET.get("action", ""),
+                "selected_model": self.request.GET.get("model", ""),
+                "date_from": self.request.GET.get("date_from", ""),
+                "date_to": self.request.GET.get("date_to", ""),
+                "audit_total": filtered.count(),
+                "audit_created_total": filtered.filter(action=AuditLog.Action.CREATED).count(),
+                "audit_updated_total": filtered.filter(action=AuditLog.Action.UPDATED).count(),
+                "audit_deleted_total": filtered.filter(action=AuditLog.Action.DELETED).count(),
+            }
+        )
+        return context
 
 
 class ClinicSettingsUpdateView(ManagementAccessMixin, UpdateView):

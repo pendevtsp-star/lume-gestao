@@ -16,16 +16,18 @@ Sistema local de gestao para uma clinica de fisioterapia e pilates.
 
 - Perfis de acesso: paciente, profissional, administracao e gerencia.
 - Vinculo de pacientes a um ou mais profissionais.
-- Anotacoes profissionais por paciente.
+- Prontuario individualizado por paciente, visivel apenas ao profissional autor da evolucao.
 - Agenda com solicitacao, agendamento, cancelamento, falta e baixa de atendimento.
 - Reagendamento e cancelamento sem consumo de creditos do pacote.
 - Disponibilidade recorrente por profissional para orientar os horarios possiveis.
 - Criacao e reagendamento guiados por horarios livres, sem entrada manual de data/hora pelo usuario.
 - Pacotes de atendimentos com contador de aulas/sessoes restantes.
 - Despesas e cobrancas avulsas no painel financeiro.
+- Categorias editaveis de despesas, com controle de tipo fixo ou variavel.
+- Relatorios gerenciais por periodo para pacientes, atendimentos, receitas, despesas e alertas comerciais.
 - Lembrete configuravel de mensalidades proximas do vencimento.
 - Painel de inadimplentes.
-- Auditoria automatica de criacoes, alteracoes e exclusoes.
+- Auditoria automatica com filtros por periodo, acao, modelo e detalhamento de campos alterados.
 
 ## Rodando localmente no Windows
 

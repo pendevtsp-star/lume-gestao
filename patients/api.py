@@ -1,5 +1,7 @@
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.exceptions import PermissionDenied
 
+from accounts.permissions import get_profile
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
 from patients.serializers import (
     PatientSerializer,
@@ -30,3 +32,34 @@ class ProfessionalNoteViewSet(ModelViewSet):
     filterset_fields = ["patient", "professional"]
     search_fields = ["patient__full_name", "professional__full_name", "title", "body"]
     ordering_fields = ["created_at", "updated_at"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.is_superuser:
+            profile = get_profile(self.request.user)
+            if profile and profile.professional_id:
+                return queryset.filter(professional=profile.professional)
+            return queryset.none()
+        profile = get_profile(self.request.user)
+        if profile and profile.is_professional and profile.professional_id:
+            return queryset.filter(professional=profile.professional)
+        return queryset.none()
+
+    def perform_create(self, serializer):
+        profile = get_profile(self.request.user)
+        if not profile or not profile.is_professional or not profile.professional_id:
+            raise PermissionDenied("Apenas profissionais podem registrar prontuario.")
+        patient = serializer.validated_data.get("patient")
+        if not ProfessionalPatientAssignment.objects.filter(
+            patient=patient,
+            professional=profile.professional,
+            active=True,
+        ).exists():
+            raise PermissionDenied("Paciente nao vinculado a este profissional.")
+        serializer.save(professional=profile.professional)
+
+    def perform_update(self, serializer):
+        profile = get_profile(self.request.user)
+        if not profile or not profile.is_professional or serializer.instance.professional_id != profile.professional_id:
+            raise PermissionDenied("Apenas o profissional autor pode alterar esta evolucao.")
+        serializer.save(professional=profile.professional)

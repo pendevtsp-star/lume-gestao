@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from patients.views import (
     AssignmentCreateView,
@@ -9,6 +10,8 @@ from patients.views import (
     PatientUpdateView,
     ProfessionalNoteCreateView,
     ProfessionalNoteListView,
+    ProfessionalNoteUpdateView,
+    ProfessionalRecordPatientListView,
 )
 
 app_name = "patients"
@@ -20,6 +23,10 @@ urlpatterns = [
     path("vinculos/", AssignmentListView.as_view(), name="assignments"),
     path("vinculos/novo/", AssignmentCreateView.as_view(), name="assignment_create"),
     path("vinculos/<int:pk>/editar/", AssignmentUpdateView.as_view(), name="assignment_update"),
-    path("anotacoes/", ProfessionalNoteListView.as_view(), name="notes"),
-    path("anotacoes/nova/", ProfessionalNoteCreateView.as_view(), name="note_create"),
+    path("prontuario/", ProfessionalRecordPatientListView.as_view(), name="notes"),
+    path("prontuario/<int:patient_pk>/", ProfessionalNoteListView.as_view(), name="patient_notes"),
+    path("prontuario/<int:patient_pk>/novo/", ProfessionalNoteCreateView.as_view(), name="note_create"),
+    path("prontuario/<int:patient_pk>/<int:pk>/editar/", ProfessionalNoteUpdateView.as_view(), name="note_update"),
+    path("anotacoes/", RedirectView.as_view(pattern_name="patients:notes", permanent=False)),
+    path("anotacoes/nova/", RedirectView.as_view(pattern_name="patients:notes", permanent=False)),
 ]

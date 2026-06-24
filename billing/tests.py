@@ -1,10 +1,13 @@
 from datetime import date
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.urls import reverse
 
-from billing.models import Membership, Payment, ServicePlan
+from accounts.models import UserProfile
+from billing.models import Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from patients.models import Patient
 
 
@@ -75,3 +78,48 @@ class BillingModelTests(TestCase):
 
         with self.assertRaises(ValidationError):
             payment.full_clean()
+
+    def test_expense_category_and_kind_are_editable_structures(self):
+        category = ExpenseCategory.objects.create(name="Marketing", kind=ExpenseCategory.Kind.VARIABLE)
+        expense = Expense(
+            description="Campanha local",
+            category=category,
+            kind=Expense.Kind.VARIABLE,
+            due_date=date(2026, 6, 20),
+            amount=Decimal("250.00"),
+            status=Expense.Status.OPEN,
+        )
+
+        expense.full_clean()
+
+        self.assertEqual(str(category), "Marketing")
+
+    def test_expense_list_filters_by_kind_and_summarizes_values(self):
+        user = get_user_model().objects.create_user(username="financeiro", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        fixed = ExpenseCategory.objects.get(name="Aluguel")
+        variable = ExpenseCategory.objects.get(name="Insumos")
+        Expense.objects.create(
+            description="Aluguel sala",
+            category=fixed,
+            kind=Expense.Kind.FIXED,
+            due_date=date(2026, 6, 5),
+            amount=Decimal("1000.00"),
+            status=Expense.Status.OPEN,
+        )
+        Expense.objects.create(
+            description="Faixas elasticas",
+            category=variable,
+            kind=Expense.Kind.VARIABLE,
+            due_date=date(2026, 6, 8),
+            amount=Decimal("100.00"),
+            status=Expense.Status.PAID,
+            paid_at=date(2026, 6, 8),
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("billing:expenses"), {"kind": Expense.Kind.FIXED})
+
+        self.assertContains(response, "Aluguel sala")
+        self.assertNotContains(response, "Faixas elasticas")
+        self.assertContains(response, "R$ 1000,00")

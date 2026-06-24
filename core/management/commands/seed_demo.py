@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from accounts.models import UserProfile
-from billing.models import Charge, Expense, Membership, Payment, ServicePlan
+from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from core.models import ClinicSettings
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage
@@ -245,11 +245,21 @@ class Command(BaseCommand):
             defaults={"body": "Paciente relata melhora de mobilidade. Manter acompanhamento semanal."},
         )
 
+        rent_category, _ = ExpenseCategory.objects.update_or_create(
+            name="Aluguel",
+            defaults={"kind": ExpenseCategory.Kind.FIXED, "active": True},
+        )
+        ExpenseCategory.objects.update_or_create(
+            name="Insumos",
+            defaults={"kind": ExpenseCategory.Kind.VARIABLE, "active": True},
+        )
+
         Expense.objects.update_or_create(
             description="Aluguel da sala",
             due_date=date(today.year, today.month, 5),
             defaults={
-                "category": Expense.Category.RENT,
+                "category": rent_category,
+                "kind": Expense.Kind.FIXED,
                 "amount": Decimal("1800.00"),
                 "status": Expense.Status.OPEN,
             },

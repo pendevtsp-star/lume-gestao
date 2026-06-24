@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Prontuario | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Prontuario</p>
+    <h1>Pacientes</h1>
+  </div>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar paciente">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Telefone</th>
+          <th class="right">Evolucoes suas</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for patient in patients %}
+          <tr>
+            <td><strong>{{ patient.full_name }}</strong><small>{{ patient.email|default:"Sem e-mail" }}</small></td>
+            <td>{{ patient.phone|default:"-" }}</td>
+            <td class="right">{{ patient.record_count }}</td>
+            <td class="right table-actions">
+              <a class="table-action" href="{% url 'patients:patient_notes' patient.pk %}">Abrir prontuario</a>
+              <a class="table-action" href="{% url 'patients:note_create' patient.pk %}">Nova evolucao</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty">Nenhum paciente vinculado ao seu perfil.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

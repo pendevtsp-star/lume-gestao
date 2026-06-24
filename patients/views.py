@@ -1,4 +1,8 @@
+from django import forms
 from django.contrib import messages
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, ListView, UpdateView
 
@@ -123,51 +127,139 @@ class AssignmentUpdateView(FormContextMixin, RoleRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class ProfessionalNoteListView(PatientAccessMixin, SearchableListView, ListView):
+class ProfessionalRecordAccessMixin(RoleRequiredMixin):
+    allowed_roles = [UserProfile.Role.PROFESSIONAL]
+
+    def get_professional(self):
+        profile = get_profile(self.request.user)
+        if self.request.user.is_superuser and profile and profile.professional_id:
+            return profile.professional
+        if profile and profile.is_professional and profile.professional_id:
+            return profile.professional
+        return None
+
+
+class ProfessionalRecordPatientListView(ProfessionalRecordAccessMixin, SearchableListView, ListView):
+    model = Patient
+    template_name = "patients/note_patient_list.html"
+    context_object_name = "patients"
+    paginate_by = 12
+    search_fields = ["full_name", "cpf", "phone", "email"]
+
+    def get_queryset(self):
+        professional = self.get_professional()
+        if not professional:
+            return Patient.objects.none()
+        queryset = patients_for_user(self.request.user).annotate(
+            record_count=Count("professional_notes", filter=Q(professional_notes__professional=professional))
+        )
+        query = self.request.GET.get("q", "").strip()
+        if query:
+            filters = Q()
+            for field in self.search_fields:
+                filters |= Q(**{f"{field}__icontains": query})
+            queryset = queryset.filter(filters)
+        return queryset.order_by("full_name")
+
+
+class ProfessionalNoteListView(ProfessionalRecordAccessMixin, SearchableListView, ListView):
     model = ProfessionalNote
     template_name = "patients/note_list.html"
     context_object_name = "notes"
     paginate_by = 12
-    search_fields = ["patient__full_name", "professional__full_name", "title", "body"]
+    search_fields = ["title", "body"]
+
+    def dispatch(self, request, *args, **kwargs):
+        self.patient = get_object_or_404(patients_for_user(request.user), pk=kwargs["patient_pk"])
+        return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
-        queryset = super().get_queryset().select_related("patient", "professional")
-        if self.request.user.is_superuser:
-            return queryset
-        profile = get_profile(self.request.user)
-        if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
-            return queryset
-        if profile.is_professional and profile.professional_id:
-            return queryset.filter(professional=profile.professional)
-        if profile.is_patient and profile.patient_id:
-            return queryset.filter(patient=profile.patient)
-        return queryset.none()
+        professional = self.get_professional()
+        if not professional:
+            return ProfessionalNote.objects.none()
+        queryset = (
+            super()
+            .get_queryset()
+            .select_related("patient", "professional")
+            .filter(patient=self.patient, professional=professional)
+        )
+        query = self.request.GET.get("q", "").strip()
+        if query:
+            filters = Q()
+            for field in self.search_fields:
+                filters |= Q(**{f"{field}__icontains": query})
+            queryset = queryset.filter(filters)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["patient"] = self.patient
+        return context
 
 
-class ProfessionalNoteCreateView(FormContextMixin, RoleRequiredMixin, CreateView):
-    allowed_roles = [UserProfile.Role.PROFESSIONAL, UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT]
+class ProfessionalNoteFormMixin(ProfessionalRecordAccessMixin):
     model = ProfessionalNote
     form_class = ProfessionalNoteForm
     template_name = "core/form.html"
-    success_url = reverse_lazy("patients:notes")
-    page_title = "Anotacao"
-    section_label = "Pacientes"
-    back_url_name = "patients:notes"
+    section_label = "Prontuario"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.patient = get_object_or_404(patients_for_user(request.user), pk=kwargs["patient_pk"])
+        return super().dispatch(request, *args, **kwargs)
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-        profile = get_profile(self.request.user)
-        if profile and profile.is_professional and profile.professional_id:
-            form.fields["professional"].queryset = form.fields["professional"].queryset.filter(pk=profile.professional_id)
-            patient_ids = ProfessionalPatientAssignment.objects.filter(
-                professional=profile.professional,
-                active=True,
-            ).values_list("patient_id", flat=True)
-            form.fields["patient"].queryset = form.fields["patient"].queryset.filter(pk__in=patient_ids)
+        professional = self.get_professional()
+        form.fields["patient"].queryset = Patient.objects.filter(pk=self.patient.pk)
+        form.fields["patient"].initial = self.patient
+        form.fields["patient"].widget = forms.HiddenInput()
+        form.fields["professional"].queryset = form.fields["professional"].queryset.none()
+        if professional:
+            form.fields["professional"].queryset = professional.__class__.objects.filter(pk=professional.pk)
+            form.fields["professional"].initial = professional
+            form.fields["professional"].widget = forms.HiddenInput()
         return form
 
     def form_valid(self, form):
-        messages.success(self.request, "Anotacao registrada com sucesso.")
+        professional = self.get_professional()
+        form.instance.patient = self.patient
+        form.instance.professional = professional
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("patients:patient_notes", args=[self.patient.pk])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "page_title": self.page_title,
+                "section_label": self.section_label,
+                "back_url": reverse("patients:patient_notes", args=[self.patient.pk]),
+            }
+        )
+        return context
+
+
+class ProfessionalNoteCreateView(ProfessionalNoteFormMixin, CreateView):
+    page_title = "Nova evolucao"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Evolucao registrada com sucesso.")
+        return super().form_valid(form)
+
+
+class ProfessionalNoteUpdateView(ProfessionalNoteFormMixin, UpdateView):
+    page_title = "Editar evolucao"
+
+    def get_queryset(self):
+        professional = self.get_professional()
+        if not professional:
+            return ProfessionalNote.objects.none()
+        return ProfessionalNote.objects.filter(patient=self.patient, professional=professional)
+
+    def form_valid(self, form):
+        messages.success(self.request, "Evolucao atualizada com sucesso.")
         return super().form_valid(form)
 
 # Create your views here.

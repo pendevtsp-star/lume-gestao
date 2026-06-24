@@ -27,8 +27,11 @@
         {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
           <a href="{% url 'scheduling:availabilities' %}">Disponibilidade</a>
         {% endif %}
-        <a href="{% url 'patients:notes' %}">Anotacoes</a>
+        {% if request.user.profile.role == "professional" %}
+          <a href="{% url 'patients:notes' %}">Prontuario</a>
+        {% endif %}
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+          <a href="{% url 'reports:dashboard' %}">Relatorios</a>
           <a href="{% url 'billing:memberships' %}">Mensalidades</a>
           <a href="{% url 'billing:payments' %}">Pagamentos</a>
           <a href="{% url 'billing:charges' %}">Cobrancas</a>
@@ -46,15 +49,19 @@
       </nav>
 
       <div class="sidebar-footer">
-        <span>{{ request.user.username }}</span>
-        <form method="post" action="{% url 'logout' %}">
-          {% csrf_token %}
-          <button class="link-button" type="submit">Sair</button>
-        </form>
+        <span>Lume local</span>
       </div>
     </aside>
 
     <main class="main">
+      <div class="topbar">
+        <span>{{ request.user.username }}</span>
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button class="link-button topbar-logout" type="submit">Sair</button>
+        </form>
+      </div>
+
       {% if messages %}
         <div class="messages">
           {% for message in messages %}

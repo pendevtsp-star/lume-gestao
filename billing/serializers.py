@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from billing.models import Charge, Expense, Membership, Payment, ServicePlan
+from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from core.serializers import ModelCleanSerializerMixin
 
 
@@ -30,8 +30,16 @@ class PaymentSerializer(ModelCleanSerializerMixin, serializers.ModelSerializer):
 
 
 class ExpenseSerializer(ModelCleanSerializerMixin, serializers.ModelSerializer):
+    category_name = serializers.CharField(source="category.name", read_only=True)
+
     class Meta:
         model = Expense
+        fields = "__all__"
+
+
+class ExpenseCategorySerializer(ModelCleanSerializerMixin, serializers.ModelSerializer):
+    class Meta:
+        model = ExpenseCategory
         fields = "__all__"
 
 

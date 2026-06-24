@@ -1,6 +1,6 @@
 from django import forms
 
-from billing.models import Charge, Expense, Membership, Payment, ServicePlan
+from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from core.forms import StyledModelForm
 
 
@@ -36,12 +36,18 @@ class PaymentForm(StyledModelForm):
 class ExpenseForm(StyledModelForm):
     class Meta:
         model = Expense
-        fields = ["description", "category", "amount", "due_date", "paid_at", "status", "notes"]
+        fields = ["description", "category", "kind", "amount", "due_date", "paid_at", "status", "notes"]
         widgets = {
             "due_date": forms.DateInput(attrs={"type": "date"}),
             "paid_at": forms.DateInput(attrs={"type": "date"}),
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
+
+
+class ExpenseCategoryForm(StyledModelForm):
+    class Meta:
+        model = ExpenseCategory
+        fields = ["name", "kind", "active"]
 
 
 class ChargeForm(StyledModelForm):

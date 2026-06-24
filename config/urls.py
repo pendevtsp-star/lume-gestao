@@ -20,7 +20,14 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from accounts.api import UserProfileViewSet
-from billing.api import ChargeViewSet, ExpenseViewSet, MembershipViewSet, PaymentViewSet, ServicePlanViewSet
+from billing.api import (
+    ChargeViewSet,
+    ExpenseCategoryViewSet,
+    ExpenseViewSet,
+    MembershipViewSet,
+    PaymentViewSet,
+    ServicePlanViewSet,
+)
 from patients.api import PatientViewSet, ProfessionalNoteViewSet, ProfessionalPatientAssignmentViewSet
 from scheduling.api import (
     AppointmentViewSet,
@@ -40,6 +47,7 @@ router.register(r'professionals', ProfessionalViewSet)
 router.register(r'plans', ServicePlanViewSet)
 router.register(r'memberships', MembershipViewSet)
 router.register(r'payments', PaymentViewSet)
+router.register(r'expense-categories', ExpenseCategoryViewSet)
 router.register(r'expenses', ExpenseViewSet)
 router.register(r'charges', ChargeViewSet)
 router.register(r'appointments', AppointmentViewSet)
@@ -54,6 +62,7 @@ urlpatterns = [
     path('equipe/', include('team.urls')),
     path('financeiro/', include('billing.urls')),
     path('agenda/', include('scheduling.urls')),
+    path('relatorios/', include('reports.urls')),
     path('api/v1/', include(router.urls)),
     path('login/', auth_views.LoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),

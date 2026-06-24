@@ -1,10 +1,11 @@
 from django.contrib import messages
+from django.db.models import Sum
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, ListView, UpdateView
 
 from accounts.permissions import FinanceAccessMixin
-from billing.forms import ChargeForm, ExpenseForm, MembershipForm, PaymentForm, ServicePlanForm
-from billing.models import Charge, Expense, Membership, Payment, ServicePlan
+from billing.forms import ChargeForm, ExpenseCategoryForm, ExpenseForm, MembershipForm, PaymentForm, ServicePlanForm
+from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from core.views import FormContextMixin, SearchableListView
 
 
@@ -127,7 +128,55 @@ class ExpenseListView(FinanceAccessMixin, SearchableListView, ListView):
     template_name = "billing/expense_list.html"
     context_object_name = "expenses"
     paginate_by = 12
-    search_fields = ["description", "category", "status"]
+    search_fields = ["description", "category__name", "status", "notes"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related("category")
+        status = self.request.GET.get("status", "").strip()
+        kind = self.request.GET.get("kind", "").strip()
+        category = self.request.GET.get("category", "").strip()
+        date_from = self.request.GET.get("date_from", "").strip()
+        date_to = self.request.GET.get("date_to", "").strip()
+
+        if status:
+            queryset = queryset.filter(status=status)
+        if kind:
+            queryset = queryset.filter(kind=kind)
+        if category:
+            queryset = queryset.filter(category_id=category)
+        if date_from:
+            queryset = queryset.filter(due_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(due_date__lte=date_to)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        filtered = self.get_queryset()
+        active_expenses = filtered.exclude(status=Expense.Status.CANCELED)
+        context.update(
+            {
+                "status_choices": Expense.Status.choices,
+                "kind_choices": Expense.Kind.choices,
+                "categories": ExpenseCategory.objects.filter(active=True),
+                "selected_status": self.request.GET.get("status", ""),
+                "selected_kind": self.request.GET.get("kind", ""),
+                "selected_category": self.request.GET.get("category", ""),
+                "date_from": self.request.GET.get("date_from", ""),
+                "date_to": self.request.GET.get("date_to", ""),
+                "expense_total": active_expenses.aggregate(total=Sum("amount"))["total"] or 0,
+                "expense_open_total": filtered.filter(status=Expense.Status.OPEN).aggregate(total=Sum("amount"))[
+                    "total"
+                ]
+                or 0,
+                "expense_paid_total": filtered.filter(status=Expense.Status.PAID).aggregate(total=Sum("amount"))[
+                    "total"
+                ]
+                or 0,
+                "expense_count": active_expenses.count(),
+            }
+        )
+        return context
 
 
 class ExpenseCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
@@ -155,6 +204,42 @@ class ExpenseUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
 
     def form_valid(self, form):
         messages.success(self.request, "Despesa atualizada com sucesso.")
+        return super().form_valid(form)
+
+
+class ExpenseCategoryListView(FinanceAccessMixin, SearchableListView, ListView):
+    model = ExpenseCategory
+    template_name = "billing/expense_category_list.html"
+    context_object_name = "categories"
+    paginate_by = 12
+    search_fields = ["name", "kind"]
+
+
+class ExpenseCategoryCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
+    model = ExpenseCategory
+    form_class = ExpenseCategoryForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("billing:expense_categories")
+    page_title = "Categoria de despesa"
+    section_label = "Financeiro"
+    back_url_name = "billing:expense_categories"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Categoria cadastrada com sucesso.")
+        return super().form_valid(form)
+
+
+class ExpenseCategoryUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
+    model = ExpenseCategory
+    form_class = ExpenseCategoryForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("billing:expense_categories")
+    page_title = "Categoria de despesa"
+    section_label = "Financeiro"
+    back_url_name = "billing:expense_categories"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Categoria atualizada com sucesso.")
         return super().form_valid(form)
 
 

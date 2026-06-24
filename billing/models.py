@@ -137,22 +137,43 @@ class Payment(TimeStampedModel):
             raise ValidationError({"reference_month": "Use sempre o primeiro dia do mes de referencia."})
 
 
+class ExpenseCategory(TimeStampedModel):
+    class Kind(models.TextChoices):
+        FIXED = "fixed", "Fixa"
+        VARIABLE = "variable", "Variavel"
+
+    name = models.CharField("nome", max_length=120, unique=True)
+    kind = models.CharField("tipo padrao", max_length=20, choices=Kind.choices, default=Kind.VARIABLE)
+    active = models.BooleanField("ativa", default=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "categoria de despesa"
+        verbose_name_plural = "categorias de despesa"
+
+    def __str__(self):
+        return self.name
+
+
 class Expense(TimeStampedModel):
     class Status(models.TextChoices):
         OPEN = "open", "Aberta"
         PAID = "paid", "Paga"
         CANCELED = "canceled", "Cancelada"
 
-    class Category(models.TextChoices):
-        RENT = "rent", "Aluguel"
-        PAYROLL = "payroll", "Equipe"
-        SUPPLIES = "supplies", "Insumos"
-        TAXES = "taxes", "Impostos"
-        SYSTEMS = "systems", "Sistemas"
-        OTHER = "other", "Outros"
+    class Kind(models.TextChoices):
+        FIXED = "fixed", "Fixa"
+        VARIABLE = "variable", "Variavel"
 
     description = models.CharField("descricao", max_length=180)
-    category = models.CharField("categoria", max_length=30, choices=Category.choices, default=Category.OTHER)
+    category = models.ForeignKey(
+        ExpenseCategory,
+        on_delete=models.PROTECT,
+        null=True,
+        related_name="expenses",
+        verbose_name="categoria",
+    )
+    kind = models.CharField("tipo", max_length=20, choices=Kind.choices, default=Kind.VARIABLE)
     amount = models.DecimalField("valor", max_digits=10, decimal_places=2)
     due_date = models.DateField("vencimento")
     paid_at = models.DateField("pago em", null=True, blank=True)

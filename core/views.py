@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q, Sum
 from django.urls import reverse
@@ -169,7 +170,7 @@ class ClinicSettingsUpdateView(ManagementAccessMixin, UpdateView):
     model = ClinicSettings
     form_class = ClinicSettingsForm
     template_name = "core/form.html"
-    success_url = reverse_lazy("audit")
+    success_url = reverse_lazy("settings")
 
     def get_object(self, queryset=None):
         return ClinicSettings.load()
@@ -180,9 +181,13 @@ class ClinicSettingsUpdateView(ManagementAccessMixin, UpdateView):
             {
                 "page_title": "Configuracoes",
                 "section_label": "Gerencia",
-                "back_url": reverse("audit"),
+                "back_url": reverse("dashboard"),
             }
         )
         return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Configuracoes da clinica atualizadas com sucesso.")
+        return super().form_valid(form)
 
 # Create your views here.

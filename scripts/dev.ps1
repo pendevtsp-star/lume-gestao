@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+$env:DB_ENGINE = "sqlite"
 
 if (-not (Test-Path ".venv")) {
   python -m venv .venv

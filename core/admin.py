@@ -5,7 +5,7 @@ from core.models import AuditLog, ClinicSettings
 
 @admin.register(ClinicSettings)
 class ClinicSettingsAdmin(admin.ModelAdmin):
-    list_display = ("membership_due_reminder_days", "updated_at")
+    list_display = ("clinic_name", "cnpj", "membership_due_reminder_days", "updated_at")
 
 
 @admin.register(AuditLog)

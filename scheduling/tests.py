@@ -274,3 +274,56 @@ class SchedulingTests(TestCase):
                 notes="Solicitado pelo portal.",
             ).exists()
         )
+
+    def test_api_rejects_overlapping_appointment_in_backend_validation(self):
+        user = get_user_model().objects.create_user(username="gestao-api-agenda", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        start = timezone.now() + timedelta(days=10)
+        Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            "/api/v1/appointments/",
+            {
+                "patient": self.patient.pk,
+                "professional": self.professional.pk,
+                "starts_at": (start + timedelta(minutes=30)).isoformat(),
+                "ends_at": (start + timedelta(hours=1, minutes=30)).isoformat(),
+                "status": Appointment.Status.SCHEDULED,
+                "booking_source": Appointment.BookingSource.MANAGEMENT,
+                "service_units": 1,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_professional_cannot_create_availability_for_another_professional_api(self):
+        other_professional = Professional.objects.create(
+            full_name="Profissional Outro API",
+            specialty=Professional.Specialty.PILATES,
+        )
+        user = get_user_model().objects.create_user(username="prof-api-disponibilidade", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            "/api/v1/professional-availabilities/",
+            {
+                "professional": other_professional.pk,
+                "weekday": 1,
+                "starts_at": "08:00",
+                "ends_at": "12:00",
+                "valid_from": timezone.localdate().isoformat(),
+                "active": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)

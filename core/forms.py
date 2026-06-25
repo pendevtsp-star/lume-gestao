@@ -17,4 +17,26 @@ class StyledModelForm(forms.ModelForm):
 class ClinicSettingsForm(StyledModelForm):
     class Meta:
         model = ClinicSettings
-        fields = ["membership_due_reminder_days"]
+        fields = [
+            "clinic_name",
+            "cnpj",
+            "phone",
+            "email",
+            "address",
+            "logo",
+            "business_days",
+            "opening_time",
+            "closing_time",
+            "membership_due_reminder_days",
+            "default_membership_due_day",
+            "cancellation_deadline_hours",
+            "rescheduling_deadline_hours",
+            "cancellation_policy",
+            "rescheduling_policy",
+        ]
+        widgets = {
+            "opening_time": forms.TimeInput(attrs={"type": "time"}),
+            "closing_time": forms.TimeInput(attrs={"type": "time"}),
+            "cancellation_policy": forms.Textarea(attrs={"rows": 4}),
+            "rescheduling_policy": forms.Textarea(attrs={"rows": 4}),
+        }

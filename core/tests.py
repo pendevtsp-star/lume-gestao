@@ -1,8 +1,17 @@
+from datetime import time
+from decimal import Decimal
+
+from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from accounts.models import UserProfile
+from billing.models import Membership, ServicePlan
 from core.models import AuditLog, ClinicSettings
+from patients.models import Patient, ProfessionalPatientAssignment
+from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage
+from team.models import Employee, Professional
 
 
 class DashboardAccessTests(TestCase):
@@ -31,3 +40,159 @@ class AuditLogTests(TestCase):
         self.assertTrue(
             AuditLog.objects.filter(model_name="ClinicSettings", action=AuditLog.Action.UPDATED).exists()
         )
+
+
+class ClinicSettingsTests(TestCase):
+    def test_settings_validate_cnpj_due_day_and_business_hours(self):
+        settings = ClinicSettings(cnpj="123", default_membership_due_day=31, opening_time=time(18, 0), closing_time=time(8, 0))
+
+        with self.assertRaises(ValidationError):
+            settings.full_clean()
+
+    def test_management_can_update_clinic_settings(self):
+        user = get_user_model().objects.create_user(username="gestor-config", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("settings"),
+            {
+                "clinic_name": "Lume Pilates e Fisioterapia",
+                "cnpj": "12.345.678/0001-99",
+                "phone": "11999990000",
+                "email": "contato@lume.local",
+                "address": "Rua Teste, 123",
+                "business_days": "Segunda a sexta",
+                "opening_time": "08:00",
+                "closing_time": "18:00",
+                "membership_due_reminder_days": 7,
+                "default_membership_due_day": 10,
+                "cancellation_deadline_hours": 24,
+                "rescheduling_deadline_hours": 24,
+                "cancellation_policy": "Cancelamentos sem consumo de credito.",
+                "rescheduling_policy": "Reagendamentos sem consumo de credito.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        settings = ClinicSettings.load()
+        self.assertEqual(settings.clinic_name, "Lume Pilates e Fisioterapia")
+        self.assertEqual(settings.cnpj, "12345678000199")
+
+
+class FunctionalRoleFlowTests(TestCase):
+    def setUp(self):
+        self.management = get_user_model().objects.create_user(username="gestao-fluxo", password="Senha@123")
+        self.administration = get_user_model().objects.create_user(username="admin-fluxo", password="Senha@123")
+        self.professional_user = get_user_model().objects.create_user(username="prof-fluxo", password="Senha@123")
+        self.patient_user = get_user_model().objects.create_user(username="paciente-fluxo", password="Senha@123")
+
+        self.patient = Patient.objects.create(full_name="Paciente Fluxo")
+        self.other_patient = Patient.objects.create(full_name="Paciente Fora")
+        self.professional = Professional.objects.create(
+            full_name="Dra. Fluxo",
+            specialty=Professional.Specialty.PHYSIOTHERAPY,
+        )
+        Employee.objects.create(full_name="Funcionario Fluxo", role=Employee.Role.RECEPTION)
+        ProfessionalPatientAssignment.objects.create(patient=self.patient, professional=self.professional)
+        ProfessionalAvailability.objects.create(
+            professional=self.professional,
+            weekday=0,
+            starts_at=time(8, 0),
+            ends_at=time(12, 0),
+        )
+        plan = ServicePlan.objects.create(
+            name="Plano Fluxo",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("400.00"),
+        )
+        membership = Membership.objects.create(patient=self.patient, plan=plan, due_day=10)
+        ServicePackage.objects.create(membership=membership, total_sessions=8)
+
+        UserProfile.objects.update_or_create(user=self.management, defaults={"role": UserProfile.Role.MANAGEMENT})
+        UserProfile.objects.update_or_create(
+            user=self.administration,
+            defaults={"role": UserProfile.Role.ADMINISTRATION},
+        )
+        UserProfile.objects.update_or_create(
+            user=self.professional_user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        UserProfile.objects.update_or_create(
+            user=self.patient_user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
+        )
+
+    def assert_pages_ok(self, user, route_names):
+        self.client.force_login(user)
+        for route_name in route_names:
+            response = self.client.get(reverse(route_name))
+            self.assertEqual(response.status_code, 200, route_name)
+
+    def test_management_can_open_full_backoffice_flow(self):
+        self.assert_pages_ok(
+            self.management,
+            [
+                "dashboard",
+                "patients:list",
+                "scheduling:appointments",
+                "scheduling:availabilities",
+                "reports:dashboard",
+                "billing:memberships",
+                "billing:payments",
+                "billing:charges",
+                "billing:expenses",
+                "scheduling:packages",
+                "billing:plans",
+                "patients:assignments",
+                "team:professionals",
+                "team:employees",
+                "accounts:list",
+                "audit",
+                "settings",
+            ],
+        )
+
+    def test_administration_can_open_operational_finance_but_not_management_only_pages(self):
+        self.assert_pages_ok(
+            self.administration,
+            [
+                "dashboard",
+                "patients:list",
+                "scheduling:appointments",
+                "scheduling:availabilities",
+                "reports:dashboard",
+                "billing:memberships",
+                "billing:payments",
+                "billing:expenses",
+                "patients:assignments",
+                "team:professionals",
+            ],
+        )
+        for route_name in ["accounts:list", "audit", "settings"]:
+            response = self.client.get(reverse(route_name))
+            self.assertEqual(response.status_code, 302, route_name)
+
+    def test_professional_flow_is_scoped_to_assigned_patients(self):
+        self.client.force_login(self.professional_user)
+
+        patients_response = self.client.get(reverse("patients:list"))
+        notes_response = self.client.get(reverse("patients:notes"))
+        finance_response = self.client.get(reverse("billing:payments"))
+
+        self.assertContains(patients_response, self.patient.full_name)
+        self.assertNotContains(patients_response, self.other_patient.full_name)
+        self.assertContains(notes_response, self.patient.full_name)
+        self.assertEqual(finance_response.status_code, 302)
+
+    def test_patient_flow_is_scoped_to_self_and_blocks_backoffice(self):
+        self.client.force_login(self.patient_user)
+
+        patients_response = self.client.get(reverse("patients:list"))
+        reports_response = self.client.get(reverse("reports:dashboard"))
+        audit_response = self.client.get(reverse("audit"))
+
+        self.assertContains(patients_response, self.patient.full_name)
+        self.assertNotContains(patients_response, self.other_patient.full_name)
+        self.assertEqual(reports_response.status_code, 302)
+        self.assertEqual(audit_response.status_code, 302)

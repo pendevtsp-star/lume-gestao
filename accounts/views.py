@@ -16,7 +16,7 @@ class UserAccountListView(ManagementAccessMixin, SearchableListView, ListView):
     search_fields = ["username", "first_name", "last_name", "email", "profile__role"]
 
     def get_queryset(self):
-        return super().get_queryset().select_related("profile", "profile__patient", "profile__professional")
+        return super().get_queryset().select_related("profile", "profile__patient", "profile__professional").order_by("username")
 
 
 class UserAccountCreateView(ManagementAccessMixin, CreateView):

@@ -9,7 +9,7 @@ class ModelCleanSerializerMixin:
         for key, value in attrs.items():
             setattr(instance, key, value)
         try:
-            instance.clean()
+            instance.full_clean()
         except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.message_dict if hasattr(exc, "message_dict") else exc.messages)
         return attrs

@@ -45,6 +45,7 @@
         {% if request.user.is_superuser or request.user.profile.role == "management" %}
           <a href="{% url 'accounts:list' %}">Usuarios</a>
           <a href="{% url 'audit' %}">Auditoria</a>
+          <a href="{% url 'settings' %}">Configuracoes</a>
         {% endif %}
       </nav>
 

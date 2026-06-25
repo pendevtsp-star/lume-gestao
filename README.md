@@ -69,6 +69,8 @@ Para encerrar o servidor local iniciado em segundo plano:
 
 Docker e uma boa escolha para este projeto porque padroniza ambiente, facilita backup/deploy e prepara a transicao futura para servidor. Ele nao substitui boas regras de backend, mas reduz problemas de instalacao entre Windows, Linux e macOS.
 
+O ambiente Docker usa PostgreSQL local. Nao e necessario criar conta externa no PostgreSQL: o proprio `docker compose` cria um container de banco com usuario, senha e base configurados no arquivo `.env`.
+
 Quando Docker Desktop estiver instalado:
 
 ```bash
@@ -79,6 +81,12 @@ Para parar o container:
 
 ```bash
 docker compose down
+```
+
+Os dados do PostgreSQL ficam no volume Docker `postgres_data`, entao continuam salvos apos `docker compose down`. Para reiniciar do zero durante desenvolvimento, use apenas quando tiver certeza de que pode apagar os dados:
+
+```bash
+docker compose down -v
 ```
 
 ## Rodando em outra maquina Linux
@@ -96,6 +104,12 @@ Edite o `.env` e inclua o IP da maquina Linux em `ALLOWED_HOSTS`, por exemplo:
 ```text
 ALLOWED_HOSTS=127.0.0.1,localhost,192.168.0.50
 DEBUG=True
+DB_ENGINE=postgres
+POSTGRES_DB=lume
+POSTGRES_USER=lume
+POSTGRES_PASSWORD=troque-esta-senha
+POSTGRES_HOST=db
+POSTGRES_PORT=5432
 ```
 
 Depois suba o sistema:
@@ -116,7 +130,7 @@ Em outro computador da mesma rede, acesse pelo IP da maquina Linux:
 http://192.168.0.50:8000
 ```
 
-Se o navegador de outra maquina nao abrir, verifique firewall/liberacao da porta `8000` na maquina Linux. Para testar com dados demonstrativos, basta iniciar o container; para levar dados reais de outra instalacao SQLite, copie tambem o arquivo `db.sqlite3` com o sistema parado.
+Se o navegador de outra maquina nao abrir, verifique firewall/liberacao da porta `8000` na maquina Linux. Para testar com dados demonstrativos, basta iniciar o container.
 
 ## Versionamento
 

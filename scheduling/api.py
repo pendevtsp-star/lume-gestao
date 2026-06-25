@@ -1,5 +1,7 @@
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import ValidationError
 from rest_framework.viewsets import ModelViewSet
+from django.db import transaction
 
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
@@ -41,6 +43,8 @@ class AppointmentViewSet(ModelViewSet):
         profile = get_profile(self.request.user)
         patient = serializer.validated_data.get("patient")
         professional = serializer.validated_data.get("professional")
+        if not self.request.user.is_superuser and not profile:
+            raise PermissionDenied("Perfil de acesso nao encontrado.")
         if not self.request.user.is_superuser and profile:
             if profile.is_patient:
                 if patient != profile.patient:
@@ -75,6 +79,42 @@ class AppointmentViewSet(ModelViewSet):
                 serializer.save(booked_by=self.request.user, booking_source=Appointment.BookingSource.MANAGEMENT)
                 return
         serializer.save(booked_by=self.request.user, booking_source=Appointment.BookingSource.ADMINISTRATION)
+
+    def perform_update(self, serializer):
+        profile = get_profile(self.request.user)
+        if self.request.user.is_superuser:
+            serializer.save()
+            return
+        if not profile:
+            raise PermissionDenied("Perfil de acesso nao encontrado.")
+        if profile.is_patient:
+            raise PermissionDenied("Paciente deve usar cancelamento ou reagendamento, sem alterar o agendamento diretamente.")
+        if profile.is_professional:
+            professional = serializer.validated_data.get("professional", serializer.instance.professional)
+            patient = serializer.validated_data.get("patient", serializer.instance.patient)
+            if professional != profile.professional:
+                raise PermissionDenied("Profissional so pode alterar a propria agenda.")
+            if not ProfessionalPatientAssignment.objects.filter(
+                patient=patient,
+                professional=profile.professional,
+                active=True,
+            ).exists():
+                raise PermissionDenied("Paciente nao vinculado a este profissional.")
+            serializer.save()
+            return
+        if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+            serializer.save()
+            return
+        raise PermissionDenied("Perfil sem permissao para alterar agendamento.")
+
+    def perform_destroy(self, instance):
+        profile = get_profile(self.request.user)
+        if self.request.user.is_superuser or (
+            profile and profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}
+        ):
+            instance.delete()
+            return
+        raise PermissionDenied("Apenas administracao ou gerencia podem excluir agendamentos pela API.")
 
 
 class ProfessionalAvailabilityViewSet(ModelViewSet):
@@ -142,6 +182,25 @@ class ServicePackageViewSet(ModelViewSet):
             return queryset.filter(membership__patient_id__in=patient_ids)
         return queryset.none()
 
+    def require_finance_role(self):
+        if self.request.user.is_superuser:
+            return
+        profile = get_profile(self.request.user)
+        if not profile or profile.role not in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+            raise PermissionDenied("Apenas administracao ou gerencia podem alterar pacotes pela API.")
+
+    def perform_create(self, serializer):
+        self.require_finance_role()
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self.require_finance_role()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self.require_finance_role()
+        instance.delete()
+
 
 class ServiceUsageViewSet(ModelViewSet):
     queryset = ServiceUsage.objects.select_related("service_package", "appointment__patient", "registered_by")
@@ -168,6 +227,58 @@ class ServiceUsageViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         profile = get_profile(self.request.user)
+        if not self.request.user.is_superuser and not profile:
+            raise PermissionDenied("Perfil de acesso nao encontrado.")
+        appointment = serializer.validated_data.get("appointment")
+        service_package = serializer.validated_data.get("service_package")
+        units = serializer.validated_data.get("units", 1)
         if profile and profile.is_patient:
             raise PermissionDenied("Paciente nao pode registrar baixa de atendimento.")
-        serializer.save(registered_by=self.request.user)
+        if profile and profile.is_professional:
+            if appointment.professional_id != profile.professional_id:
+                raise PermissionDenied("Profissional so pode baixar atendimentos da propria agenda.")
+            if not ProfessionalPatientAssignment.objects.filter(
+                patient=appointment.patient,
+                professional=profile.professional,
+                active=True,
+            ).exists():
+                raise PermissionDenied("Paciente nao vinculado a este profissional.")
+        if appointment.status in {Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED}:
+            raise PermissionDenied("Agendamentos cancelados ou reagendados nao consomem credito.")
+        if service_package.membership.patient_id != appointment.patient_id:
+            raise ValidationError({"service_package": "O pacote precisa pertencer ao paciente do agendamento."})
+
+        with transaction.atomic():
+            locked_appointment = Appointment.objects.select_for_update().get(pk=appointment.pk)
+            locked_package = ServicePackage.objects.select_for_update().get(pk=service_package.pk)
+            if locked_package.remaining_sessions < units:
+                raise ValidationError({"units": "O pacote nao possui saldo suficiente."})
+            serializer.save(
+                registered_by=self.request.user,
+                appointment=locked_appointment,
+                service_package=locked_package,
+            )
+            locked_appointment.status = Appointment.Status.COMPLETED
+            locked_appointment.completed_by = self.request.user
+            locked_appointment.full_clean()
+            locked_appointment.save()
+            locked_package.used_sessions += units
+            if locked_package.used_sessions >= locked_package.total_sessions:
+                locked_package.status = ServicePackage.Status.FINISHED
+            locked_package.full_clean()
+            locked_package.save()
+
+    def require_finance_role(self):
+        if self.request.user.is_superuser:
+            return
+        profile = get_profile(self.request.user)
+        if not profile or profile.role not in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+            raise PermissionDenied("Apenas administracao ou gerencia podem alterar baixas ja registradas.")
+
+    def perform_update(self, serializer):
+        self.require_finance_role()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self.require_finance_role()
+        instance.delete()

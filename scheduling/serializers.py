@@ -11,6 +11,17 @@ class AppointmentSerializer(ModelCleanSerializerMixin, serializers.ModelSerializ
     class Meta:
         model = Appointment
         fields = "__all__"
+        read_only_fields = [
+            "booked_by",
+            "booking_source",
+            "completed_by",
+            "completed_at",
+            "external_provider",
+            "external_event_id",
+            "rescheduled_from",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class ProfessionalAvailabilitySerializer(ModelCleanSerializerMixin, serializers.ModelSerializer):
@@ -29,6 +40,7 @@ class ServicePackageSerializer(ModelCleanSerializerMixin, serializers.ModelSeria
     class Meta:
         model = ServicePackage
         fields = "__all__"
+        read_only_fields = ["created_at", "updated_at"]
 
 
 class ServiceUsageSerializer(ModelCleanSerializerMixin, serializers.ModelSerializer):
@@ -37,3 +49,4 @@ class ServiceUsageSerializer(ModelCleanSerializerMixin, serializers.ModelSeriali
     class Meta:
         model = ServiceUsage
         fields = "__all__"
+        read_only_fields = ["registered_by", "registered_at", "created_at", "updated_at"]

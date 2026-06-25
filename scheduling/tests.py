@@ -302,6 +302,117 @@ class SchedulingTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    def test_patient_cannot_patch_appointment_directly_api(self):
+        user = get_user_model().objects.create_user(username="paciente-api-patch-agenda", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
+        )
+        start = timezone.now() + timedelta(days=10)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.patch(
+            f"/api/v1/appointments/{appointment.pk}/",
+            {"status": Appointment.Status.COMPLETED},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        appointment.refresh_from_db()
+        self.assertNotEqual(appointment.status, Appointment.Status.COMPLETED)
+
+    def test_patient_cannot_create_service_package_api(self):
+        user = get_user_model().objects.create_user(username="paciente-api-pacote", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            "/api/v1/service-packages/",
+            {
+                "membership": self.membership.pk,
+                "total_sessions": 99,
+                "used_sessions": 0,
+                "status": ServicePackage.Status.ACTIVE,
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(ServicePackage.objects.filter(total_sessions=99).exists())
+
+    def test_professional_cannot_register_usage_for_other_professional_api(self):
+        other_professional = Professional.objects.create(
+            full_name="Profissional Baixa Outro",
+            specialty=Professional.Specialty.PILATES,
+        )
+        user = get_user_model().objects.create_user(username="prof-api-baixa", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        package = ServicePackage.objects.create(membership=self.membership, total_sessions=4, used_sessions=0)
+        start = timezone.now() + timedelta(days=11)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=other_professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            "/api/v1/service-usages/",
+            {
+                "service_package": package.pk,
+                "appointment": appointment.pk,
+                "units": 1,
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(ServiceUsage.objects.filter(appointment=appointment).exists())
+
+    def test_professional_can_register_usage_for_own_appointment_api(self):
+        user = get_user_model().objects.create_user(username="prof-api-baixa-propria", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        package = ServicePackage.objects.create(membership=self.membership, total_sessions=4, used_sessions=0)
+        start = timezone.now() + timedelta(days=12)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            "/api/v1/service-usages/",
+            {
+                "service_package": package.pk,
+                "appointment": appointment.pk,
+                "units": 1,
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        usage = ServiceUsage.objects.get(appointment=appointment)
+        appointment.refresh_from_db()
+        package.refresh_from_db()
+        self.assertEqual(usage.registered_by, user)
+        self.assertEqual(appointment.status, Appointment.Status.COMPLETED)
+        self.assertEqual(package.used_sessions, 1)
+
     def test_professional_cannot_create_availability_for_another_professional_api(self):
         other_professional = Professional.objects.create(
             full_name="Profissional Outro API",

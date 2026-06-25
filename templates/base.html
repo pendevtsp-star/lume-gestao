@@ -19,34 +19,34 @@
       </a>
 
       <nav class="nav">
-        <a href="{% url 'dashboard' %}"><span class="nav-icon" aria-hidden="true">🏠</span><span>Dashboard</span></a>
+        <a href="{% url 'dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Dashboard</span></a>
         {% if request.user.profile.role != "patient" %}
-          <a href="{% url 'patients:list' %}"><span class="nav-icon" aria-hidden="true">👥</span><span>Pacientes</span></a>
+          <a href="{% url 'patients:list' %}"><span class="nav-icon icon-patients" aria-hidden="true"></span><span>Pacientes</span></a>
         {% endif %}
-        <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon" aria-hidden="true">📅</span><span>Agenda</span></a>
+        <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Agenda</span></a>
         {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
-          <a href="{% url 'scheduling:availabilities' %}"><span class="nav-icon" aria-hidden="true">🕒</span><span>Disponibilidade</span></a>
+          <a href="{% url 'scheduling:availabilities' %}"><span class="nav-icon icon-clock" aria-hidden="true"></span><span>Disponibilidade</span></a>
         {% endif %}
         {% if request.user.profile.role == "professional" %}
-          <a href="{% url 'patients:notes' %}"><span class="nav-icon" aria-hidden="true">📝</span><span>Prontuario</span></a>
+          <a href="{% url 'patients:notes' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Prontuario</span></a>
         {% endif %}
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
-          <a href="{% url 'reports:dashboard' %}"><span class="nav-icon" aria-hidden="true">📊</span><span>Relatorios</span></a>
-          <a href="{% url 'billing:memberships' %}"><span class="nav-icon" aria-hidden="true">📌</span><span>Mensalidades</span></a>
-          <a href="{% url 'billing:payments' %}"><span class="nav-icon" aria-hidden="true">💳</span><span>Pagamentos</span></a>
-          <a href="{% url 'billing:charges' %}"><span class="nav-icon" aria-hidden="true">💰</span><span>Cobrancas</span></a>
-          <a href="{% url 'billing:expenses' %}"><span class="nav-icon" aria-hidden="true">🧾</span><span>Despesas</span></a>
-          <a href="{% url 'scheduling:packages' %}"><span class="nav-icon" aria-hidden="true">🎟️</span><span>Pacotes</span></a>
-          <a href="{% url 'billing:plans' %}"><span class="nav-icon" aria-hidden="true">📋</span><span>Planos</span></a>
-          <a href="{% url 'patients:assignments' %}"><span class="nav-icon" aria-hidden="true">🔗</span><span>Vinculos</span></a>
-          <a href="{% url 'team:professionals' %}"><span class="nav-icon" aria-hidden="true">🩺</span><span>Profissionais</span></a>
-          <a href="{% url 'team:employees' %}"><span class="nav-icon" aria-hidden="true">🧑‍💼</span><span>Funcionarios</span></a>
+          <a href="{% url 'reports:dashboard' %}"><span class="nav-icon icon-reports" aria-hidden="true"></span><span>Relatorios</span></a>
+          <a href="{% url 'billing:memberships' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Mensalidades</span></a>
+          <a href="{% url 'billing:payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Pagamentos</span></a>
+          <a href="{% url 'billing:charges' %}"><span class="nav-icon icon-charges" aria-hidden="true"></span><span>Cobrancas</span></a>
+          <a href="{% url 'billing:expenses' %}"><span class="nav-icon icon-expenses" aria-hidden="true"></span><span>Despesas</span></a>
+          <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Pacotes</span></a>
+          <a href="{% url 'billing:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos</span></a>
+          <a href="{% url 'patients:assignments' %}"><span class="nav-icon icon-links" aria-hidden="true"></span><span>Vinculos</span></a>
+          <a href="{% url 'team:professionals' %}"><span class="nav-icon icon-professionals" aria-hidden="true"></span><span>Profissionais</span></a>
+          <a href="{% url 'team:employees' %}"><span class="nav-icon icon-employees" aria-hidden="true"></span><span>Funcionarios</span></a>
         {% endif %}
         {% if request.user.is_superuser or request.user.profile.role == "management" %}
-          <a href="{% url 'accounts:list' %}"><span class="nav-icon" aria-hidden="true">🔐</span><span>Usuarios</span></a>
-          <a href="{% url 'audit' %}"><span class="nav-icon" aria-hidden="true">🧭</span><span>Auditoria</span></a>
-          <a href="{% url 'settings' %}"><span class="nav-icon" aria-hidden="true">⚙️</span><span>Configuracoes</span></a>
-          <a href="{% url 'integrations' %}"><span class="nav-icon" aria-hidden="true">⇄</span><span>Integracoes</span></a>
+          <a href="{% url 'accounts:list' %}"><span class="nav-icon icon-users" aria-hidden="true"></span><span>Usuarios</span></a>
+          <a href="{% url 'audit' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Auditoria</span></a>
+          <a href="{% url 'settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Configuracoes</span></a>
+          <a href="{% url 'integrations' %}"><span class="nav-icon icon-integrations" aria-hidden="true"></span><span>Integracoes</span></a>
         {% endif %}
       </nav>
 

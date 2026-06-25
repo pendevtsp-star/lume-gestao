@@ -166,6 +166,20 @@ Para instalar em uma maquina da clinica na rede local, siga o roteiro em:
 docs/INSTALACAO_CLINICA.md
 ```
 
+## E-mail e recuperacao de senha
+
+O fluxo de recuperacao de senha fica em `/recuperar-senha/`. Em desenvolvimento, os e-mails aparecem no console do Docker. Para envio real por SMTP, siga:
+
+```text
+docs/EMAIL_SMTP.md
+```
+
+Para testar a configuracao SMTP:
+
+```bash
+docker compose exec web python manage.py send_test_email destino@exemplo.com
+```
+
 ## Versionamento
 
 O projeto esta em Git local na branch `main`. Para enviar ao GitHub, crie um repositorio privado e conecte o remoto:
@@ -183,3 +197,9 @@ git push -u origin main
 4. Integracao Pix via provedor com webhooks.
 5. App do cliente usando a API.
 6. Assistente virtual com acesso controlado apenas a dados permitidos.
+
+O roadmap atualizado dos itens 3 a 7 esta salvo em:
+
+```text
+docs/PROXIMOS_PASSOS.md
+```

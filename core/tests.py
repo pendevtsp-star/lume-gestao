@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import UserProfile
-from billing.models import Membership, Payment, ServicePlan
+from billing.models import Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from core.models import AuditLog, ClinicSettings
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
@@ -130,6 +130,15 @@ class FunctionalRoleFlowTests(TestCase):
             response = self.client.get(reverse(route_name))
             self.assertEqual(response.status_code, 200, route_name)
 
+    def test_all_profiles_can_login_and_logout_with_credentials(self):
+        for user in [self.management, self.administration, self.professional_user, self.patient_user]:
+            self.client.logout()
+            self.assertTrue(self.client.login(username=user.username, password="Senha@123"), user.username)
+            response = self.client.get(reverse("dashboard"))
+            self.assertEqual(response.status_code, 200, user.username)
+            logout_response = self.client.post(reverse("logout"))
+            self.assertEqual(logout_response.status_code, 302, user.username)
+
     def test_management_can_open_full_backoffice_flow(self):
         self.assert_pages_ok(
             self.management,
@@ -153,6 +162,53 @@ class FunctionalRoleFlowTests(TestCase):
                 "settings",
             ],
         )
+
+    def test_management_review_covers_exports_expenses_and_audit(self):
+        category = ExpenseCategory.objects.get(name="Aluguel")
+        Expense.objects.create(
+            description="Energia funcional",
+            category=category,
+            kind=Expense.Kind.FIXED,
+            due_date=date(2026, 6, 5),
+            amount=Decimal("300.00"),
+            status=Expense.Status.OPEN,
+        )
+        self.client.force_login(self.management)
+
+        expense_response = self.client.get(reverse("billing:expenses"))
+        pdf_response = self.client.get(reverse("reports:export", args=["pdf"]))
+        xlsx_response = self.client.get(reverse("reports:export", args=["xlsx"]))
+        ics_response = self.client.get(reverse("scheduling:appointments_ical"))
+        settings_response = self.client.post(
+            reverse("settings"),
+            {
+                "clinic_name": "Lume Revisao",
+                "cnpj": "",
+                "phone": "",
+                "email": "",
+                "address": "",
+                "business_days": "Segunda a sexta",
+                "opening_time": "08:00",
+                "closing_time": "18:00",
+                "membership_due_reminder_days": 6,
+                "default_membership_due_day": 10,
+                "cancellation_deadline_hours": 24,
+                "rescheduling_deadline_hours": 24,
+                "cancellation_policy": "",
+                "rescheduling_policy": "",
+            },
+        )
+        audit_response = self.client.get(reverse("audit"))
+
+        self.assertContains(expense_response, "Energia funcional")
+        self.assertEqual(pdf_response["Content-Type"], "application/pdf")
+        self.assertEqual(
+            xlsx_response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("text/calendar", ics_response["Content-Type"])
+        self.assertEqual(settings_response.status_code, 302)
+        self.assertContains(audit_response, "ClinicSettings")
 
     def test_administration_can_open_operational_finance_but_not_management_only_pages(self):
         self.assert_pages_ok(

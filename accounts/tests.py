@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.management import call_command
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
@@ -124,3 +125,11 @@ class UserProfileTests(TestCase):
         response = self.client.post(reverse("password_reset"), {"identifier": "nao-existe"})
 
         self.assertContains(response, "Usuario inexistente.", status_code=200)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_send_test_email_command_uses_configured_backend(self):
+        call_command("send_test_email", "teste@lume.local")
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["teste@lume.local"])
+        self.assertIn("configuracao de envio", mail.outbox[0].body)

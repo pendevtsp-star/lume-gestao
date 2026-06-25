@@ -107,3 +107,17 @@ Rode periodicamente:
 ```
 
 Os arquivos serao criados na pasta `backups/`.
+
+## 8. E-mail SMTP
+
+Para ativar recuperacao de senha por e-mail real, configure as variaveis `EMAIL_*` no `.env` e rode:
+
+```powershell
+docker compose exec web python manage.py send_test_email destino@exemplo.com
+```
+
+O roteiro detalhado esta em:
+
+```text
+docs/EMAIL_SMTP.md
+```

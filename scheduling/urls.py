@@ -3,6 +3,7 @@ from django.urls import path
 from scheduling.views import (
     AppointmentCompleteView,
     AppointmentCancelView,
+    AppointmentCalendarExportView,
     AppointmentCreateView,
     AppointmentListView,
     AppointmentRescheduleView,
@@ -19,6 +20,7 @@ app_name = "scheduling"
 
 urlpatterns = [
     path("", AppointmentListView.as_view(), name="appointments"),
+    path("google/ical/", AppointmentCalendarExportView.as_view(), name="appointments_ical"),
     path("novo/", AppointmentCreateView.as_view(), name="appointment_create"),
     path("<int:pk>/editar/", AppointmentUpdateView.as_view(), name="appointment_update"),
     path("<int:pk>/reagendar/", AppointmentRescheduleView.as_view(), name="appointment_reschedule"),

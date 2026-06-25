@@ -6,3 +6,9 @@ __pycache__/
 .env
 .pytest_cache
 staticfiles
+dist
+desktop
+media
+docs
+referencias visuais
+*.sqlite3

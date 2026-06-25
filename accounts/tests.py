@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import reverse
 
 from accounts.models import UserProfile
@@ -80,3 +82,45 @@ class UserProfileTests(TestCase):
         self.assertEqual(response.status_code, 302)
         patient.refresh_from_db()
         self.assertFalse(patient.photo)
+
+    def test_management_user_can_save_whatsapp_settings(self):
+        user = get_user_model().objects.create_user(username="gestor-whatsapp", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("accounts:self_settings"),
+            {
+                "username": "gestor-whatsapp",
+                "first_name": "",
+                "last_name": "",
+                "email": "gestor@lume.local",
+                "phone": "",
+                "whatsapp_number": "5511999990000",
+                "whatsapp_notifications_enabled": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        user.profile.refresh_from_db()
+        self.assertEqual(user.profile.whatsapp_number, "5511999990000")
+        self.assertTrue(user.profile.whatsapp_notifications_enabled)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_password_recovery_sends_email_for_existing_user(self):
+        get_user_model().objects.create_user(
+            username="recuperar",
+            email="recuperar@lume.local",
+            password="Senha@123",
+        )
+
+        response = self.client.post(reverse("password_reset"), {"identifier": "recuperar"})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("recuperar-senha", mail.outbox[0].body)
+
+    def test_password_recovery_reports_missing_user(self):
+        response = self.client.post(reverse("password_reset"), {"identifier": "nao-existe"})
+
+        self.assertContains(response, "Usuario inexistente.", status_code=200)

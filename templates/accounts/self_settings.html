@@ -77,6 +77,19 @@
       {{ form.phone }}
       {% for error in form.phone.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
     </label>
+    {% if show_whatsapp_settings %}
+      <label class="form-field">
+        <span>{{ form.whatsapp_number.label }}</span>
+        {{ form.whatsapp_number }}
+        <small>Numero que sera usado futuramente para avisos da administracao.</small>
+        {% for error in form.whatsapp_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field checkbox-field">
+        {{ form.whatsapp_notifications_enabled }}
+        <span>{{ form.whatsapp_notifications_enabled.label }}</span>
+        {% for error in form.whatsapp_notifications_enabled.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+    {% endif %}
     <label class="form-field">
       <span>{{ form.current_password.label }}</span>
       {{ form.current_password }}

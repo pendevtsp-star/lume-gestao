@@ -1,15 +1,21 @@
+from datetime import datetime
+from datetime import time
 from datetime import timedelta
+from datetime import timezone as datetime_timezone
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F
+from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.urls import reverse
 from django.urls import reverse_lazy
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.views import View
 from django.views.generic import CreateView, FormView, ListView, UpdateView
 
@@ -75,6 +81,35 @@ def add_model_validation_errors(form, error):
         form.add_error(None, message)
 
 
+def filter_appointment_search(queryset, query):
+    if not query:
+        return queryset
+    return queryset.filter(
+        Q(patient__full_name__icontains=query)
+        | Q(professional__full_name__icontains=query)
+        | Q(status__icontains=query)
+    )
+
+
+def calendar_week_start(request):
+    selected = parse_date(request.GET.get("semana", "")) or timezone.localdate()
+    return selected - timedelta(days=selected.weekday())
+
+
+def escape_ics(value):
+    return (
+        str(value or "")
+        .replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\n", "\\n")
+    )
+
+
+def format_ics_datetime(value):
+    return value.astimezone(datetime_timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
 class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
     model = Appointment
     template_name = "scheduling/appointment_list.html"
@@ -83,7 +118,91 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
     search_fields = ["patient__full_name", "professional__full_name", "status"]
 
     def get_queryset(self):
-        return appointments_for_user(self.request.user)
+        queryset = appointments_for_user(self.request.user).order_by("starts_at")
+        return filter_appointment_search(queryset, self.request.GET.get("q", "").strip())
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        week_start = calendar_week_start(self.request)
+        week_end = week_start + timedelta(days=6)
+        selected_day = parse_date(self.request.GET.get("dia", "")) or timezone.localdate()
+        if selected_day < week_start or selected_day > week_end:
+            selected_day = week_start
+        week_days = [week_start + timedelta(days=offset) for offset in range(7)]
+        hour_slots = range(6, 21)
+        calendar_queryset = (
+            self.get_queryset()
+            .filter(starts_at__date__gte=week_start, starts_at__date__lte=week_end)
+            .exclude(status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED])
+        )
+        events_by_day_hour = {day: {hour: [] for hour in hour_slots} for day in week_days}
+        for appointment in calendar_queryset:
+            local_start = timezone.localtime(appointment.starts_at)
+            day = local_start.date()
+            hour = local_start.hour
+            if day in events_by_day_hour and hour in events_by_day_hour[day]:
+                events_by_day_hour[day][hour].append(appointment)
+
+        calendar_rows = []
+        for hour in hour_slots:
+            calendar_rows.append(
+                {
+                    "hour": hour,
+                    "cells": [
+                        {
+                            "day": day,
+                            "appointments": events_by_day_hour[day][hour],
+                        }
+                        for day in week_days
+                    ],
+                }
+            )
+
+        context.update(
+            {
+                "week_start": week_start,
+                "week_end": week_end,
+                "previous_week": week_start - timedelta(days=7),
+                "next_week": week_start + timedelta(days=7),
+                "today": timezone.localdate(),
+                "selected_day": selected_day,
+                "week_days": week_days,
+                "calendar_rows": calendar_rows,
+                "day_appointments": calendar_queryset.filter(starts_at__date=selected_day).order_by("starts_at"),
+            }
+        )
+        return context
+
+
+class AppointmentCalendarExportView(AppointmentAccessMixin, View):
+    def get(self, request):
+        appointments = appointments_for_user(request.user).order_by("starts_at")
+        generated_at = datetime.now(datetime_timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        lines = [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//Lume Gestao//Agenda//PT-BR",
+            "CALSCALE:GREGORIAN",
+            "METHOD:PUBLISH",
+            "X-WR-CALNAME:Lume Gestao - Agenda",
+        ]
+        for appointment in appointments:
+            lines.extend(
+                [
+                    "BEGIN:VEVENT",
+                    f"UID:lume-appointment-{appointment.pk}@lume.local",
+                    f"DTSTAMP:{generated_at}",
+                    f"DTSTART:{format_ics_datetime(appointment.starts_at)}",
+                    f"DTEND:{format_ics_datetime(appointment.ends_at)}",
+                    f"SUMMARY:{escape_ics(appointment.patient.full_name)} com {escape_ics(appointment.professional.full_name)}",
+                    f"DESCRIPTION:{escape_ics(appointment.get_status_display())} - {escape_ics(appointment.notes)}",
+                    "END:VEVENT",
+                ]
+            )
+        lines.append("END:VCALENDAR")
+        response = HttpResponse("\r\n".join(lines), content_type="text/calendar; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="lume-agenda.ics"'
+        return response
 
 
 class SlotSelectionMixin:

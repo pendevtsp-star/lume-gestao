@@ -21,6 +21,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from accounts.views import PasswordRecoveryRequestView
 from accounts.api import UserProfileViewSet
 from billing.api import (
     ChargeViewSet,
@@ -65,8 +66,17 @@ urlpatterns = [
     path('financeiro/', include('billing.urls')),
     path('agenda/', include('scheduling.urls')),
     path('relatorios/', include('reports.urls')),
+    path('api/v1/mobile/', include('mobile.urls')),
     path('api/v1/', include(router.urls)),
     path('login/', auth_views.LoginView.as_view(), name='login'),
+    path('recuperar-senha/', PasswordRecoveryRequestView.as_view(), name='password_reset'),
+    path('recuperar-senha/enviado/', auth_views.PasswordResetDoneView.as_view(), name='password_reset_done'),
+    path(
+        'recuperar-senha/<uidb64>/<token>/',
+        auth_views.PasswordResetConfirmView.as_view(),
+        name='password_reset_confirm',
+    ),
+    path('recuperar-senha/concluido/', auth_views.PasswordResetCompleteView.as_view(), name='password_reset_complete'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('admin/', admin.site.urls),
 ]

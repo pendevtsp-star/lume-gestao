@@ -122,8 +122,23 @@ textarea {
 
 .nav a {
   position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
   padding: 11px 12px;
   transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.nav-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.10);
+  font-size: 17px;
+  line-height: 1;
 }
 
 .nav a:hover,
@@ -528,6 +543,12 @@ textarea.field-control {
   height: 20px;
 }
 
+.checkbox-field {
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  align-content: center;
+}
+
 .table-wrap {
   width: 100%;
   overflow-x: auto;
@@ -828,6 +849,156 @@ td small {
   color: var(--muted);
 }
 
+.calendar-panel {
+  margin-bottom: 18px;
+}
+
+.calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+  background: #fffdf6;
+}
+
+.calendar-toolbar h2,
+.calendar-toolbar p {
+  margin-bottom: 0;
+}
+
+.calendar-toolbar p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.calendar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-button {
+  width: 42px;
+  padding: 0;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.calendar-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.calendar-grid-table {
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.calendar-grid-table th,
+.calendar-grid-table td {
+  width: 13%;
+  padding: 8px;
+  border-color: #ded7c8;
+  vertical-align: top;
+}
+
+.calendar-grid-table thead th {
+  background: #f7f3e9;
+  color: var(--text);
+  text-transform: none;
+}
+
+.calendar-grid-table th:first-child,
+.calendar-grid-table td:first-child {
+  width: 70px;
+}
+
+.calendar-grid-table .is-today {
+  background: rgba(143, 149, 104, 0.10);
+}
+
+.calendar-hour {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+.calendar-event {
+  display: grid;
+  gap: 3px;
+  min-height: 50px;
+  margin-bottom: 6px;
+  padding: 7px;
+  border-radius: 6px;
+  background: var(--success);
+  color: #fffdf4;
+  box-shadow: 0 8px 18px rgba(49, 112, 91, 0.18);
+}
+
+.calendar-event.requested {
+  background: #4f806f;
+}
+
+.calendar-event.completed {
+  background: #687052;
+}
+
+.calendar-event strong,
+.calendar-event span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-event strong {
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+.calendar-event span {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.day-agenda-list {
+  display: grid;
+}
+
+.day-agenda-item {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid #ece7db;
+}
+
+.day-agenda-item:last-child {
+  border-bottom: 0;
+}
+
+.day-agenda-item time {
+  color: var(--sage-dark);
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.day-agenda-item strong,
+.day-agenda-item span {
+  display: block;
+}
+
+.day-agenda-item span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .report-filter-panel {
   margin-bottom: 18px;
 }
@@ -926,8 +1097,64 @@ td small {
   border-color: #b9ad95;
 }
 
+.password-control {
+  position: relative;
+  display: block;
+}
+
+.password-control input {
+  padding-right: 48px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible,
+.password-toggle[aria-pressed="true"] {
+  background: #f3ede0;
+  color: var(--ink);
+}
+
+.password-toggle svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
 .login-panel .button.full {
   min-height: 50px;
+}
+
+.login-copy {
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.login-help-link {
+  display: block;
+  margin-top: 14px;
+  color: var(--sage-dark);
+  font-size: 14px;
+  font-weight: 900;
+  text-align: center;
 }
 
 @media (max-width: 980px) {
@@ -958,6 +1185,7 @@ td small {
 
   .page-heading,
   .panel-header,
+  .calendar-toolbar,
   .form-actions,
   .account-photo-row,
   .panel-actions {
@@ -977,5 +1205,16 @@ td small {
 
   .button {
     width: 100%;
+  }
+
+  .calendar-actions,
+  .day-agenda-item {
+    width: 100%;
+  }
+
+  .calendar-actions,
+  .day-agenda-item {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }

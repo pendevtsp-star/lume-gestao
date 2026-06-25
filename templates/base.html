@@ -19,33 +19,33 @@
       </a>
 
       <nav class="nav">
-        <a href="{% url 'dashboard' %}">Dashboard</a>
+        <a href="{% url 'dashboard' %}"><span class="nav-icon" aria-hidden="true">🏠</span><span>Dashboard</span></a>
         {% if request.user.profile.role != "patient" %}
-          <a href="{% url 'patients:list' %}">Pacientes</a>
+          <a href="{% url 'patients:list' %}"><span class="nav-icon" aria-hidden="true">👥</span><span>Pacientes</span></a>
         {% endif %}
-        <a href="{% url 'scheduling:appointments' %}">Agenda</a>
+        <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon" aria-hidden="true">📅</span><span>Agenda</span></a>
         {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
-          <a href="{% url 'scheduling:availabilities' %}">Disponibilidade</a>
+          <a href="{% url 'scheduling:availabilities' %}"><span class="nav-icon" aria-hidden="true">🕒</span><span>Disponibilidade</span></a>
         {% endif %}
         {% if request.user.profile.role == "professional" %}
-          <a href="{% url 'patients:notes' %}">Prontuario</a>
+          <a href="{% url 'patients:notes' %}"><span class="nav-icon" aria-hidden="true">📝</span><span>Prontuario</span></a>
         {% endif %}
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
-          <a href="{% url 'reports:dashboard' %}">Relatorios</a>
-          <a href="{% url 'billing:memberships' %}">Mensalidades</a>
-          <a href="{% url 'billing:payments' %}">Pagamentos</a>
-          <a href="{% url 'billing:charges' %}">Cobrancas</a>
-          <a href="{% url 'billing:expenses' %}">Despesas</a>
-          <a href="{% url 'scheduling:packages' %}">Pacotes</a>
-          <a href="{% url 'billing:plans' %}">Planos</a>
-          <a href="{% url 'patients:assignments' %}">Vinculos</a>
-          <a href="{% url 'team:professionals' %}">Profissionais</a>
-          <a href="{% url 'team:employees' %}">Funcionarios</a>
+          <a href="{% url 'reports:dashboard' %}"><span class="nav-icon" aria-hidden="true">📊</span><span>Relatorios</span></a>
+          <a href="{% url 'billing:memberships' %}"><span class="nav-icon" aria-hidden="true">📌</span><span>Mensalidades</span></a>
+          <a href="{% url 'billing:payments' %}"><span class="nav-icon" aria-hidden="true">💳</span><span>Pagamentos</span></a>
+          <a href="{% url 'billing:charges' %}"><span class="nav-icon" aria-hidden="true">💰</span><span>Cobrancas</span></a>
+          <a href="{% url 'billing:expenses' %}"><span class="nav-icon" aria-hidden="true">🧾</span><span>Despesas</span></a>
+          <a href="{% url 'scheduling:packages' %}"><span class="nav-icon" aria-hidden="true">🎟️</span><span>Pacotes</span></a>
+          <a href="{% url 'billing:plans' %}"><span class="nav-icon" aria-hidden="true">📋</span><span>Planos</span></a>
+          <a href="{% url 'patients:assignments' %}"><span class="nav-icon" aria-hidden="true">🔗</span><span>Vinculos</span></a>
+          <a href="{% url 'team:professionals' %}"><span class="nav-icon" aria-hidden="true">🩺</span><span>Profissionais</span></a>
+          <a href="{% url 'team:employees' %}"><span class="nav-icon" aria-hidden="true">🧑‍💼</span><span>Funcionarios</span></a>
         {% endif %}
         {% if request.user.is_superuser or request.user.profile.role == "management" %}
-          <a href="{% url 'accounts:list' %}">Usuarios</a>
-          <a href="{% url 'audit' %}">Auditoria</a>
-          <a href="{% url 'settings' %}">Configuracoes</a>
+          <a href="{% url 'accounts:list' %}"><span class="nav-icon" aria-hidden="true">🔐</span><span>Usuarios</span></a>
+          <a href="{% url 'audit' %}"><span class="nav-icon" aria-hidden="true">🧭</span><span>Auditoria</span></a>
+          <a href="{% url 'settings' %}"><span class="nav-icon" aria-hidden="true">⚙️</span><span>Configuracoes</span></a>
         {% endif %}
       </nav>
 

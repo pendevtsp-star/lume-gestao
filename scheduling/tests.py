@@ -327,3 +327,24 @@ class SchedulingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    def test_calendar_week_view_and_ics_export_are_available(self):
+        user = get_user_model().objects.create_user(username="gestao-calendario", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        start = timezone.now() + timedelta(days=1)
+        Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("scheduling:appointments"))
+        self.assertContains(response, "Agenda semanal")
+        self.assertContains(response, self.patient.full_name)
+
+        ics_response = self.client.get(reverse("scheduling:appointments_ical"))
+        self.assertEqual(ics_response.status_code, 200)
+        self.assertIn("text/calendar", ics_response["Content-Type"])
+        self.assertIn("BEGIN:VCALENDAR", ics_response.content.decode())

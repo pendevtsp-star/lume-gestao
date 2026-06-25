@@ -9,6 +9,7 @@
     <h1>Agendamentos</h1>
   </div>
   <div class="panel-actions">
+    <a class="button secondary" href="{% url 'scheduling:appointments_ical' %}">Google Agenda .ics</a>
     {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
       <a class="button secondary" href="{% url 'scheduling:availabilities' %}">Disponibilidade</a>
     {% endif %}
@@ -16,11 +17,95 @@
   </div>
 </section>
 
-<section class="panel">
+<section class="panel calendar-panel">
   <form class="toolbar" method="get">
     <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, profissional ou status">
     <button class="button secondary" type="submit">Buscar</button>
   </form>
+  <div class="calendar-toolbar">
+    <div>
+      <h2>{{ week_start|date:"d" }} - {{ week_end|date:"d \\d\\e M \\d\\e Y" }}</h2>
+      <p>Agenda semanal com atendimentos visiveis para o seu perfil.</p>
+    </div>
+    <div class="calendar-actions">
+      <a class="button secondary" href="?semana={{ today|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}">Hoje</a>
+      <a class="button secondary icon-button" href="?semana={{ previous_week|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}" aria-label="Semana anterior">‹</a>
+      <a class="button secondary icon-button" href="?semana={{ next_week|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}" aria-label="Proxima semana">›</a>
+    </div>
+  </div>
+  <div class="calendar-wrap">
+    <table class="calendar-grid-table">
+      <thead>
+        <tr>
+          <th>Hora</th>
+          {% for day in week_days %}
+            <th class="{% if day == today %}is-today{% endif %}">
+              <a href="?semana={{ week_start|date:'Y-m-d' }}&dia={{ day|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+                {{ day|date:"D d/m" }}
+              </a>
+            </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in calendar_rows %}
+          <tr>
+            <th class="calendar-hour">{{ row.hour|stringformat:"02d" }}:00</th>
+            {% for cell in row.cells %}
+              <td class="{% if cell.day == today %}is-today{% endif %}">
+                {% for appointment in cell.appointments %}
+                  <a class="calendar-event {{ appointment.status }}" href="{% if request.user.profile.role == 'patient' %}{% url 'scheduling:appointment_reschedule' appointment.pk %}{% else %}{% url 'scheduling:appointment_update' appointment.pk %}{% endif %}">
+                    <strong>{{ appointment.starts_at|date:"H:i" }} {{ appointment.patient.full_name }}</strong>
+                    <span>{{ appointment.professional.full_name }}</span>
+                  </a>
+                {% endfor %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel stacked-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Atendimentos do dia</h2>
+      <p>{{ selected_day|date:"d/m/Y" }}</p>
+    </div>
+  </div>
+  <div class="day-agenda-list">
+    {% for appointment in day_appointments %}
+      <article class="day-agenda-item">
+        <time>{{ appointment.starts_at|date:"H:i" }}</time>
+        <div>
+          <strong>{{ appointment.patient.full_name }}</strong>
+          <span>{{ appointment.professional.full_name }} · {{ appointment.get_status_display }}</span>
+        </div>
+        <div class="table-actions">
+          {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" %}
+            <a class="table-action" href="{% url 'scheduling:appointment_reschedule' appointment.pk %}">Reagendar</a>
+            <form method="post" action="{% url 'scheduling:appointment_cancel' appointment.pk %}">
+              {% csrf_token %}
+              <button class="table-action button-link" type="submit">Cancelar</button>
+            </form>
+          {% endif %}
+        </div>
+      </article>
+    {% empty %}
+      <p class="empty">Nenhum atendimento neste dia.</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel stacked-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Lista detalhada</h2>
+      <p>Use a lista para edicoes, baixas e auditoria operacional.</p>
+    </div>
+  </div>
   <div class="table-wrap">
     <table>
       <thead>

@@ -28,6 +28,8 @@ class UserProfile(TimeStampedModel):
         related_name="user_profile",
     )
     phone = models.CharField("telefone", max_length=30, blank=True)
+    whatsapp_number = models.CharField("WhatsApp administrativo", max_length=30, blank=True)
+    whatsapp_notifications_enabled = models.BooleanField("habilitar avisos por WhatsApp", default=False)
     photo = models.ImageField("foto", upload_to="users/photos/", blank=True)
 
     class Meta:

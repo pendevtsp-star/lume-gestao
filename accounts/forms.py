@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.db.models import Q
 
 from accounts.models import UserProfile
 from core.forms import StyledModelForm
@@ -68,7 +69,15 @@ class UserAccountForm(forms.ModelForm):
 class UserProfileForm(StyledModelForm):
     class Meta:
         model = UserProfile
-        fields = ["role", "patient", "professional", "phone", "photo"]
+        fields = [
+            "role",
+            "patient",
+            "professional",
+            "phone",
+            "whatsapp_number",
+            "whatsapp_notifications_enabled",
+            "photo",
+        ]
 
 
 class UserSelfSettingsForm(forms.Form):
@@ -77,6 +86,8 @@ class UserSelfSettingsForm(forms.Form):
     last_name = forms.CharField(label="sobrenome", max_length=150, required=False)
     email = forms.EmailField(label="e-mail", required=False)
     phone = forms.CharField(label="telefone", max_length=30, required=False)
+    whatsapp_number = forms.CharField(label="WhatsApp para avisos", max_length=30, required=False)
+    whatsapp_notifications_enabled = forms.BooleanField(label="habilitar avisos futuros por WhatsApp", required=False)
     photo = forms.ImageField(label="foto pessoal", required=False)
     remove_photo = forms.BooleanField(label="remover foto atual", required=False, widget=forms.HiddenInput)
     current_password = forms.CharField(
@@ -92,13 +103,24 @@ class UserSelfSettingsForm(forms.Form):
         self.user = kwargs.pop("user")
         super().__init__(*args, **kwargs)
         profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        self.profile = profile
         photo_owner = profile.patient or profile.professional or profile
         self.photo_owner = photo_owner
+        self.show_whatsapp_settings = profile.role in {
+            UserProfile.Role.ADMINISTRATION,
+            UserProfile.Role.MANAGEMENT,
+        } or self.user.is_superuser
         self.fields["username"].initial = self.user.username
         self.fields["first_name"].initial = self.user.first_name
         self.fields["last_name"].initial = self.user.last_name
         self.fields["email"].initial = self.user.email
         self.fields["phone"].initial = profile.phone
+        self.fields["whatsapp_number"].initial = profile.whatsapp_number
+        self.fields["whatsapp_notifications_enabled"].initial = profile.whatsapp_notifications_enabled
+
+        if not self.show_whatsapp_settings:
+            self.fields.pop("whatsapp_number")
+            self.fields.pop("whatsapp_notifications_enabled")
 
         for field in self.fields.values():
             widget = field.widget
@@ -146,6 +168,9 @@ class UserSelfSettingsForm(forms.Form):
         self.user.save()
 
         profile.phone = self.cleaned_data["phone"]
+        if "whatsapp_number" in self.cleaned_data:
+            profile.whatsapp_number = self.cleaned_data["whatsapp_number"]
+            profile.whatsapp_notifications_enabled = self.cleaned_data.get("whatsapp_notifications_enabled", False)
         profile.save()
 
         photo = self.cleaned_data.get("photo")
@@ -157,3 +182,28 @@ class UserSelfSettingsForm(forms.Form):
             self.photo_owner.photo = photo
             self.photo_owner.save(update_fields=["photo", "updated_at"] if hasattr(self.photo_owner, "updated_at") else ["photo"])
         return self.user
+
+
+class PasswordRecoveryRequestForm(forms.Form):
+    identifier = forms.CharField(label="e-mail ou login", max_length=254)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.users = []
+        self.fields["identifier"].widget.attrs.setdefault("class", "field-control")
+        self.fields["identifier"].widget.attrs.setdefault("autocomplete", "username")
+
+    def clean_identifier(self):
+        identifier = self.cleaned_data["identifier"].strip()
+        user_model = get_user_model()
+        if "@" in identifier:
+            users = user_model.objects.filter(email__iexact=identifier, is_active=True)
+        else:
+            users = user_model.objects.filter(Q(username__iexact=identifier) | Q(email__iexact=identifier), is_active=True)
+
+        self.users = [user for user in users if user.has_usable_password()]
+        if not self.users:
+            raise forms.ValidationError("Usuario inexistente.")
+        if not any(user.email for user in self.users):
+            raise forms.ValidationError("Este usuario nao possui e-mail cadastrado para recuperacao.")
+        return identifier

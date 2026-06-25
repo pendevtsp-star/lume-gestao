@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Entrar | Lume Gestao</title>
-  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/app.css?v=20260625-login-mobile">
 </head>
 <body class="login-page">
   <main class="login-panel">
@@ -28,10 +28,32 @@
       </label>
       <label class="form-field">
         <span>Senha</span>
-        {{ form.password }}
+        <span class="password-control">
+          {{ form.password }}
+          <button class="password-toggle" type="button" aria-label="Mostrar senha" aria-pressed="false" data-password-toggle>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M2.4 12s3.3-6 9.6-6 9.6 6 9.6 6-3.3 6-9.6 6-9.6-6-9.6-6Z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+        </span>
       </label>
       <button class="button primary full" type="submit">Entrar</button>
+      <a class="login-help-link" href="{% url 'password_reset' %}">Esqueci minha senha</a>
     </form>
   </main>
+  <script>
+    const passwordToggle = document.querySelector("[data-password-toggle]");
+    const passwordInput = document.querySelector("input[type='password']");
+
+    if (passwordToggle && passwordInput) {
+      passwordToggle.addEventListener("click", () => {
+        const shouldShow = passwordInput.type === "password";
+        passwordInput.type = shouldShow ? "text" : "password";
+        passwordToggle.setAttribute("aria-pressed", shouldShow ? "true" : "false");
+        passwordToggle.setAttribute("aria-label", shouldShow ? "Esconder senha" : "Mostrar senha");
+      });
+    }
+  </script>
 </body>
 </html>

@@ -123,10 +123,17 @@ Use esta opcao quando a maquina Linux nao vai clonar do GitHub.
 No Windows, crie um `.zip` do projeto sem pastas pesadas/locais:
 
 ```powershell
-Compress-Archive `
-  -Path accounts,billing,config,core,desktop,docs,patients,reports,scheduling,scripts,static,team,templates,Dockerfile,docker-compose.yml,manage.py,README.md,requirements.txt,.env.example,.env.clinic.example,.dockerignore `
-  -DestinationPath dist\lume-gestao-codigo.zip `
-  -Force
+tar `
+  --exclude='.git' `
+  --exclude='.venv' `
+  --exclude='desktop/node_modules' `
+  --exclude='desktop/backend-bin' `
+  --exclude='dist' `
+  --exclude='db.sqlite3' `
+  --exclude='media' `
+  --exclude='*.pyc' `
+  --exclude='__pycache__' `
+  -a -cf dist\lume-gestao-codigo.zip .
 ```
 
 Copie `dist\lume-gestao-codigo.zip` para a maquina Linux.

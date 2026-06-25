@@ -175,6 +175,17 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
 EMAIL_TIMEOUT = config("EMAIL_TIMEOUT", default=15, cast=int)
 
+GOOGLE_CALENDAR_CLIENT_ID = config("GOOGLE_CALENDAR_CLIENT_ID", default="")
+GOOGLE_CALENDAR_CLIENT_SECRET = config("GOOGLE_CALENDAR_CLIENT_SECRET", default="")
+GOOGLE_CALENDAR_TIMEOUT = config("GOOGLE_CALENDAR_TIMEOUT", default=15, cast=int)
+
+WHATSAPP_PROVIDER = config("WHATSAPP_PROVIDER", default="meta")
+WHATSAPP_DRY_RUN = config("WHATSAPP_DRY_RUN", default=True, cast=bool)
+WHATSAPP_META_API_VERSION = config("WHATSAPP_META_API_VERSION", default="v23.0")
+WHATSAPP_META_ACCESS_TOKEN = config("WHATSAPP_META_ACCESS_TOKEN", default="")
+WHATSAPP_META_PHONE_NUMBER_ID = config("WHATSAPP_META_PHONE_NUMBER_ID", default="")
+WHATSAPP_TIMEOUT = config("WHATSAPP_TIMEOUT", default=15, cast=int)
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',

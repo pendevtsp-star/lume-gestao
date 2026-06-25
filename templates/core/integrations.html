@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Integracoes | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ section_label }}</p>
+    <h1>{{ page_title }}</h1>
+  </div>
+  <a class="button secondary" href="{% url 'settings' %}">Configuracoes</a>
+</section>
+
+<section class="split-grid">
+  <article class="panel integration-panel">
+    <div class="panel-header">
+      <div>
+        <h2>Google Agenda</h2>
+        <p>{% if google.is_connected %}Conectado{% else %}Conecte uma conta Google para sincronizar atendimentos.{% endif %}</p>
+      </div>
+      {% if google_configured %}
+        <a class="button secondary" href="{% url 'integrations_google_connect' %}">Conectar</a>
+      {% endif %}
+    </div>
+    <form method="post" class="integration-body">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_google">
+      {% if not google_configured %}
+        <div class="message warning">Configure GOOGLE_CALENDAR_CLIENT_ID e GOOGLE_CALENDAR_CLIENT_SECRET no .env.</div>
+      {% endif %}
+      <div class="form-grid">
+        {% for field in google_form %}
+          <label class="form-field">
+            <span>{{ field.label }}</span>
+            {{ field }}
+            {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+          </label>
+        {% endfor %}
+      </div>
+      <dl class="integration-facts">
+        <div><dt>Conta</dt><dd>{{ google.connected_email|default:"-" }}</dd></div>
+        <div><dt>Ultima sincronizacao</dt><dd>{{ google.last_sync_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
+        <div><dt>Ultimo erro</dt><dd>{{ google.last_error|default:"-" }}</dd></div>
+      </dl>
+      <div class="form-actions">
+        <button class="button secondary" type="submit">Salvar</button>
+      </div>
+    </form>
+    <form method="post" action="{% url 'integrations_google_sync' %}" class="integration-footer">
+      {% csrf_token %}
+      <button class="button primary" type="submit" {% if not google.is_connected %}disabled{% endif %}>Sincronizar agenda</button>
+    </form>
+  </article>
+
+  <article class="panel integration-panel">
+    <div class="panel-header">
+      <div>
+        <h2>WhatsApp</h2>
+        <p>Base para avisos futuros a pacientes e profissionais.</p>
+      </div>
+    </div>
+    <form method="post" class="integration-body">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_whatsapp">
+      <div class="form-grid">
+        {% for field in whatsapp_form %}
+          <label class="form-field">
+            <span>{{ field.label }}</span>
+            {{ field }}
+            {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+          </label>
+        {% endfor %}
+      </div>
+      <dl class="integration-facts">
+        <div><dt>Ultimo teste</dt><dd>{{ whatsapp.last_test_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
+        <div><dt>Ultimo erro</dt><dd>{{ whatsapp.last_error|default:"-" }}</dd></div>
+      </dl>
+      <div class="form-actions">
+        <button class="button secondary" type="submit">Salvar</button>
+      </div>
+    </form>
+    <form method="post" class="integration-footer">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="test_whatsapp">
+      <label class="form-field">
+        <span>Numero para teste</span>
+        <input class="field-control" name="test_number" placeholder="11999990000">
+      </label>
+      <label class="form-field">
+        <span>Mensagem</span>
+        <input class="field-control" name="test_message" value="Teste de mensagem do Lume Gestao.">
+      </label>
+      <button class="button primary" type="submit">Testar WhatsApp</button>
+    </form>
+  </article>
+</section>
+{% endblock %}

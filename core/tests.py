@@ -4,12 +4,13 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import UserProfile
 from billing.models import Expense, ExpenseCategory, Membership, Payment, ServicePlan
-from core.models import AuditLog, ClinicSettings
+from core.models import AuditLog, ClinicSettings, WhatsAppIntegration
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
@@ -160,6 +161,7 @@ class FunctionalRoleFlowTests(TestCase):
                 "accounts:list",
                 "audit",
                 "settings",
+                "integrations",
             ],
         )
 
@@ -283,3 +285,63 @@ class FunctionalRoleFlowTests(TestCase):
         self.assertContains(response, "Plano Fluxo")
         self.assertContains(response, "Proximo pagamento")
         self.assertContains(response, "Pacote atual")
+
+
+class IntegrationsTests(TestCase):
+    def setUp(self):
+        self.management = get_user_model().objects.create_user(username="gestor-integracoes", password="Senha@123")
+        self.patient_user = get_user_model().objects.create_user(username="paciente-integracoes", password="Senha@123")
+        self.patient = Patient.objects.create(full_name="Paciente Integracoes")
+        UserProfile.objects.update_or_create(user=self.management, defaults={"role": UserProfile.Role.MANAGEMENT})
+        UserProfile.objects.update_or_create(
+            user=self.patient_user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
+        )
+
+    def test_management_can_open_integrations(self):
+        self.client.force_login(self.management)
+
+        response = self.client.get(reverse("integrations"))
+
+        self.assertContains(response, "Google Agenda")
+        self.assertContains(response, "WhatsApp")
+
+    def test_patient_cannot_open_integrations(self):
+        self.client.force_login(self.patient_user)
+
+        response = self.client.get(reverse("integrations"))
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_whatsapp_dry_run_test_updates_status(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"enabled": True, "dry_run": True, "phone_number_id": "123"},
+        )
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "test_whatsapp",
+                "test_number": "11999990000",
+                "test_message": "Teste Lume",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        integration = WhatsAppIntegration.load()
+        self.assertIsNotNone(integration.last_test_at)
+        self.assertEqual(integration.last_error, "")
+
+    @override_settings(
+        GOOGLE_CALENDAR_CLIENT_ID="client-id",
+        GOOGLE_CALENDAR_CLIENT_SECRET="client-secret",
+    )
+    def test_google_connect_redirects_to_oauth(self):
+        self.client.force_login(self.management)
+
+        response = self.client.get(reverse("integrations_google_connect"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("accounts.google.com", response["Location"])

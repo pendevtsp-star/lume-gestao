@@ -203,3 +203,10 @@ O roadmap atualizado dos itens 3 a 7 esta salvo em:
 ```text
 docs/PROXIMOS_PASSOS.md
 ```
+
+Documentacao das integracoes:
+
+```text
+docs/GOOGLE_AGENDA.md
+docs/WHATSAPP.md
+```

@@ -133,3 +133,13 @@ class UserProfileTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["teste@lume.local"])
         self.assertIn("configuracao de envio", mail.outbox[0].body)
+
+    def test_send_test_whatsapp_command_runs_in_dry_mode(self):
+        from core.models import WhatsAppIntegration
+
+        WhatsAppIntegration.objects.update_or_create(pk=1, defaults={"enabled": True, "dry_run": True})
+
+        call_command("send_test_whatsapp", "11999990000", "--message", "Teste")
+
+        integration = WhatsAppIntegration.load()
+        self.assertIsNotNone(integration.last_test_at)

@@ -1003,6 +1003,59 @@ td small {
   margin-bottom: 18px;
 }
 
+.integration-panel {
+  align-self: start;
+}
+
+.integration-body,
+.integration-footer {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.integration-footer {
+  border-top: 1px solid var(--line);
+  background: #fffdf6;
+}
+
+.integration-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--muted-panel);
+}
+
+.integration-facts div {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.integration-facts dt,
+.integration-facts dd {
+  margin: 0;
+}
+
+.integration-facts dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.integration-facts dd {
+  overflow-wrap: anywhere;
+  font-weight: 800;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .compact-table {
   min-width: 520px;
 }

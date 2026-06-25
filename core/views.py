@@ -2,17 +2,27 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import redirect
 from django.db.models import Q, Sum
 from django.urls import reverse
 from django.urls import reverse_lazy
 from django.utils import timezone
+from django.views import View
 from django.views.generic import ListView, TemplateView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.permissions import ManagementAccessMixin, get_profile
 from billing.models import Membership, Payment, ServicePlan
-from core.forms import ClinicSettingsForm
-from core.models import AuditLog, ClinicSettings
+from core.forms import ClinicSettingsForm, GoogleCalendarIntegrationForm, WhatsAppIntegrationForm
+from core.integrations.google_calendar import (
+    build_google_authorization_url,
+    exchange_google_code,
+    google_calendar_configured,
+    sync_upcoming_appointments,
+)
+from core.integrations.http import IntegrationError
+from core.integrations.whatsapp import send_whatsapp_text
+from core.models import AuditLog, ClinicSettings, GoogleCalendarIntegration, WhatsAppIntegration
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
@@ -238,5 +248,99 @@ class ClinicSettingsUpdateView(ManagementAccessMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Configuracoes da clinica atualizadas com sucesso.")
         return super().form_valid(form)
+
+
+class IntegrationsView(ManagementAccessMixin, TemplateView):
+    template_name = "core/integrations.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        google_integration = GoogleCalendarIntegration.load()
+        whatsapp_integration = WhatsAppIntegration.load()
+        context.update(
+            {
+                "google_form": GoogleCalendarIntegrationForm(prefix="google", instance=google_integration),
+                "whatsapp_form": WhatsAppIntegrationForm(prefix="whatsapp", instance=whatsapp_integration),
+                "google": google_integration,
+                "whatsapp": whatsapp_integration,
+                "google_configured": google_calendar_configured(),
+                "page_title": "Integracoes",
+                "section_label": "Gerencia",
+            }
+        )
+        return context
+
+    def post(self, request):
+        action = request.POST.get("action")
+        if action == "save_google":
+            form = GoogleCalendarIntegrationForm(request.POST, prefix="google", instance=GoogleCalendarIntegration.load())
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Configuracao do Google Agenda salva.")
+                return redirect("integrations")
+        elif action == "save_whatsapp":
+            form = WhatsAppIntegrationForm(request.POST, prefix="whatsapp", instance=WhatsAppIntegration.load())
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Configuracao do WhatsApp salva.")
+                return redirect("integrations")
+        elif action == "test_whatsapp":
+            number = request.POST.get("test_number", "")
+            message = request.POST.get("test_message", "Teste de mensagem do Lume Gestao.")
+            try:
+                result = send_whatsapp_text(number, message)
+            except IntegrationError as exc:
+                WhatsAppIntegration.objects.filter(pk=1).update(last_error=str(exc))
+                messages.error(request, str(exc))
+            else:
+                detail = "modo teste" if result.get("dry_run") else "enviado pela API"
+                messages.success(request, f"WhatsApp validado em {detail}.")
+            return redirect("integrations")
+
+        messages.error(request, "Acao de integracao invalida.")
+        return redirect("integrations")
+
+
+class GoogleCalendarConnectView(ManagementAccessMixin, View):
+    def get(self, request):
+        try:
+            return redirect(build_google_authorization_url(request))
+        except IntegrationError as exc:
+            messages.error(request, str(exc))
+            return redirect("integrations")
+
+
+class GoogleCalendarCallbackView(ManagementAccessMixin, View):
+    def get(self, request):
+        state = request.GET.get("state")
+        expected_state = request.session.pop("google_calendar_oauth_state", "")
+        if not state or state != expected_state:
+            messages.error(request, "Retorno do Google Agenda invalido. Tente conectar novamente.")
+            return redirect("integrations")
+        code = request.GET.get("code")
+        if not code:
+            messages.error(request, "Google Agenda nao retornou autorizacao.")
+            return redirect("integrations")
+        try:
+            integration = exchange_google_code(request, code)
+        except IntegrationError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, f"Google Agenda conectado: {integration.connected_email or integration.calendar_id}.")
+        return redirect("integrations")
+
+
+class GoogleCalendarSyncView(ManagementAccessMixin, View):
+    def post(self, request):
+        try:
+            synced, failed = sync_upcoming_appointments()
+        except IntegrationError as exc:
+            messages.error(request, str(exc))
+        else:
+            if failed:
+                messages.warning(request, f"Sincronizacao parcial: {synced} enviados, {failed} com falha.")
+            else:
+                messages.success(request, f"Google Agenda sincronizado com {synced} agendamento(s).")
+        return redirect("integrations")
 
 # Create your views here.

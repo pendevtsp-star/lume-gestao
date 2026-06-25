@@ -6,13 +6,17 @@ Este documento guarda os proximos passos combinados para retomarmos depois dos i
 
 Estado atual: a agenda exporta arquivo `.ics`, que pode ser importado ou assinado pelo Google Agenda.
 
-Proximo passo: implementar OAuth do Google, salvar credenciais por clinica/usuario autorizado e sincronizar criacao, reagendamento e cancelamento de eventos.
+Implementado agora: base OAuth, tela de integracoes e sincronizacao manual dos proximos agendamentos.
+
+Proximo passo: testar com credenciais reais do Google Cloud e evoluir para sincronizacao automatica em criacao, reagendamento e cancelamento.
 
 ## 4. Envio real por WhatsApp
 
 Estado atual: usuarios de administracao e gerencia podem cadastrar um numero de WhatsApp para avisos futuros.
 
-Proximo passo: escolher provedor, como Meta Cloud API, Twilio ou outro gateway, e criar modulo de notificacoes para pacientes e profissionais.
+Implementado agora: base Meta Cloud API com modo `dry-run`, tela de integracoes e comando de teste.
+
+Proximo passo: criar conta Meta Business, obter `Phone Number ID`, token de acesso e templates aprovados.
 
 ## 5. Reforco de seguranca e permissoes por objeto
 

@@ -1,6 +1,6 @@
 from django import forms
 
-from core.models import ClinicSettings
+from core.models import ClinicSettings, GoogleCalendarIntegration, WhatsAppIntegration
 
 
 class StyledModelForm(forms.ModelForm):
@@ -40,3 +40,22 @@ class ClinicSettingsForm(StyledModelForm):
             "cancellation_policy": forms.Textarea(attrs={"rows": 4}),
             "rescheduling_policy": forms.Textarea(attrs={"rows": 4}),
         }
+
+
+class GoogleCalendarIntegrationForm(StyledModelForm):
+    class Meta:
+        model = GoogleCalendarIntegration
+        fields = ["enabled", "calendar_id", "sync_on_save"]
+
+
+class WhatsAppIntegrationForm(StyledModelForm):
+    class Meta:
+        model = WhatsAppIntegration
+        fields = [
+            "enabled",
+            "dry_run",
+            "provider",
+            "default_country_code",
+            "phone_number_id",
+            "business_account_id",
+        ]

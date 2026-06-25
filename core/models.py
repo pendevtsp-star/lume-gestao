@@ -72,6 +72,63 @@ class ClinicSettings(TimeStampedModel):
         return settings_object
 
 
+class GoogleCalendarIntegration(TimeStampedModel):
+    calendar_id = models.CharField("agenda Google", max_length=180, default="primary")
+    enabled = models.BooleanField("ativa", default=False)
+    sync_on_save = models.BooleanField("sincronizar novos agendamentos", default=True)
+    access_token = models.TextField("access token", blank=True)
+    refresh_token = models.TextField("refresh token", blank=True)
+    token_expires_at = models.DateTimeField("token expira em", null=True, blank=True)
+    connected_email = models.EmailField("conta conectada", blank=True)
+    last_sync_at = models.DateTimeField("ultima sincronizacao", null=True, blank=True)
+    last_error = models.TextField("ultimo erro", blank=True)
+
+    class Meta:
+        verbose_name = "integracao Google Agenda"
+        verbose_name_plural = "integracoes Google Agenda"
+
+    def __str__(self):
+        status = "ativa" if self.enabled else "inativa"
+        return f"Google Agenda {status}"
+
+    @property
+    def is_connected(self):
+        return bool(self.enabled and self.refresh_token)
+
+    @classmethod
+    def load(cls):
+        integration, _ = cls.objects.get_or_create(pk=1)
+        return integration
+
+
+class WhatsAppIntegration(TimeStampedModel):
+    class Provider(models.TextChoices):
+        META = "meta", "Meta Cloud API"
+        TWILIO = "twilio", "Twilio"
+
+    provider = models.CharField("provedor", max_length=20, choices=Provider.choices, default=Provider.META)
+    enabled = models.BooleanField("ativa", default=False)
+    dry_run = models.BooleanField("modo teste", default=True)
+    default_country_code = models.CharField("codigo do pais", max_length=4, default="55")
+    phone_number_id = models.CharField("ID do numero WhatsApp", max_length=80, blank=True)
+    business_account_id = models.CharField("ID da conta WhatsApp Business", max_length=80, blank=True)
+    last_test_at = models.DateTimeField("ultimo teste", null=True, blank=True)
+    last_error = models.TextField("ultimo erro", blank=True)
+
+    class Meta:
+        verbose_name = "integracao WhatsApp"
+        verbose_name_plural = "integracoes WhatsApp"
+
+    def __str__(self):
+        status = "ativa" if self.enabled else "inativa"
+        return f"{self.get_provider_display()} {status}"
+
+    @classmethod
+    def load(cls):
+        integration, _ = cls.objects.get_or_create(pk=1)
+        return integration
+
+
 class AuditLog(models.Model):
     class Action(models.TextChoices):
         CREATED = "created", "Criado"

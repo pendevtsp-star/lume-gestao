@@ -3,6 +3,7 @@ Django==5.2.15
 django-filter==25.2
 djangorestframework==3.17.1
 openpyxl==3.1.5
+Pillow==12.2.0
 psycopg[binary]==3.2.13
 reportlab==4.4.5
 python-decouple==3.8

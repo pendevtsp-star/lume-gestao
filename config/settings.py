@@ -16,6 +16,8 @@ from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+LUME_DESKTOP = config("LUME_DESKTOP", default=False, cast=bool)
+LUME_DATA_DIR = Path(config("LUME_DATA_DIR", default=str(BASE_DIR))).resolve()
 
 
 # Quick-start development settings - unsuitable for production
@@ -34,6 +36,12 @@ ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
     default="127.0.0.1,localhost,testserver",
     cast=lambda value: [host.strip() for host in value.split(",") if host.strip()],
+)
+
+CSRF_TRUSTED_ORIGINS = config(
+    "CSRF_TRUSTED_ORIGINS",
+    default="",
+    cast=lambda value: [origin.strip() for origin in value.split(",") if origin.strip()],
 )
 
 
@@ -108,7 +116,7 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": LUME_DATA_DIR / "db.sqlite3" if LUME_DESKTOP else BASE_DIR / "db.sqlite3",
         }
     }
 
@@ -149,8 +157,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = LUME_DATA_DIR / 'media' if LUME_DESKTOP else BASE_DIR / 'media'
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

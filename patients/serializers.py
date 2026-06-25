@@ -10,6 +10,7 @@ class PatientSerializer(ModelCleanSerializerMixin, serializers.ModelSerializer):
         fields = [
             "id",
             "full_name",
+            "photo",
             "cpf",
             "birth_date",
             "phone",

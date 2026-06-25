@@ -31,8 +31,19 @@
         {% for professional in professionals %}
           <tr>
             <td>
-              <strong>{{ professional.full_name }}</strong>
-              {% if professional.phone %}<small>{{ professional.phone }}</small>{% endif %}
+              <div class="entity-cell">
+                <span class="avatar">
+                  {% if professional.photo %}
+                    <img src="{{ professional.photo.url }}" alt="">
+                  {% else %}
+                    {{ professional.full_name|slice:":1" }}
+                  {% endif %}
+                </span>
+                <span>
+                  <strong>{{ professional.full_name }}</strong>
+                  {% if professional.phone %}<small>{{ professional.phone }}</small>{% endif %}
+                </span>
+              </div>
             </td>
             <td>{{ professional.get_specialty_display }}</td>
             <td>{{ professional.registration_number|default:"-" }}</td>

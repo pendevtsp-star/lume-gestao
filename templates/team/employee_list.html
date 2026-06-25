@@ -30,7 +30,18 @@
       <tbody>
         {% for employee in employees %}
           <tr>
-            <td><strong>{{ employee.full_name }}</strong></td>
+            <td>
+              <div class="entity-cell">
+                <span class="avatar">
+                  {% if employee.photo %}
+                    <img src="{{ employee.photo.url }}" alt="">
+                  {% else %}
+                    {{ employee.full_name|slice:":1" }}
+                  {% endif %}
+                </span>
+                <span><strong>{{ employee.full_name }}</strong></span>
+              </div>
+            </td>
             <td>{{ employee.get_role_display }}</td>
             <td>{{ employee.phone|default:employee.email|default:"-" }}</td>
             <td><span class="badge {% if employee.active %}active{% else %}canceled{% endif %}">{% if employee.active %}Ativo{% else %}Inativo{% endif %}</span></td>

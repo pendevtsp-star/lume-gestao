@@ -30,7 +30,18 @@
       <tbody>
         {% for user in users %}
           <tr>
-            <td><strong>{{ user.username }}</strong><small>{{ user.email|default:"-" }}</small></td>
+            <td>
+              <div class="entity-cell">
+                <span class="avatar">
+                  {% if user.profile.avatar_url %}
+                    <img src="{{ user.profile.avatar_url }}" alt="">
+                  {% else %}
+                    {{ user.profile.initials }}
+                  {% endif %}
+                </span>
+                <span><strong>{{ user.username }}</strong><small>{{ user.email|default:"-" }}</small></span>
+              </div>
+            </td>
             <td>{{ user.profile.get_role_display|default:"-" }}</td>
             <td>
               {% if user.profile.patient %}{{ user.profile.patient.full_name }}{% elif user.profile.professional %}{{ user.profile.professional.full_name }}{% else %}-{% endif %}

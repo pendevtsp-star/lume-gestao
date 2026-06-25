@@ -39,6 +39,72 @@
   {% endif %}
 </section>
 
+{% if patient_dashboard %}
+<section class="panel stacked-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Meu plano</h2>
+      <p>Status de mensalidade e creditos de atendimento.</p>
+    </div>
+    <a class="button secondary" href="{% url 'accounts:self_settings' %}">Configuracao</a>
+  </header>
+  <div class="patient-summary">
+    <article>
+      <span>Planos atuais</span>
+      {% for membership in patient_memberships %}
+        <strong>{{ membership.plan.name }}</strong>
+        <small>{{ membership.plan.sessions_per_week }} sessoes por semana</small>
+      {% empty %}
+        <strong>-</strong>
+        <small>Nenhum plano ativo.</small>
+      {% endfor %}
+    </article>
+    <article>
+      <span>Proximo pagamento</span>
+      {% if patient_next_payment %}
+        <strong>{{ patient_next_payment.due_date|date:"d/m/Y" }}</strong>
+        <small>{{ patient_next_payment.membership.plan.name }} - R$ {{ patient_next_payment.amount|floatformat:2 }}</small>
+      {% else %}
+        <strong>-</strong>
+        <small>Nenhum pagamento pendente.</small>
+      {% endif %}
+    </article>
+    <article>
+      <span>Creditos da semana</span>
+      <strong>{{ patient_weekly_remaining }}</strong>
+      <small>{{ patient_weekly_used }} usados de {{ patient_weekly_allowed }}</small>
+    </article>
+    <article>
+      <span>Pacote atual</span>
+      <strong>{{ patient_package_remaining }}</strong>
+      <small>{{ patient_package_used }} usados de {{ patient_package_total }}</small>
+    </article>
+  </div>
+  <div class="table-wrap">
+    <table class="compact-table">
+      <thead>
+        <tr>
+          <th>Data de uso</th>
+          <th>Profissional</th>
+          <th>Creditos</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for usage in patient_recent_usages %}
+          <tr>
+            <td>{{ usage.registered_at|date:"d/m/Y H:i" }}</td>
+            <td>{{ usage.appointment.professional.full_name }}</td>
+            <td>{{ usage.units }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="empty">Nenhum credito usado ainda.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
 {% if finance_visible %}
   <section class="split-grid">
     <article class="panel">

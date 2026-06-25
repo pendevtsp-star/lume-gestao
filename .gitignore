@@ -7,3 +7,8 @@ __pycache__/
 .coverage
 htmlcov/
 staticfiles/
+media/
+backups/
+dist/
+desktop/node_modules/
+desktop/backend-bin/

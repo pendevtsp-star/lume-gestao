@@ -10,6 +10,7 @@ class Employee(TimeStampedModel):
         FINANCE = "finance", "Financeiro"
 
     full_name = models.CharField("nome completo", max_length=180)
+    photo = models.ImageField("foto", upload_to="employees/photos/", blank=True)
     role = models.CharField("funcao", max_length=30, choices=Role.choices)
     phone = models.CharField("telefone", max_length=30, blank=True)
     email = models.EmailField("e-mail", blank=True)
@@ -34,6 +35,7 @@ class Professional(TimeStampedModel):
         OTHER = "other", "Outro"
 
     full_name = models.CharField("nome completo", max_length=180)
+    photo = models.ImageField("foto", upload_to="professionals/photos/", blank=True)
     specialty = models.CharField("especialidade", max_length=30, choices=Specialty.choices)
     registration_number = models.CharField("registro profissional", max_length=80, blank=True)
     phone = models.CharField("telefone", max_length=30, blank=True)

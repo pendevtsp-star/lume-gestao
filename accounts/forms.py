@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 
 from accounts.models import UserProfile
 from core.forms import StyledModelForm
@@ -67,4 +68,92 @@ class UserAccountForm(forms.ModelForm):
 class UserProfileForm(StyledModelForm):
     class Meta:
         model = UserProfile
-        fields = ["role", "patient", "professional", "phone"]
+        fields = ["role", "patient", "professional", "phone", "photo"]
+
+
+class UserSelfSettingsForm(forms.Form):
+    username = forms.CharField(label="login", max_length=150)
+    first_name = forms.CharField(label="nome", max_length=150, required=False)
+    last_name = forms.CharField(label="sobrenome", max_length=150, required=False)
+    email = forms.EmailField(label="e-mail", required=False)
+    phone = forms.CharField(label="telefone", max_length=30, required=False)
+    photo = forms.ImageField(label="foto pessoal", required=False)
+    remove_photo = forms.BooleanField(label="remover foto atual", required=False, widget=forms.HiddenInput)
+    current_password = forms.CharField(
+        label="senha atual",
+        widget=forms.PasswordInput,
+        required=False,
+        help_text="Obrigatoria apenas para trocar a senha.",
+    )
+    new_password1 = forms.CharField(label="nova senha", widget=forms.PasswordInput, required=False)
+    new_password2 = forms.CharField(label="confirmar nova senha", widget=forms.PasswordInput, required=False)
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+        super().__init__(*args, **kwargs)
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        photo_owner = profile.patient or profile.professional or profile
+        self.photo_owner = photo_owner
+        self.fields["username"].initial = self.user.username
+        self.fields["first_name"].initial = self.user.first_name
+        self.fields["last_name"].initial = self.user.last_name
+        self.fields["email"].initial = self.user.email
+        self.fields["phone"].initial = profile.phone
+
+        for field in self.fields.values():
+            widget = field.widget
+            if isinstance(widget, forms.CheckboxInput):
+                widget.attrs.setdefault("class", "checkbox")
+            else:
+                widget.attrs.setdefault("class", "field-control")
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip()
+        user_model = get_user_model()
+        exists = user_model.objects.exclude(pk=self.user.pk).filter(username__iexact=username).exists()
+        if exists:
+            raise forms.ValidationError("Este login ja esta em uso.")
+        return username
+
+    def clean(self):
+        cleaned = super().clean()
+        current_password = cleaned.get("current_password")
+        new_password1 = cleaned.get("new_password1")
+        new_password2 = cleaned.get("new_password2")
+
+        if new_password1 or new_password2:
+            if not current_password:
+                self.add_error("current_password", "Informe a senha atual para trocar a senha.")
+            elif not self.user.check_password(current_password):
+                self.add_error("current_password", "Senha atual incorreta.")
+            if new_password1 != new_password2:
+                self.add_error("new_password2", "As senhas nao conferem.")
+            if new_password1:
+                try:
+                    validate_password(new_password1, self.user)
+                except forms.ValidationError as error:
+                    self.add_error("new_password1", error)
+        return cleaned
+
+    def save(self):
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        self.user.username = self.cleaned_data["username"]
+        self.user.first_name = self.cleaned_data["first_name"]
+        self.user.last_name = self.cleaned_data["last_name"]
+        self.user.email = self.cleaned_data["email"]
+        if self.cleaned_data.get("new_password1"):
+            self.user.set_password(self.cleaned_data["new_password1"])
+        self.user.save()
+
+        profile.phone = self.cleaned_data["phone"]
+        profile.save()
+
+        photo = self.cleaned_data.get("photo")
+        if self.cleaned_data.get("remove_photo") and getattr(self.photo_owner, "photo", None):
+            self.photo_owner.photo.delete(save=False)
+            self.photo_owner.photo = ""
+            self.photo_owner.save(update_fields=["photo", "updated_at"] if hasattr(self.photo_owner, "updated_at") else ["photo"])
+        elif photo:
+            self.photo_owner.photo = photo
+            self.photo_owner.save(update_fields=["photo", "updated_at"] if hasattr(self.photo_owner, "updated_at") else ["photo"])
+        return self.user

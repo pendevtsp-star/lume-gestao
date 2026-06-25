@@ -9,6 +9,7 @@ class PatientForm(StyledModelForm):
         model = Patient
         fields = [
             "full_name",
+            "photo",
             "cpf",
             "birth_date",
             "phone",

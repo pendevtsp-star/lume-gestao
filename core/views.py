@@ -14,7 +14,7 @@ from billing.models import Membership, Payment, ServicePlan
 from core.forms import ClinicSettingsForm
 from core.models import AuditLog, ClinicSettings
 from patients.models import Patient, ProfessionalPatientAssignment
-from scheduling.models import Appointment
+from scheduling.models import Appointment, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
 
 
@@ -117,6 +117,55 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 "reminder_days": settings.membership_due_reminder_days,
             }
         )
+        if profile and profile.is_patient and profile.patient_id:
+            week_start = today - timedelta(days=today.weekday())
+            week_end = week_start + timedelta(days=6)
+            current_memberships = (
+                Membership.objects.select_related("plan")
+                .filter(patient=profile.patient, status=Membership.Status.ACTIVE)
+                .order_by("plan__name")
+            )
+            active_packages = (
+                ServicePackage.objects.select_related("membership__plan")
+                .filter(membership__patient=profile.patient, status=ServicePackage.Status.ACTIVE)
+                .order_by("expires_on", "created_at")
+            )
+            service_usages = (
+                ServiceUsage.objects.select_related("appointment__professional")
+                .filter(appointment__patient=profile.patient)
+                .order_by("-registered_at")
+            )
+            weekly_allowed = sum(membership.plan.sessions_per_week for membership in current_memberships)
+            weekly_used = (
+                service_usages.filter(registered_at__date__gte=week_start, registered_at__date__lte=week_end)
+                .aggregate(total=Sum("units"))["total"]
+                or 0
+            )
+            package_total = sum(package.total_sessions for package in active_packages)
+            package_used = sum(package.used_sessions for package in active_packages)
+            next_payment = (
+                Payment.objects.select_related("membership__plan")
+                .filter(
+                    membership__patient=profile.patient,
+                    status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
+                )
+                .order_by("due_date")
+                .first()
+            )
+            context.update(
+                {
+                    "patient_dashboard": True,
+                    "patient_memberships": current_memberships,
+                    "patient_next_payment": next_payment,
+                    "patient_weekly_allowed": weekly_allowed,
+                    "patient_weekly_used": weekly_used,
+                    "patient_weekly_remaining": max(weekly_allowed - weekly_used, 0),
+                    "patient_package_total": package_total,
+                    "patient_package_used": package_used,
+                    "patient_package_remaining": max(package_total - package_used, 0),
+                    "patient_recent_usages": service_usages[:8],
+                }
+            )
         return context
 
 

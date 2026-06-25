@@ -28,7 +28,18 @@
       <tbody>
         {% for patient in patients %}
           <tr>
-            <td><strong>{{ patient.full_name }}</strong><small>{{ patient.email|default:"Sem e-mail" }}</small></td>
+            <td>
+              <div class="entity-cell">
+                <span class="avatar">
+                  {% if patient.photo %}
+                    <img src="{{ patient.photo.url }}" alt="">
+                  {% else %}
+                    {{ patient.full_name|slice:":1" }}
+                  {% endif %}
+                </span>
+                <span><strong>{{ patient.full_name }}</strong><small>{{ patient.email|default:"Sem e-mail" }}</small></span>
+              </div>
+            </td>
             <td>{{ patient.phone|default:"-" }}</td>
             <td class="right">{{ patient.record_count }}</td>
             <td class="right table-actions">

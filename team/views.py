@@ -48,6 +48,14 @@ class EmployeeUpdateView(FormContextMixin, TeamAdminMixin, UpdateView):
         messages.success(self.request, "Funcionario atualizado com sucesso.")
         return super().form_valid(form)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        employee = self.object
+        context["page_title"] = employee.full_name
+        context["heading_avatar_url"] = employee.photo.url if employee.photo else ""
+        context["heading_initials"] = employee.full_name[:1].upper()
+        return context
+
 
 class ProfessionalListView(TeamAdminMixin, SearchableListView, ListView):
     model = Professional
@@ -83,5 +91,13 @@ class ProfessionalUpdateView(FormContextMixin, TeamAdminMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Profissional atualizado com sucesso.")
         return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        professional = self.object
+        context["page_title"] = professional.full_name
+        context["heading_avatar_url"] = professional.photo.url if professional.photo else ""
+        context["heading_initials"] = professional.full_name[:1].upper()
+        return context
 
 # Create your views here.

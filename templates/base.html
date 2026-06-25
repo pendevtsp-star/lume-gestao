@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Lume Gestao{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260625-avatar-menu">
 </head>
 <body>
   <div class="app-shell">
@@ -56,11 +56,25 @@
 
     <main class="main">
       <div class="topbar">
-        <span>{{ request.user.username }}</span>
-        <form method="post" action="{% url 'logout' %}">
-          {% csrf_token %}
-          <button class="link-button topbar-logout" type="submit">Sair</button>
-        </form>
+        <div class="topbar-account">
+          <span class="avatar avatar-topbar">
+            {% if request.user.profile.avatar_url %}
+              <img src="{{ request.user.profile.avatar_url }}" alt="">
+            {% else %}
+              {{ request.user.profile.initials }}
+            {% endif %}
+          </span>
+          <span class="topbar-user">
+            <strong>{{ request.user.profile.display_name }}</strong>
+          </span>
+        </div>
+        <div class="topbar-actions">
+          <a class="topbar-settings" href="{% url 'accounts:self_settings' %}" aria-label="Configuracoes da conta" title="Configuracoes da conta">&#9881;</a>
+          <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="link-button topbar-logout" type="submit">Sair</button>
+          </form>
+        </div>
       </div>
 
       {% if messages %}

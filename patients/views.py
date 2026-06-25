@@ -82,6 +82,14 @@ class PatientUpdateView(FormContextMixin, PatientAccessMixin, UpdateView):
     def get_queryset(self):
         return patients_for_user(self.request.user)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        patient = self.object
+        context["page_title"] = patient.full_name
+        context["heading_avatar_url"] = patient.photo.url if patient.photo else ""
+        context["heading_initials"] = patient.full_name[:1].upper()
+        return context
+
     def form_valid(self, form):
         messages.success(self.request, "Paciente atualizado com sucesso.")
         return super().form_valid(form)

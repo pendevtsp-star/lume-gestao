@@ -132,6 +132,40 @@ http://192.168.0.50:8000
 
 Se o navegador de outra maquina nao abrir, verifique firewall/liberacao da porta `8000` na maquina Linux. Para testar com dados demonstrativos, basta iniciar o container.
 
+Roteiro completo, incluindo copia via `.zip` e build desktop Linux:
+
+```text
+docs/INSTALACAO_LINUX.md
+```
+
+## App desktop
+
+O projeto agora possui um shell desktop em Electron em `desktop/`. Ele abre a interface Django existente e inicia um backend local na propria maquina, usando SQLite e salvando dados na pasta de dados do usuario do app.
+
+Durante desenvolvimento:
+
+```powershell
+cd desktop
+npm install
+npm start
+```
+
+Para gerar instalador Windows:
+
+```powershell
+.\scripts\build-desktop.ps1
+```
+
+Mais detalhes, incluindo macOS, Linux e caminho futuro para VPS, estao em `docs/APP_DESKTOP.md`.
+
+## Instalacao de teste na clinica
+
+Para instalar em uma maquina da clinica na rede local, siga o roteiro em:
+
+```text
+docs/INSTALACAO_CLINICA.md
+```
+
 ## Versionamento
 
 O projeto esta em Git local na branch `main`. Para enviar ao GitHub, crie um repositorio privado e conecte o remoto:

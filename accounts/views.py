@@ -1,9 +1,11 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, ListView, UpdateView
+from django.views.generic import CreateView, FormView, ListView, UpdateView
 
-from accounts.forms import UserAccountForm
+from accounts.forms import UserAccountForm, UserSelfSettingsForm
 from accounts.permissions import ManagementAccessMixin
 from core.views import SearchableListView
 
@@ -48,6 +50,39 @@ class UserAccountUpdateView(ManagementAccessMixin, UpdateView):
 
     def form_valid(self, form):
         messages.success(self.request, "Usuario atualizado com sucesso.")
+        return super().form_valid(form)
+
+
+class UserSelfSettingsView(LoginRequiredMixin, FormView):
+    form_class = UserSelfSettingsForm
+    template_name = "accounts/self_settings.html"
+    success_url = reverse_lazy("accounts:self_settings")
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        profile = self.request.user.profile
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "page_title": "Minha conta",
+                "section_label": "Configuracao",
+                "back_url": reverse_lazy("dashboard"),
+                "heading_avatar_url": profile.avatar_url,
+                "heading_initials": profile.initials,
+                "display_name": profile.display_name,
+                "has_profile_photo": bool(profile.avatar_url),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        user = form.save()
+        update_session_auth_hash(self.request, user)
+        messages.success(self.request, "Conta atualizada com sucesso.")
         return super().form_valid(form)
 
 # Create your views here.

@@ -32,8 +32,19 @@
         {% for patient in patients %}
           <tr>
             <td>
-              <strong>{{ patient.full_name }}</strong>
-              {% if patient.cpf %}<small>CPF {{ patient.cpf }}</small>{% endif %}
+              <div class="entity-cell">
+                <span class="avatar">
+                  {% if patient.photo %}
+                    <img src="{{ patient.photo.url }}" alt="">
+                  {% else %}
+                    {{ patient.full_name|slice:":1" }}
+                  {% endif %}
+                </span>
+                <span>
+                  <strong>{{ patient.full_name }}</strong>
+                  {% if patient.cpf %}<small>CPF {{ patient.cpf }}</small>{% endif %}
+                </span>
+              </div>
             </td>
             <td>{{ patient.phone|default:"-" }}</td>
             <td>{{ patient.email|default:"-" }}</td>

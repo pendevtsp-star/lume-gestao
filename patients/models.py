@@ -11,6 +11,7 @@ def only_digits(value):
 
 class Patient(TimeStampedModel):
     full_name = models.CharField("nome completo", max_length=180)
+    photo = models.ImageField("foto", upload_to="patients/photos/", blank=True)
     cpf = models.CharField("CPF", max_length=14, blank=True, null=True, unique=True)
     birth_date = models.DateField("data de nascimento", null=True, blank=True)
     phone = models.CharField("telefone", max_length=30, blank=True)

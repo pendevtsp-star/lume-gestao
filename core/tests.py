@@ -1,16 +1,17 @@
-from datetime import time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import UserProfile
-from billing.models import Membership, ServicePlan
+from billing.models import Membership, Payment, ServicePlan
 from core.models import AuditLog, ClinicSettings
 from patients.models import Patient, ProfessionalPatientAssignment
-from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage
+from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
 
 
@@ -196,3 +197,33 @@ class FunctionalRoleFlowTests(TestCase):
         self.assertNotContains(patients_response, self.other_patient.full_name)
         self.assertEqual(reports_response.status_code, 302)
         self.assertEqual(audit_response.status_code, 302)
+
+    def test_patient_dashboard_shows_plan_payment_and_credit_summary(self):
+        membership = Membership.objects.get(patient=self.patient)
+        Payment.objects.create(
+            membership=membership,
+            reference_month=date(2026, 6, 1),
+            due_date=date(2026, 6, 10),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PENDING,
+        )
+        starts_at = timezone.make_aware(datetime.combine(timezone.localdate(), time(9, 0))) - timedelta(days=1)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=starts_at,
+            ends_at=starts_at + timedelta(hours=1),
+            status=Appointment.Status.COMPLETED,
+        )
+        package = ServicePackage.objects.get(membership=membership)
+        ServiceUsage.objects.create(service_package=package, appointment=appointment, units=1)
+        package.used_sessions = 1
+        package.save()
+        self.client.force_login(self.patient_user)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertContains(response, "Meu plano")
+        self.assertContains(response, "Plano Fluxo")
+        self.assertContains(response, "Proximo pagamento")
+        self.assertContains(response, "Pacote atual")

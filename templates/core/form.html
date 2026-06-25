@@ -4,9 +4,20 @@
 
 {% block content %}
 <section class="page-heading">
-  <div>
-    <p class="eyebrow">{{ section_label }}</p>
-    <h1>{{ page_title }}</h1>
+  <div class="heading-identity">
+    {% if heading_avatar_url or heading_initials %}
+      <span class="avatar avatar-lg">
+        {% if heading_avatar_url %}
+          <img src="{{ heading_avatar_url }}" alt="">
+        {% else %}
+          {{ heading_initials }}
+        {% endif %}
+      </span>
+    {% endif %}
+    <div>
+      <p class="eyebrow">{{ section_label }}</p>
+      <h1>{{ page_title }}</h1>
+    </div>
   </div>
   <a class="button secondary" href="{{ back_url }}">Voltar</a>
 </section>

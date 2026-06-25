@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Minha conta | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div class="heading-identity">
+    <span class="avatar avatar-lg">
+      {% if heading_avatar_url %}
+        <img src="{{ heading_avatar_url }}" alt="">
+      {% else %}
+        {{ heading_initials }}
+      {% endif %}
+    </span>
+    <div>
+      <p class="eyebrow">Configuracao</p>
+      <h1>Minha conta</h1>
+    </div>
+  </div>
+  <a class="button secondary" href="{{ back_url }}">Voltar</a>
+</section>
+
+<form method="post" class="panel form-panel account-settings-panel" enctype="multipart/form-data" id="account-settings-form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="form-errors">{{ form.non_field_errors }}</div>
+  {% endif %}
+  {{ form.remove_photo }}
+
+  <section class="account-photo-row">
+    <span class="avatar avatar-profile">
+      {% if heading_avatar_url %}
+        <img src="{{ heading_avatar_url }}" alt="">
+      {% else %}
+        {{ heading_initials }}
+      {% endif %}
+    </span>
+    <div>
+      <strong>{{ display_name }}</strong>
+      <small>Foto usada apenas como imagem de perfil.</small>
+      <div class="account-photo-actions">
+        <label class="button secondary file-button">
+          Alterar foto
+          {{ form.photo }}
+        </label>
+        {% if has_profile_photo %}
+          <button class="button danger" type="button" data-open-photo-dialog>Remover foto</button>
+        {% endif %}
+      </div>
+      {% for error in form.photo.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </div>
+  </section>
+
+  <div class="form-grid">
+    <label class="form-field">
+      <span>{{ form.username.label }}</span>
+      {{ form.username }}
+      {% for error in form.username.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </label>
+    <label class="form-field">
+      <span>{{ form.first_name.label }}</span>
+      {{ form.first_name }}
+      {% for error in form.first_name.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </label>
+    <label class="form-field">
+      <span>{{ form.last_name.label }}</span>
+      {{ form.last_name }}
+      {% for error in form.last_name.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </label>
+    <label class="form-field">
+      <span>{{ form.email.label }}</span>
+      {{ form.email }}
+      {% for error in form.email.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </label>
+    <label class="form-field">
+      <span>{{ form.phone.label }}</span>
+      {{ form.phone }}
+      {% for error in form.phone.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </label>
+    <label class="form-field">
+      <span>{{ form.current_password.label }}</span>
+      {{ form.current_password }}
+      {% if form.current_password.help_text %}<small>{{ form.current_password.help_text }}</small>{% endif %}
+      {% for error in form.current_password.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </label>
+    <label class="form-field">
+      <span>{{ form.new_password1.label }}</span>
+      {{ form.new_password1 }}
+      {% for error in form.new_password1.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </label>
+    <label class="form-field">
+      <span>{{ form.new_password2.label }}</span>
+      {{ form.new_password2 }}
+      {% for error in form.new_password2.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </label>
+  </div>
+
+  <div class="form-actions">
+    <a class="button secondary" href="{{ back_url }}">Cancelar</a>
+    <button class="button primary" type="submit">Salvar</button>
+  </div>
+</form>
+
+<dialog class="confirm-dialog" id="photo-remove-dialog">
+  <form method="dialog">
+    <h2>Excluir foto</h2>
+    <p>voce tem certeza que deseja excluir sua foto do perfil</p>
+    <div class="dialog-actions">
+      <button class="button secondary" type="button" data-cancel-photo-dialog>Cancelar</button>
+      <button class="button danger" type="button" data-confirm-photo-remove>Continuar</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  const removeDialog = document.getElementById("photo-remove-dialog");
+  const removePhotoField = document.getElementById("id_remove_photo");
+  const accountForm = document.getElementById("account-settings-form");
+  const openRemoveDialog = document.querySelector("[data-open-photo-dialog]");
+  const cancelRemoveDialog = document.querySelector("[data-cancel-photo-dialog]");
+  const confirmRemovePhoto = document.querySelector("[data-confirm-photo-remove]");
+
+  if (openRemoveDialog && removeDialog) {
+    openRemoveDialog.addEventListener("click", () => removeDialog.showModal());
+  }
+  if (cancelRemoveDialog && removeDialog) {
+    cancelRemoveDialog.addEventListener("click", () => removeDialog.close());
+  }
+  if (confirmRemovePhoto && removePhotoField && accountForm) {
+    confirmRemovePhoto.addEventListener("click", () => {
+      removePhotoField.value = "on";
+      accountForm.submit();
+    });
+  }
+</script>
+{% endblock %}

@@ -726,55 +726,56 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
 
     def reschedule_current_and_future(self, form, starts_at, ends_at, new_status, slots, booking_values):
         profile = get_profile(self.request.user)
-        sources = list(
-            self.original_appointment.series.appointments.select_for_update()
-            .filter(
-                status__in=ACTIVE_APPOINTMENT_STATUSES,
-                starts_at__gte=self.original_appointment.starts_at,
-            )
-            .order_by("starts_at")
-        )
-        if not sources:
-            messages.error(self.request, "Nao ha sessoes futuras disponiveis para reagendar.")
-            return redirect(self.success_url)
-
         delta = starts_at - self.original_appointment.starts_at
-        occurrences = []
-        for source in sources:
-            shifted_start = source.starts_at + delta
-            occurrences.append(
-                {
-                    "source": source,
-                    "date": timezone.localtime(shifted_start).date(),
-                    "starts_at": shifted_start,
-                    "ends_at": source.ends_at + delta,
-                }
-            )
-
-        grouped_occurrences = {}
-        for item in occurrences:
-            grouped_occurrences.setdefault(item["date"], []).append(item)
-
-        payload_by_date = {}
-        for current_date, items in grouped_occurrences.items():
-            patient_ids = [item["source"].patient_id for item in items]
-            exclude_ids_by_date = {current_date.isoformat(): [item["source"].pk for item in items]}
-            try:
-                payload = build_occurrence_payloads(
-                    professional=form.cleaned_data["professional"],
-                    patient_ids=patient_ids,
-                    dates=[current_date],
-                    selected_start=timezone.localtime(items[0]["starts_at"]).time(),
-                    duration_minutes=form.cleaned_data["duration_minutes"],
-                    requested_capacity=max(item["source"].slot_capacity for item in items),
-                    exclude_ids_by_date=exclude_ids_by_date,
-                )[0]
-            except ValidationError as error:
-                add_model_validation_errors(form, error)
-                return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
-            payload_by_date[current_date] = payload
-
         with transaction.atomic():
+            sources = list(
+                self.original_appointment.series.appointments.select_for_update()
+                .filter(
+                    status__in=ACTIVE_APPOINTMENT_STATUSES,
+                    starts_at__gte=self.original_appointment.starts_at,
+                )
+                .order_by("starts_at")
+            )
+            if not sources:
+                messages.error(self.request, "Nao ha sessoes futuras disponiveis para reagendar.")
+                return redirect(self.success_url)
+
+            occurrences = []
+            for source in sources:
+                shifted_start = source.starts_at + delta
+                occurrences.append(
+                    {
+                        "source": source,
+                        "date": timezone.localtime(shifted_start).date(),
+                        "starts_at": shifted_start,
+                        "ends_at": source.ends_at + delta,
+                    }
+                )
+
+            grouped_occurrences = {}
+            for item in occurrences:
+                grouped_occurrences.setdefault(item["date"], []).append(item)
+
+            payload_by_date = {}
+            for current_date, items in grouped_occurrences.items():
+                patient_ids = [item["source"].patient_id for item in items]
+                exclude_ids_by_date = {current_date.isoformat(): [item["source"].pk for item in items]}
+                try:
+                    payload = build_occurrence_payloads(
+                        professional=form.cleaned_data["professional"],
+                        patient_ids=patient_ids,
+                        dates=[current_date],
+                        selected_start=timezone.localtime(items[0]["starts_at"]).time(),
+                        duration_minutes=form.cleaned_data["duration_minutes"],
+                        requested_capacity=max(item["source"].slot_capacity for item in items),
+                        exclude_ids_by_date=exclude_ids_by_date,
+                    )[0]
+                except ValidationError as error:
+                    add_model_validation_errors(form, error)
+                    transaction.set_rollback(True)
+                    return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+                payload_by_date[current_date] = payload
+
             new_series = AppointmentSeries.objects.create(
                 created_by=self.request.user,
                 repeat_type=AppointmentSeries.RepeatType.WEEKLY,

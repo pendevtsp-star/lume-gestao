@@ -2,10 +2,12 @@ const { app, BrowserWindow, dialog, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const { autoUpdater } = require("electron-updater");
 
 const PORT = process.env.LUME_PORT || "18780";
 const HOST = "127.0.0.1";
 const APP_URL = `http://${HOST}:${PORT}`;
+const HEALTH_URL = `${APP_URL}/health/`;
 
 let backendProcess;
 let mainWindow;
@@ -111,16 +113,64 @@ async function waitForBackend(timeoutMs = 45000) {
 
   while (Date.now() - startedAt < timeoutMs) {
     try {
-      const response = await fetch(APP_URL, { redirect: "manual" });
+      const response = await fetch(HEALTH_URL, { redirect: "manual" });
       if (response.status < 500) {
         return;
       }
     } catch (_error) {
-      await new Promise((resolve) => setTimeout(resolve, 700));
     }
+    await new Promise((resolve) => setTimeout(resolve, 700));
   }
 
   throw new Error("Backend local nao respondeu dentro do tempo esperado.");
+}
+
+function configureAutoUpdates() {
+  if (!app.isPackaged || process.env.LUME_DISABLE_UPDATES === "True") {
+    return;
+  }
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("error", (error) => {
+    console.error(`[updater] ${error.message}`);
+  });
+
+  autoUpdater.on("update-available", (info) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "Atualizacao disponivel",
+        message: `Uma nova versao (${info.version}) do Lume Gestao esta sendo baixada em segundo plano.`,
+      });
+    }
+  });
+
+  autoUpdater.on("update-downloaded", async (info) => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      autoUpdater.quitAndInstall();
+      return;
+    }
+
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: "question",
+      buttons: ["Atualizar agora", "Depois"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Atualizacao pronta",
+      message: `A versao ${info.version} ja esta pronta para instalar.`,
+      detail: "O aplicativo sera reiniciado para concluir a atualizacao.",
+    });
+
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  });
+
+  autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+    console.error(`[updater] ${error.message}`);
+  });
 }
 
 function createWindow() {
@@ -143,20 +193,45 @@ function createWindow() {
     return { action: "deny" };
   });
 
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!url.startsWith(APP_URL)) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+
   mainWindow.loadURL(APP_URL);
 }
 
-app.whenReady().then(async () => {
-  startBackend();
+const singleInstanceLock = app.requestSingleInstanceLock();
 
-  try {
-    await waitForBackend();
-    createWindow();
-  } catch (error) {
-    dialog.showErrorBox("Lume Gestao", error.message);
-    app.quit();
-  }
-});
+if (!singleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+    }
+  });
+}
+
+if (singleInstanceLock) {
+  app.whenReady().then(async () => {
+    startBackend();
+
+    try {
+      await waitForBackend();
+      createWindow();
+      configureAutoUpdates();
+    } catch (error) {
+      dialog.showErrorBox("Lume Gestao", error.message);
+      app.quit();
+    }
+  });
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
@@ -167,5 +242,11 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   if (backendProcess) {
     backendProcess.kill();
+  }
+});
+
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
   }
 });

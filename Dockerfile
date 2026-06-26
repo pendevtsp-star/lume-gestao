@@ -9,7 +9,8 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app/
+RUN chmod +x /app/scripts/start-web.sh
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python manage.py migrate && python manage.py ensure_maintenance_user && if [ \"${LUME_SEED_DEMO:-True}\" = \"True\" ]; then python manage.py seed_demo; fi && python manage.py runserver 0.0.0.0:8000"]
+CMD ["/app/scripts/start-web.sh"]

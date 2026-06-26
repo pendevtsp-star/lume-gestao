@@ -26,11 +26,13 @@ LUME_DATA_DIR = Path(config("LUME_DATA_DIR", default=str(BASE_DIR))).resolve()
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config(
     "SECRET_KEY",
-    default="django-insecure-dev-only-lume-local-secret-key",
+    default="lume-local-dev-secret-key-2026-7f4b2c91a8d5e3f0-change-before-production",
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=True, cast=bool)
+ENVIRONMENT = config("ENVIRONMENT", default="development")
+IS_PRODUCTION = ENVIRONMENT.lower() == "production" or not DEBUG
 
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
@@ -68,6 +70,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -159,6 +162,11 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = (
+    "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    if IS_PRODUCTION
+    else "django.contrib.staticfiles.storage.StaticFilesStorage"
+)
 MEDIA_URL = 'media/'
 MEDIA_ROOT = LUME_DATA_DIR / 'media' if LUME_DESKTOP else BASE_DIR / 'media'
 
@@ -178,6 +186,7 @@ EMAIL_TIMEOUT = config("EMAIL_TIMEOUT", default=15, cast=int)
 GOOGLE_CALENDAR_CLIENT_ID = config("GOOGLE_CALENDAR_CLIENT_ID", default="")
 GOOGLE_CALENDAR_CLIENT_SECRET = config("GOOGLE_CALENDAR_CLIENT_SECRET", default="")
 GOOGLE_CALENDAR_TIMEOUT = config("GOOGLE_CALENDAR_TIMEOUT", default=15, cast=int)
+GOOGLE_CALENDAR_SYNC_ENABLED = config("GOOGLE_CALENDAR_SYNC_ENABLED", default=True, cast=bool)
 
 WHATSAPP_PROVIDER = config("WHATSAPP_PROVIDER", default="meta")
 WHATSAPP_DRY_RUN = config("WHATSAPP_DRY_RUN", default=True, cast=bool)
@@ -185,12 +194,28 @@ WHATSAPP_META_API_VERSION = config("WHATSAPP_META_API_VERSION", default="v23.0")
 WHATSAPP_META_ACCESS_TOKEN = config("WHATSAPP_META_ACCESS_TOKEN", default="")
 WHATSAPP_META_PHONE_NUMBER_ID = config("WHATSAPP_META_PHONE_NUMBER_ID", default="")
 WHATSAPP_TIMEOUT = config("WHATSAPP_TIMEOUT", default=15, cast=int)
+REST_ENABLE_BASIC_AUTH = config("REST_ENABLE_BASIC_AUTH", default=False, cast=bool)
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=IS_PRODUCTION, cast=bool)
+SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=IS_PRODUCTION, cast=bool)
+CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=IS_PRODUCTION, cast=bool)
+SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=31536000 if IS_PRODUCTION else 0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS",
+    default=IS_PRODUCTION,
+    cast=bool,
+)
+SECURE_HSTS_PRELOAD = config("SECURE_HSTS_PRELOAD", default=IS_PRODUCTION, cast=bool)
+SECURE_CONTENT_TYPE_NOSNIFF = config("SECURE_CONTENT_TYPE_NOSNIFF", default=True, cast=bool)
+SECURE_REFERRER_POLICY = config("SECURE_REFERRER_POLICY", default="same-origin")
+X_FRAME_OPTIONS = config("X_FRAME_OPTIONS", default="DENY")
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
-    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        ['rest_framework.authentication.SessionAuthentication', 'rest_framework.authentication.BasicAuthentication']
+        if REST_ENABLE_BASIC_AUTH
+        else ['rest_framework.authentication.SessionAuthentication']
+    ),
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],

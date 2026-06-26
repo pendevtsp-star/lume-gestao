@@ -17,24 +17,21 @@ def main() -> None:
     (data_dir / "media").mkdir(parents=True, exist_ok=True)
 
     import django
-    from django.core.management import call_command, execute_from_command_line
+    from django.core.management import call_command
+    from waitress import serve
 
     django.setup()
     call_command("migrate", interactive=False, verbosity=1)
+    call_command("collectstatic", interactive=False, verbosity=0)
 
     if os.environ.get("LUME_SEED_DEMO", "False") == "True":
         call_command("seed_demo")
 
     port = os.environ.get("LUME_PORT", "18780")
     host = os.environ.get("LUME_HOST", "127.0.0.1")
-    execute_from_command_line(
-        [
-            sys.argv[0],
-            "runserver",
-            f"{host}:{port}",
-            "--noreload",
-        ]
-    )
+    from config.wsgi import application
+
+    serve(application, host=host, port=int(port), threads=8)
 
 
 if __name__ == "__main__":

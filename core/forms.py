@@ -1,9 +1,24 @@
 from django import forms
 
+from billing.models import Charge, Payment
+from patients.models import Patient
+from scheduling.models import Appointment
 from core.models import ClinicSettings, GoogleCalendarIntegration, WhatsAppIntegration
+from core.models import WhatsAppMessageTemplate
 
 
 class StyledModelForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            widget = field.widget
+            if isinstance(widget, forms.CheckboxInput):
+                widget.attrs.setdefault("class", "checkbox")
+            else:
+                widget.attrs.setdefault("class", "field-control")
+
+
+class StyledForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
@@ -56,6 +71,95 @@ class WhatsAppIntegrationForm(StyledModelForm):
             "dry_run",
             "provider",
             "default_country_code",
+            "clinic_whatsapp_number",
             "phone_number_id",
             "business_account_id",
         ]
+
+
+class WhatsAppMessageTemplateForm(StyledModelForm):
+    class Meta:
+        model = WhatsAppMessageTemplate
+        fields = ["active", "title", "description", "body", "send_time"]
+        widgets = {
+            "body": forms.Textarea(attrs={"rows": 5}),
+            "send_time": forms.TimeInput(attrs={"type": "time"}),
+        }
+
+
+class WhatsAppAppointmentSendForm(StyledForm):
+    appointment = forms.ModelChoiceField(label="Agendamento", queryset=Appointment.objects.none())
+    custom_number = forms.CharField(label="Numero para envio", max_length=30, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["appointment"].queryset = (
+            Appointment.objects.select_related("patient", "professional")
+            .filter(status__in=[Appointment.Status.REQUESTED, Appointment.Status.SCHEDULED])
+            .order_by("starts_at")
+        )
+        self.fields["appointment"].label_from_instance = (
+            lambda appointment: (
+                f"{appointment.patient.full_name} · {appointment.professional.full_name} · "
+                f"{appointment.starts_at:%d/%m/%Y %H:%M}"
+            )
+        )
+
+
+class WhatsAppChargeSendForm(StyledForm):
+    reference = forms.ChoiceField(label="Cobranca")
+    custom_number = forms.CharField(label="Numero para envio", max_length=30, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.reference_map = {}
+        choices = []
+        payments = (
+            Payment.objects.select_related("membership__patient", "membership__plan")
+            .filter(status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE])
+            .order_by("due_date")[:40]
+        )
+        for payment in payments:
+            key = f"payment:{payment.pk}"
+            self.reference_map[key] = payment
+            choices.append(
+                (
+                    key,
+                    f"Mensalidade · {payment.membership.patient.full_name} · "
+                    f"{payment.due_date:%d/%m/%Y} · R$ {payment.amount:.2f}",
+                )
+            )
+        charges = (
+            Charge.objects.select_related("patient")
+            .filter(status__in=[Charge.Status.OPEN, Charge.Status.OVERDUE])
+            .order_by("due_date")[:40]
+        )
+        for charge in charges:
+            patient_name = charge.patient.full_name if charge.patient_id else "Sem paciente"
+            key = f"charge:{charge.pk}"
+            self.reference_map[key] = charge
+            choices.append(
+                (
+                    key,
+                    f"Cobranca avulsa · {patient_name} · {charge.due_date:%d/%m/%Y} · R$ {charge.amount:.2f}",
+                )
+            )
+        self.fields["reference"].choices = choices
+
+    def clean_reference(self):
+        reference = self.cleaned_data["reference"]
+        if reference not in self.reference_map:
+            raise forms.ValidationError("Selecione uma cobranca valida.")
+        self.selected_reference = self.reference_map[reference]
+        return reference
+
+
+class WhatsAppBirthdaySendForm(StyledForm):
+    patient = forms.ModelChoiceField(label="Paciente", queryset=Patient.objects.none())
+    custom_number = forms.CharField(label="Numero para envio", max_length=30, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["patient"].queryset = (
+            Patient.objects.filter(active=True, birth_date__isnull=False).order_by("full_name")[:80]
+        )

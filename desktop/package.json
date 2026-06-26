@@ -13,7 +13,8 @@
   },
   "devDependencies": {
     "electron": "^37.2.0",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "electron-updater": "^6.6.2"
   },
   "build": {
     "appId": "br.com.lume.gestao",
@@ -21,6 +22,14 @@
     "directories": {
       "output": "../dist/desktop"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "pendevtsp-star",
+        "repo": "lume-gestao",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "main.js",
       "package.json"

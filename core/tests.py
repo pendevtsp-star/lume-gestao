@@ -10,7 +10,13 @@ from django.utils import timezone
 
 from accounts.models import UserProfile
 from billing.models import Expense, ExpenseCategory, Membership, Payment, ServicePlan
-from core.models import AuditLog, ClinicSettings, WhatsAppIntegration
+from core.models import (
+    AuditLog,
+    ClinicSettings,
+    WhatsAppIntegration,
+    WhatsAppMessageLog,
+    WhatsAppMessageTemplate,
+)
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
@@ -296,9 +302,37 @@ class FunctionalRoleFlowTests(TestCase):
 class IntegrationsTests(TestCase):
     def setUp(self):
         self.management = get_user_model().objects.create_user(username="gestor-integracoes", password="Senha@123")
+        self.administration = get_user_model().objects.create_user(username="admin-integracoes", password="Senha@123")
         self.patient_user = get_user_model().objects.create_user(username="paciente-integracoes", password="Senha@123")
-        self.patient = Patient.objects.create(full_name="Paciente Integracoes")
+        self.patient = Patient.objects.create(full_name="Paciente Integracoes", phone="11999990000", birth_date=date(1990, 5, 2))
+        self.professional = Professional.objects.create(
+            full_name="Dra. Integracoes",
+            specialty=Professional.Specialty.PILATES,
+        )
+        ProfessionalPatientAssignment.objects.create(patient=self.patient, professional=self.professional)
+        self.plan = ServicePlan.objects.create(
+            name="Plano Integracoes",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("320.00"),
+        )
+        self.membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        self.payment = Payment.objects.create(
+            membership=self.membership,
+            reference_month=date(2026, 6, 1),
+            due_date=date(2026, 6, 30),
+            amount=Decimal("320.00"),
+        )
+        self.appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=timezone.now() + timedelta(days=2),
+            ends_at=timezone.now() + timedelta(days=2, hours=1),
+        )
         UserProfile.objects.update_or_create(user=self.management, defaults={"role": UserProfile.Role.MANAGEMENT})
+        UserProfile.objects.update_or_create(
+            user=self.administration,
+            defaults={"role": UserProfile.Role.ADMINISTRATION},
+        )
         UserProfile.objects.update_or_create(
             user=self.patient_user,
             defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
@@ -310,7 +344,15 @@ class IntegrationsTests(TestCase):
         response = self.client.get(reverse("integrations"))
 
         self.assertContains(response, "Google Agenda")
-        self.assertContains(response, "WhatsApp")
+        self.assertContains(response, "ZapFisio")
+
+    def test_administration_can_open_integrations(self):
+        self.client.force_login(self.administration)
+
+        response = self.client.get(reverse("integrations"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Conexoes")
 
     def test_patient_cannot_open_integrations(self):
         self.client.force_login(self.patient_user)
@@ -323,7 +365,7 @@ class IntegrationsTests(TestCase):
         self.client.force_login(self.management)
         WhatsAppIntegration.objects.update_or_create(
             pk=1,
-            defaults={"enabled": True, "dry_run": True, "phone_number_id": "123"},
+            defaults={"enabled": True, "dry_run": True, "phone_number_id": "123", "clinic_whatsapp_number": "5511999990000"},
         )
 
         response = self.client.post(
@@ -339,6 +381,55 @@ class IntegrationsTests(TestCase):
         integration = WhatsAppIntegration.load()
         self.assertIsNotNone(integration.last_test_at)
         self.assertEqual(integration.last_error, "")
+
+    def test_management_can_save_whatsapp_message_template(self):
+        self.client.force_login(self.management)
+        template = WhatsAppMessageTemplate.ensure_defaults()[0]
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": f"save_template:{template.template_type}",
+                "tab": "messages",
+                f"template-{template.template_type}-active": "on",
+                f"template-{template.template_type}-title": "Lembrete VIP",
+                f"template-{template.template_type}-description": "Mensagem refinada",
+                f"template-{template.template_type}-body": "Oi [Paciente], confirme [Data] as [Horario].",
+                f"template-{template.template_type}-send_time": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        template.refresh_from_db()
+        self.assertEqual(template.title, "Lembrete VIP")
+        self.assertEqual(template.updated_by, self.management)
+
+    def test_management_can_send_whatsapp_template_and_log_it(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"enabled": True, "dry_run": True, "phone_number_id": "123", "clinic_whatsapp_number": "5511999990000"},
+        )
+        WhatsAppMessageTemplate.ensure_defaults()
+        template = WhatsAppMessageTemplate.objects.get(
+            template_type=WhatsAppMessageTemplate.TemplateType.APPOINTMENT
+        )
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "send_template:appointment",
+                "tab": "messages",
+                "send-appointment-appointment": self.appointment.pk,
+                "send-appointment-custom_number": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log = WhatsAppMessageLog.objects.get(template=template)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.DRY_RUN)
+        self.assertEqual(log.patient, self.patient)
+        self.assertIn(self.patient.full_name, log.rendered_message)
 
     @override_settings(
         GOOGLE_CALENDAR_CLIENT_ID="client-id",

@@ -6,12 +6,14 @@ from core.views import (
     GoogleCalendarCallbackView,
     GoogleCalendarConnectView,
     GoogleCalendarSyncView,
+    HealthCheckView,
     IntegrationsView,
 )
 from reports.views import AuditReportView
 
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
+    path("health/", HealthCheckView.as_view(), name="health"),
     path("auditoria/", AuditReportView.as_view(), name="audit"),
     path("configuracoes/", ClinicSettingsUpdateView.as_view(), name="settings"),
     path("integracoes/", IntegrationsView.as_view(), name="integrations"),

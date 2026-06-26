@@ -109,6 +109,27 @@ def appointment_event_payload(appointment):
     }
 
 
+def delete_google_event(event_id, integration=None):
+    integration = integration or GoogleCalendarIntegration.load()
+    if not integration.is_connected:
+        raise IntegrationError("Google Agenda ainda nao esta conectado.")
+
+    token = google_access_token(integration)
+    calendar_id = integration.calendar_id or "primary"
+    encoded_calendar_id = quote(calendar_id, safe="")
+    headers = {"Authorization": f"Bearer {token}"}
+    url = f"{GOOGLE_CALENDAR_BASE_URL}/{encoded_calendar_id}/events/{event_id}"
+    delete_json(url, headers=headers, timeout=settings.GOOGLE_CALENDAR_TIMEOUT)
+
+
+def clear_google_tracking(appointment):
+    appointment.external_provider = ""
+    appointment.external_event_id = ""
+    appointment._skip_google_sync = True
+    appointment.save(update_fields=["external_provider", "external_event_id", "updated_at"])
+    appointment._skip_google_sync = False
+
+
 def sync_appointment_to_google(appointment, integration=None):
     integration = integration or GoogleCalendarIntegration.load()
     if not integration.is_connected:
@@ -121,11 +142,8 @@ def sync_appointment_to_google(appointment, integration=None):
     payload = appointment_event_payload(appointment)
 
     if appointment.status in {Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED} and appointment.external_event_id:
-        url = f"{GOOGLE_CALENDAR_BASE_URL}/{encoded_calendar_id}/events/{appointment.external_event_id}"
-        delete_json(url, headers=headers, timeout=settings.GOOGLE_CALENDAR_TIMEOUT)
-        appointment.external_provider = ""
-        appointment.external_event_id = ""
-        appointment.save(update_fields=["external_provider", "external_event_id", "updated_at"])
+        delete_google_event(appointment.external_event_id, integration=integration)
+        clear_google_tracking(appointment)
         return None
 
     if appointment.external_provider == "google" and appointment.external_event_id:
@@ -137,7 +155,9 @@ def sync_appointment_to_google(appointment, integration=None):
         event = post_json(url, payload, headers=headers, timeout=settings.GOOGLE_CALENDAR_TIMEOUT)
         appointment.external_provider = "google"
         appointment.external_event_id = event.get("id", "")
+        appointment._skip_google_sync = True
         appointment.save(update_fields=["external_provider", "external_event_id", "updated_at"])
+        appointment._skip_google_sync = False
     return event
 
 

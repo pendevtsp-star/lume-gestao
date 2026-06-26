@@ -1623,6 +1623,216 @@ td small {
   font-weight: 800;
 }
 
+.integration-stack {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.8fr) minmax(320px, 0.9fr);
+}
+
+.zap-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.zap-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 28px 28px 18px;
+  background:
+    radial-gradient(circle at top left, rgba(130, 173, 194, 0.20), transparent 42%),
+    linear-gradient(135deg, #fbfaf3, #f0efe4);
+}
+
+.zap-header h2 {
+  margin: 4px 0 8px;
+}
+
+.zap-subtitle {
+  margin: 0;
+  max-width: 560px;
+  color: var(--muted);
+}
+
+.zap-tabs {
+  display: flex;
+  gap: 10px;
+  padding: 0 28px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.zap-tabs a {
+  padding: 10px 16px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.zap-tabs a.is-active {
+  background: var(--sage-dark);
+  color: #fff;
+}
+
+.zap-panel-body,
+.zap-connections,
+.zap-message-list {
+  display: grid;
+  gap: 20px;
+  padding: 24px 28px 28px;
+}
+
+.zap-metrics {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metric-card {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fffdf7, #f4f1e5);
+}
+
+.metric-card strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.metric-label {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.status-pill.is-success {
+  background: #e8f6eb;
+  color: #1f7a34;
+}
+
+.status-pill.is-warning {
+  background: #fff2d8;
+  color: #9d6713;
+}
+
+.status-pill.is-danger {
+  background: #fde7e4;
+  color: #a1402f;
+}
+
+.status-pill.is-muted {
+  background: #ece7db;
+  color: var(--muted);
+}
+
+.zap-log-panel {
+  background: #fff;
+}
+
+.connection-card,
+.google-panel {
+  align-self: start;
+}
+
+.message-template-card {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.8fr);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fff, #fbfaf4);
+}
+
+.message-template-main,
+.message-template-side,
+.template-editor,
+.template-send-form {
+  display: grid;
+  gap: 16px;
+}
+
+.message-template-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.message-template-head h3 {
+  margin: 0 0 6px;
+}
+
+.message-template-head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.token-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.token-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid #d9d0be;
+  border-radius: 12px;
+  background: #fff;
+  font-weight: 800;
+}
+
+.message-template-side {
+  padding-left: 4px;
+}
+
+.message-preview {
+  padding: 18px;
+  border: 1px solid #e3dccb;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.message-preview-label {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.message-preview p {
+  margin: 0;
+  color: #3c4330;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
 .button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -1800,8 +2010,14 @@ td small {
   .split-grid,
   .patient-summary,
   .card-grid,
-  .report-highlight-grid {
+  .report-highlight-grid,
+  .integration-stack,
+  .zap-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .message-template-card {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1826,7 +2042,9 @@ td small {
     .patient-summary,
     .form-grid,
   .toolbar,
-  .filter-panel {
+  .filter-panel,
+  .integration-stack,
+  .zap-metrics {
     grid-template-columns: 1fr;
   }
 
@@ -1841,6 +2059,22 @@ td small {
 
   .bar-item {
     grid-template-columns: 1fr;
+  }
+
+  .zap-header,
+  .message-template-head,
+  .zap-tabs {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .zap-panel-body,
+  .zap-connections,
+  .zap-message-list,
+  .zap-header,
+  .zap-tabs {
+    padding-left: 18px;
+    padding-right: 18px;
   }
 
   .calendar-actions,

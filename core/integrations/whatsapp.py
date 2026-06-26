@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.utils import timezone
 
@@ -49,3 +51,15 @@ def send_whatsapp_text(to_number, message, integration=None):
     integration.last_error = ""
     integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
     return response
+
+
+def format_whatsapp_currency(value):
+    amount = value if isinstance(value, Decimal) else Decimal(str(value or "0"))
+    return f"R$ {amount:.2f}".replace(".", ",")
+
+
+def render_whatsapp_template(message, context):
+    rendered = message or ""
+    for token, value in context.items():
+        rendered = rendered.replace(token, str(value or "-"))
+    return rendered

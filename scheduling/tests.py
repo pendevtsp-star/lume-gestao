@@ -3,7 +3,8 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
+from django.test import skipUnlessDBFeature
 from django.urls import reverse
 from django.utils import timezone
 
@@ -439,7 +440,6 @@ class SchedulingTests(TestCase):
         self.assertEqual(replacements.count(), 2)
         self.assertTrue(all(appointment.status == Appointment.Status.SCHEDULED for appointment in replacements))
         self.assertNotEqual(replacements.first().series_id, series.pk)
-
     def test_api_rejects_overlapping_appointment_in_backend_validation(self):
         user = get_user_model().objects.create_user(username="gestao-api-agenda", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
@@ -626,3 +626,75 @@ class SchedulingTests(TestCase):
         self.assertEqual(ics_response.status_code, 200)
         self.assertIn("text/calendar", ics_response["Content-Type"])
         self.assertIn("BEGIN:VCALENDAR", ics_response.content.decode())
+
+
+@skipUnlessDBFeature("has_select_for_update")
+class SchedulingTransactionTests(TransactionTestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="gestao-transacao", password="Senha@123")
+        self.patient = Patient.objects.create(full_name="Paciente Transacao", phone="11999990000")
+        self.second_patient = Patient.objects.create(full_name="Paciente Serie", phone="11999990001")
+        self.professional = Professional.objects.create(
+            full_name="Profissional Transacao",
+            specialty=Professional.Specialty.PILATES,
+        )
+        ProfessionalPatientAssignment.objects.create(patient=self.patient, professional=self.professional)
+        ProfessionalPatientAssignment.objects.create(patient=self.second_patient, professional=self.professional)
+        UserProfile.objects.update_or_create(user=self.user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        today = timezone.localdate()
+        for weekday in range(7):
+            ProfessionalAvailability.objects.create(
+                professional=self.professional,
+                weekday=weekday,
+                starts_at=time(8, 0),
+                ends_at=time(18, 0),
+                valid_from=today,
+                session_capacity=2,
+            )
+        self.client.force_login(self.user)
+
+    def test_recurring_reschedule_keeps_series_update_inside_transaction(self):
+        start_day = timezone.localdate() + timedelta(days=7)
+        next_day = start_day + timedelta(days=7)
+        first_start = timezone.make_aware(datetime.combine(start_day, time(9, 0)))
+        second_start = timezone.make_aware(datetime.combine(next_day, time(9, 0)))
+        series = AppointmentSeries.objects.create(
+            created_by=self.user,
+            repeat_type=AppointmentSeries.RepeatType.WEEKLY,
+            interval_weeks=1,
+            repeat_until=next_day,
+            occurrences_count=2,
+        )
+        first = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=first_start,
+            ends_at=first_start + timedelta(hours=1),
+            series=series,
+        )
+        second = Appointment.objects.create(
+            patient=self.second_patient,
+            professional=self.professional,
+            starts_at=second_start,
+            ends_at=second_start + timedelta(hours=1),
+            series=series,
+        )
+
+        response = self.client.post(
+            reverse("scheduling:appointment_reschedule", args=[first.pk]),
+            {
+                "professional": self.professional.pk,
+                "appointment_date": start_day.isoformat(),
+                "duration_minutes": "60",
+                "selected_start": "10:00",
+                "reschedule_scope": "current_and_future",
+                "notes": "Mudanca definitiva de horario.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, Appointment.Status.RESCHEDULED)
+        self.assertEqual(second.status, Appointment.Status.RESCHEDULED)
+        self.assertEqual(Appointment.objects.filter(rescheduled_from__in=[first, second]).count(), 2)

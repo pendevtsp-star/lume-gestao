@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from core.models import AuditLog, ClinicSettings, GoogleCalendarIntegration, WhatsAppIntegration
+from core.models import (
+    AuditLog,
+    ClinicSettings,
+    GoogleCalendarIntegration,
+    WhatsAppIntegration,
+    WhatsAppMessageLog,
+    WhatsAppMessageTemplate,
+)
 
 
 @admin.register(ClinicSettings)
@@ -24,5 +31,35 @@ class GoogleCalendarIntegrationAdmin(admin.ModelAdmin):
 
 @admin.register(WhatsAppIntegration)
 class WhatsAppIntegrationAdmin(admin.ModelAdmin):
-    list_display = ("provider", "enabled", "dry_run", "phone_number_id", "last_test_at", "updated_at")
-    readonly_fields = ("last_test_at", "last_error")
+    list_display = ("provider", "enabled", "dry_run", "clinic_whatsapp_number", "phone_number_id", "last_test_at", "updated_at")
+    readonly_fields = ("connected_at", "last_test_at", "last_error")
+
+
+@admin.register(WhatsAppMessageTemplate)
+class WhatsAppMessageTemplateAdmin(admin.ModelAdmin):
+    list_display = ("title", "template_type", "active", "send_time", "updated_by", "updated_at")
+    list_filter = ("template_type", "active")
+    search_fields = ("title", "description", "body")
+
+
+@admin.register(WhatsAppMessageLog)
+class WhatsAppMessageLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "recipient_name", "recipient_number", "template", "status", "sent_at")
+    list_filter = ("status", "template")
+    search_fields = ("recipient_name", "recipient_number", "rendered_message")
+    readonly_fields = (
+        "integration",
+        "template",
+        "patient",
+        "appointment",
+        "payment",
+        "charge",
+        "recipient_name",
+        "recipient_number",
+        "rendered_message",
+        "status",
+        "sent_at",
+        "provider_reference",
+        "error_message",
+        "response_payload",
+    )

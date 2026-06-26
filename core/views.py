@@ -1,7 +1,9 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.db.models import Q, Sum
 from django.urls import reverse
@@ -11,9 +13,17 @@ from django.views import View
 from django.views.generic import ListView, TemplateView, UpdateView
 
 from accounts.models import UserProfile
-from accounts.permissions import ManagementAccessMixin, get_profile
-from billing.models import Membership, Payment, ServicePlan
-from core.forms import ClinicSettingsForm, GoogleCalendarIntegrationForm, WhatsAppIntegrationForm
+from accounts.permissions import FinanceAccessMixin, ManagementAccessMixin, get_profile
+from billing.models import Charge, Membership, Payment, ServicePlan
+from core.forms import (
+    ClinicSettingsForm,
+    GoogleCalendarIntegrationForm,
+    WhatsAppAppointmentSendForm,
+    WhatsAppBirthdaySendForm,
+    WhatsAppChargeSendForm,
+    WhatsAppIntegrationForm,
+    WhatsAppMessageTemplateForm,
+)
 from core.integrations.google_calendar import (
     build_google_authorization_url,
     exchange_google_code,
@@ -21,8 +31,15 @@ from core.integrations.google_calendar import (
     sync_upcoming_appointments,
 )
 from core.integrations.http import IntegrationError
-from core.integrations.whatsapp import send_whatsapp_text
-from core.models import AuditLog, ClinicSettings, GoogleCalendarIntegration, WhatsAppIntegration
+from core.integrations.whatsapp import format_whatsapp_currency, render_whatsapp_template, send_whatsapp_text
+from core.models import (
+    AuditLog,
+    ClinicSettings,
+    GoogleCalendarIntegration,
+    WhatsAppIntegration,
+    WhatsAppMessageLog,
+    WhatsAppMessageTemplate,
+)
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
@@ -49,6 +66,18 @@ class SearchableListView(LoginRequiredMixin):
         context["q"] = self.request.GET.get("q", "").strip()
         context["querystring"] = query_params.urlencode()
         return context
+
+
+class HealthCheckView(View):
+    def get(self, request):
+        return JsonResponse(
+            {
+                "status": "ok",
+                "desktop_mode": settings.LUME_DESKTOP,
+                "database_engine": settings.DATABASES["default"]["ENGINE"],
+                "environment": settings.ENVIRONMENT,
+            }
+        )
 
 
 class FormContextMixin:
@@ -253,25 +282,272 @@ class ClinicSettingsUpdateView(ManagementAccessMixin, UpdateView):
         return super().form_valid(form)
 
 
-class IntegrationsView(ManagementAccessMixin, TemplateView):
+def default_professional_for_patient(patient):
+    if not patient:
+        return None
+    assignment = (
+        ProfessionalPatientAssignment.objects.select_related("professional")
+        .filter(patient=patient, active=True)
+        .order_by("created_at")
+        .first()
+    )
+    return assignment.professional if assignment else None
+
+
+def build_whatsapp_message_context(patient=None, professional=None, appointment=None, payment=None, charge=None):
+    clinic_settings = ClinicSettings.load()
+    patient = patient or getattr(appointment, "patient", None)
+    if not patient and payment:
+        patient = payment.membership.patient
+    if not patient and charge:
+        patient = charge.patient
+    professional = professional or getattr(appointment, "professional", None) or default_professional_for_patient(patient)
+
+    if appointment:
+        appointment_date = timezone.localtime(appointment.starts_at).strftime("%d/%m/%Y")
+        appointment_time = timezone.localtime(appointment.starts_at).strftime("%H:%M")
+    else:
+        appointment_date = (timezone.localdate() + timedelta(days=1)).strftime("%d/%m/%Y")
+        appointment_time = "09:00"
+
+    due_date = "-"
+    amount = "-"
+    if payment:
+        due_date = payment.due_date.strftime("%d/%m/%Y")
+        amount = format_whatsapp_currency(payment.amount)
+    elif charge:
+        due_date = charge.due_date.strftime("%d/%m/%Y")
+        amount = format_whatsapp_currency(charge.amount)
+
+    clinic_phone = clinic_settings.phone or WhatsAppIntegration.load().clinic_whatsapp_number or "-"
+    return {
+        "[Paciente]": patient.full_name if patient else "Paciente",
+        "[Profissional]": professional.full_name if professional else clinic_settings.clinic_name,
+        "[Data]": appointment_date,
+        "[Horario]": appointment_time,
+        "[Valor]": amount,
+        "[DataVencimento]": due_date,
+        "[Clinica]": clinic_settings.clinic_name,
+        "[TelefoneClinica]": clinic_phone,
+    }
+
+
+def whatsapp_preview_context(template_type):
+    sample_patient = Patient(full_name="Maria Clara", phone="11999990000")
+    sample_professional = Professional(full_name="Dra. Helena", specialty=Professional.Specialty.PILATES)
+    sample_date = timezone.localdate() + timedelta(days=1)
+    sample_appointment = Appointment(
+        patient=sample_patient,
+        professional=sample_professional,
+        starts_at=timezone.make_aware(datetime.combine(sample_date, time(9, 0))),
+        ends_at=timezone.make_aware(datetime.combine(sample_date, time(10, 0))),
+    )
+    if template_type == WhatsAppMessageTemplate.TemplateType.CHARGE:
+        membership = Membership(patient=sample_patient, plan=ServicePlan(name="Pilates", category=ServicePlan.Category.PILATES, monthly_price=0))
+        sample_payment = Payment(membership=membership, due_date=timezone.localdate() + timedelta(days=5), amount="320.00")
+        return build_whatsapp_message_context(payment=sample_payment, professional=sample_professional)
+    if template_type == WhatsAppMessageTemplate.TemplateType.BIRTHDAY:
+        return build_whatsapp_message_context(patient=sample_patient, professional=sample_professional)
+    return build_whatsapp_message_context(appointment=sample_appointment)
+
+
+def whatsapp_target_number(custom_number, patient=None):
+    if custom_number:
+        return custom_number
+    if patient and patient.phone:
+        return patient.phone
+    raise IntegrationError("O destinatario selecionado nao possui telefone cadastrado. Informe um numero manualmente.")
+
+
+class IntegrationsView(FinanceAccessMixin, TemplateView):
     template_name = "core/integrations.html"
+
+    WHATSAPP_TABS = {"panel", "connections", "messages"}
+
+    def get_active_tab(self):
+        selected = self.request.GET.get("tab") or self.request.POST.get("tab") or "panel"
+        return selected if selected in self.WHATSAPP_TABS else "panel"
+
+    def get_whatsapp_templates(self):
+        WhatsAppMessageTemplate.ensure_defaults()
+        return {
+            template.template_type: template
+            for template in WhatsAppMessageTemplate.objects.order_by("template_type")
+        }
+
+    def default_template_forms(self, templates):
+        return {
+            template_type: WhatsAppMessageTemplateForm(
+                prefix=f"template-{template_type}",
+                instance=template,
+            )
+            for template_type, template in templates.items()
+        }
+
+    def default_send_forms(self):
+        return {
+            WhatsAppMessageTemplate.TemplateType.APPOINTMENT: WhatsAppAppointmentSendForm(prefix="send-appointment"),
+            WhatsAppMessageTemplate.TemplateType.CHARGE: WhatsAppChargeSendForm(prefix="send-charge"),
+            WhatsAppMessageTemplate.TemplateType.BIRTHDAY: WhatsAppBirthdaySendForm(prefix="send-birthday"),
+        }
+
+    def build_context(
+        self,
+        *,
+        google_form=None,
+        whatsapp_form=None,
+        template_forms=None,
+        send_forms=None,
+        active_tab=None,
+    ):
+        google_integration = GoogleCalendarIntegration.load()
+        whatsapp_integration = WhatsAppIntegration.load()
+        templates = self.get_whatsapp_templates()
+        template_forms = template_forms or self.default_template_forms(templates)
+        send_forms = send_forms or self.default_send_forms()
+        log_queryset = WhatsAppMessageLog.objects.select_related(
+            "template",
+            "patient",
+            "appointment",
+            "payment",
+            "charge",
+        )
+        recent_logs = log_queryset[:12]
+        previews = {
+            template_type: render_whatsapp_template(template.body, whatsapp_preview_context(template_type))
+            for template_type, template in templates.items()
+        }
+        return {
+            "google_form": google_form or GoogleCalendarIntegrationForm(prefix="google", instance=google_integration),
+            "whatsapp_form": whatsapp_form or WhatsAppIntegrationForm(prefix="whatsapp", instance=whatsapp_integration),
+            "google": google_integration,
+            "whatsapp": whatsapp_integration,
+            "google_configured": google_calendar_configured(),
+            "whatsapp_templates": templates,
+            "template_forms": template_forms,
+            "send_forms": send_forms,
+            "preview_messages": previews,
+            "recent_logs": recent_logs,
+            "connected_numbers_total": 1 if whatsapp_integration.is_connected else 0,
+            "sent_messages_total": log_queryset.filter(
+                status__in=[WhatsAppMessageLog.Status.SENT, WhatsAppMessageLog.Status.DRY_RUN]
+            ).count(),
+            "scheduled_messages_total": sum(
+                1 for template in templates.values() if template.active and template.send_time
+            ),
+            "active_tab": active_tab or self.get_active_tab(),
+            "page_title": "Integracoes",
+            "section_label": "Gerencia",
+        }
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        google_integration = GoogleCalendarIntegration.load()
-        whatsapp_integration = WhatsAppIntegration.load()
-        context.update(
-            {
-                "google_form": GoogleCalendarIntegrationForm(prefix="google", instance=google_integration),
-                "whatsapp_form": WhatsAppIntegrationForm(prefix="whatsapp", instance=whatsapp_integration),
-                "google": google_integration,
-                "whatsapp": whatsapp_integration,
-                "google_configured": google_calendar_configured(),
-                "page_title": "Integracoes",
-                "section_label": "Gerencia",
-            }
-        )
+        context.update(self.build_context())
         return context
+
+    def render_with_forms(self, **kwargs):
+        return self.render_to_response(self.build_context(**kwargs))
+
+    def handle_save_template(self, request, template_type):
+        templates = self.get_whatsapp_templates()
+        template = templates[template_type]
+        form = WhatsAppMessageTemplateForm(
+            request.POST,
+            prefix=f"template-{template_type}",
+            instance=template,
+        )
+        if form.is_valid():
+            template = form.save(commit=False)
+            template.updated_by = request.user
+            template.save()
+            messages.success(request, f"{template.title} salva com sucesso.")
+            return redirect(f"{reverse('integrations')}?tab=messages")
+        template_forms = self.default_template_forms(templates)
+        template_forms[template_type] = form
+        return self.render_with_forms(template_forms=template_forms, active_tab="messages")
+
+    def send_template_message(self, request, template_type):
+        templates = self.get_whatsapp_templates()
+        template = templates[template_type]
+        send_forms = self.default_send_forms()
+        if template_type == WhatsAppMessageTemplate.TemplateType.APPOINTMENT:
+            form = WhatsAppAppointmentSendForm(request.POST, prefix="send-appointment")
+            send_forms[template_type] = form
+            if not form.is_valid():
+                return self.render_with_forms(send_forms=send_forms, active_tab="messages")
+            appointment = form.cleaned_data["appointment"]
+            patient = appointment.patient
+            message_context = build_whatsapp_message_context(appointment=appointment)
+            related = {"patient": patient, "appointment": appointment, "payment": None, "charge": None}
+        elif template_type == WhatsAppMessageTemplate.TemplateType.CHARGE:
+            form = WhatsAppChargeSendForm(request.POST, prefix="send-charge")
+            send_forms[template_type] = form
+            if not form.is_valid():
+                return self.render_with_forms(send_forms=send_forms, active_tab="messages")
+            reference = form.selected_reference
+            if isinstance(reference, Payment):
+                patient = reference.membership.patient
+                message_context = build_whatsapp_message_context(payment=reference)
+                related = {"patient": patient, "appointment": None, "payment": reference, "charge": None}
+            else:
+                patient = reference.patient
+                message_context = build_whatsapp_message_context(charge=reference)
+                related = {"patient": patient, "appointment": None, "payment": None, "charge": reference}
+        else:
+            form = WhatsAppBirthdaySendForm(request.POST, prefix="send-birthday")
+            send_forms[template_type] = form
+            if not form.is_valid():
+                return self.render_with_forms(send_forms=send_forms, active_tab="messages")
+            patient = form.cleaned_data["patient"]
+            message_context = build_whatsapp_message_context(patient=patient)
+            related = {"patient": patient, "appointment": None, "payment": None, "charge": None}
+
+        rendered_message = render_whatsapp_template(template.body, message_context)
+        integration = WhatsAppIntegration.load()
+        try:
+            target_number = whatsapp_target_number(form.cleaned_data.get("custom_number"), related["patient"])
+            result = send_whatsapp_text(target_number, rendered_message, integration=integration)
+        except IntegrationError as exc:
+            WhatsAppMessageLog.objects.create(
+                integration=integration,
+                template=template,
+                patient=related["patient"],
+                appointment=related["appointment"],
+                payment=related["payment"],
+                charge=related["charge"],
+                recipient_name=related["patient"].full_name if related["patient"] else "Destinatario manual",
+                recipient_number=target_number,
+                rendered_message=rendered_message,
+                status=WhatsAppMessageLog.Status.FAILED,
+                error_message=str(exc),
+            )
+            messages.error(request, str(exc))
+            return redirect(f"{reverse('integrations')}?tab=messages")
+
+        provider_reference = ""
+        if isinstance(result, dict):
+            messages_data = result.get("messages") or []
+            if messages_data:
+                provider_reference = messages_data[0].get("id", "")
+        status = WhatsAppMessageLog.Status.DRY_RUN if result.get("dry_run") else WhatsAppMessageLog.Status.SENT
+        WhatsAppMessageLog.objects.create(
+            integration=integration,
+            template=template,
+            patient=related["patient"],
+            appointment=related["appointment"],
+            payment=related["payment"],
+            charge=related["charge"],
+            recipient_name=related["patient"].full_name if related["patient"] else "Destinatario manual",
+            recipient_number=target_number,
+            rendered_message=rendered_message,
+            status=status,
+            sent_at=timezone.now(),
+            provider_reference=provider_reference,
+            response_payload=result if isinstance(result, dict) else {},
+        )
+        detail = "simulada" if status == WhatsAppMessageLog.Status.DRY_RUN else "enviada"
+        messages.success(request, f"Mensagem {detail} com sucesso.")
+        return redirect(f"{reverse('integrations')}?tab=messages")
 
     def post(self, request):
         action = request.POST.get("action")
@@ -280,13 +556,20 @@ class IntegrationsView(ManagementAccessMixin, TemplateView):
             if form.is_valid():
                 form.save()
                 messages.success(request, "Configuracao do Google Agenda salva.")
-                return redirect("integrations")
+                return redirect(f"{reverse('integrations')}?tab=connections")
+            return self.render_with_forms(google_form=form, active_tab="connections")
         elif action == "save_whatsapp":
             form = WhatsAppIntegrationForm(request.POST, prefix="whatsapp", instance=WhatsAppIntegration.load())
             if form.is_valid():
-                form.save()
+                integration = form.save(commit=False)
+                if integration.enabled and integration.clinic_whatsapp_number and not integration.connected_at:
+                    integration.connected_at = timezone.now()
+                if not integration.enabled:
+                    integration.connected_at = None
+                integration.save()
                 messages.success(request, "Configuracao do WhatsApp salva.")
-                return redirect("integrations")
+                return redirect(f"{reverse('integrations')}?tab=connections")
+            return self.render_with_forms(whatsapp_form=form, active_tab="connections")
         elif action == "test_whatsapp":
             number = request.POST.get("test_number", "")
             message = request.POST.get("test_message", "Teste de mensagem do Lume Gestao.")
@@ -298,13 +581,17 @@ class IntegrationsView(ManagementAccessMixin, TemplateView):
             else:
                 detail = "modo teste" if result.get("dry_run") else "enviado pela API"
                 messages.success(request, f"WhatsApp validado em {detail}.")
-            return redirect("integrations")
+            return redirect(f"{reverse('integrations')}?tab=connections")
+        elif action and action.startswith("save_template:"):
+            return self.handle_save_template(request, action.split(":", 1)[1])
+        elif action and action.startswith("send_template:"):
+            return self.send_template_message(request, action.split(":", 1)[1])
 
         messages.error(request, "Acao de integracao invalida.")
-        return redirect("integrations")
+        return redirect(f"{reverse('integrations')}?tab={self.get_active_tab()}")
 
 
-class GoogleCalendarConnectView(ManagementAccessMixin, View):
+class GoogleCalendarConnectView(FinanceAccessMixin, View):
     def get(self, request):
         try:
             return redirect(build_google_authorization_url(request))
@@ -313,7 +600,7 @@ class GoogleCalendarConnectView(ManagementAccessMixin, View):
             return redirect("integrations")
 
 
-class GoogleCalendarCallbackView(ManagementAccessMixin, View):
+class GoogleCalendarCallbackView(FinanceAccessMixin, View):
     def get(self, request):
         state = request.GET.get("state")
         expected_state = request.session.pop("google_calendar_oauth_state", "")
@@ -333,7 +620,7 @@ class GoogleCalendarCallbackView(ManagementAccessMixin, View):
         return redirect("integrations")
 
 
-class GoogleCalendarSyncView(ManagementAccessMixin, View):
+class GoogleCalendarSyncView(FinanceAccessMixin, View):
     def post(self, request):
         try:
             synced, failed = sync_upcoming_appointments()

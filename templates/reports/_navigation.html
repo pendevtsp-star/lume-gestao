@@ -1,0 +1,8 @@
+<nav class="report-tabs" aria-label="Navegacao dos relatorios">
+  <a class="report-tab {% if report_section == 'overview' %}is-active{% endif %}" href="{% url 'reports:dashboard' %}">Visao geral</a>
+  <a class="report-tab {% if report_section == 'financial' %}is-active{% endif %}" href="{% url 'reports:financial' %}">Financeiro</a>
+  <a class="report-tab {% if report_section == 'clinic' %}is-active{% endif %}" href="{% url 'reports:clinic' %}">Gestao de adesao</a>
+  {% if can_access_audit %}
+    <a class="report-tab {% if report_section == 'audit' %}is-active{% endif %}" href="{% url 'reports:audit' %}">Auditoria</a>
+  {% endif %}
+</nav>

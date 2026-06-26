@@ -1,7 +1,6 @@
 from django.urls import path
 
 from core.views import (
-    AuditLogListView,
     ClinicSettingsUpdateView,
     DashboardView,
     GoogleCalendarCallbackView,
@@ -9,10 +8,11 @@ from core.views import (
     GoogleCalendarSyncView,
     IntegrationsView,
 )
+from reports.views import AuditReportView
 
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
-    path("auditoria/", AuditLogListView.as_view(), name="audit"),
+    path("auditoria/", AuditReportView.as_view(), name="audit"),
     path("configuracoes/", ClinicSettingsUpdateView.as_view(), name="settings"),
     path("integracoes/", IntegrationsView.as_view(), name="integrations"),
     path("integracoes/google/conectar/", GoogleCalendarConnectView.as_view(), name="integrations_google_connect"),

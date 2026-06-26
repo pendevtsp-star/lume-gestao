@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}Relatorio Financeiro | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Relatorios</p>
+    <h1>Financeiro</h1>
+  </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'reports:financial_export' 'pdf' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&plan={{ selected_plan }}&method={{ selected_method }}&kind={{ selected_kind }}&category={{ selected_category }}&include_charges={% if include_charges %}1{% else %}0{% endif %}">Exportar PDF</a>
+    <a class="button secondary" href="{% url 'reports:financial_export' 'xlsx' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&plan={{ selected_plan }}&method={{ selected_method }}&kind={{ selected_kind }}&category={{ selected_category }}&include_charges={% if include_charges %}1{% else %}0{% endif %}">Exportar Excel</a>
+  </div>
+</section>
+
+{% include "reports/_navigation.html" %}
+
+<section class="panel report-filter-panel">
+  <form class="filter-panel report-filter-grid" method="get">
+    <label class="form-field">
+      <span>Periodo</span>
+      <select class="field-control" name="preset">
+        {% for value, label in preset_choices %}
+          <option value="{{ value }}" {% if preset == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Inicio</span>
+      <input class="field-control" type="date" name="start" value="{{ start }}">
+    </label>
+    <label class="form-field">
+      <span>Fim</span>
+      <input class="field-control" type="date" name="end" value="{{ end }}">
+    </label>
+    <label class="form-field">
+      <span>Plano</span>
+      <select class="field-control" name="plan">
+        <option value="">Todos</option>
+        {% for plan in plan_choices %}
+          <option value="{{ plan.pk }}" {% if selected_plan == plan.pk|stringformat:"s" %}selected{% endif %}>{{ plan.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Metodo recebido</span>
+      <select class="field-control" name="method">
+        <option value="">Todos</option>
+        {% for value, label in method_choices %}
+          <option value="{{ value }}" {% if selected_method == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Tipo de despesa</span>
+      <select class="field-control" name="kind">
+        <option value="">Todos</option>
+        {% for value, label in kind_choices %}
+          <option value="{{ value }}" {% if selected_kind == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Categoria da despesa</span>
+      <select class="field-control" name="category">
+        <option value="">Todas</option>
+        {% for category in category_choices %}
+          <option value="{{ category.pk }}" {% if selected_category == category.pk|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field form-field-inline">
+      <span>Receita avulsa</span>
+      <select class="field-control" name="include_charges">
+        <option value="1" {% if include_charges %}selected{% endif %}>Incluir cobrancas recebidas</option>
+        <option value="0" {% if not include_charges %}selected{% endif %}>Ignorar cobrancas avulsas</option>
+      </select>
+    </label>
+    <button class="button primary" type="submit">Atualizar</button>
+  </form>
+</section>
+
+<section class="metric-grid">
+  <article class="metric">
+    <span>Receita total</span>
+    <strong>R$ {{ revenue_total|floatformat:2 }}</strong>
+  </article>
+  <article class="metric">
+    <span>Despesa total</span>
+    <strong>R$ {{ expense_total|floatformat:2 }}</strong>
+  </article>
+  <article class="metric">
+    <span>Resultado</span>
+    <strong>R$ {{ net_result|floatformat:2 }}</strong>
+  </article>
+  <article class="metric">
+    <span>Contas a receber</span>
+    <strong>R$ {{ pending_total|floatformat:2 }}</strong>
+  </article>
+</section>
+
+<section class="metric-grid">
+  <article class="metric">
+    <span>Margem</span>
+    <strong>{{ margin|floatformat:1 }}%</strong>
+  </article>
+  <article class="metric">
+    <span>Peso das despesas</span>
+    <strong>{{ expense_ratio|floatformat:1 }}%</strong>
+  </article>
+  <article class="metric">
+    <span>Vencidos</span>
+    <strong>R$ {{ overdue_total|floatformat:2 }}</strong>
+  </article>
+  <article class="metric">
+    <span>Receita avulsa</span>
+    <strong>R$ {{ charge_revenue_total|floatformat:2 }}</strong>
+  </article>
+</section>
+
+<section class="panel report-highlight-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Saude financeira</h2>
+      <p>{{ health_summary }}</p>
+    </div>
+    <span class="report-status {{ health_tone }}">{{ health_label }}</span>
+  </header>
+  <div class="report-highlight-grid">
+    <div class="report-highlight-metric">
+      <span>Recebimentos confirmados</span>
+      <strong>R$ {{ revenue_total|floatformat:2 }}</strong>
+    </div>
+    <div class="report-highlight-metric">
+      <span>Despesas do periodo</span>
+      <strong>R$ {{ expense_total|floatformat:2 }}</strong>
+    </div>
+    <div class="report-highlight-metric">
+      <span>Inadimplencia no filtro</span>
+      <strong>{{ overdue_ratio|floatformat:1 }}%</strong>
+    </div>
+  </div>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Fluxo por mes</h2>
+        <p>Comparativo entre entrada e saida do periodo.</p>
+      </div>
+    </header>
+    <div class="table-wrap">
+      <table class="compact-table">
+        <thead>
+          <tr>
+            <th>Mes</th>
+            <th class="right">Receita</th>
+            <th class="right">Despesa</th>
+            <th class="right">Resultado</th>
+            <th class="right">Margem</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in monthly_flow %}
+            <tr>
+              <td>{{ row.month|date:"m/Y" }}</td>
+              <td class="right">R$ {{ row.revenue|floatformat:2 }}</td>
+              <td class="right">R$ {{ row.expenses|floatformat:2 }}</td>
+              <td class="right">R$ {{ row.net|floatformat:2 }}</td>
+              <td class="right">{{ row.margin|floatformat:1 }}%</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="empty">Nenhum movimento encontrado para o periodo.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Receita por origem</h2>
+        <p>Metodos de pagamento e cobrancas avulsas.</p>
+      </div>
+    </header>
+    <div class="bar-list">
+      {% for row in revenue_by_source %}
+        <article class="bar-item">
+          <div class="bar-copy">
+            <strong>{{ row.label }}</strong>
+            <span>{% if row.count %}{{ row.count }} lancamento(s){% else %}Sem volume calculado{% endif %}</span>
+          </div>
+          <div class="bar-track"><span class="bar-fill is-finance" style="width: {{ row.percentage }}%;"></span></div>
+          <strong class="bar-value">R$ {{ row.value|floatformat:2 }}</strong>
+        </article>
+      {% empty %}
+        <p class="bar-empty">Nenhuma receita recebida no periodo.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Despesas por categoria</h2>
+        <p>Principais centros de custo do filtro atual.</p>
+      </div>
+    </header>
+    <div class="bar-list">
+      {% for row in expenses_by_category %}
+        <article class="bar-item">
+          <div class="bar-copy">
+            <strong>{{ row.label }}</strong>
+            <span>{{ row.count }} lancamento(s)</span>
+          </div>
+          <div class="bar-track"><span class="bar-fill is-expense" style="width: {{ row.percentage }}%;"></span></div>
+          <strong class="bar-value">R$ {{ row.value|floatformat:2 }}</strong>
+        </article>
+      {% empty %}
+        <p class="bar-empty">Nenhuma despesa localizada no periodo.</p>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Receita por plano</h2>
+        <p>Quais planos mais puxaram o faturamento recebido.</p>
+      </div>
+    </header>
+    <div class="bar-list">
+      {% for row in revenue_by_plan %}
+        <article class="bar-item">
+          <div class="bar-copy">
+            <strong>{{ row.label }}</strong>
+            <span>{{ row.count }} recebimento(s)</span>
+          </div>
+          <div class="bar-track"><span class="bar-fill is-sage" style="width: {{ row.percentage }}%;"></span></div>
+          <strong class="bar-value">R$ {{ row.value|floatformat:2 }}</strong>
+        </article>
+      {% empty %}
+        <p class="bar-empty">Sem recebimentos vinculados a planos neste periodo.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="panel stacked-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Alertas de recebiveis</h2>
+      <p>Titulos pendentes ou vencidos dentro do recorte filtrado.</p>
+    </div>
+  </header>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Paciente</th>
+          <th>Descricao</th>
+          <th>Vencimento</th>
+          <th>Status</th>
+          <th class="right">Valor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in receivable_alerts %}
+          <tr>
+            <td>{{ row.type }}</td>
+            <td>{{ row.patient }}</td>
+            <td>{{ row.description }}</td>
+            <td>{{ row.due_date|date:"d/m/Y" }}</td>
+            <td>{{ row.status }}</td>
+            <td class="right">R$ {{ row.amount|floatformat:2 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">Nenhum titulo pendente no periodo selecionado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

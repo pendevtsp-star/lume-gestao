@@ -5,289 +5,51 @@
 {% block content %}
 <section class="page-heading">
   <div>
-    <p class="eyebrow">Gestao comercial</p>
-    <h1>Relatorios</h1>
-  </div>
-  <div class="panel-actions">
-    <a class="button secondary" href="{% url 'reports:export' 'pdf' %}?start={{ start }}&end={{ end }}">Exportar PDF</a>
-    <a class="button secondary" href="{% url 'reports:export' 'xlsx' %}?start={{ start }}&end={{ end }}">Exportar Excel</a>
+    <p class="eyebrow">Relatorios</p>
+    <h1>Central de relatorios</h1>
   </div>
 </section>
 
-<section class="panel report-filter-panel">
-  <form class="filter-panel" method="get">
-    <label class="form-field">
-      <span>Inicio</span>
-      <input class="field-control" type="date" name="start" value="{{ start }}">
-    </label>
-    <label class="form-field">
-      <span>Fim</span>
-      <input class="field-control" type="date" name="end" value="{{ end }}">
-    </label>
-    <button class="button primary" type="submit">Atualizar</button>
-  </form>
-</section>
+{% include "reports/_navigation.html" %}
 
 <section class="metric-grid">
   <article class="metric">
-    <span>Novos pacientes</span>
-    <strong>{{ new_patients_count }}</strong>
+    <span>Receita no mes</span>
+    <strong>R$ {{ overview_metrics.revenue_total|floatformat:2 }}</strong>
   </article>
   <article class="metric">
-    <span>Atendimentos realizados</span>
-    <strong>{{ completed_appointments_count }}</strong>
+    <span>Despesa no mes</span>
+    <strong>R$ {{ overview_metrics.expense_total|floatformat:2 }}</strong>
   </article>
   <article class="metric">
-    <span>Receita recebida</span>
-    <strong>R$ {{ revenue_total|floatformat:2 }}</strong>
-  </article>
-  <article class="metric">
-    <span>Resultado do periodo</span>
-    <strong>R$ {{ net_result|floatformat:2 }}</strong>
-  </article>
-</section>
-
-<section class="metric-grid">
-  <article class="metric">
-    <span>Pacientes ativos</span>
-    <strong>{{ active_patients_count }}</strong>
+    <span>Resultado no mes</span>
+    <strong>R$ {{ overview_metrics.net_total|floatformat:2 }}</strong>
   </article>
   <article class="metric">
     <span>Mensalidades ativas</span>
-    <strong>{{ active_memberships_count }}</strong>
-  </article>
-  <article class="metric">
-    <span>Despesas do periodo</span>
-    <strong>R$ {{ expense_total|floatformat:2 }}</strong>
-  </article>
-  <article class="metric">
-    <span>Ticket por atendimento</span>
-    <strong>R$ {{ average_ticket|floatformat:2 }}</strong>
+    <strong>{{ overview_metrics.active_memberships }}</strong>
   </article>
 </section>
 
-<section class="split-grid">
-  <article class="panel">
-    <header class="panel-header">
-      <div>
-        <h2>Pacientes por mes</h2>
-        <p>Cadastros criados dentro do periodo selecionado.</p>
-      </div>
-    </header>
-    <div class="table-wrap">
-      <table class="compact-table">
-        <thead>
-          <tr>
-            <th>Mes</th>
-            <th class="right">Pacientes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in patients_by_month %}
-            <tr>
-              <td>{{ row.month|date:"m/Y" }}</td>
-              <td class="right">{{ row.total }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="2" class="empty">Nenhum paciente no periodo.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </article>
-
-  <article class="panel">
-    <header class="panel-header">
-      <div>
-        <h2>Atendimentos por mes</h2>
-        <p>Apenas atendimentos marcados como realizados.</p>
-      </div>
-    </header>
-    <div class="table-wrap">
-      <table class="compact-table">
-        <thead>
-          <tr>
-            <th>Mes</th>
-            <th class="right">Realizados</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in appointments_by_month %}
-            <tr>
-              <td>{{ row.month|date:"m/Y" }}</td>
-              <td class="right">{{ row.total }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="2" class="empty">Nenhum atendimento realizado.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </article>
-</section>
-
-<section class="split-grid">
-  <article class="panel">
-    <header class="panel-header">
-      <div>
-        <h2>Atendimentos por profissional</h2>
-        <p>Volume realizado no periodo.</p>
-      </div>
-    </header>
-    <div class="table-wrap">
-      <table class="compact-table">
-        <thead>
-          <tr>
-            <th>Profissional</th>
-            <th class="right">Atendimentos</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in appointments_by_professional %}
-            <tr>
-              <td>{{ row.professional__full_name }}</td>
-              <td class="right">{{ row.total }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="2" class="empty">Nenhum atendimento realizado.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </article>
-
-  <article class="panel">
-    <header class="panel-header">
-      <div>
-        <h2>Despesas por categoria</h2>
-        <p>Ajuda a encontrar os maiores centros de custo.</p>
-      </div>
-    </header>
-    <div class="table-wrap">
-      <table class="compact-table">
-        <thead>
-          <tr>
-            <th>Categoria</th>
-            <th>Tipo</th>
-            <th class="right">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in expenses_by_category %}
-            <tr>
-              <td>{{ row.category__name|default:"Sem categoria" }}</td>
-              <td>{{ row.kind }}</td>
-              <td class="right">R$ {{ row.total|floatformat:2 }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="3" class="empty">Nenhuma despesa no periodo.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </article>
-</section>
-
-<section class="split-grid">
-  <article class="panel">
-    <header class="panel-header">
-      <div>
-        <h2>Planos ativos</h2>
-        <p>Planos com mais mensalidades ativas.</p>
-      </div>
-    </header>
-    <div class="table-wrap">
-      <table class="compact-table">
-        <thead>
-          <tr>
-            <th>Plano</th>
-            <th class="right">Clientes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in top_plans %}
-            <tr>
-              <td>{{ row.plan__name }}</td>
-              <td class="right">{{ row.total }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="2" class="empty">Nenhum plano ativo.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </article>
-
-  <article class="panel">
-    <header class="panel-header">
-      <div>
-        <h2>Receita por metodo</h2>
-        <p>Pagamentos recebidos dentro do periodo.</p>
-      </div>
-    </header>
-    <div class="table-wrap">
-      <table class="compact-table">
-        <thead>
-          <tr>
-            <th>Metodo</th>
-            <th class="right">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in revenue_by_method %}
-            <tr>
-              <td>{{ row.method }}</td>
-              <td class="right">R$ {{ row.total|floatformat:2 }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="2" class="empty">Nenhuma receita recebida.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </article>
-</section>
-
-<section class="panel stacked-panel">
-  <header class="panel-header">
-    <div>
-      <h2>Alertas comerciais</h2>
-      <p>Cobrancas abertas, inadimplencia e vencimentos proximos.</p>
-    </div>
-  </header>
-  <div class="finance-totals">
-    <div>
-      <span>Cobrancas abertas no periodo</span>
-      <strong>R$ {{ open_charges_total|floatformat:2 }}</strong>
-    </div>
-    <div>
-      <span>Pagamentos vencidos</span>
-      <strong>R$ {{ overdue_payments_total|floatformat:2 }}</strong>
-    </div>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Paciente</th>
-          <th>Plano</th>
-          <th>Vencimento</th>
-          <th class="right">Valor</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for payment in upcoming_payments %}
-          <tr>
-            <td>{{ payment.membership.patient.full_name }}</td>
-            <td>{{ payment.membership.plan.name }}</td>
-            <td>{{ payment.due_date|date:"d/m/Y" }}</td>
-            <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="4" class="empty">Nenhum vencimento nos proximos 15 dias.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+<section class="card-grid">
+  {% for card in overview_cards %}
+    {% if not card.restricted or can_access_audit %}
+      <article class="panel report-card">
+        <div class="report-card-body">
+          <div>
+            <h2>{{ card.title }}</h2>
+            <p>{{ card.description }}</p>
+          </div>
+          <div class="report-card-metric">
+            <span>{{ card.metric_label }}</span>
+            <strong>{{ card.metric_value }}</strong>
+          </div>
+        </div>
+        <div class="report-card-footer">
+          <a class="button secondary" href="{% url card.url_name %}">Abrir relatorio</a>
+        </div>
+      </article>
+    {% endif %}
+  {% endfor %}
 </section>
 {% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Relatorio de Auditoria | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Relatorios</p>
+    <h1>Auditoria</h1>
+  </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'reports:audit_export' 'pdf' %}?q={{ q }}&action={{ selected_action }}&model={{ selected_model }}&actor={{ selected_actor }}&date_from={{ date_from }}&date_to={{ date_to }}">Exportar PDF</a>
+    <a class="button secondary" href="{% url 'reports:audit_export' 'xlsx' %}?q={{ q }}&action={{ selected_action }}&model={{ selected_model }}&actor={{ selected_actor }}&date_from={{ date_from }}&date_to={{ date_to }}">Exportar Excel</a>
+  </div>
+</section>
+
+{% include "reports/_navigation.html" %}
+
+<section class="metric-grid">
+  <article class="metric">
+    <span>Eventos filtrados</span>
+    <strong>{{ audit_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Usuarios envolvidos</span>
+    <strong>{{ audit_user_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Modelos impactados</span>
+    <strong>{{ audit_model_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Alteracoes</span>
+    <strong>{{ audit_updated_total }}</strong>
+  </article>
+</section>
+
+<section class="metric-grid">
+  <article class="metric">
+    <span>Criacoes</span>
+    <strong>{{ audit_created_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Exclusoes</span>
+    <strong>{{ audit_deleted_total }}</strong>
+  </article>
+</section>
+
+<section class="panel">
+  <form class="filter-panel report-filter-grid" method="get">
+    <label class="form-field">
+      <span>Busca</span>
+      <input class="field-control" type="search" name="q" value="{{ q }}" placeholder="Usuario, modelo, acao ou objeto">
+    </label>
+    <label class="form-field">
+      <span>Usuario</span>
+      <select class="field-control" name="actor">
+        <option value="">Todos</option>
+        {% for profile in actor_choices %}
+          <option value="{{ profile.user_id }}" {% if selected_actor == profile.user_id|stringformat:"s" %}selected{% endif %}>{{ profile.user.username }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Acao</span>
+      <select class="field-control" name="action">
+        <option value="">Todas</option>
+        {% for value, label in action_choices %}
+          <option value="{{ value }}" {% if selected_action == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Modelo</span>
+      <select class="field-control" name="model">
+        <option value="">Todos</option>
+        {% for model_name in model_choices %}
+          <option value="{{ model_name }}" {% if selected_model == model_name %}selected{% endif %}>{{ model_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>De</span>
+      <input class="field-control" type="date" name="date_from" value="{{ date_from }}">
+    </label>
+    <label class="form-field">
+      <span>Ate</span>
+      <input class="field-control" type="date" name="date_to" value="{{ date_to }}">
+    </label>
+    <button class="button primary" type="submit">Atualizar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Usuario</th>
+          <th>Acao</th>
+          <th>Objeto</th>
+          <th>Alteracoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+          <tr>
+            <td>{{ log.created_at|date:"d/m/Y H:i" }}</td>
+            <td>{{ log.actor_display }}</td>
+            <td><span class="badge {{ log.action }}">{{ log.get_action_display }}</span></td>
+            <td><strong>{{ log.model_name }}</strong><small>{{ log.app_label }} #{{ log.object_id }} | {{ log.object_repr }}</small></td>
+            <td>
+              <div class="audit-changes">
+                {% for change in log.display_changes %}
+                  <div>
+                    <strong>{{ change.field }}</strong>
+                    <small>{{ change.old }} -> {{ change.new }}</small>
+                  </div>
+                {% empty %}
+                  <small>Registro sem detalhes de campos.</small>
+                {% endfor %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty">Nenhum registro de auditoria encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

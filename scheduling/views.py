@@ -2,10 +2,12 @@ from datetime import datetime
 from datetime import time
 from datetime import timedelta
 from datetime import timezone as datetime_timezone
+from uuid import uuid4
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Count
 from django.db.models import F
 from django.db.models import Q
 from django.http import HttpResponse
@@ -31,8 +33,16 @@ from scheduling.forms import (
     ProfessionalAvailabilityForm,
     ServicePackageForm,
 )
-from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
-from scheduling.slots import generate_available_slots, make_local_datetime, slot_is_available
+from scheduling.models import Appointment, AppointmentSeries, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.slots import (
+    generate_available_slots,
+    make_local_datetime,
+    slot_capacity_snapshot,
+    slot_is_available,
+)
+
+
+ACTIVE_APPOINTMENT_STATUSES = [Appointment.Status.REQUESTED, Appointment.Status.SCHEDULED]
 
 
 class AppointmentAccessMixin(RoleRequiredMixin):
@@ -53,7 +63,7 @@ class AgendaSettingsAccessMixin(RoleRequiredMixin):
 
 
 def appointments_for_user(user):
-    queryset = Appointment.objects.select_related("patient", "professional")
+    queryset = Appointment.objects.select_related("patient", "professional", "series")
     if user.is_superuser:
         return queryset
 
@@ -98,6 +108,7 @@ def filter_appointment_search(queryset, query):
         Q(patient__full_name__icontains=query)
         | Q(professional__full_name__icontains=query)
         | Q(status__icontains=query)
+        | Q(notes__icontains=query)
     )
 
 
@@ -120,12 +131,128 @@ def format_ics_datetime(value):
     return value.astimezone(datetime_timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
+def recurrence_dates_from_form(form):
+    first_date = form.cleaned_data["appointment_date"]
+    if form.cleaned_data.get("repeat_mode") != AppointmentSlotSearchForm.RepeatMode.WEEKLY:
+        return [first_date]
+
+    dates = [first_date]
+    interval = form.cleaned_data.get("repeat_interval_weeks") or 1
+    repeat_until = form.cleaned_data.get("repeat_until")
+    repeat_count = form.cleaned_data.get("repeat_count")
+    current = first_date
+
+    while True:
+        if repeat_count and len(dates) >= repeat_count:
+            break
+        current = current + timedelta(weeks=interval)
+        if repeat_until and current > repeat_until:
+            break
+        dates.append(current)
+        if not repeat_until and repeat_count and len(dates) >= repeat_count:
+            break
+
+    return dates
+
+
+def create_series_for_dates(dates, form, user):
+    if len(dates) <= 1:
+        return None
+    interval = form.cleaned_data.get("repeat_interval_weeks") or 1
+    repeat_until = form.cleaned_data.get("repeat_until") or dates[-1]
+    notes = f"Serie semanal criada a partir de {dates[0]:%d/%m/%Y}"
+    return AppointmentSeries.objects.create(
+        created_by=user,
+        repeat_type=AppointmentSeries.RepeatType.WEEKLY,
+        interval_weeks=interval,
+        repeat_until=repeat_until,
+        occurrences_count=len(dates),
+        notes=notes,
+    )
+
+
+def has_future_series_appointments(appointment):
+    if not appointment.series_id:
+        return False
+    return appointment.series.appointments.filter(
+        status__in=ACTIVE_APPOINTMENT_STATUSES,
+        starts_at__gt=appointment.starts_at,
+    ).exists()
+
+
+def duplicate_appointments_exist(patient_ids, professional, starts_at, ends_at, exclude_ids=None):
+    queryset = Appointment.objects.filter(
+        patient_id__in=patient_ids,
+        professional=professional,
+        status__in=ACTIVE_APPOINTMENT_STATUSES,
+        starts_at=starts_at,
+        ends_at=ends_at,
+    )
+    if exclude_ids:
+        queryset = queryset.exclude(pk__in=exclude_ids)
+    return queryset.exists()
+
+
+def build_occurrence_payloads(
+    *,
+    professional,
+    patient_ids,
+    dates,
+    selected_start,
+    duration_minutes,
+    requested_capacity,
+    exclude_ids_by_date=None,
+):
+    payloads = []
+    duration = timedelta(minutes=duration_minutes)
+    requested_capacity = max(requested_capacity, len(patient_ids))
+    exclude_ids_by_date = exclude_ids_by_date or {}
+
+    for current_date in dates:
+        starts_at = make_local_datetime(current_date, selected_start)
+        ends_at = starts_at + duration
+        exclude_ids = exclude_ids_by_date.get(current_date.isoformat(), [])
+        exclude_appointment_id = exclude_ids[0] if len(exclude_ids) == 1 else None
+        snapshot = slot_capacity_snapshot(
+            professional.pk,
+            starts_at,
+            ends_at,
+            exclude_appointment_id=exclude_appointment_id,
+        )
+        if snapshot["partial_overlap"]:
+            raise ValidationError(f"{current_date:%d/%m/%Y}: o profissional ja possui atendimento nesse horario.")
+        if not ProfessionalAvailability.objects.slot_available(
+            professional_id=professional.pk,
+            starts_at=starts_at,
+            ends_at=ends_at,
+        ):
+            raise ValidationError(f"{current_date:%d/%m/%Y}: horario fora da disponibilidade recorrente.")
+        if duplicate_appointments_exist(patient_ids, professional, starts_at, ends_at, exclude_ids=exclude_ids):
+            raise ValidationError(f"{current_date:%d/%m/%Y}: ao menos um paciente ja possui este horario.")
+
+        slot_capacity = max(snapshot["existing_capacity"], requested_capacity) if snapshot["existing_capacity"] else requested_capacity
+        if snapshot["exact_count"] + len(patient_ids) > slot_capacity:
+            raise ValidationError(f"{current_date:%d/%m/%Y}: capacidade da sessao excedida para este horario.")
+
+        payloads.append(
+            {
+                "date": current_date,
+                "starts_at": starts_at,
+                "ends_at": ends_at,
+                "slot_capacity": slot_capacity,
+                "slot_group": snapshot["slot_group"] or (uuid4().hex if slot_capacity > 1 else ""),
+            }
+        )
+
+    return payloads
+
+
 class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
     model = Appointment
     template_name = "scheduling/appointment_list.html"
     context_object_name = "appointments"
     paginate_by = 12
-    search_fields = ["patient__full_name", "professional__full_name", "status"]
+    search_fields = ["patient__full_name", "professional__full_name", "status", "notes"]
 
     def get_queryset(self):
         queryset = appointments_for_user(self.request.user).order_by("starts_at")
@@ -158,15 +285,13 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
             calendar_rows.append(
                 {
                     "hour": hour,
-                    "cells": [
-                        {
-                            "day": day,
-                            "appointments": events_by_day_hour[day][hour],
-                        }
-                        for day in week_days
-                    ],
+                    "cells": [{"day": day, "appointments": events_by_day_hour[day][hour]} for day in week_days],
                 }
             )
+
+        base_queryset = appointments_for_user(self.request.user)
+        today = timezone.localdate()
+        request_queue = base_queryset.filter(status=Appointment.Status.REQUESTED).order_by("starts_at")[:6]
 
         context.update(
             {
@@ -174,11 +299,22 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
                 "week_end": week_end,
                 "previous_week": week_start - timedelta(days=7),
                 "next_week": week_start + timedelta(days=7),
-                "today": timezone.localdate(),
+                "today": today,
                 "selected_day": selected_day,
                 "week_days": week_days,
                 "calendar_rows": calendar_rows,
                 "day_appointments": calendar_queryset.filter(starts_at__date=selected_day).order_by("starts_at"),
+                "today_total": base_queryset.filter(starts_at__date=today).exclude(
+                    status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
+                ).count(),
+                "pending_total": base_queryset.filter(status=Appointment.Status.REQUESTED).count(),
+                "group_total": base_queryset.filter(slot_capacity__gt=1).exclude(
+                    status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
+                ).count(),
+                "recurring_total": base_queryset.filter(series__isnull=False).exclude(
+                    status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
+                ).count(),
+                "request_queue": request_queue,
             }
         )
         return context
@@ -225,7 +361,19 @@ class SlotSelectionMixin:
     def get_context_data(self, form, slots=None, searched=False, booking_values=None):
         search_field_names = [
             name
-            for name in ["patient", "professional", "appointment_date", "duration_minutes", "service_units"]
+            for name in [
+                "patients",
+                "professional",
+                "appointment_date",
+                "duration_minutes",
+                "service_units",
+                "session_capacity",
+                "repeat_mode",
+                "repeat_interval_weeks",
+                "repeat_until",
+                "repeat_count",
+                "reschedule_scope",
+            ]
             if name in form.fields
         ]
         return {
@@ -248,10 +396,19 @@ class SlotSelectionMixin:
             "duration_minutes": form.cleaned_data["duration_minutes"],
             "notes": form.cleaned_data.get("notes", ""),
         }
-        if "patient" in form.cleaned_data:
-            values["patient"] = form.cleaned_data["patient"].pk
+        if "patients" in form.cleaned_data:
+            values["patient_ids"] = [patient.pk for patient in form.cleaned_data["patients"]]
         if "service_units" in form.cleaned_data:
             values["service_units"] = form.cleaned_data["service_units"]
+        if "session_capacity" in form.cleaned_data:
+            values["session_capacity"] = form.cleaned_data["session_capacity"]
+        if "repeat_mode" in form.cleaned_data:
+            values["repeat_mode"] = form.cleaned_data["repeat_mode"]
+            values["repeat_interval_weeks"] = form.cleaned_data.get("repeat_interval_weeks") or ""
+            values["repeat_until"] = form.cleaned_data.get("repeat_until").isoformat() if form.cleaned_data.get("repeat_until") else ""
+            values["repeat_count"] = form.cleaned_data.get("repeat_count") or ""
+        if "reschedule_scope" in form.cleaned_data:
+            values["reschedule_scope"] = form.cleaned_data["reschedule_scope"]
         return values
 
     def render_slot_page(self, form, slots=None, searched=False, booking_values=None):
@@ -292,7 +449,16 @@ class SlotSelectionMixin:
         ends_at = starts_at + timedelta(minutes=form.cleaned_data["duration_minutes"])
         exclude_appointment = getattr(self, "original_appointment", None)
         if not slot_is_available(form.cleaned_data["professional"], starts_at, ends_at, exclude_appointment):
-            form.add_error(None, "Este horario acabou de ficar indisponivel. Escolha outro horario livre.")
+            snapshot = slot_capacity_snapshot(
+                form.cleaned_data["professional"].pk,
+                starts_at,
+                ends_at,
+                exclude_appointment_id=getattr(exclude_appointment, "pk", None),
+            )
+            if snapshot["existing_capacity"] and snapshot["remaining_capacity"] <= 0:
+                form.add_error(None, "Esta sessao ja atingiu a capacidade maxima. Escolha outro horario livre.")
+            else:
+                form.add_error(None, "Este horario acabou de ficar indisponivel. Escolha outro horario livre.")
             return None, None
         return starts_at, ends_at
 
@@ -326,28 +492,80 @@ class AppointmentCreateView(SlotSelectionMixin, AppointmentAccessMixin, View):
             starts_at, ends_at = self.selected_interval_from_form(form)
             if starts_at and ends_at:
                 profile = get_profile(request.user)
-                status = Appointment.Status.REQUESTED if profile and profile.is_patient else Appointment.Status.SCHEDULED
-                appointment = Appointment(
-                    patient=form.cleaned_data["patient"],
-                    professional=form.cleaned_data["professional"],
-                    starts_at=starts_at,
-                    ends_at=ends_at,
-                    status=status,
-                    booking_source=profile_booking_source(profile),
-                    booked_by=request.user,
-                    service_units=form.cleaned_data["service_units"],
-                    notes=form.cleaned_data.get("notes", ""),
-                )
+                patients = list(form.cleaned_data["patients"])
+                recurrence_dates = recurrence_dates_from_form(form)
                 try:
-                    appointment.full_clean()
-                    appointment.save()
+                    occurrence_payloads = build_occurrence_payloads(
+                        professional=form.cleaned_data["professional"],
+                        patient_ids=[patient.pk for patient in patients],
+                        dates=recurrence_dates,
+                        selected_start=timezone.localtime(starts_at).time(),
+                        duration_minutes=form.cleaned_data["duration_minutes"],
+                        requested_capacity=form.cleaned_data["session_capacity"],
+                    )
                 except ValidationError as error:
                     add_model_validation_errors(form, error)
                     return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
-                messages.success(request, "Agendamento cadastrado com sucesso.")
+
+                status = Appointment.Status.REQUESTED if profile and profile.is_patient else Appointment.Status.SCHEDULED
+                with transaction.atomic():
+                    series = create_series_for_dates(recurrence_dates, form, request.user)
+                    created_count = 0
+                    for payload in occurrence_payloads:
+                        slot_group = payload["slot_group"]
+                        for patient in patients:
+                            appointment = Appointment(
+                                patient=patient,
+                                professional=form.cleaned_data["professional"],
+                                starts_at=payload["starts_at"],
+                                ends_at=payload["ends_at"],
+                                status=status,
+                                booking_source=profile_booking_source(profile),
+                                booked_by=request.user,
+                                series=series,
+                                slot_group=slot_group,
+                                slot_capacity=payload["slot_capacity"],
+                                service_units=form.cleaned_data["service_units"],
+                                notes=form.cleaned_data.get("notes", ""),
+                            )
+                            try:
+                                appointment.full_clean()
+                                appointment.save()
+                            except ValidationError as error:
+                                add_model_validation_errors(form, error)
+                                transaction.set_rollback(True)
+                                return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+                            created_count += 1
+
+                if len(recurrence_dates) > 1:
+                    messages.success(
+                        request,
+                        f"Serie criada com sucesso. Foram gerados {created_count} agendamento(s).",
+                    )
+                else:
+                    messages.success(request, "Agendamento cadastrado com sucesso.")
                 return redirect(self.success_url)
 
         return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+
+
+class AppointmentConfirmView(AppointmentAccessMixin, View):
+    def post(self, request, pk):
+        profile = get_profile(request.user)
+        if not request.user.is_superuser and (not profile or profile.role not in {UserProfile.Role.PROFESSIONAL, UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}):
+            messages.error(request, "Seu perfil nao pode confirmar agendamentos.")
+            return redirect("scheduling:appointments")
+
+        appointment = get_object_or_404(appointments_for_user(request.user), pk=pk)
+        if appointment.status != Appointment.Status.REQUESTED:
+            messages.warning(request, "Este agendamento nao esta aguardando confirmacao.")
+            return redirect("scheduling:appointments")
+
+        appointment.status = Appointment.Status.SCHEDULED
+        appointment.full_clean()
+        appointment.save(update_fields=["status", "updated_at", "slot_group", "slot_capacity"])
+        messages.success(request, "Agendamento confirmado com sucesso.")
+        return redirect("scheduling:appointments")
 
 
 class AppointmentUpdateView(FormContextMixin, AppointmentAccessMixin, UpdateView):
@@ -424,10 +642,16 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                     f"{settings.rescheduling_deadline_hours} horas de antecedencia.",
                 )
                 return redirect("scheduling:appointments")
+        self.has_future_series = has_future_series_appointments(self.original_appointment)
         return super().dispatch(request, *args, **kwargs)
 
     def get_form(self, data=None):
-        return self.form_class(data=data, request=self.request, original_appointment=self.original_appointment)
+        return self.form_class(
+            data=data,
+            request=self.request,
+            original_appointment=self.original_appointment,
+            has_future_series=self.has_future_series,
+        )
 
     def get(self, request, *args, **kwargs):
         form = self.get_form(request.GET or None)
@@ -459,8 +683,16 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
             form.add_error(None, "Escolha um horario diferente do agendamento atual.")
             return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
+        scope = form.cleaned_data.get("reschedule_scope", AppointmentRescheduleSlotForm.Scope.CURRENT)
         profile = get_profile(request.user)
         new_status = Appointment.Status.REQUESTED if profile and profile.is_patient else Appointment.Status.SCHEDULED
+
+        if scope == AppointmentRescheduleSlotForm.Scope.CURRENT_AND_FUTURE and self.original_appointment.series_id:
+            return self.reschedule_current_and_future(form, starts_at, ends_at, new_status, slots, booking_values)
+        return self.reschedule_current_only(form, starts_at, ends_at, new_status, slots, booking_values)
+
+    def reschedule_current_only(self, form, starts_at, ends_at, new_status, slots, booking_values):
+        profile = get_profile(self.request.user)
         with transaction.atomic():
             original = Appointment.objects.select_for_update().get(pk=self.original_appointment.pk)
             original.status = Appointment.Status.RESCHEDULED
@@ -473,8 +705,11 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                 ends_at=ends_at,
                 status=new_status,
                 booking_source=profile_booking_source(profile),
-                booked_by=request.user,
+                booked_by=self.request.user,
                 rescheduled_from=original,
+                series=original.series,
+                slot_group=original.slot_group if original.slot_capacity > 1 else "",
+                slot_capacity=original.slot_capacity,
                 service_units=original.service_units,
                 notes=form.cleaned_data.get("notes", ""),
             )
@@ -486,7 +721,98 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                 transaction.set_rollback(True)
                 return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
-        messages.success(request, "Agendamento reagendado sem consumo de credito.")
+        messages.success(self.request, "Agendamento reagendado sem consumo de credito.")
+        return redirect(self.success_url)
+
+    def reschedule_current_and_future(self, form, starts_at, ends_at, new_status, slots, booking_values):
+        profile = get_profile(self.request.user)
+        sources = list(
+            self.original_appointment.series.appointments.select_for_update()
+            .filter(
+                status__in=ACTIVE_APPOINTMENT_STATUSES,
+                starts_at__gte=self.original_appointment.starts_at,
+            )
+            .order_by("starts_at")
+        )
+        if not sources:
+            messages.error(self.request, "Nao ha sessoes futuras disponiveis para reagendar.")
+            return redirect(self.success_url)
+
+        delta = starts_at - self.original_appointment.starts_at
+        occurrences = []
+        for source in sources:
+            shifted_start = source.starts_at + delta
+            occurrences.append(
+                {
+                    "source": source,
+                    "date": timezone.localtime(shifted_start).date(),
+                    "starts_at": shifted_start,
+                    "ends_at": source.ends_at + delta,
+                }
+            )
+
+        grouped_occurrences = {}
+        for item in occurrences:
+            grouped_occurrences.setdefault(item["date"], []).append(item)
+
+        payload_by_date = {}
+        for current_date, items in grouped_occurrences.items():
+            patient_ids = [item["source"].patient_id for item in items]
+            exclude_ids_by_date = {current_date.isoformat(): [item["source"].pk for item in items]}
+            try:
+                payload = build_occurrence_payloads(
+                    professional=form.cleaned_data["professional"],
+                    patient_ids=patient_ids,
+                    dates=[current_date],
+                    selected_start=timezone.localtime(items[0]["starts_at"]).time(),
+                    duration_minutes=form.cleaned_data["duration_minutes"],
+                    requested_capacity=max(item["source"].slot_capacity for item in items),
+                    exclude_ids_by_date=exclude_ids_by_date,
+                )[0]
+            except ValidationError as error:
+                add_model_validation_errors(form, error)
+                return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+            payload_by_date[current_date] = payload
+
+        with transaction.atomic():
+            new_series = AppointmentSeries.objects.create(
+                created_by=self.request.user,
+                repeat_type=AppointmentSeries.RepeatType.WEEKLY,
+                interval_weeks=self.original_appointment.series.interval_weeks,
+                repeat_until=max(payload_by_date) if payload_by_date else None,
+                occurrences_count=len(payload_by_date),
+                notes=f"Serie ajustada a partir de {timezone.localtime(starts_at):%d/%m/%Y}",
+            )
+            for source in sources:
+                source.status = Appointment.Status.RESCHEDULED
+                source.full_clean()
+                source.save(update_fields=["status", "updated_at"])
+                shifted_date = timezone.localtime(source.starts_at + delta).date()
+                payload = payload_by_date[shifted_date]
+                replacement = Appointment(
+                    patient=source.patient,
+                    professional=form.cleaned_data["professional"],
+                    starts_at=source.starts_at + delta,
+                    ends_at=source.ends_at + delta,
+                    status=new_status,
+                    booking_source=profile_booking_source(profile),
+                    booked_by=self.request.user,
+                    rescheduled_from=source,
+                    series=new_series,
+                    slot_group=payload["slot_group"],
+                    slot_capacity=payload["slot_capacity"],
+                    service_units=source.service_units,
+                    notes=form.cleaned_data.get("notes", "") or source.notes,
+                )
+                try:
+                    replacement.full_clean()
+                    replacement.save()
+                except ValidationError as error:
+                    add_model_validation_errors(form, error)
+                    transaction.set_rollback(True)
+                    return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+
+        messages.success(self.request, "Sessao atual e proximas reagendadas com sucesso.")
         return redirect(self.success_url)
 
 
@@ -666,5 +992,3 @@ class ServicePackageUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView)
     def form_valid(self, form):
         messages.success(self.request, "Pacote atualizado com sucesso.")
         return super().form_valid(form)
-
-# Create your views here.

@@ -54,14 +54,26 @@
     {% if slots %}
       <form method="post" class="slot-booking">
         {% csrf_token %}
-        {% if booking_values.patient %}
-          <input type="hidden" name="patient" value="{{ booking_values.patient }}">
-        {% endif %}
+        {% for patient_id in booking_values.patient_ids %}
+          <input type="hidden" name="patients" value="{{ patient_id }}">
+        {% endfor %}
         <input type="hidden" name="professional" value="{{ booking_values.professional }}">
         <input type="hidden" name="appointment_date" value="{{ booking_values.appointment_date }}">
         <input type="hidden" name="duration_minutes" value="{{ booking_values.duration_minutes }}">
         {% if booking_values.service_units %}
           <input type="hidden" name="service_units" value="{{ booking_values.service_units }}">
+        {% endif %}
+        {% if booking_values.session_capacity %}
+          <input type="hidden" name="session_capacity" value="{{ booking_values.session_capacity }}">
+        {% endif %}
+        {% if booking_values.repeat_mode %}
+          <input type="hidden" name="repeat_mode" value="{{ booking_values.repeat_mode }}">
+          <input type="hidden" name="repeat_interval_weeks" value="{{ booking_values.repeat_interval_weeks }}">
+          <input type="hidden" name="repeat_until" value="{{ booking_values.repeat_until }}">
+          <input type="hidden" name="repeat_count" value="{{ booking_values.repeat_count }}">
+        {% endif %}
+        {% if booking_values.reschedule_scope %}
+          <input type="hidden" name="reschedule_scope" value="{{ booking_values.reschedule_scope }}">
         {% endif %}
 
         <label class="form-field slot-notes">
@@ -73,7 +85,12 @@
           {% for slot in slots %}
             <button class="slot-button" type="submit" name="selected_start" value="{{ slot.start_value }}">
               <strong>{{ slot.label }}</strong>
-              <span>{{ slot_select_label }}</span>
+              <span>
+                {{ slot_select_label }}
+                {% if slot.capacity > 1 %}
+                  · {{ slot.remaining_capacity }} vaga(s) livre(s) de {{ slot.capacity }}
+                {% endif %}
+              </span>
             </button>
           {% endfor %}
         </div>

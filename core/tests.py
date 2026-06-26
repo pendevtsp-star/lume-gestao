@@ -149,6 +149,8 @@ class FunctionalRoleFlowTests(TestCase):
                 "scheduling:appointments",
                 "scheduling:availabilities",
                 "reports:dashboard",
+                "reports:financial",
+                "reports:clinic",
                 "billing:memberships",
                 "billing:payments",
                 "billing:charges",
@@ -180,6 +182,7 @@ class FunctionalRoleFlowTests(TestCase):
         expense_response = self.client.get(reverse("billing:expenses"))
         pdf_response = self.client.get(reverse("reports:export", args=["pdf"]))
         xlsx_response = self.client.get(reverse("reports:export", args=["xlsx"]))
+        clinic_export_response = self.client.get(reverse("reports:clinic_export", args=["pdf"]))
         ics_response = self.client.get(reverse("scheduling:appointments_ical"))
         settings_response = self.client.post(
             reverse("settings"),
@@ -208,6 +211,7 @@ class FunctionalRoleFlowTests(TestCase):
             xlsx_response["Content-Type"],
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+        self.assertEqual(clinic_export_response["Content-Type"], "application/pdf")
         self.assertIn("text/calendar", ics_response["Content-Type"])
         self.assertEqual(settings_response.status_code, 302)
         self.assertContains(audit_response, "ClinicSettings")
@@ -221,6 +225,8 @@ class FunctionalRoleFlowTests(TestCase):
                 "scheduling:appointments",
                 "scheduling:availabilities",
                 "reports:dashboard",
+                "reports:financial",
+                "reports:clinic",
                 "billing:memberships",
                 "billing:payments",
                 "billing:expenses",

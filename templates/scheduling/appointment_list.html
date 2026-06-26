@@ -18,24 +18,43 @@
   </div>
 </section>
 
-<section class="panel calendar-panel">
-  <form class="toolbar" method="get">
-    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, profissional ou status">
+<section class="metric-grid">
+  <article class="metric">
+    <span>Atendimentos hoje</span>
+    <strong>{{ today_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Aguardando confirmacao</span>
+    <strong>{{ pending_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Sessoes em grupo</span>
+    <strong>{{ group_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Sessoes recorrentes</span>
+    <strong>{{ recurring_total }}</strong>
+  </article>
+</section>
+
+<section class="panel agenda-hero-panel">
+  <form class="toolbar agenda-toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, profissional, status ou observacao">
     <button class="button secondary" type="submit">Buscar</button>
   </form>
-  <div class="calendar-toolbar">
+  <div class="calendar-toolbar agenda-calendar-toolbar">
     <div>
       <h2>{{ week_start|date:"d" }} - {{ week_end|date:"d \\d\\e M \\d\\e Y" }}</h2>
-      <p>Agenda semanal com atendimentos visiveis para o seu perfil.</p>
+      <p>Agenda semanal com sessoes avulsas, recorrentes e compartilhadas.</p>
     </div>
     <div class="calendar-actions">
       <a class="button secondary" href="?semana={{ today|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}">Hoje</a>
-      <a class="button secondary icon-button" href="?semana={{ previous_week|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}" aria-label="Semana anterior">‹</a>
-      <a class="button secondary icon-button" href="?semana={{ next_week|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}" aria-label="Proxima semana">›</a>
+      <a class="button secondary icon-button" href="?semana={{ previous_week|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}" aria-label="Semana anterior">&#8249;</a>
+      <a class="button secondary icon-button" href="?semana={{ next_week|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}" aria-label="Proxima semana">&#8250;</a>
     </div>
   </div>
-  <div class="calendar-wrap">
-    <table class="calendar-grid-table">
+  <div class="calendar-wrap agenda-soft-wrap">
+    <table class="calendar-grid-table agenda-grid-table">
       <thead>
         <tr>
           <th>Hora</th>
@@ -55,9 +74,14 @@
             {% for cell in row.cells %}
               <td class="{% if cell.day == today %}is-today{% endif %}">
                 {% for appointment in cell.appointments %}
-                  <a class="calendar-event {{ appointment.status }}" href="{% if request.user.profile.role == 'patient' %}{% url 'scheduling:appointment_reschedule' appointment.pk %}{% else %}{% url 'scheduling:appointment_update' appointment.pk %}{% endif %}">
+                  <a class="calendar-event {{ appointment.status }} {% if appointment.slot_capacity > 1 %}is-group{% endif %}" href="{% if request.user.profile.role == 'patient' %}{% url 'scheduling:appointment_reschedule' appointment.pk %}{% else %}{% url 'scheduling:appointment_update' appointment.pk %}{% endif %}">
                     <strong>{{ appointment.starts_at|date:"H:i" }} {{ appointment.patient.full_name }}</strong>
                     <span>{{ appointment.professional.full_name }}</span>
+                    <small>
+                      {{ appointment.get_status_display }}
+                      {% if appointment.slot_capacity > 1 %} · Grupo {{ appointment.slot_capacity }}{% endif %}
+                      {% if appointment.series_id %} · Recorrente{% endif %}
+                    </small>
                   </a>
                 {% endfor %}
               </td>
@@ -69,6 +93,35 @@
   </div>
 </section>
 
+{% if request_queue %}
+  <section class="panel stacked-panel">
+    <div class="panel-header">
+      <div>
+        <h2>Fila de confirmacao</h2>
+        <p>Pedidos feitos por pacientes aguardando validacao da equipe.</p>
+      </div>
+    </div>
+    <div class="day-agenda-list">
+      {% for appointment in request_queue %}
+        <article class="day-agenda-item agenda-request-item">
+          <time>{{ appointment.starts_at|date:"d/m H:i" }}</time>
+          <div>
+            <strong>{{ appointment.patient.full_name }}</strong>
+            <span>{{ appointment.professional.full_name }} · {{ appointment.get_status_display }}</span>
+          </div>
+          <div class="table-actions">
+            <form method="post" action="{% url 'scheduling:appointment_confirm' appointment.pk %}">
+              {% csrf_token %}
+              <button class="button secondary" type="submit">Confirmar</button>
+            </form>
+            <a class="table-action" href="{% url 'scheduling:appointment_update' appointment.pk %}">Editar</a>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
 <section class="panel stacked-panel">
   <div class="panel-header">
     <div>
@@ -78,13 +131,23 @@
   </div>
   <div class="day-agenda-list">
     {% for appointment in day_appointments %}
-      <article class="day-agenda-item">
+      <article class="day-agenda-item agenda-day-item">
         <time>{{ appointment.starts_at|date:"H:i" }}</time>
         <div>
           <strong>{{ appointment.patient.full_name }}</strong>
-          <span>{{ appointment.professional.full_name }} · {{ appointment.get_status_display }}</span>
+          <span>
+            {{ appointment.professional.full_name }} · {{ appointment.get_status_display }}
+            {% if appointment.slot_capacity > 1 %} · Grupo {{ appointment.slot_capacity }}{% endif %}
+            {% if appointment.series_id %} · Recorrente{% endif %}
+          </span>
         </div>
         <div class="table-actions">
+          {% if appointment.status == "requested" and request.user.profile.role != "patient" %}
+            <form method="post" action="{% url 'scheduling:appointment_confirm' appointment.pk %}">
+              {% csrf_token %}
+              <button class="table-action button-link" type="submit">Confirmar</button>
+            </form>
+          {% endif %}
           {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" %}
             <a class="table-action" href="{% url 'scheduling:appointment_reschedule' appointment.pk %}">Reagendar</a>
             <form method="post" action="{% url 'scheduling:appointment_cancel' appointment.pk %}">
@@ -104,7 +167,7 @@
   <div class="panel-header">
     <div>
       <h2>Lista detalhada</h2>
-      <p>Use a lista para edicoes, baixas e auditoria operacional.</p>
+      <p>Use a lista para edicoes, baixas, confirmacoes e auditoria operacional.</p>
     </div>
   </div>
   <div class="table-wrap">
@@ -115,6 +178,7 @@
           <th>Paciente</th>
           <th>Profissional</th>
           <th>Status</th>
+          <th>Sessao</th>
           <th>Creditos</th>
           <th class="right">Acao</th>
         </tr>
@@ -126,8 +190,18 @@
             <td>{{ appointment.patient.full_name }}</td>
             <td>{{ appointment.professional.full_name }}</td>
             <td><span class="badge {{ appointment.status }}">{{ appointment.get_status_display }}</span></td>
+            <td>
+              {% if appointment.slot_capacity > 1 %}<strong>Grupo {{ appointment.slot_capacity }}</strong>{% else %}<strong>Individual</strong>{% endif %}
+              <small>{% if appointment.series_id %}Recorrente{% else %}Sessao unica{% endif %}</small>
+            </td>
             <td>{{ appointment.displayed_credit_units }}</td>
             <td class="right table-actions">
+              {% if appointment.status == "requested" and request.user.profile.role != "patient" %}
+                <form method="post" action="{% url 'scheduling:appointment_confirm' appointment.pk %}">
+                  {% csrf_token %}
+                  <button class="table-action button-link" type="submit">Confirmar</button>
+                </form>
+              {% endif %}
               {% if request.user.profile.role != "patient" %}
                 <a class="table-action" href="{% url 'scheduling:appointment_update' appointment.pk %}">Editar</a>
               {% endif %}
@@ -147,7 +221,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty">Nenhum agendamento encontrado.</td></tr>
+          <tr><td colspan="7" class="empty">Nenhum agendamento encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>

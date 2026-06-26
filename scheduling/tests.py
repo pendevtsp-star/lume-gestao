@@ -11,7 +11,7 @@ from accounts.models import UserProfile
 from billing.models import Membership, ServicePlan
 from core.models import ClinicSettings
 from patients.models import Patient, ProfessionalPatientAssignment
-from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.models import Appointment, AppointmentSeries, ProfessionalAvailability, ServicePackage, ServiceUsage
 from scheduling.slots import generate_available_slots
 from team.models import Professional
 
@@ -19,11 +19,13 @@ from team.models import Professional
 class SchedulingTests(TestCase):
     def setUp(self):
         self.patient = Patient.objects.create(full_name="Paciente Agenda")
+        self.patient_two = Patient.objects.create(full_name="Paciente Grupo")
         self.professional = Professional.objects.create(
             full_name="Profissional Agenda",
             specialty=Professional.Specialty.PILATES,
         )
         ProfessionalPatientAssignment.objects.create(patient=self.patient, professional=self.professional)
+        ProfessionalPatientAssignment.objects.create(patient=self.patient_two, professional=self.professional)
         self.plan = ServicePlan.objects.create(
             name="Plano Agenda",
             category=ServicePlan.Category.PILATES,
@@ -31,8 +33,19 @@ class SchedulingTests(TestCase):
             sessions_per_week=2,
         )
         self.membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        self.membership_two = Membership.objects.create(patient=self.patient_two, plan=self.plan, due_day=10)
+        today = timezone.localdate()
+        for weekday in range(7):
+            ProfessionalAvailability.objects.create(
+                professional=self.professional,
+                weekday=weekday,
+                starts_at=time(8, 0),
+                ends_at=time(18, 0),
+                valid_from=today,
+                session_capacity=1,
+            )
 
-    def test_appointment_rejects_professional_overlap(self):
+    def test_appointment_rejects_professional_partial_overlap(self):
         start = timezone.now() + timedelta(days=1)
         Appointment.objects.create(
             patient=self.patient,
@@ -41,7 +54,7 @@ class SchedulingTests(TestCase):
             ends_at=start + timedelta(hours=1),
         )
         overlapping = Appointment(
-            patient=self.patient,
+            patient=self.patient_two,
             professional=self.professional,
             starts_at=start + timedelta(minutes=30),
             ends_at=start + timedelta(hours=2),
@@ -50,21 +63,46 @@ class SchedulingTests(TestCase):
         with self.assertRaises(ValidationError):
             overlapping.full_clean()
 
+    def test_group_session_allows_same_exact_slot_with_capacity(self):
+        day = timezone.localdate() + timedelta(days=1)
+        start = timezone.make_aware(datetime.combine(day, time(9, 0)))
+        Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            slot_capacity=2,
+        )
+        grouped = Appointment(
+            patient=self.patient_two,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            slot_capacity=2,
+        )
+
+        grouped.full_clean()
+        grouped.save()
+
+        self.assertTrue(grouped.slot_group)
+        self.assertEqual(
+            Appointment.objects.filter(
+                professional=self.professional,
+                starts_at=start,
+                ends_at=start + timedelta(hours=1),
+                status__in=[Appointment.Status.REQUESTED, Appointment.Status.SCHEDULED],
+            ).count(),
+            2,
+        )
+
     def test_appointment_must_follow_availability_when_defined(self):
         day = timezone.localdate() + timedelta(days=1)
-        start = timezone.make_aware(datetime.combine(day, time(14, 0)))
-        ProfessionalAvailability.objects.create(
-            professional=self.professional,
-            weekday=start.weekday(),
-            starts_at=time(8, 0),
-            ends_at=time(12, 0),
-            valid_from=start.date(),
-        )
+        start = timezone.make_aware(datetime.combine(day, time(20, 0)))
         appointment = Appointment(
             patient=self.patient,
             professional=self.professional,
-            starts_at=start.replace(hour=14, minute=0),
-            ends_at=start.replace(hour=15, minute=0),
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
         )
 
         with self.assertRaises(ValidationError):
@@ -137,13 +175,6 @@ class SchedulingTests(TestCase):
         new_day = day + timedelta(days=1)
         start = timezone.make_aware(datetime.combine(day, time(9, 0)))
         new_start = timezone.make_aware(datetime.combine(new_day, time(10, 0)))
-        ProfessionalAvailability.objects.create(
-            professional=self.professional,
-            weekday=new_day.weekday(),
-            starts_at=time(8, 0),
-            ends_at=time(12, 0),
-            valid_from=new_day,
-        )
         appointment = Appointment.objects.create(
             patient=self.patient,
             professional=self.professional,
@@ -201,7 +232,8 @@ class SchedulingTests(TestCase):
         appointment.refresh_from_db()
         self.assertEqual(appointment.status, Appointment.Status.SCHEDULED)
 
-    def test_available_slots_skip_occupied_times(self):
+    def test_available_slots_keep_group_slots_with_remaining_capacity(self):
+        ProfessionalAvailability.objects.all().delete()
         day = timezone.localdate() + timedelta(days=5)
         occupied_start = timezone.make_aware(datetime.combine(day, time(9, 0)))
         ProfessionalAvailability.objects.create(
@@ -210,24 +242,29 @@ class SchedulingTests(TestCase):
             starts_at=time(8, 0),
             ends_at=time(11, 0),
             valid_from=day,
+            session_capacity=1,
         )
         Appointment.objects.create(
             patient=self.patient,
             professional=self.professional,
             starts_at=occupied_start,
             ends_at=occupied_start + timedelta(hours=1),
+            slot_capacity=2,
         )
 
-        labels = [slot["label"] for slot in generate_available_slots(self.professional, day, 60)]
+        slots = generate_available_slots(self.professional, day, 60)
+        slot_by_label = {slot["label"]: slot for slot in slots}
 
-        self.assertEqual(labels, ["08:00 - 09:00", "10:00 - 11:00"])
+        self.assertIn("09:00 - 10:00", slot_by_label)
+        self.assertEqual(slot_by_label["09:00 - 10:00"]["remaining_capacity"], 1)
 
-    def test_patient_create_view_lists_only_free_slots(self):
+    def test_patient_create_view_lists_only_slots_with_capacity(self):
         user = get_user_model().objects.create_user(username="paciente-slots", password="Senha@123")
         UserProfile.objects.update_or_create(
             user=user,
             defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
         )
+        ProfessionalAvailability.objects.all().delete()
         day = timezone.localdate() + timedelta(days=6)
         occupied_start = timezone.make_aware(datetime.combine(day, time(9, 0)))
         ProfessionalAvailability.objects.create(
@@ -236,6 +273,7 @@ class SchedulingTests(TestCase):
             starts_at=time(8, 0),
             ends_at=time(11, 0),
             valid_from=day,
+            session_capacity=1,
         )
         Appointment.objects.create(
             patient=self.patient,
@@ -248,7 +286,7 @@ class SchedulingTests(TestCase):
         response = self.client.get(
             reverse("scheduling:appointment_create"),
             {
-                "patient": self.patient.pk,
+                "patients": [self.patient.pk],
                 "professional": self.professional.pk,
                 "appointment_date": day.isoformat(),
                 "duration_minutes": "60",
@@ -267,19 +305,12 @@ class SchedulingTests(TestCase):
             defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
         )
         day = timezone.localdate() + timedelta(days=7)
-        ProfessionalAvailability.objects.create(
-            professional=self.professional,
-            weekday=day.weekday(),
-            starts_at=time(8, 0),
-            ends_at=time(11, 0),
-            valid_from=day,
-        )
         self.client.force_login(user)
 
         response = self.client.post(
             reverse("scheduling:appointment_create"),
             {
-                "patient": self.patient.pk,
+                "patients": [self.patient.pk],
                 "professional": self.professional.pk,
                 "appointment_date": day.isoformat(),
                 "duration_minutes": "60",
@@ -300,6 +331,115 @@ class SchedulingTests(TestCase):
             ).exists()
         )
 
+    def test_management_can_create_recurring_group_series(self):
+        user = get_user_model().objects.create_user(username="gestao-recorrencia", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        day = timezone.localdate() + timedelta(days=7)
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:appointment_create"),
+            {
+                "patients": [self.patient.pk, self.patient_two.pk],
+                "professional": self.professional.pk,
+                "appointment_date": day.isoformat(),
+                "duration_minutes": "60",
+                "service_units": "1",
+                "session_capacity": "2",
+                "repeat_mode": "weekly",
+                "repeat_interval_weeks": "1",
+                "repeat_count": "3",
+                "selected_start": "09:00",
+                "notes": "Turma semanal.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        series = AppointmentSeries.objects.get()
+        self.assertEqual(series.occurrences_count, 3)
+        self.assertEqual(
+            Appointment.objects.filter(series=series, professional=self.professional).count(),
+            6,
+        )
+        self.assertEqual(
+            Appointment.objects.filter(series=series, slot_capacity=2, status=Appointment.Status.SCHEDULED).count(),
+            6,
+        )
+
+    def test_professional_can_confirm_requested_appointment(self):
+        user = get_user_model().objects.create_user(username="prof-confirma", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        day = timezone.localdate() + timedelta(days=4)
+        start = timezone.make_aware(datetime.combine(day, time(10, 0)))
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            status=Appointment.Status.REQUESTED,
+            booking_source=Appointment.BookingSource.PATIENT,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("scheduling:appointment_confirm", args=[appointment.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, Appointment.Status.SCHEDULED)
+
+    def test_management_can_reschedule_current_and_future_series(self):
+        user = get_user_model().objects.create_user(username="gestao-reagenda-serie", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        day = timezone.localdate() + timedelta(days=10)
+        series = AppointmentSeries.objects.create(
+            created_by=user,
+            interval_weeks=1,
+            repeat_until=day + timedelta(weeks=1),
+            occurrences_count=2,
+        )
+        first_start = timezone.make_aware(datetime.combine(day, time(9, 0)))
+        second_start = first_start + timedelta(weeks=1)
+        first = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=first_start,
+            ends_at=first_start + timedelta(hours=1),
+            series=series,
+        )
+        second = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=second_start,
+            ends_at=second_start + timedelta(hours=1),
+            series=series,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:appointment_reschedule", args=[first.pk]),
+            {
+                "professional": self.professional.pk,
+                "appointment_date": (day + timedelta(days=2)).isoformat(),
+                "duration_minutes": "60",
+                "reschedule_scope": "current_and_future",
+                "selected_start": "10:00",
+                "notes": "Mudanca definitiva de horario.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, Appointment.Status.RESCHEDULED)
+        self.assertEqual(second.status, Appointment.Status.RESCHEDULED)
+        replacements = Appointment.objects.filter(rescheduled_from__in=[first, second]).order_by("starts_at")
+        self.assertEqual(replacements.count(), 2)
+        self.assertTrue(all(appointment.status == Appointment.Status.SCHEDULED for appointment in replacements))
+        self.assertNotEqual(replacements.first().series_id, series.pk)
+
     def test_api_rejects_overlapping_appointment_in_backend_validation(self):
         user = get_user_model().objects.create_user(username="gestao-api-agenda", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
@@ -315,7 +455,7 @@ class SchedulingTests(TestCase):
         response = self.client.post(
             "/api/v1/appointments/",
             {
-                "patient": self.patient.pk,
+                "patient": self.patient_two.pk,
                 "professional": self.professional.pk,
                 "starts_at": (start + timedelta(minutes=30)).isoformat(),
                 "ends_at": (start + timedelta(hours=1, minutes=30)).isoformat(),
@@ -457,6 +597,7 @@ class SchedulingTests(TestCase):
                 "weekday": 1,
                 "starts_at": "08:00",
                 "ends_at": "12:00",
+                "session_capacity": 2,
                 "valid_from": timezone.localdate().isoformat(),
                 "active": True,
             },
@@ -473,11 +614,12 @@ class SchedulingTests(TestCase):
             professional=self.professional,
             starts_at=start,
             ends_at=start + timedelta(hours=1),
+            slot_capacity=2,
         )
         self.client.force_login(user)
 
         response = self.client.get(reverse("scheduling:appointments"))
-        self.assertContains(response, "Agenda semanal")
+        self.assertContains(response, "Sessoes em grupo")
         self.assertContains(response, self.patient.full_name)
 
         ics_response = self.client.get(reverse("scheduling:appointments_ical"))

@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block title %}Relatorio de Gestao de Adesao | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Relatorios</p>
+    <h1>Gestao de adesao da clinica</h1>
+  </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'reports:clinic_export' 'pdf' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&professional={{ selected_professional }}&plan={{ selected_plan }}&patient_status={{ selected_patient_status }}&patient={{ selected_patient }}">Exportar PDF</a>
+    <a class="button secondary" href="{% url 'reports:clinic_export' 'xlsx' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&professional={{ selected_professional }}&plan={{ selected_plan }}&patient_status={{ selected_patient_status }}&patient={{ selected_patient }}">Exportar Excel</a>
+  </div>
+</section>
+
+{% include "reports/_navigation.html" %}
+
+<section class="panel report-filter-panel">
+  <form class="filter-panel report-filter-grid" method="get">
+    <label class="form-field">
+      <span>Periodo</span>
+      <select class="field-control" name="preset">
+        {% for value, label in preset_choices %}
+          <option value="{{ value }}" {% if preset == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Inicio</span>
+      <input class="field-control" type="date" name="start" value="{{ start }}">
+    </label>
+    <label class="form-field">
+      <span>Fim</span>
+      <input class="field-control" type="date" name="end" value="{{ end }}">
+    </label>
+    <label class="form-field">
+      <span>Profissional</span>
+      <select class="field-control" name="professional">
+        <option value="">Todos</option>
+        {% for professional in professional_choices %}
+          <option value="{{ professional.pk }}" {% if selected_professional == professional.pk|stringformat:"s" %}selected{% endif %}>{{ professional.full_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Plano</span>
+      <select class="field-control" name="plan">
+        <option value="">Todos</option>
+        {% for plan in plan_choices %}
+          <option value="{{ plan.pk }}" {% if selected_plan == plan.pk|stringformat:"s" %}selected{% endif %}>{{ plan.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Status do paciente</span>
+      <select class="field-control" name="patient_status">
+        {% for value, label in patient_status_choices %}
+          <option value="{{ value }}" {% if selected_patient_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Cliente</span>
+      <input class="field-control" type="search" name="patient" value="{{ selected_patient }}" placeholder="Buscar por nome">
+    </label>
+    <button class="button primary" type="submit">Atualizar</button>
+  </form>
+</section>
+
+<section class="metric-grid">
+  <article class="metric">
+    <span>Novas adesoes</span>
+    <strong>{{ new_memberships_count }}</strong>
+  </article>
+  <article class="metric">
+    <span>Mensalidades ativas</span>
+    <strong>{{ active_memberships_count }}</strong>
+  </article>
+  <article class="metric">
+    <span>Atendimentos realizados</span>
+    <strong>{{ completed_appointments_count }}</strong>
+  </article>
+  <article class="metric">
+    <span>Pacientes ativos</span>
+    <strong>{{ active_patients_count }}</strong>
+  </article>
+</section>
+
+<section class="metric-grid">
+  <article class="metric">
+    <span>Pacientes inativos</span>
+    <strong>{{ inactive_patients_count }}</strong>
+  </article>
+  <article class="metric">
+    <span>Faltas</span>
+    <strong>{{ no_show_appointments_count }}</strong>
+  </article>
+  <article class="metric">
+    <span>Taxa de faltas</span>
+    <strong>{{ no_show_rate|floatformat:1 }}%</strong>
+  </article>
+  <article class="metric">
+    <span>Media por paciente ativo</span>
+    <strong>{{ average_sessions_per_active_patient|floatformat:1 }}</strong>
+  </article>
+</section>
+
+<section class="panel report-highlight-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Leitura da adesao</h2>
+      <p>{{ adhesion_summary }}</p>
+    </div>
+    <span class="report-status {{ adhesion_tone }}">{{ adhesion_label }}</span>
+  </header>
+  <div class="report-highlight-grid">
+    <div class="report-highlight-metric">
+      <span>Pacientes ativos</span>
+      <strong>{{ active_patient_ratio|floatformat:1 }}%</strong>
+    </div>
+    <div class="report-highlight-metric">
+      <span>Vinculos ativos</span>
+      <strong>{{ active_assignments_count }}</strong>
+    </div>
+    <div class="report-highlight-metric">
+      <span>Atendimentos cancelados</span>
+      <strong>{{ canceled_appointments_count }}</strong>
+    </div>
+  </div>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Atendimentos por mes</h2>
+        <p>Volume geral do periodo filtrado.</p>
+      </div>
+    </header>
+    <div class="table-wrap">
+      <table class="compact-table">
+        <thead>
+          <tr>
+            <th>Mes</th>
+            <th class="right">Atendimentos</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in appointments_by_month %}
+            <tr>
+              <td>{{ row.month|date:"m/Y" }}</td>
+              <td class="right">{{ row.total }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="2" class="empty">Nenhum atendimento no periodo selecionado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Distribuicao de pacientes</h2>
+        <p>Ativos e inativos dentro do filtro atual.</p>
+      </div>
+    </header>
+    <div class="bar-list">
+      {% for row in patient_status_rows %}
+        <article class="bar-item">
+          <div class="bar-copy">
+            <strong>{{ row.label }}</strong>
+            <span>{{ row.total }} paciente(s)</span>
+          </div>
+          <div class="bar-track"><span class="bar-fill is-sage" style="width: {{ row.percentage }}%;"></span></div>
+          <strong class="bar-value">{{ row.percentage }}%</strong>
+        </article>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Atendimentos por profissional</h2>
+        <p>Realizados, totais e faltas por profissional.</p>
+      </div>
+    </header>
+    <div class="bar-list">
+      {% for row in appointments_by_professional %}
+        <article class="bar-item">
+          <div class="bar-copy">
+            <strong>{{ row.label }}</strong>
+            <span>{{ row.completed }} realizados | {{ row.no_show }} faltas</span>
+          </div>
+          <div class="bar-track"><span class="bar-fill is-finance" style="width: {{ row.percentage }}%;"></span></div>
+          <strong class="bar-value">{{ row.total }}</strong>
+        </article>
+      {% empty %}
+        <p class="bar-empty">Nenhum profissional com atendimento no periodo.</p>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Planos ativos</h2>
+        <p>Mix atual de adesoes ativas.</p>
+      </div>
+    </header>
+    <div class="bar-list">
+      {% for row in plan_mix %}
+        <article class="bar-item">
+          <div class="bar-copy">
+            <strong>{{ row.label }}</strong>
+            <span>{{ row.total }} adesao(oes)</span>
+          </div>
+          <div class="bar-track"><span class="bar-fill is-sage" style="width: {{ row.percentage }}%;"></span></div>
+          <strong class="bar-value">{{ row.percentage }}%</strong>
+        </article>
+      {% empty %}
+        <p class="bar-empty">Nenhuma mensalidade ativa encontrada.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Pacientes com mais atendimentos</h2>
+        <p>Ajuda a acompanhar frequencia e recorrencia.</p>
+      </div>
+    </header>
+    <div class="bar-list">
+      {% for row in top_patients %}
+        <article class="bar-item">
+          <div class="bar-copy">
+            <strong>{{ row.label }}</strong>
+            <span>{{ row.completed }} realizados | {{ row.no_show }} faltas</span>
+          </div>
+          <div class="bar-track"><span class="bar-fill is-clinic" style="width: {{ row.percentage }}%;"></span></div>
+          <strong class="bar-value">{{ row.total }}</strong>
+        </article>
+      {% empty %}
+        <p class="bar-empty">Nenhum paciente encontrado no recorte.</p>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Origem dos agendamentos</h2>
+        <p>Quem mais gera agendamentos no periodo.</p>
+      </div>
+    </header>
+    <div class="bar-list">
+      {% for row in booking_sources %}
+        <article class="bar-item">
+          <div class="bar-copy">
+            <strong>{{ row.label }}</strong>
+            <span>{{ row.total }} agendamento(s)</span>
+          </div>
+          <div class="bar-track"><span class="bar-fill is-expense" style="width: {{ row.percentage }}%;"></span></div>
+          <strong class="bar-value">{{ row.percentage }}%</strong>
+        </article>
+      {% empty %}
+        <p class="bar-empty">Sem origem de agendamento registrada no periodo.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endblock %}

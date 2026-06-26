@@ -218,9 +218,11 @@ class WhatsAppMessageTemplate(TimeStampedModel):
 
 class WhatsAppMessageLog(TimeStampedModel):
     class Status(models.TextChoices):
+        SCHEDULED = "scheduled", "Agendada"
         SENT = "sent", "Enviada"
         DRY_RUN = "dry_run", "Simulada"
         FAILED = "failed", "Falhou"
+        CANCELED = "canceled", "Cancelada"
 
     integration = models.ForeignKey(
         WhatsAppIntegration,
@@ -268,6 +270,7 @@ class WhatsAppMessageLog(TimeStampedModel):
     recipient_number = models.CharField("numero", max_length=30)
     rendered_message = models.TextField("mensagem enviada")
     status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.DRY_RUN)
+    scheduled_for = models.DateTimeField("agendada para", null=True, blank=True, db_index=True)
     sent_at = models.DateTimeField("enviada em", null=True, blank=True)
     provider_reference = models.CharField("referencia do provedor", max_length=120, blank=True)
     error_message = models.TextField("erro", blank=True)

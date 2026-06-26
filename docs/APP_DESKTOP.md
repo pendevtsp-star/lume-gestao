@@ -30,6 +30,7 @@ npm start
 ```
 
 O Electron inicia o backend local em `127.0.0.1:18780` e abre a janela do sistema.
+Enquanto o app estiver aberto, ele tambem processa localmente a fila de mensagens WhatsApp agendadas.
 
 ## Dados locais
 
@@ -39,6 +40,90 @@ Quando `LUME_DESKTOP=True`, o Django salva:
 - uploads em `backend-data/media`.
 
 Isso evita gravar dados dentro da pasta instalada do programa.
+
+Caminhos esperados por sistema operacional:
+
+- Windows: `%APPDATA%/Lume Gestao/backend-data`
+- macOS: `~/Library/Application Support/Lume Gestao/backend-data`
+- Linux: `~/.config/Lume Gestao/backend-data`
+
+## Atualizacoes automaticas
+
+O desktop agora esta preparado para usar `electron-updater` com releases do GitHub.
+
+Fluxo previsto:
+
+1. publicar uma tag no formato `desktop-vX.Y.Z`;
+2. o GitHub Actions gera os instaladores por sistema operacional;
+3. os artefatos sao publicados na release;
+4. o app verifica atualizacoes em segundo plano e avisa o usuario quando houver nova versao pronta.
+
+Workflow versionado:
+
+```text
+.github/workflows/desktop-release.yml
+```
+
+Observacoes:
+
+- builds de teste podem funcionar sem assinatura de codigo;
+- para distribuicao publica em larga escala, o ideal continua sendo assinar Windows e macOS;
+- se futuramente quisermos canal beta/estavel, o `electron-updater` ja deixa isso preparado.
+- no modo desktop, os jobs locais do WhatsApp usam `LUME_JOB_INTERVAL_SECONDS`, por padrao a cada 60 segundos.
+
+## Icone do app
+
+O app agora usa a arte institucional da Lume como base para os icones de Windows, macOS e Linux.
+
+Arquivos gerados:
+
+```text
+desktop/build/icon.ico
+desktop/build/icon.icns
+desktop/build/icon.png
+desktop/build/icons/
+```
+
+Para regenerar os icones:
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\generate_desktop_icons.py "C:\caminho\da\sua\imagem.png"
+```
+
+## Assinatura de codigo
+
+O pipeline desktop ficou preparado para assinatura automatica no GitHub Actions.
+
+Segredos recomendados para Windows:
+
+```text
+WIN_CSC_LINK
+WIN_CSC_KEY_PASSWORD
+```
+
+Segredos recomendados para macOS:
+
+```text
+CSC_LINK
+CSC_KEY_PASSWORD
+APPLE_ID
+APPLE_APP_SPECIFIC_PASSWORD
+APPLE_TEAM_ID
+```
+
+Opcionalmente, voce tambem pode usar o fluxo com chave da Apple:
+
+```text
+APPLE_API_KEY
+APPLE_API_KEY_ID
+APPLE_API_ISSUER
+```
+
+Observacoes praticas:
+
+- sem certificado, o build continua funcionando, mas sai sem assinatura;
+- com os segredos preenchidos, o workflow `desktop-release.yml` passa a tentar assinar automaticamente;
+- no macOS, a notarizacao fica preparada junto da assinatura por causa do `hardenedRuntime` e das variaveis Apple.
 
 ## Build instalavel no Windows
 
@@ -51,7 +136,7 @@ O script:
 - instala dependencias Python na `.venv`;
 - gera um backend local com PyInstaller em `desktop/backend-bin`;
 - instala dependencias Node do Electron;
-- gera o instalador Windows e um pacote `.zip` em `dist/desktop`.
+- gera o instalador Windows em `dist/desktop`.
 
 Em builds locais sem certificado de assinatura, o executavel Windows e gerado sem assinatura de codigo. Para distribuicao publica, o ideal e assinar o instalador com certificado proprio.
 

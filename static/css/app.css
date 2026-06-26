@@ -482,6 +482,12 @@ h2 {
   color: var(--text);
 }
 
+.button.ghost {
+  border-color: #ddd2be;
+  background: transparent;
+  color: var(--muted);
+}
+
 .panel-actions {
   display: flex;
   align-items: center;
@@ -1685,7 +1691,7 @@ td small {
 .zap-metrics {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .metric-card {
@@ -1748,9 +1754,69 @@ td small {
   background: #fff;
 }
 
+.zap-guide-panel,
+.message-help-panel {
+  background: linear-gradient(180deg, #fffdf7, #f8f5ea);
+}
+
+.zap-guide-grid,
+.message-help-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.zap-guide-grid article,
+.message-help-grid article {
+  padding: 18px;
+  border: 1px solid #e3dccb;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.zap-guide-grid strong,
+.message-help-grid strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.zap-guide-grid p,
+.message-help-grid p,
+.queue-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
 .connection-card,
 .google-panel {
   align-self: start;
+}
+
+.queue-list {
+  display: grid;
+  gap: 12px;
+}
+
+.queue-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid #e7e0cf;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.queue-card strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.queue-card span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .message-template-card {
@@ -2012,7 +2078,9 @@ td small {
   .card-grid,
   .report-highlight-grid,
   .integration-stack,
-  .zap-metrics {
+  .zap-metrics,
+  .zap-guide-grid,
+  .message-help-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2044,7 +2112,9 @@ td small {
   .toolbar,
   .filter-panel,
   .integration-stack,
-  .zap-metrics {
+  .zap-metrics,
+  .zap-guide-grid,
+  .message-help-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2063,7 +2133,8 @@ td small {
 
   .zap-header,
   .message-template-head,
-  .zap-tabs {
+  .zap-tabs,
+  .queue-card {
     flex-direction: column;
     align-items: stretch;
   }

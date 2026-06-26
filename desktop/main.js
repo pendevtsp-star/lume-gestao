@@ -16,6 +16,15 @@ function repoRoot() {
   return path.resolve(__dirname, "..");
 }
 
+function appIconPath() {
+  const resourcesRoot = process.resourcesPath || repoRoot();
+  const candidates = app.isPackaged
+    ? [path.join(resourcesRoot, "icon.png"), path.join(__dirname, "build", "icon.png")]
+    : [path.join(__dirname, "build", "icon.png")];
+
+  return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
 function backendExecutablePath() {
   const resourcesRoot = process.resourcesPath || repoRoot();
   const executable = process.platform === "win32" ? "lume-backend.exe" : "lume-backend";
@@ -180,6 +189,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 720,
     title: "Lume Gestao",
+    icon: appIconPath(),
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,

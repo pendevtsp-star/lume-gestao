@@ -2,6 +2,7 @@
   "name": "lume-gestao-desktop",
   "version": "0.1.0",
   "description": "Aplicativo desktop do Lume Gestao.",
+  "author": "Lume Studio",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -19,8 +20,10 @@
   "build": {
     "appId": "br.com.lume.gestao",
     "productName": "Lume Gestao",
+    "copyright": "Copyright © 2026 Lume Studio",
     "directories": {
-      "output": "../dist/desktop"
+      "output": "../dist/desktop",
+      "buildResources": "build"
     },
     "publish": [
       {
@@ -30,6 +33,7 @@
         "releaseType": "release"
       }
     ],
+    "artifactName": "${productName} ${version}.${ext}",
     "files": [
       "main.js",
       "package.json"
@@ -41,20 +45,33 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
       }
     ],
+    "icon": "build/icon.png",
     "win": {
+      "icon": "build/icon.ico",
       "target": [
-        "nsis",
-        "zip"
-      ],
-      "signAndEditExecutable": false
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "artifactName": "${productName} Setup ${version}.${ext}"
     },
     "mac": {
+      "icon": "build/icon.icns",
       "target": "dmg",
-      "category": "public.app-category.business"
+      "category": "public.app-category.business",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "linux": {
+      "icon": "build/icons",
       "target": [
         "AppImage",
         "deb"

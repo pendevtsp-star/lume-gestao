@@ -45,16 +45,21 @@ nano .env
 Exemplo para rede local:
 
 ```text
-DEBUG=True
+ENVIRONMENT=production
+DEBUG=False
 SECRET_KEY=troque-por-uma-chave-grande
 ALLOWED_HOSTS=127.0.0.1,localhost,192.168.0.50
-CSRF_TRUSTED_ORIGINS=
+CSRF_TRUSTED_ORIGINS=http://127.0.0.1:8000,http://192.168.0.50:8000
 DB_ENGINE=postgres
 POSTGRES_DB=lume
 POSTGRES_USER=lume
 POSTGRES_PASSWORD=troque-esta-senha
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
+SECURE_SSL_REDIRECT=False
+SESSION_COOKIE_SECURE=False
+CSRF_COOKIE_SECURE=False
+SECURE_HSTS_SECONDS=0
 LUME_SEED_DEMO=True
 ```
 
@@ -71,6 +76,12 @@ hostname -I
 ```bash
 docker compose up --build -d
 ```
+
+Esse comando sobe:
+
+- `web` para a interface principal;
+- `db` com PostgreSQL local;
+- `worker` para processar mensagens WhatsApp agendadas.
 
 Ver logs:
 
@@ -224,4 +235,8 @@ No Docker, os dados ficam no volume `postgres_data`. Para backup simples:
 docker compose exec db pg_dump -U lume lume > lume-backup.sql
 ```
 
-No app desktop, os dados ficam na pasta de dados do usuario do sistema operacional.
+No app desktop Linux, os dados ficam em:
+
+```text
+~/.config/Lume Gestao/backend-data
+```

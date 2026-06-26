@@ -64,10 +64,7 @@ class ProfessionalNoteViewSet(ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         if self.request.user.is_superuser:
-            profile = get_profile(self.request.user)
-            if profile and profile.professional_id:
-                return queryset.filter(professional=profile.professional)
-            return queryset.none()
+            return queryset
         profile = get_profile(self.request.user)
         if profile and profile.is_professional and profile.professional_id:
             return queryset.filter(professional=profile.professional)

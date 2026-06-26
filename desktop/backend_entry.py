@@ -1,6 +1,28 @@
 import os
 import sys
 from pathlib import Path
+from threading import Event, Thread
+
+
+def start_local_jobs(call_command):
+    interval_seconds = int(os.environ.get("LUME_JOB_INTERVAL_SECONDS", "60"))
+    enabled = os.environ.get("LUME_ENABLE_LOCAL_JOBS", "True") == "True"
+    if not enabled:
+        return None
+
+    stop_event = Event()
+
+    def runner():
+        while not stop_event.is_set():
+            try:
+                call_command("process_whatsapp_queue", limit=20, verbosity=0)
+            except Exception as exc:  # pragma: no cover - best effort local worker
+                print(f"[jobs] falha ao processar fila local: {exc}", file=sys.stderr)
+            stop_event.wait(interval_seconds)
+
+    thread = Thread(target=runner, name="lume-local-jobs", daemon=True)
+    thread.start()
+    return stop_event
 
 
 def main() -> None:
@@ -23,6 +45,7 @@ def main() -> None:
     django.setup()
     call_command("migrate", interactive=False, verbosity=1)
     call_command("collectstatic", interactive=False, verbosity=0)
+    start_local_jobs(call_command)
 
     if os.environ.get("LUME_SEED_DEMO", "False") == "True":
         call_command("seed_demo")

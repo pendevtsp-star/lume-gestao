@@ -17,7 +17,7 @@
       <div>
         <p class="eyebrow">WhatsApp</p>
         <h2>ZapFisio</h2>
-        <p class="zap-subtitle">Conecte o numero da clinica, mantenha mensagens prontas e acompanhe o historico de envios.</p>
+        <p class="zap-subtitle">Conecte o numero da clinica, padronize mensagens e escolha se cada envio sai agora ou fica agendado para depois.</p>
       </div>
       <span class="status-pill {% if whatsapp.is_connected %}is-success{% else %}is-muted{% endif %}">
         {% if whatsapp.is_connected %}Conectado{% else %}Aguardando configuracao{% endif %}
@@ -45,6 +45,67 @@
             <span class="metric-label">Mensagens agendadas</span>
             <strong>{{ scheduled_messages_total }}</strong>
           </article>
+          <article class="metric-card">
+            <span class="metric-label">Modelos ativos</span>
+            <strong>{{ active_templates_total }}</strong>
+          </article>
+        </section>
+
+        <section class="panel zap-guide-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Como usar</h3>
+              <p>Fluxo rapido para a equipe configurar e disparar mensagens sem depender de ajuste tecnico.</p>
+            </div>
+          </div>
+          <div class="zap-guide-grid">
+            <article>
+              <strong>1. Conecte o numero</strong>
+              <p>Cadastre o WhatsApp principal da clinica, escolha modo teste ou envio real e valide com um disparo simples.</p>
+            </article>
+            <article>
+              <strong>2. Ajuste os modelos</strong>
+              <p>Edite os textos padrao de agendamento, cobranca e aniversario mantendo as variaveis prontas do sistema.</p>
+            </article>
+            <article>
+              <strong>3. Envie ou agende</strong>
+              <p>Selecione o paciente ou referencia, decida se vai enviar agora ou em outro horario e acompanhe tudo pelo painel.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel zap-log-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Proximos envios</h3>
+              <p>Mensagens programadas pelo time para serem disparadas automaticamente pelo backend.</p>
+            </div>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="run_scheduled_whatsapp">
+              <button class="button secondary" type="submit">Processar fila agora</button>
+            </form>
+          </div>
+          {% if scheduled_logs %}
+            <div class="queue-list">
+              {% for item in scheduled_logs %}
+                <article class="queue-card">
+                  <div>
+                    <strong>{{ item.template.title|default:"Mensagem agendada" }}</strong>
+                    <p>{{ item.recipient_name }} - {{ item.recipient_number }}</p>
+                    <span>{{ item.scheduled_for|date:"d/m/Y H:i" }}</span>
+                  </div>
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="cancel_scheduled:{{ item.pk }}">
+                    <button class="button ghost" type="submit">Cancelar</button>
+                  </form>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="slot-empty">Nenhuma mensagem agendada no momento.</div>
+          {% endif %}
         </section>
 
         <section class="panel zap-log-panel">
@@ -63,6 +124,7 @@
                     <th>Paciente</th>
                     <th>WhatsApp</th>
                     <th>Tipo</th>
+                    <th>Programada</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -73,8 +135,9 @@
                       <td>{{ item.recipient_name }}</td>
                       <td>{{ item.recipient_number }}</td>
                       <td>{{ item.template.title|default:"Envio manual" }}</td>
+                      <td>{{ item.scheduled_for|date:"d/m/y H:i"|default:"-" }}</td>
                       <td>
-                        <span class="status-pill {% if item.status == 'failed' %}is-danger{% elif item.status == 'sent' %}is-success{% else %}is-warning{% endif %}">
+                        <span class="status-pill {% if item.status == 'failed' %}is-danger{% elif item.status == 'sent' %}is-success{% elif item.status == 'scheduled' %}is-warning{% elif item.status == 'canceled' %}is-muted{% else %}is-warning{% endif %}">
                           {{ item.get_status_display }}
                         </span>
                       </td>
@@ -94,7 +157,7 @@
           <div class="panel-header">
             <div>
               <h3>Numero da clinica</h3>
-              <p>Cadastre o numero principal que sera usado pela operacao do WhatsApp.</p>
+              <p>Cadastre o numero principal, escolha se a integracao fica em teste e guarde aqui os identificadores da conta.</p>
             </div>
           </div>
           <form method="post" class="integration-body">
@@ -126,7 +189,7 @@
           <div class="panel-header">
             <div>
               <h3>Teste rapido</h3>
-              <p>Use um disparo simples para validar token, numero e formato da mensagem.</p>
+              <p>Use um disparo simples para validar token, numero, formatacao e retorno da integracao.</p>
             </div>
           </div>
           <form method="post" class="integration-body">
@@ -149,6 +212,20 @@
       </div>
     {% else %}
       <div class="zap-message-list">
+        <section class="panel message-help-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Disparos e automacoes</h3>
+              <p>Escolha um modelo, confira a previa e defina se a mensagem sai na hora ou em uma data especifica.</p>
+            </div>
+          </div>
+          <div class="message-help-grid">
+            <article><strong>Envio imediato</strong><p>Ideal para confirmar sessao, reforcar cobranca ou atender um pedido da recepcao.</p></article>
+            <article><strong>Agendamento</strong><p>Programe lembretes e avisos com antecedencia e deixe a fila do sistema processar depois.</p></article>
+            <article><strong>Numero manual</strong><p>Se precisar, envie para outro WhatsApp sem alterar o cadastro do paciente.</p></article>
+          </div>
+        </section>
+
         {% with template=whatsapp_templates.appointment form=template_forms.appointment send_form=send_forms.appointment preview=preview_messages.appointment %}
           <article class="message-template-card">
             <div class="message-template-main">
@@ -203,7 +280,17 @@
                   {{ send_form.custom_number }}
                   {% for error in send_form.custom_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
                 </label>
-                <button class="button primary" type="submit">Enviar agora</button>
+                <label class="form-field">
+                  <span>{{ send_form.send_mode.label }}</span>
+                  {{ send_form.send_mode }}
+                  {% for error in send_form.send_mode.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+                </label>
+                <label class="form-field">
+                  <span>{{ send_form.scheduled_for.label }}</span>
+                  {{ send_form.scheduled_for }}
+                  {% for error in send_form.scheduled_for.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+                </label>
+                <button class="button primary" type="submit">Salvar disparo</button>
               </form>
             </aside>
           </article>
@@ -263,7 +350,17 @@
                   {{ send_form.custom_number }}
                   {% for error in send_form.custom_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
                 </label>
-                <button class="button primary" type="submit">Enviar agora</button>
+                <label class="form-field">
+                  <span>{{ send_form.send_mode.label }}</span>
+                  {{ send_form.send_mode }}
+                  {% for error in send_form.send_mode.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+                </label>
+                <label class="form-field">
+                  <span>{{ send_form.scheduled_for.label }}</span>
+                  {{ send_form.scheduled_for }}
+                  {% for error in send_form.scheduled_for.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+                </label>
+                <button class="button primary" type="submit">Salvar disparo</button>
               </form>
             </aside>
           </article>
@@ -323,7 +420,17 @@
                   {{ send_form.custom_number }}
                   {% for error in send_form.custom_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
                 </label>
-                <button class="button primary" type="submit">Enviar agora</button>
+                <label class="form-field">
+                  <span>{{ send_form.send_mode.label }}</span>
+                  {{ send_form.send_mode }}
+                  {% for error in send_form.send_mode.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+                </label>
+                <label class="form-field">
+                  <span>{{ send_form.scheduled_for.label }}</span>
+                  {{ send_form.scheduled_for }}
+                  {% for error in send_form.scheduled_for.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+                </label>
+                <button class="button primary" type="submit">Salvar disparo</button>
               </form>
             </aside>
           </article>

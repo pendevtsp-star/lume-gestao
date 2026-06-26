@@ -28,5 +28,19 @@ services:
       db:
         condition: service_healthy
 
+  worker:
+    build: .
+    command: ["sh", "/app/scripts/start-worker.sh"]
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DEBUG: ${DEBUG:-False}
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   postgres_data:

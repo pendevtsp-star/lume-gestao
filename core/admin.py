@@ -44,7 +44,7 @@ class WhatsAppMessageTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(WhatsAppMessageLog)
 class WhatsAppMessageLogAdmin(admin.ModelAdmin):
-    list_display = ("created_at", "recipient_name", "recipient_number", "template", "status", "sent_at")
+    list_display = ("created_at", "recipient_name", "recipient_number", "template", "status", "scheduled_for", "sent_at")
     list_filter = ("status", "template")
     search_fields = ("recipient_name", "recipient_number", "rendered_message")
     readonly_fields = (
@@ -58,6 +58,7 @@ class WhatsAppMessageLogAdmin(admin.ModelAdmin):
         "recipient_number",
         "rendered_message",
         "status",
+        "scheduled_for",
         "sent_at",
         "provider_reference",
         "error_message",

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  django:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-secret-key-2026-long-random-value-for-security-checks-9f84a21b
+      DEBUG: "False"
+      ENVIRONMENT: production
+      ALLOWED_HOSTS: 127.0.0.1,localhost,testserver
+      CSRF_TRUSTED_ORIGINS: http://127.0.0.1:8000,http://localhost:8000
+      DB_ENGINE: sqlite
+      GOOGLE_CALENDAR_SYNC_ENABLED: "True"
+      WHATSAPP_DRY_RUN: "True"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Django checks
+        run: |
+          python manage.py check
+          python manage.py check --deploy
+
+      - name: Run tests
+        run: python manage.py test

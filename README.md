@@ -70,6 +70,7 @@ Para encerrar o servidor local iniciado em segundo plano:
 Docker e uma boa escolha para este projeto porque padroniza ambiente, facilita backup/deploy e prepara a transicao futura para servidor. Ele nao substitui boas regras de backend, mas reduz problemas de instalacao entre Windows, Linux e macOS.
 
 O ambiente Docker usa PostgreSQL local. Nao e necessario criar conta externa no PostgreSQL: o proprio `docker compose` cria um container de banco com usuario, senha e base configurados no arquivo `.env`.
+Tambem sobe um servico `worker` para processar mensagens WhatsApp agendadas em segundo plano.
 
 Quando Docker Desktop estiver instalado:
 
@@ -102,8 +103,10 @@ cp .env.example .env
 Edite o `.env` e inclua o IP da maquina Linux em `ALLOWED_HOSTS`, por exemplo:
 
 ```text
+ENVIRONMENT=production
 ALLOWED_HOSTS=127.0.0.1,localhost,192.168.0.50
-DEBUG=True
+CSRF_TRUSTED_ORIGINS=http://127.0.0.1:8000,http://192.168.0.50:8000
+DEBUG=False
 DB_ENGINE=postgres
 POSTGRES_DB=lume
 POSTGRES_USER=lume
@@ -141,6 +144,7 @@ docs/INSTALACAO_LINUX.md
 ## App desktop
 
 O projeto agora possui um shell desktop em Electron em `desktop/`. Ele abre a interface Django existente e inicia um backend local na propria maquina, usando SQLite e salvando dados na pasta de dados do usuario do app.
+Quando ha mensagens WhatsApp agendadas, o desktop processa a fila localmente enquanto o app estiver aberto.
 
 Durante desenvolvimento:
 
@@ -157,6 +161,15 @@ Para gerar instalador Windows:
 ```
 
 Mais detalhes, incluindo macOS, Linux e caminho futuro para VPS, estao em `docs/APP_DESKTOP.md`.
+
+Guias curtos por sistema operacional:
+
+```text
+docs/INSTALACAO_RESUMIDA.md
+docs/INSTALACAO_WINDOWS.md
+docs/INSTALACAO_MACOS.md
+docs/INSTALACAO_LINUX.md
+```
 
 ## Instalacao de teste na clinica
 

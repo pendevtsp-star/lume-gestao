@@ -1,10 +1,10 @@
 from django import forms
+from django.utils import timezone
 
 from billing.models import Charge, Payment
+from core.models import ClinicSettings, GoogleCalendarIntegration, WhatsAppIntegration, WhatsAppMessageTemplate
 from patients.models import Patient
 from scheduling.models import Appointment
-from core.models import ClinicSettings, GoogleCalendarIntegration, WhatsAppIntegration
-from core.models import WhatsAppMessageTemplate
 
 
 class StyledModelForm(forms.ModelForm):
@@ -87,9 +87,42 @@ class WhatsAppMessageTemplateForm(StyledModelForm):
         }
 
 
-class WhatsAppAppointmentSendForm(StyledForm):
-    appointment = forms.ModelChoiceField(label="Agendamento", queryset=Appointment.objects.none())
+class WhatsAppDeliveryForm(StyledForm):
+    SEND_NOW = "now"
+    SEND_SCHEDULED = "schedule"
+
+    send_mode = forms.ChoiceField(
+        label="Quando enviar",
+        choices=[
+            (SEND_NOW, "Enviar agora"),
+            (SEND_SCHEDULED, "Agendar para depois"),
+        ],
+        initial=SEND_NOW,
+        required=False,
+    )
+    scheduled_for = forms.DateTimeField(
+        label="Data e hora do envio",
+        required=False,
+        input_formats=["%Y-%m-%dT%H:%M"],
+        widget=forms.DateTimeInput(attrs={"type": "datetime-local"}),
+    )
     custom_number = forms.CharField(label="Numero para envio", max_length=30, required=False)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        send_mode = cleaned_data.get("send_mode") or self.SEND_NOW
+        cleaned_data["send_mode"] = send_mode
+        scheduled_for = cleaned_data.get("scheduled_for")
+        if send_mode == self.SEND_SCHEDULED:
+            if not scheduled_for:
+                self.add_error("scheduled_for", "Informe a data e hora do envio agendado.")
+            elif scheduled_for <= timezone.now():
+                self.add_error("scheduled_for", "Escolha um horario futuro para agendar a mensagem.")
+        return cleaned_data
+
+
+class WhatsAppAppointmentSendForm(WhatsAppDeliveryForm):
+    appointment = forms.ModelChoiceField(label="Agendamento", queryset=Appointment.objects.none())
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -100,15 +133,14 @@ class WhatsAppAppointmentSendForm(StyledForm):
         )
         self.fields["appointment"].label_from_instance = (
             lambda appointment: (
-                f"{appointment.patient.full_name} · {appointment.professional.full_name} · "
+                f"{appointment.patient.full_name} - {appointment.professional.full_name} - "
                 f"{appointment.starts_at:%d/%m/%Y %H:%M}"
             )
         )
 
 
-class WhatsAppChargeSendForm(StyledForm):
+class WhatsAppChargeSendForm(WhatsAppDeliveryForm):
     reference = forms.ChoiceField(label="Cobranca")
-    custom_number = forms.CharField(label="Numero para envio", max_length=30, required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -125,8 +157,8 @@ class WhatsAppChargeSendForm(StyledForm):
             choices.append(
                 (
                     key,
-                    f"Mensalidade · {payment.membership.patient.full_name} · "
-                    f"{payment.due_date:%d/%m/%Y} · R$ {payment.amount:.2f}",
+                    f"Mensalidade - {payment.membership.patient.full_name} - "
+                    f"{payment.due_date:%d/%m/%Y} - R$ {payment.amount:.2f}",
                 )
             )
         charges = (
@@ -141,7 +173,7 @@ class WhatsAppChargeSendForm(StyledForm):
             choices.append(
                 (
                     key,
-                    f"Cobranca avulsa · {patient_name} · {charge.due_date:%d/%m/%Y} · R$ {charge.amount:.2f}",
+                    f"Cobranca avulsa - {patient_name} - {charge.due_date:%d/%m/%Y} - R$ {charge.amount:.2f}",
                 )
             )
         self.fields["reference"].choices = choices
@@ -154,9 +186,8 @@ class WhatsAppChargeSendForm(StyledForm):
         return reference
 
 
-class WhatsAppBirthdaySendForm(StyledForm):
+class WhatsAppBirthdaySendForm(WhatsAppDeliveryForm):
     patient = forms.ModelChoiceField(label="Paciente", queryset=Patient.objects.none())
-    custom_number = forms.CharField(label="Numero para envio", max_length=30, required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

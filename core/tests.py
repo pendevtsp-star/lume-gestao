@@ -1,7 +1,9 @@
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.test import override_settings
@@ -13,6 +15,7 @@ from billing.models import Expense, ExpenseCategory, Membership, Payment, Servic
 from core.models import (
     AuditLog,
     ClinicSettings,
+    GoogleCalendarIntegration,
     WhatsAppIntegration,
     WhatsAppMessageLog,
     WhatsAppMessageTemplate,
@@ -37,6 +40,12 @@ class DashboardAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Dashboard")
+
+    def test_healthcheck_returns_runtime_status(self):
+        response = self.client.get(reverse("health"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "ok")
 
 
 class AuditLogTests(TestCase):
@@ -431,6 +440,85 @@ class IntegrationsTests(TestCase):
         self.assertEqual(log.patient, self.patient)
         self.assertIn(self.patient.full_name, log.rendered_message)
 
+    def test_management_can_schedule_whatsapp_template(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"enabled": True, "dry_run": True, "phone_number_id": "123", "clinic_whatsapp_number": "5511999990000"},
+        )
+        WhatsAppMessageTemplate.ensure_defaults()
+        scheduled_for = (timezone.now() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "send_template:appointment",
+                "tab": "messages",
+                "send-appointment-appointment": self.appointment.pk,
+                "send-appointment-custom_number": "",
+                "send-appointment-send_mode": "schedule",
+                "send-appointment-scheduled_for": scheduled_for,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log = WhatsAppMessageLog.objects.get(status=WhatsAppMessageLog.Status.SCHEDULED)
+        self.assertEqual(log.patient, self.patient)
+        self.assertIsNotNone(log.scheduled_for)
+
+    @patch("core.integrations.whatsapp.send_whatsapp_text")
+    def test_whatsapp_queue_command_processes_scheduled_messages(self, send_mock):
+        send_mock.return_value = {"dry_run": True, "to": "5511999990000", "message": "Oi"}
+        integration = WhatsAppIntegration.load()
+        integration.enabled = True
+        integration.dry_run = True
+        integration.clinic_whatsapp_number = "5511999990000"
+        integration.save()
+        template = WhatsAppMessageTemplate.ensure_defaults()[0]
+        WhatsAppMessageLog.objects.create(
+            integration=integration,
+            template=template,
+            patient=self.patient,
+            recipient_name=self.patient.full_name,
+            recipient_number="5511999990000",
+            rendered_message="Oi",
+            status=WhatsAppMessageLog.Status.SCHEDULED,
+            scheduled_for=timezone.now() - timedelta(minutes=5),
+        )
+
+        call_command("process_whatsapp_queue", limit=10)
+
+        log = WhatsAppMessageLog.objects.get(template=template)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.DRY_RUN)
+        self.assertIsNotNone(log.sent_at)
+
+    def test_management_can_cancel_scheduled_message(self):
+        self.client.force_login(self.management)
+        integration = WhatsAppIntegration.load()
+        template = WhatsAppMessageTemplate.ensure_defaults()[0]
+        log = WhatsAppMessageLog.objects.create(
+            integration=integration,
+            template=template,
+            patient=self.patient,
+            recipient_name=self.patient.full_name,
+            recipient_number="5511999990000",
+            rendered_message="Oi",
+            status=WhatsAppMessageLog.Status.SCHEDULED,
+            scheduled_for=timezone.now() + timedelta(hours=2),
+        )
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": f"cancel_scheduled:{log.pk}",
+                "tab": "messages",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log.refresh_from_db()
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.CANCELED)
+
     @override_settings(
         GOOGLE_CALENDAR_CLIENT_ID="client-id",
         GOOGLE_CALENDAR_CLIENT_SECRET="client-secret",
@@ -442,3 +530,53 @@ class IntegrationsTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIn("accounts.google.com", response["Location"])
+
+
+class GoogleCalendarSignalTests(TestCase):
+    def setUp(self):
+        self.patient = Patient.objects.create(full_name="Paciente Google", phone="11999990000")
+        self.professional = Professional.objects.create(
+            full_name="Dra. Agenda Google",
+            specialty=Professional.Specialty.PILATES,
+        )
+        ProfessionalPatientAssignment.objects.create(patient=self.patient, professional=self.professional)
+        self.integration = GoogleCalendarIntegration.load()
+        self.integration.enabled = True
+        self.integration.sync_on_save = True
+        self.integration.connected_email = "clinica@lume.local"
+        self.integration.refresh_token = "refresh-token"
+        self.integration.access_token = "access-token"
+        self.integration.token_expires_at = timezone.now() + timedelta(hours=2)
+        self.integration.save()
+
+    @override_settings(GOOGLE_CALENDAR_SYNC_ENABLED=True)
+    @patch("core.signals.sync_appointment_to_google")
+    def test_appointment_create_triggers_google_sync(self, sync_mock):
+        with self.captureOnCommitCallbacks(execute=True):
+            appointment = Appointment.objects.create(
+                patient=self.patient,
+                professional=self.professional,
+                starts_at=timezone.now() + timedelta(days=2),
+                ends_at=timezone.now() + timedelta(days=2, hours=1),
+            )
+
+        self.assertTrue(sync_mock.called)
+        synced_appointment = sync_mock.call_args[0][0]
+        self.assertEqual(synced_appointment.pk, appointment.pk)
+
+    @override_settings(GOOGLE_CALENDAR_SYNC_ENABLED=True)
+    @patch("core.signals.delete_google_event")
+    def test_appointment_delete_removes_google_event(self, delete_mock):
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=timezone.now() + timedelta(days=3),
+            ends_at=timezone.now() + timedelta(days=3, hours=1),
+            external_provider="google",
+            external_event_id="google-event-123",
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            appointment.delete()
+
+        delete_mock.assert_called_once_with("google-event-123", integration=self.integration)

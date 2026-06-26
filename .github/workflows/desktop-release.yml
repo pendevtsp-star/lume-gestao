@@ -1,0 +1,127 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            electron_args: --win --publish always
+          - os: ubuntu-latest
+            electron_args: --linux --publish always
+          - os: macos-latest
+            electron_args: --mac --publish always
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 libnss3 libxss1 libasound2t64
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build local backend bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Test-Path desktop/backend-bin) { Remove-Item -Recurse -Force desktop/backend-bin }
+          pyinstaller `
+            --name lume-backend `
+            --onedir `
+            --distpath desktop/backend-bin `
+            --workpath dist/pyinstaller-work `
+            --specpath dist/pyinstaller-spec `
+            --add-data "templates;templates" `
+            --add-data "static;static" `
+            --collect-all django `
+            --collect-all rest_framework `
+            --collect-all django_filters `
+            --collect-submodules config `
+            --collect-submodules accounts `
+            --collect-submodules billing `
+            --collect-submodules core `
+            --collect-submodules patients `
+            --collect-submodules reports `
+            --collect-submodules scheduling `
+            --collect-submodules team `
+            desktop/backend_entry.py
+
+      - name: Build local backend bundle (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          rm -rf desktop/backend-bin
+          pyinstaller \
+            --name lume-backend \
+            --onedir \
+            --distpath desktop/backend-bin \
+            --workpath dist/pyinstaller-work \
+            --specpath dist/pyinstaller-spec \
+            --add-data "templates:templates" \
+            --add-data "static:static" \
+            --collect-all django \
+            --collect-all rest_framework \
+            --collect-all django_filters \
+            --collect-submodules config \
+            --collect-submodules accounts \
+            --collect-submodules billing \
+            --collect-submodules core \
+            --collect-submodules patients \
+            --collect-submodules reports \
+            --collect-submodules scheduling \
+            --collect-submodules team \
+            desktop/backend_entry.py
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Publish desktop build
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_NAME: ${{ secrets.CSC_NAME }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_IDENTITY_AUTO_DISCOVERY }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: npx electron-builder ${{ matrix.electron_args }}

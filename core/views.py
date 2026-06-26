@@ -13,7 +13,7 @@ from django.views import View
 from django.views.generic import ListView, TemplateView, UpdateView
 
 from accounts.models import UserProfile
-from accounts.permissions import FinanceAccessMixin, ManagementAccessMixin, get_profile
+from accounts.permissions import FinanceAccessMixin, ManagementAccessMixin, has_role, get_profile
 from billing.models import Charge, Membership, Payment, ServicePlan
 from core.forms import (
     ClinicSettingsForm,
@@ -31,7 +31,13 @@ from core.integrations.google_calendar import (
     sync_upcoming_appointments,
 )
 from core.integrations.http import IntegrationError
-from core.integrations.whatsapp import format_whatsapp_currency, render_whatsapp_template, send_whatsapp_text
+from core.integrations.whatsapp import (
+    format_whatsapp_currency,
+    process_scheduled_whatsapp_messages,
+    provider_reference_from_response,
+    render_whatsapp_template,
+    send_whatsapp_text,
+)
 from core.models import (
     AuditLog,
     ClinicSettings,
@@ -70,14 +76,19 @@ class SearchableListView(LoginRequiredMixin):
 
 class HealthCheckView(View):
     def get(self, request):
-        return JsonResponse(
-            {
-                "status": "ok",
-                "desktop_mode": settings.LUME_DESKTOP,
-                "database_engine": settings.DATABASES["default"]["ENGINE"],
-                "environment": settings.ENVIRONMENT,
-            }
-        )
+        payload = {"status": "ok"}
+        if settings.LUME_DESKTOP or (
+            request.user.is_authenticated
+            and (request.user.is_superuser or has_role(request.user, {UserProfile.Role.MANAGEMENT}))
+        ):
+            payload.update(
+                {
+                    "desktop_mode": settings.LUME_DESKTOP,
+                    "database_engine": settings.DATABASES["default"]["ENGINE"],
+                    "environment": settings.ENVIRONMENT,
+                }
+            )
+        return JsonResponse(payload)
 
 
 class FormContextMixin:
@@ -412,7 +423,8 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             "payment",
             "charge",
         )
-        recent_logs = log_queryset[:12]
+        recent_logs = log_queryset.exclude(status=WhatsAppMessageLog.Status.CANCELED)[:12]
+        scheduled_logs = log_queryset.filter(status=WhatsAppMessageLog.Status.SCHEDULED).order_by("scheduled_for", "created_at")[:8]
         previews = {
             template_type: render_whatsapp_template(template.body, whatsapp_preview_context(template_type))
             for template_type, template in templates.items()
@@ -428,13 +440,13 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             "send_forms": send_forms,
             "preview_messages": previews,
             "recent_logs": recent_logs,
+            "scheduled_logs": scheduled_logs,
             "connected_numbers_total": 1 if whatsapp_integration.is_connected else 0,
             "sent_messages_total": log_queryset.filter(
                 status__in=[WhatsAppMessageLog.Status.SENT, WhatsAppMessageLog.Status.DRY_RUN]
             ).count(),
-            "scheduled_messages_total": sum(
-                1 for template in templates.values() if template.active and template.send_time
-            ),
+            "scheduled_messages_total": log_queryset.filter(status=WhatsAppMessageLog.Status.SCHEDULED).count(),
+            "active_templates_total": sum(1 for template in templates.values() if template.active),
             "active_tab": active_tab or self.get_active_tab(),
             "page_title": "Integracoes",
             "section_label": "Gerencia",
@@ -447,6 +459,40 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
 
     def render_with_forms(self, **kwargs):
         return self.render_to_response(self.build_context(**kwargs))
+
+    def create_whatsapp_log(
+        self,
+        *,
+        integration,
+        template,
+        related,
+        rendered_message,
+        recipient_name,
+        recipient_number,
+        status,
+        response_payload=None,
+        provider_reference="",
+        error_message="",
+        scheduled_for=None,
+        sent_at=None,
+    ):
+        return WhatsAppMessageLog.objects.create(
+            integration=integration,
+            template=template,
+            patient=related["patient"],
+            appointment=related["appointment"],
+            payment=related["payment"],
+            charge=related["charge"],
+            recipient_name=recipient_name,
+            recipient_number=recipient_number,
+            rendered_message=rendered_message,
+            status=status,
+            response_payload=response_payload or {},
+            provider_reference=provider_reference,
+            error_message=error_message,
+            scheduled_for=scheduled_for,
+            sent_at=sent_at,
+        )
 
     def handle_save_template(self, request, template_type):
         templates = self.get_whatsapp_templates()
@@ -504,49 +550,83 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
 
         rendered_message = render_whatsapp_template(template.body, message_context)
         integration = WhatsAppIntegration.load()
+        recipient_name = related["patient"].full_name if related["patient"] else "Destinatario manual"
+        target_number = form.cleaned_data.get("custom_number", "")
+
         try:
-            target_number = whatsapp_target_number(form.cleaned_data.get("custom_number"), related["patient"])
-            result = send_whatsapp_text(target_number, rendered_message, integration=integration)
+            target_number = whatsapp_target_number(target_number, related["patient"])
         except IntegrationError as exc:
-            WhatsAppMessageLog.objects.create(
+            self.create_whatsapp_log(
                 integration=integration,
                 template=template,
-                patient=related["patient"],
-                appointment=related["appointment"],
-                payment=related["payment"],
-                charge=related["charge"],
-                recipient_name=related["patient"].full_name if related["patient"] else "Destinatario manual",
-                recipient_number=target_number,
+                related=related,
                 rendered_message=rendered_message,
+                recipient_name=recipient_name,
+                recipient_number=target_number,
                 status=WhatsAppMessageLog.Status.FAILED,
                 error_message=str(exc),
             )
             messages.error(request, str(exc))
             return redirect(f"{reverse('integrations')}?tab=messages")
 
-        provider_reference = ""
-        if isinstance(result, dict):
-            messages_data = result.get("messages") or []
-            if messages_data:
-                provider_reference = messages_data[0].get("id", "")
+        if form.cleaned_data.get("send_mode") == form.SEND_SCHEDULED:
+            self.create_whatsapp_log(
+                integration=integration,
+                template=template,
+                related=related,
+                rendered_message=rendered_message,
+                recipient_name=recipient_name,
+                recipient_number=target_number,
+                status=WhatsAppMessageLog.Status.SCHEDULED,
+                scheduled_for=form.cleaned_data["scheduled_for"],
+            )
+            messages.success(request, "Mensagem agendada com sucesso.")
+            return redirect(f"{reverse('integrations')}?tab=messages")
+
+        try:
+            result = send_whatsapp_text(target_number, rendered_message, integration=integration)
+        except IntegrationError as exc:
+            self.create_whatsapp_log(
+                integration=integration,
+                template=template,
+                related=related,
+                rendered_message=rendered_message,
+                recipient_name=recipient_name,
+                recipient_number=target_number,
+                status=WhatsAppMessageLog.Status.FAILED,
+                error_message=str(exc),
+            )
+            messages.error(request, str(exc))
+            return redirect(f"{reverse('integrations')}?tab=messages")
+
         status = WhatsAppMessageLog.Status.DRY_RUN if result.get("dry_run") else WhatsAppMessageLog.Status.SENT
-        WhatsAppMessageLog.objects.create(
+        self.create_whatsapp_log(
             integration=integration,
             template=template,
-            patient=related["patient"],
-            appointment=related["appointment"],
-            payment=related["payment"],
-            charge=related["charge"],
-            recipient_name=related["patient"].full_name if related["patient"] else "Destinatario manual",
-            recipient_number=target_number,
+            related=related,
             rendered_message=rendered_message,
+            recipient_name=recipient_name,
+            recipient_number=target_number,
             status=status,
             sent_at=timezone.now(),
-            provider_reference=provider_reference,
+            provider_reference=provider_reference_from_response(result),
             response_payload=result if isinstance(result, dict) else {},
         )
         detail = "simulada" if status == WhatsAppMessageLog.Status.DRY_RUN else "enviada"
         messages.success(request, f"Mensagem {detail} com sucesso.")
+        return redirect(f"{reverse('integrations')}?tab=messages")
+
+    def cancel_scheduled_message(self, request, log_id):
+        scheduled_log = (
+            WhatsAppMessageLog.objects.filter(pk=log_id, status=WhatsAppMessageLog.Status.SCHEDULED).first()
+        )
+        if not scheduled_log:
+            messages.error(request, "Mensagem agendada nao encontrada.")
+            return redirect(f"{reverse('integrations')}?tab=messages")
+
+        scheduled_log.status = WhatsAppMessageLog.Status.CANCELED
+        scheduled_log.save(update_fields=["status", "updated_at"])
+        messages.success(request, "Mensagem agendada cancelada.")
         return redirect(f"{reverse('integrations')}?tab=messages")
 
     def post(self, request):
@@ -582,10 +662,22 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 detail = "modo teste" if result.get("dry_run") else "enviado pela API"
                 messages.success(request, f"WhatsApp validado em {detail}.")
             return redirect(f"{reverse('integrations')}?tab=connections")
+        elif action == "run_scheduled_whatsapp":
+            summary = process_scheduled_whatsapp_messages(limit=20)
+            if summary["failed"]:
+                messages.warning(
+                    request,
+                    f"Fila processada com alertas: {summary['processed']} item(ns), {summary['failed']} falha(s).",
+                )
+            else:
+                messages.success(request, f"Fila processada: {summary['processed']} item(ns).")
+            return redirect(f"{reverse('integrations')}?tab=panel")
         elif action and action.startswith("save_template:"):
             return self.handle_save_template(request, action.split(":", 1)[1])
         elif action and action.startswith("send_template:"):
             return self.send_template_message(request, action.split(":", 1)[1])
+        elif action and action.startswith("cancel_scheduled:"):
+            return self.cancel_scheduled_message(request, action.split(":", 1)[1])
 
         messages.error(request, "Acao de integracao invalida.")
         return redirect(f"{reverse('integrations')}?tab={self.get_active_tab()}")

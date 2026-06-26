@@ -45,6 +45,18 @@ http://127.0.0.1:8000/integracoes/
 
 Clique em `Conectar`, autorize a conta Google e depois use `Sincronizar agenda`.
 
+Com a integracao conectada e a opcao de sincronizacao habilitada:
+
+- novos agendamentos podem ser enviados automaticamente para o Google Calendar;
+- alteracoes de horario passam a refletir no evento vinculado;
+- exclusoes removem o evento remoto correspondente.
+
+Se quiser usar a sincronizacao continua, mantenha a integracao:
+
+- `Ativada`
+- com `Sincronizar automaticamente` habilitado
+- com credenciais OAuth validas no `.env`
+
 ## Observacao
 
 A sincronizacao direta depende do OAuth. Se a clinica ainda nao quiser criar credenciais Google, a exportacao `.ics` continua disponivel em `Agenda > Google Agenda .ics`.

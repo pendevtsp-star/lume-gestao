@@ -56,11 +56,28 @@ Pela tela:
 http://127.0.0.1:8000/integracoes/
 ```
 
+Recursos principais da tela:
+
+- configuracao do numero principal da clinica;
+- mensagens de agendamento, cobranca e aniversario com variaveis prontas;
+- envio imediato ou agendado para data e hora especificas;
+- fila de proximos disparos com opcao de cancelamento;
+- historico recente com status de enviada, simulada, falha ou cancelada.
+
 Pelo terminal:
 
 ```powershell
 docker compose exec web python manage.py send_test_whatsapp 11999990000 --message "Teste Lume"
 ```
+
+Para processar manualmente a fila de mensagens agendadas:
+
+```powershell
+docker compose exec web python manage.py process_whatsapp_queue
+```
+
+No ambiente Docker, a fila tambem e processada automaticamente pelo servico `worker`.
+No app desktop, a fila roda localmente enquanto o aplicativo estiver aberto.
 
 ## Importante sobre templates
 

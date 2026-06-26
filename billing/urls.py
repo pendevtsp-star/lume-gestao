@@ -17,6 +17,7 @@ from billing.views import (
     PaymentListView,
     PaymentUpdateView,
     ServicePlanCreateView,
+    ServicePlanDeleteView,
     ServicePlanListView,
     ServicePlanUpdateView,
 )
@@ -27,6 +28,7 @@ urlpatterns = [
     path("planos/", ServicePlanListView.as_view(), name="plans"),
     path("planos/novo/", ServicePlanCreateView.as_view(), name="plan_create"),
     path("planos/<int:pk>/editar/", ServicePlanUpdateView.as_view(), name="plan_update"),
+    path("planos/<int:pk>/excluir/", ServicePlanDeleteView.as_view(), name="plan_delete"),
     path("mensalidades/", MembershipListView.as_view(), name="memberships"),
     path("mensalidades/nova/", MembershipCreateView.as_view(), name="membership_create"),
     path("mensalidades/<int:pk>/editar/", MembershipUpdateView.as_view(), name="membership_update"),

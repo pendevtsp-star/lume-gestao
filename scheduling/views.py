@@ -21,8 +21,10 @@ from django.views.generic import CreateView, FormView, ListView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.permissions import FinanceAccessMixin, RoleRequiredMixin, get_profile
+from core.models import ClinicSettings
 from core.views import FormContextMixin, SearchableListView
 from scheduling.forms import (
+    AgendaSettingsForm,
     AppointmentForm,
     AppointmentRescheduleSlotForm,
     AppointmentSlotSearchForm,
@@ -36,6 +38,14 @@ from scheduling.slots import generate_available_slots, make_local_datetime, slot
 class AppointmentAccessMixin(RoleRequiredMixin):
     allowed_roles = [
         UserProfile.Role.PATIENT,
+        UserProfile.Role.PROFESSIONAL,
+        UserProfile.Role.ADMINISTRATION,
+        UserProfile.Role.MANAGEMENT,
+    ]
+
+
+class AgendaSettingsAccessMixin(RoleRequiredMixin):
+    allowed_roles = [
         UserProfile.Role.PROFESSIONAL,
         UserProfile.Role.ADMINISTRATION,
         UserProfile.Role.MANAGEMENT,
@@ -403,6 +413,17 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
         } or hasattr(self.original_appointment, "service_usage"):
             messages.error(request, "Este agendamento nao pode ser reagendado.")
             return redirect("scheduling:appointments")
+        profile = get_profile(request.user)
+        if profile and profile.is_patient:
+            settings = ClinicSettings.load()
+            deadline = timezone.now() + timedelta(hours=settings.rescheduling_deadline_hours)
+            if self.original_appointment.starts_at <= deadline:
+                messages.error(
+                    request,
+                    f"Reagendamentos pelo paciente precisam ser solicitados com pelo menos "
+                    f"{settings.rescheduling_deadline_hours} horas de antecedencia.",
+                )
+                return redirect("scheduling:appointments")
         return super().dispatch(request, *args, **kwargs)
 
     def get_form(self, data=None):
@@ -588,6 +609,23 @@ class ProfessionalAvailabilityUpdateView(FormContextMixin, ProfessionalAvailabil
 
     def form_valid(self, form):
         messages.success(self.request, "Disponibilidade atualizada com sucesso.")
+        return super().form_valid(form)
+
+
+class AgendaSettingsUpdateView(FormContextMixin, AgendaSettingsAccessMixin, UpdateView):
+    model = ClinicSettings
+    form_class = AgendaSettingsForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("scheduling:appointments")
+    page_title = "Configuracoes da agenda"
+    section_label = "Agenda"
+    back_url_name = "scheduling:appointments"
+
+    def get_object(self, queryset=None):
+        return ClinicSettings.load()
+
+    def form_valid(self, form):
+        messages.success(self.request, "Configuracoes da agenda atualizadas com sucesso.")
         return super().form_valid(form)
 
 

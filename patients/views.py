@@ -11,7 +11,7 @@ from accounts.models import UserProfile
 from accounts.permissions import RoleRequiredMixin, get_profile
 from core.exports import pdf_response, xlsx_response
 from core.views import FormContextMixin, SearchableListView
-from patients.forms import PatientForm, ProfessionalNoteForm, ProfessionalPatientAssignmentForm
+from patients.forms import PatientForm, ProfessionalNoteForm, ProfessionalPatientAssignmentForm, note_type_options
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
 
 
@@ -177,7 +177,7 @@ class ProfessionalNoteListView(ProfessionalRecordAccessMixin, SearchableListView
     template_name = "patients/note_list.html"
     context_object_name = "notes"
     paginate_by = 12
-    search_fields = ["title", "body"]
+    search_fields = ["title", "body", "objective", "record_type", "session_focus", "clinical_status", "conduct"]
 
     def dispatch(self, request, *args, **kwargs):
         self.patient = get_object_or_404(patients_for_user(request.user), pk=kwargs["patient_pk"])
@@ -210,7 +210,7 @@ class ProfessionalNoteListView(ProfessionalRecordAccessMixin, SearchableListView
 class ProfessionalNoteFormMixin(ProfessionalRecordAccessMixin):
     model = ProfessionalNote
     form_class = ProfessionalNoteForm
-    template_name = "core/form.html"
+    template_name = "patients/note_form.html"
     section_label = "Prontuario"
 
     def dispatch(self, request, *args, **kwargs):
@@ -230,6 +230,12 @@ class ProfessionalNoteFormMixin(ProfessionalRecordAccessMixin):
             form.fields["professional"].widget = forms.HiddenInput()
         return form
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        if not getattr(self, "object", None):
+            kwargs["record_type"] = self.request.GET.get("tipo")
+        return kwargs
+
     def form_valid(self, form):
         professional = self.get_professional()
         form.instance.patient = self.patient
@@ -246,13 +252,16 @@ class ProfessionalNoteFormMixin(ProfessionalRecordAccessMixin):
                 "page_title": self.page_title,
                 "section_label": self.section_label,
                 "back_url": reverse("patients:patient_notes", args=[self.patient.pk]),
+                "patient": self.patient,
+                "note_type_options": note_type_options(),
+                "record_type_title": context["form"].record_config["title"],
             }
         )
         return context
 
 
 class ProfessionalNoteCreateView(ProfessionalNoteFormMixin, CreateView):
-    page_title = "Nova evolucao"
+    page_title = "Novo registro"
 
     def form_valid(self, form):
         messages.success(self.request, "Evolucao registrada com sucesso.")
@@ -315,6 +324,14 @@ class ProfessionalRecordExportView(ProfessionalRecordAccessMixin, View):
                 note.created_at.strftime("%d/%m/%Y %H:%M"),
                 note.updated_at.strftime("%d/%m/%Y %H:%M"),
                 note.title,
+                note.get_record_type_display(),
+                note.get_session_focus_display() if note.session_focus else "-",
+                note.objective or "-",
+                note.structured_summary,
+                note.exercise_groups_display,
+                note.pain_level if note.pain_level is not None else "-",
+                note.get_clinical_status_display() if note.clinical_status else "-",
+                note.get_conduct_display() if note.conduct else "-",
                 note.body,
             )
             for note in self.get_notes()
@@ -333,7 +350,24 @@ class ProfessionalRecordExportView(ProfessionalRecordAccessMixin, View):
             [
                 ("Paciente", ["Campo", "Valor"], self.patient_rows()),
                 ("Profissional", ["Campo", "Valor"], self.professional_rows()),
-                ("Evolucoes", ["Criado em", "Atualizado em", "Titulo", "Evolucao"], self.note_rows()),
+                (
+                    "Evolucoes",
+                    [
+                        "Criado em",
+                        "Atualizado em",
+                        "Resumo",
+                        "Tipo",
+                        "Foco",
+                        "Objetivo",
+                        "Dados estruturados",
+                        "Selecoes",
+                        "Dor",
+                        "Evolucao clinica",
+                        "Conduta",
+                        "Observacoes",
+                    ],
+                    self.note_rows(),
+                ),
             ],
         )
 
@@ -345,7 +379,20 @@ class ProfessionalRecordExportView(ProfessionalRecordAccessMixin, View):
         tables = [
             (
                 "Evolucoes registradas pelo profissional",
-                ["Criado em", "Atualizado em", "Titulo", "Evolucao"],
+                [
+                    "Criado em",
+                    "Atualizado em",
+                    "Resumo",
+                    "Tipo",
+                    "Foco",
+                    "Objetivo",
+                    "Dados estruturados",
+                    "Selecoes",
+                    "Dor",
+                    "Evolucao clinica",
+                    "Conduta",
+                    "Observacoes",
+                ],
                 self.note_rows(),
             )
         ]

@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from accounts.models import UserProfile
 from billing.models import Membership, ServicePlan
+from core.models import ClinicSettings
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
 from scheduling.slots import generate_available_slots
@@ -175,6 +176,30 @@ class SchedulingTests(TestCase):
                 status=Appointment.Status.REQUESTED,
             ).exists()
         )
+
+    def test_patient_cannot_reschedule_inside_configured_deadline(self):
+        settings = ClinicSettings.load()
+        settings.rescheduling_deadline_hours = 48
+        settings.save()
+        user = get_user_model().objects.create_user(username="paciente-reagendar-prazo", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
+        )
+        start = timezone.now() + timedelta(hours=24)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("scheduling:appointment_reschedule", args=[appointment.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, Appointment.Status.SCHEDULED)
 
     def test_available_slots_skip_occupied_times(self):
         day = timezone.localdate() + timedelta(days=5)

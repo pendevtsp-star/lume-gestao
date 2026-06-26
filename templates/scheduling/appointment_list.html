@@ -11,6 +11,7 @@
   <div class="panel-actions">
     <a class="button secondary" href="{% url 'scheduling:appointments_ical' %}">Google Agenda .ics</a>
     {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
+      <a class="button secondary" href="{% url 'scheduling:agenda_settings' %}">Configuracoes</a>
       <a class="button secondary" href="{% url 'scheduling:availabilities' %}">Disponibilidade</a>
     {% endif %}
     <a class="button primary" href="{% url 'scheduling:appointment_create' %}">Novo agendamento</a>

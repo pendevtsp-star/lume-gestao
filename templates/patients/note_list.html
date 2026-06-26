@@ -12,7 +12,7 @@
     <a class="button secondary" href="{% url 'patients:notes' %}">Pacientes</a>
     <a class="button secondary" href="{% url 'patients:note_export' patient.pk 'pdf' %}">Exportar PDF</a>
     <a class="button secondary" href="{% url 'patients:note_export' patient.pk 'xlsx' %}">Exportar Excel</a>
-    <a class="button primary" href="{% url 'patients:note_create' patient.pk %}">Nova evolucao</a>
+    {% include "patients/note_type_menu.html" with patient=patient %}
   </div>
 </section>
 
@@ -25,10 +25,12 @@
     <table>
       <thead>
         <tr>
-          <th>Titulo</th>
+          <th>Resumo</th>
+          <th>Tipo</th>
+          <th>Foco</th>
           <th>Criado em</th>
-          <th>Atualizado em</th>
-          <th>Evolucao</th>
+          <th>Conduta</th>
+          <th>Resumo estruturado</th>
           <th class="right">Acao</th>
         </tr>
       </thead>
@@ -36,15 +38,17 @@
         {% for note in notes %}
           <tr>
             <td><strong>{{ note.title }}</strong></td>
+            <td><span class="badge">{{ note.get_record_type_display }}</span></td>
+            <td>{{ note.get_session_focus_display|default:"-" }}</td>
             <td>{{ note.created_at|date:"d/m/Y H:i" }}</td>
-            <td>{{ note.updated_at|date:"d/m/Y H:i" }}</td>
-            <td>{{ note.body|truncatechars:120 }}</td>
+            <td>{{ note.get_conduct_display|default:"-" }}</td>
+            <td>{{ note.structured_summary|truncatechars:120 }}</td>
             <td class="right">
               <a class="table-action" href="{% url 'patients:note_update' patient.pk note.pk %}">Editar</a>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="empty">Nenhuma evolucao registrada por voce para este paciente.</td></tr>
+          <tr><td colspan="7" class="empty">Nenhuma evolucao registrada por voce para este paciente.</td></tr>
         {% endfor %}
       </tbody>
     </table>

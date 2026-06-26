@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Lume Gestao{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260625-avatar-menu">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260626-finance-menu">
 </head>
 <body>
   <div class="app-shell">
@@ -32,10 +32,18 @@
         {% endif %}
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
           <a href="{% url 'reports:dashboard' %}"><span class="nav-icon icon-reports" aria-hidden="true"></span><span>Relatorios</span></a>
-          <a href="{% url 'billing:memberships' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Mensalidades</span></a>
-          <a href="{% url 'billing:payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Pagamentos</span></a>
-          <a href="{% url 'billing:charges' %}"><span class="nav-icon icon-charges" aria-hidden="true"></span><span>Cobrancas</span></a>
-          <a href="{% url 'billing:expenses' %}"><span class="nav-icon icon-expenses" aria-hidden="true"></span><span>Despesas</span></a>
+          <details class="nav-menu" {% if request.resolver_match.app_name == "billing" and request.resolver_match.url_name != "plans" and request.resolver_match.url_name != "plan_create" and request.resolver_match.url_name != "plan_update" and request.resolver_match.url_name != "plan_delete" %}open{% endif %}>
+            <summary>
+              <span class="nav-icon icon-finance" aria-hidden="true"></span>
+              <span>Financeiro</span>
+            </summary>
+            <div class="nav-submenu">
+              <a href="{% url 'billing:memberships' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Mensalidades</span></a>
+              <a href="{% url 'billing:payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Pagamentos</span></a>
+              <a href="{% url 'billing:charges' %}"><span class="nav-icon icon-charges" aria-hidden="true"></span><span>Cobrancas</span></a>
+              <a href="{% url 'billing:expenses' %}"><span class="nav-icon icon-expenses" aria-hidden="true"></span><span>Despesas</span></a>
+            </div>
+          </details>
           <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Pacotes</span></a>
           <a href="{% url 'billing:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos</span></a>
           <a href="{% url 'patients:assignments' %}"><span class="nav-icon icon-links" aria-hidden="true"></span><span>Vinculos</span></a>

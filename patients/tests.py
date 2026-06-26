@@ -140,6 +140,97 @@ class PatientAccessTests(TestCase):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
+    def test_professional_can_create_structured_record(self):
+        patient = Patient.objects.create(full_name="Paciente Estruturado")
+        professional = Professional.objects.create(full_name="Dra. Estrutura", specialty=Professional.Specialty.PILATES)
+        ProfessionalPatientAssignment.objects.create(patient=patient, professional=professional)
+        user = get_user_model().objects.create_user(username="prof-estrutura", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": professional},
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("patients:note_create", args=[patient.pk]),
+            {
+                "patient": patient.pk,
+                "professional": professional.pk,
+                "title": "Evolucao guiada",
+                "record_type": ProfessionalNote.RecordType.EVOLUTION,
+                "session_focus": ProfessionalNote.SessionFocus.PILATES,
+                "objective": "Fortalecimento de core.",
+                "exercise_groups": ["solo_livre", "reformer_membros_inferiores"],
+                "pain_level": "2",
+                "clinical_status": ProfessionalNote.ClinicalStatus.IMPROVED,
+                "conduct": ProfessionalNote.Conduct.PROGRESS,
+                "body": "Paciente respondeu bem.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        note = ProfessionalNote.objects.get(title="Evolucao guiada")
+        self.assertEqual(note.exercise_groups, ["solo_livre", "reformer_membros_inferiores"])
+        self.assertEqual(note.pain_level, 2)
+
+    def test_professional_record_type_menu_pages_render_expected_fields(self):
+        patient = Patient.objects.create(full_name="Paciente Formularios")
+        professional = Professional.objects.create(full_name="Dra. Formularios", specialty=Professional.Specialty.PILATES)
+        ProfessionalPatientAssignment.objects.create(patient=patient, professional=professional)
+        user = get_user_model().objects.create_user(username="prof-formularios", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": professional},
+        )
+        self.client.force_login(user)
+
+        expected_labels = {
+            "clinical_evaluation": "Historia clinica / Anamnese",
+            "diagnosis": "Fisioterapeutico",
+            "physical_exam": "Apresentacao",
+            "daily_evolution": "Selecoes do atendimento",
+        }
+        for record_type, label in expected_labels.items():
+            response = self.client.get(reverse("patients:note_create", args=[patient.pk]), {"tipo": record_type})
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, label)
+
+    def test_professional_can_save_clinical_evaluation_structured_data(self):
+        patient = Patient.objects.create(full_name="Paciente Avaliacao")
+        professional = Professional.objects.create(full_name="Dra. Avaliacao", specialty=Professional.Specialty.PILATES)
+        ProfessionalPatientAssignment.objects.create(patient=patient, professional=professional)
+        user = get_user_model().objects.create_user(username="prof-avaliacao", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": professional},
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("patients:note_create", args=[patient.pk]) + "?tipo=clinical_evaluation",
+            {
+                "patient": patient.pk,
+                "professional": professional.pk,
+                "title": "Avaliacao inicial guiada",
+                "record_type": ProfessionalNote.RecordType.CLINICAL_EVALUATION,
+                "clinical_history": "Dor lombar recorrente.",
+                "life_habits": ["sedentarismo"],
+                "current_disease_history": "Piora ao permanecer sentada.",
+                "past_disease_history": "",
+                "personal_history": "",
+                "family_history": "",
+                "previous_treatments": "Fisioterapia previa.",
+                "body": "Observacao livre.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        note = ProfessionalNote.objects.get(title="Avaliacao inicial guiada")
+        self.assertEqual(note.record_type, ProfessionalNote.RecordType.CLINICAL_EVALUATION)
+        self.assertEqual(note.structured_data["life_habits"], ["sedentarismo"])
+        self.assertEqual(note.structured_data["clinical_history"], "Dor lombar recorrente.")
+
     def test_patient_api_only_returns_own_patient(self):
         own = Patient.objects.create(full_name="Paciente API Proprio")
         other = Patient.objects.create(full_name="Paciente API Outro")

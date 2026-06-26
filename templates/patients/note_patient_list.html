@@ -44,7 +44,7 @@
             <td class="right">{{ patient.record_count }}</td>
             <td class="right table-actions">
               <a class="table-action" href="{% url 'patients:patient_notes' patient.pk %}">Abrir prontuario</a>
-              <a class="table-action" href="{% url 'patients:note_create' patient.pk %}">Nova evolucao</a>
+              {% include "patients/note_type_menu.html" with patient=patient compact=True %}
             </td>
           </tr>
         {% empty %}

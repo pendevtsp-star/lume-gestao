@@ -4,6 +4,7 @@ from django.utils import timezone
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
 from core.forms import StyledModelForm
+from core.models import ClinicSettings
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage
 from team.models import Professional
@@ -275,4 +276,23 @@ class ServicePackageForm(StyledModelForm):
             "starts_on": forms.DateInput(attrs={"type": "date"}),
             "expires_on": forms.DateInput(attrs={"type": "date"}),
             "notes": forms.Textarea(attrs={"rows": 4}),
+        }
+
+
+class AgendaSettingsForm(StyledModelForm):
+    class Meta:
+        model = ClinicSettings
+        fields = [
+            "opening_time",
+            "closing_time",
+            "cancellation_deadline_hours",
+            "rescheduling_deadline_hours",
+            "cancellation_policy",
+            "rescheduling_policy",
+        ]
+        widgets = {
+            "opening_time": forms.TimeInput(attrs={"type": "time"}),
+            "closing_time": forms.TimeInput(attrs={"type": "time"}),
+            "cancellation_policy": forms.Textarea(attrs={"rows": 4}),
+            "rescheduling_policy": forms.Textarea(attrs={"rows": 4}),
         }

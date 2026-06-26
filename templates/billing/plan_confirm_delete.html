@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Excluir plano | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ section_label }}</p>
+    <h1>{{ page_title }}</h1>
+  </div>
+  <a class="button secondary" href="{{ back_url }}">Voltar</a>
+</section>
+
+<form method="post" class="panel form-panel">
+  {% csrf_token %}
+  <h2>{{ object.name }}</h2>
+  <p class="confirm-copy">
+    Se este plano ainda nao tiver historico vinculado, ele sera excluido. Caso ja exista mensalidade ou pagamento
+    relacionado, o sistema ira desativar o cadastro para preservar o historico.
+  </p>
+  <div class="form-actions">
+    <a class="button secondary" href="{{ back_url }}">Cancelar</a>
+    <button class="button danger" type="submit">Excluir plano</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,9 @@
+<details class="cascade-menu {% if compact %}compact{% endif %}">
+  <summary>{% if compact %}Novo{% else %}Nova evolucao{% endif %}</summary>
+  <div class="cascade-menu-list">
+    <a href="{% url 'patients:note_create' patient.pk %}?tipo=clinical_evaluation"><strong>Avaliacao clinica</strong><span>Anamnese, habitos e historico</span></a>
+    <a href="{% url 'patients:note_create' patient.pk %}?tipo=diagnosis"><strong>Diagnostico</strong><span>Clinico, fisioterapeutico e queixa</span></a>
+    <a href="{% url 'patients:note_create' patient.pk %}?tipo=physical_exam"><strong>Exame fisico clinico</strong><span>Sinais vitais, marcha e inspecao</span></a>
+    <a href="{% url 'patients:note_create' patient.pk %}?tipo=daily_evolution"><strong>Evolucao diaria</strong><span>Sessao, recursos e conduta</span></a>
+  </div>
+</details>

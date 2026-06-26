@@ -124,6 +124,34 @@ class BillingModelTests(TestCase):
         self.assertNotContains(response, "Faixas elasticas")
         self.assertContains(response, "R$ 1000,00")
 
+    def test_plan_delete_removes_unused_plan(self):
+        user = get_user_model().objects.create_user(username="gerencia-exclui-plano", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        plan = ServicePlan.objects.create(
+            name="Plano sem uso",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("200.00"),
+            sessions_per_week=1,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("billing:plan_delete", args=[plan.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ServicePlan.objects.filter(pk=plan.pk).exists())
+
+    def test_plan_delete_deactivates_plan_with_history(self):
+        user = get_user_model().objects.create_user(username="gerencia-desativa-plano", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("billing:plan_delete", args=[self.plan.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.plan.refresh_from_db()
+        self.assertFalse(self.plan.active)
+
     def test_patient_cannot_access_finance_api(self):
         user = get_user_model().objects.create_user(username="paciente-finance-api", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient})

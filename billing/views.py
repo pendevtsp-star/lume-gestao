@@ -1,7 +1,9 @@
 from django.contrib import messages
+from django.db.models import ProtectedError
 from django.db.models import Sum
+from django.shortcuts import redirect
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, ListView, UpdateView
+from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from accounts.permissions import FinanceAccessMixin
 from billing.forms import ChargeForm, ExpenseCategoryForm, ExpenseForm, MembershipForm, PaymentForm, ServicePlanForm
@@ -43,6 +45,31 @@ class ServicePlanUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Plano atualizado com sucesso.")
         return super().form_valid(form)
+
+
+class ServicePlanDeleteView(FormContextMixin, FinanceAccessMixin, DeleteView):
+    model = ServicePlan
+    template_name = "billing/plan_confirm_delete.html"
+    success_url = reverse_lazy("billing:plans")
+    page_title = "Excluir plano"
+    section_label = "Financeiro"
+    back_url_name = "billing:plans"
+
+    def form_valid(self, form):
+        plan = self.object
+        try:
+            response = super().form_valid(form)
+        except ProtectedError:
+            plan.active = False
+            plan.full_clean()
+            plan.save(update_fields=["active", "updated_at"])
+            messages.warning(
+                self.request,
+                "Este plano possui historico vinculado e foi desativado em vez de excluido.",
+            )
+            return redirect(self.success_url)
+        messages.success(self.request, "Plano excluido com sucesso.")
+        return response
 
 
 class MembershipListView(FinanceAccessMixin, SearchableListView, ListView):

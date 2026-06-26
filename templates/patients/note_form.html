@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ section_label }}</p>
+    <h1>{{ record_type_title }}</h1>
+  </div>
+  <a class="button secondary" href="{{ back_url }}">Voltar</a>
+</section>
+
+<form method="post" class="panel record-form-panel">
+  {% csrf_token %}
+  {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+  {% if form.non_field_errors %}
+    <div class="form-errors">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  {% if form.is_daily_evolution %}
+    <section class="record-section">
+      <div class="record-section-header">
+        <h2>Dados da sessao</h2>
+        <p>Resumo, objetivo e foco do atendimento.</p>
+      </div>
+      <div class="form-grid">
+        {% for field in form.visible_fields %}
+          {% if field.name == "title" or field.name == "session_focus" or field.name == "objective" %}
+            <label class="form-field">
+              <span>{{ field.label }}</span>
+              {{ field }}
+              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+              {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+            </label>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="record-section">
+      <div class="record-section-header">
+        <h2>Selecoes do atendimento</h2>
+        <p>Marque os equipamentos, grupos ou recursos utilizados.</p>
+      </div>
+      <div class="record-choice-grid compact-grid">
+        {% for choice in form.exercise_groups %}
+          <label class="record-choice">
+            {{ choice.tag }}
+            <span>{{ choice.choice_label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      {% for error in form.exercise_groups.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </section>
+
+    <section class="record-section">
+      <div class="record-section-header">
+        <h2>Evolucao e conduta</h2>
+        <p>Resumo objetivo para acompanhar a resposta do paciente.</p>
+      </div>
+      <div class="form-grid">
+        {% for field in form.visible_fields %}
+          {% if field.name == "pain_level" or field.name == "clinical_status" or field.name == "conduct" %}
+            <label class="form-field">
+              <span>{{ field.label }}</span>
+              {{ field }}
+              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+              {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+            </label>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+  {% else %}
+    <section class="record-section">
+      <div class="record-section-header">
+        <h2>Identificacao</h2>
+        <p>Resumo profissional deste registro.</p>
+      </div>
+      <div class="form-grid">
+        {% for field in form.visible_fields %}
+          {% if field.name == "title" %}
+            <label class="form-field">
+              <span>{{ field.label }}</span>
+              {{ field }}
+              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+              {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+            </label>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+    {% for section in form.dynamic_sections %}
+      <section class="record-section">
+        <div class="record-section-header">
+          <h2>{{ section.title }}</h2>
+          <p>{{ section.description }}</p>
+        </div>
+        <div class="form-grid">
+          {% for field in section.fields %}
+            {% if field.field.widget.input_type == "checkbox" %}
+              <div class="form-field full-span">
+                <span>{{ field.label }}</span>
+                <div class="record-choice-grid">
+                  {% for choice in field %}
+                    <label class="record-choice">
+                      {{ choice.tag }}
+                      <span>{{ choice.choice_label }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+                {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+              </div>
+            {% else %}
+              <label class="form-field {% if field.field.widget.input_type == 'textarea' %}full-span{% endif %}">
+                <span>{{ field.label }}</span>
+                {{ field }}
+                {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+              </label>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  {% endif %}
+
+  <section class="record-section">
+    <div class="record-section-header">
+      <h2>Observacoes</h2>
+      <p>Campo livre para detalhes relevantes do profissional.</p>
+    </div>
+    <label class="form-field">
+      <span>{{ form.body.label }}</span>
+      {{ form.body }}
+      {% for error in form.body.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+    </label>
+  </section>
+
+  <div class="form-actions">
+    <a class="button secondary" href="{{ back_url }}">Cancelar</a>
+    <button class="button primary" type="submit">Salvar prontuario</button>
+  </div>
+</form>
+{% endblock %}

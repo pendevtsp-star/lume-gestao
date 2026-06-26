@@ -19,6 +19,6 @@ class ProfessionalPatientAssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(ProfessionalNote)
 class ProfessionalNoteAdmin(admin.ModelAdmin):
-    list_display = ("title", "patient", "professional", "created_at")
-    list_filter = ("professional",)
-    search_fields = ("title", "patient__full_name", "professional__full_name")
+    list_display = ("title", "patient", "professional", "record_type", "session_focus", "created_at")
+    list_filter = ("professional", "record_type", "session_focus")
+    search_fields = ("title", "objective", "body", "patient__full_name", "professional__full_name")

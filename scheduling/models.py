@@ -1,9 +1,44 @@
+import uuid
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
 from core.models import TimeStampedModel
+
+
+class AppointmentSeries(TimeStampedModel):
+    class RepeatType(models.TextChoices):
+        WEEKLY = "weekly", "Semanal"
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appointment_series",
+    )
+    repeat_type = models.CharField("tipo de repeticao", max_length=20, choices=RepeatType.choices, default=RepeatType.WEEKLY)
+    interval_weeks = models.PositiveSmallIntegerField("intervalo em semanas", default=1)
+    repeat_until = models.DateField("repetir ate", null=True, blank=True)
+    occurrences_count = models.PositiveSmallIntegerField("quantidade de sessoes", default=1)
+    notes = models.CharField("observacoes", max_length=180, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "serie de agendamentos"
+        verbose_name_plural = "series de agendamentos"
+
+    def __str__(self):
+        return f"Serie {self.pk or '-'} - {self.occurrences_count} sessao(oes)"
+
+    def clean(self):
+        super().clean()
+        if self.interval_weeks < 1:
+            raise ValidationError({"interval_weeks": "Use um intervalo de pelo menos 1 semana."})
+        if self.occurrences_count < 1:
+            raise ValidationError({"occurrences_count": "A serie precisa ter ao menos 1 sessao."})
 
 
 class Appointment(TimeStampedModel):
@@ -46,6 +81,16 @@ class Appointment(TimeStampedModel):
         blank=True,
         related_name="rescheduled_to",
     )
+    series = models.ForeignKey(
+        AppointmentSeries,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appointments",
+        verbose_name="serie",
+    )
+    slot_group = models.CharField("grupo do horario", max_length=36, blank=True, db_index=True)
+    slot_capacity = models.PositiveSmallIntegerField("capacidade da sessao", default=1)
     service_units = models.PositiveSmallIntegerField("atendimentos consumidos", default=1)
     notes = models.TextField("observacoes", blank=True)
     external_provider = models.CharField("provedor externo", max_length=40, blank=True)
@@ -79,12 +124,26 @@ class Appointment(TimeStampedModel):
             return self.service_usage.units
         return self.service_units
 
+    @property
+    def is_group_session(self):
+        return self.slot_capacity > 1
+
+    @property
+    def needs_confirmation(self):
+        return self.status == self.Status.REQUESTED
+
+    @property
+    def is_recurring(self):
+        return bool(self.series_id)
+
     def clean(self):
         super().clean()
         if self.starts_at and self.ends_at and self.ends_at <= self.starts_at:
             raise ValidationError({"ends_at": "O fim deve ser posterior ao inicio."})
         if self.service_units < 1:
             raise ValidationError({"service_units": "Informe ao menos 1 atendimento consumido."})
+        if self.slot_capacity < 1:
+            raise ValidationError({"slot_capacity": "A capacidade da sessao precisa ser de pelo menos 1."})
 
         if self.professional_id and self.starts_at and self.ends_at and self.status in {
             self.Status.REQUESTED,
@@ -98,8 +157,23 @@ class Appointment(TimeStampedModel):
             )
             if self.pk:
                 overlaps = overlaps.exclude(pk=self.pk)
-            if overlaps.exists():
+            partial_overlaps = overlaps.exclude(starts_at=self.starts_at, ends_at=self.ends_at)
+            if partial_overlaps.exists():
                 raise ValidationError("Este profissional ja possui atendimento nesse horario.")
+
+            exact_overlaps = overlaps.filter(starts_at=self.starts_at, ends_at=self.ends_at)
+            if exact_overlaps.exists():
+                existing_capacity = max(appointment.slot_capacity for appointment in exact_overlaps)
+                desired_capacity = max(existing_capacity, self.slot_capacity)
+                if exact_overlaps.count() + 1 > desired_capacity:
+                    raise ValidationError("Este horario ja atingiu a capacidade configurada.")
+                existing_group = next((appointment.slot_group for appointment in exact_overlaps if appointment.slot_group), "")
+                if self.slot_group and existing_group and self.slot_group != existing_group:
+                    raise ValidationError("Este horario ja pertence a outro grupo de sessao.")
+                self.slot_capacity = desired_capacity
+                self.slot_group = self.slot_group or existing_group or uuid.uuid4().hex
+            elif self.slot_capacity > 1 and not self.slot_group:
+                self.slot_group = uuid.uuid4().hex
             has_availability = ProfessionalAvailability.objects.filter(
                 professional_id=self.professional_id,
                 active=True,
@@ -145,6 +219,7 @@ class ProfessionalAvailability(TimeStampedModel):
     weekday = models.PositiveSmallIntegerField("dia da semana", choices=Weekday.choices)
     starts_at = models.TimeField("inicio")
     ends_at = models.TimeField("fim")
+    session_capacity = models.PositiveSmallIntegerField("capacidade padrao da sessao", default=1)
     valid_from = models.DateField("valido a partir de", default=timezone.localdate)
     valid_until = models.DateField("valido ate", null=True, blank=True)
     active = models.BooleanField("ativo", default=True)
@@ -172,6 +247,8 @@ class ProfessionalAvailability(TimeStampedModel):
             raise ValidationError({"ends_at": "O fim deve ser posterior ao inicio."})
         if self.valid_until and self.valid_until < self.valid_from:
             raise ValidationError({"valid_until": "A data final nao pode ser anterior ao inicio."})
+        if self.session_capacity < 1:
+            raise ValidationError({"session_capacity": "Informe uma capacidade de pelo menos 1 paciente."})
 
 
 class ServicePackage(TimeStampedModel):

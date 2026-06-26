@@ -31,7 +31,20 @@
           <a href="{% url 'patients:notes' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Prontuario</span></a>
         {% endif %}
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
-          <a href="{% url 'reports:dashboard' %}"><span class="nav-icon icon-reports" aria-hidden="true"></span><span>Relatorios</span></a>
+          <details class="nav-menu" {% if request.resolver_match.app_name == "reports" or request.resolver_match.url_name == "audit" %}open{% endif %}>
+            <summary>
+              <span class="nav-icon icon-reports" aria-hidden="true"></span>
+              <span>Relatorios</span>
+            </summary>
+            <div class="nav-submenu">
+              <a href="{% url 'reports:dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Visao geral</span></a>
+              <a href="{% url 'reports:financial' %}"><span class="nav-icon icon-finance" aria-hidden="true"></span><span>Financeiro</span></a>
+              <a href="{% url 'reports:clinic' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Gestao de adesao</span></a>
+              {% if request.user.is_superuser or request.user.profile.role == "management" %}
+                <a href="{% url 'reports:audit' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Auditoria</span></a>
+              {% endif %}
+            </div>
+          </details>
           <details class="nav-menu" {% if request.resolver_match.app_name == "billing" and request.resolver_match.url_name != "plans" and request.resolver_match.url_name != "plan_create" and request.resolver_match.url_name != "plan_update" and request.resolver_match.url_name != "plan_delete" %}open{% endif %}>
             <summary>
               <span class="nav-icon icon-finance" aria-hidden="true"></span>
@@ -52,7 +65,6 @@
         {% endif %}
         {% if request.user.is_superuser or request.user.profile.role == "management" %}
           <a href="{% url 'accounts:list' %}"><span class="nav-icon icon-users" aria-hidden="true"></span><span>Usuarios</span></a>
-          <a href="{% url 'audit' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Auditoria</span></a>
           <a href="{% url 'settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Configuracoes</span></a>
           <a href="{% url 'integrations' %}"><span class="nav-icon icon-integrations" aria-hidden="true"></span><span>Integracoes</span></a>
         {% endif %}

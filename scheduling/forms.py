@@ -1,4 +1,5 @@
 from django import forms
+from django.db import models
 from django.utils import timezone
 
 from accounts.models import UserProfile
@@ -81,7 +82,16 @@ def visible_professionals_for_request(request, patient=None):
 class AppointmentForm(StyledModelForm):
     class Meta:
         model = Appointment
-        fields = ["patient", "professional", "starts_at", "ends_at", "status", "service_units", "notes"]
+        fields = [
+            "patient",
+            "professional",
+            "starts_at",
+            "ends_at",
+            "status",
+            "slot_capacity",
+            "service_units",
+            "notes",
+        ]
         widgets = {
             "starts_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
             "ends_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
@@ -112,6 +122,7 @@ class AppointmentForm(StyledModelForm):
                 (Appointment.Status.REQUESTED, "Solicitado"),
                 (Appointment.Status.CANCELED, "Cancelado"),
             ]
+            self.fields["slot_capacity"].widget = forms.HiddenInput()
 
         if profile.is_professional and profile.professional_id:
             self.fields["professional"].queryset = self.fields["professional"].queryset.filter(pk=profile.professional_id)
@@ -122,40 +133,16 @@ class AppointmentForm(StyledModelForm):
             self.fields["patient"].queryset = self.fields["patient"].queryset.filter(pk__in=patient_ids)
 
 
-class AppointmentRescheduleForm(StyledModelForm):
-    class Meta:
-        model = Appointment
-        fields = ["professional", "starts_at", "ends_at", "notes"]
-        widgets = {
-            "starts_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
-            "ends_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
-            "notes": forms.Textarea(attrs={"rows": 4}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        self.request = kwargs.pop("request", None)
-        self.original_appointment = kwargs.pop("original_appointment", None)
-        super().__init__(*args, **kwargs)
-        if self.original_appointment:
-            self.fields["professional"].initial = self.original_appointment.professional
-            self.fields["notes"].initial = self.original_appointment.notes
-
-        if not self.request:
-            return
-
-        profile = get_profile(self.request.user)
-        if profile and profile.is_professional and profile.professional_id:
-            self.fields["professional"].queryset = Professional.objects.filter(pk=profile.professional_id, active=True)
-        elif profile and profile.is_patient and profile.patient_id and self.original_appointment:
-            professional_ids = ProfessionalPatientAssignment.objects.filter(
-                patient=self.original_appointment.patient,
-                active=True,
-            ).values_list("professional_id", flat=True)
-            self.fields["professional"].queryset = Professional.objects.filter(pk__in=professional_ids, active=True)
-
-
 class AppointmentSlotSearchForm(StyledForm):
-    patient = forms.ModelChoiceField(label="Paciente", queryset=Patient.objects.none())
+    class RepeatMode(models.TextChoices):
+        NONE = "none", "Somente esta sessao"
+        WEEKLY = "weekly", "Repetir semanalmente"
+
+    patients = forms.ModelMultipleChoiceField(
+        label="Paciente(s)",
+        queryset=Patient.objects.none(),
+        widget=forms.SelectMultiple(attrs={"size": 6}),
+    )
     professional = forms.ModelChoiceField(label="Profissional", queryset=Professional.objects.none())
     appointment_date = forms.DateField(
         label="Data",
@@ -164,28 +151,43 @@ class AppointmentSlotSearchForm(StyledForm):
     )
     duration_minutes = forms.ChoiceField(label="Duracao", choices=DURATION_CHOICES, initial=60)
     service_units = forms.IntegerField(label="Creditos previstos", min_value=1, initial=1)
+    session_capacity = forms.IntegerField(label="Capacidade da sessao", min_value=1, initial=1, required=False)
+    repeat_mode = forms.ChoiceField(
+        label="Recorrencia",
+        choices=RepeatMode.choices,
+        initial=RepeatMode.NONE,
+        required=False,
+    )
+    repeat_interval_weeks = forms.IntegerField(label="Repetir a cada", min_value=1, initial=1, required=False)
+    repeat_until = forms.DateField(
+        label="Repetir ate",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    repeat_count = forms.IntegerField(label="Quantidade de sessoes", min_value=2, required=False)
     notes = forms.CharField(
         label="Observacoes",
         required=False,
         widget=forms.Textarea(attrs={"rows": 3}),
     )
-    selected_start = forms.TimeField(
-        required=False,
-        input_formats=["%H:%M"],
-        widget=forms.HiddenInput,
-    )
+    selected_start = forms.TimeField(required=False, input_formats=["%H:%M"], widget=forms.HiddenInput)
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request", None)
         super().__init__(*args, **kwargs)
-        self.fields["patient"].queryset = visible_patients_for_request(self.request)
+        self.fields["patients"].queryset = visible_patients_for_request(self.request)
         self.fields["professional"].queryset = visible_professionals_for_request(self.request)
 
         if self.request:
             profile = get_profile(self.request.user)
             if profile and profile.is_patient and profile.patient_id:
-                self.fields["patient"].initial = profile.patient
-                self.fields["patient"].widget = forms.HiddenInput()
+                self.fields["patients"].initial = [profile.patient.pk]
+                self.fields["patients"].widget = forms.MultipleHiddenInput()
+                self.fields["session_capacity"].widget = forms.HiddenInput()
+                self.fields["repeat_mode"].widget = forms.HiddenInput()
+                self.fields["repeat_interval_weeks"].widget = forms.HiddenInput()
+                self.fields["repeat_until"].widget = forms.HiddenInput()
+                self.fields["repeat_count"].widget = forms.HiddenInput()
             if profile and profile.is_professional and profile.professional_id:
                 self.fields["professional"].initial = profile.professional
                 self.fields["professional"].widget = forms.HiddenInput()
@@ -193,18 +195,43 @@ class AppointmentSlotSearchForm(StyledForm):
     def clean_duration_minutes(self):
         return int(self.cleaned_data["duration_minutes"])
 
+    def clean_repeat_interval_weeks(self):
+        value = self.cleaned_data.get("repeat_interval_weeks") or 1
+        return int(value)
+
     def clean(self):
         cleaned_data = super().clean()
-        patient = cleaned_data.get("patient")
+        patients = cleaned_data.get("patients") or []
         professional = cleaned_data.get("professional")
-        if self.request and patient and professional:
-            allowed_professionals = visible_professionals_for_request(self.request, patient=patient)
-            if not allowed_professionals.filter(pk=professional.pk).exists():
-                raise forms.ValidationError("Este profissional nao esta disponivel para este paciente.")
+        repeat_mode = cleaned_data.get("repeat_mode") or self.RepeatMode.NONE
+        repeat_until = cleaned_data.get("repeat_until")
+        repeat_count = cleaned_data.get("repeat_count")
+        session_capacity = cleaned_data.get("session_capacity") or 1
+        cleaned_data["repeat_mode"] = repeat_mode
+        cleaned_data["session_capacity"] = session_capacity
+
+        if self.request and patients and professional:
+            for patient in patients:
+                allowed_professionals = visible_professionals_for_request(self.request, patient=patient)
+                if not allowed_professionals.filter(pk=professional.pk).exists():
+                    raise forms.ValidationError(f"{patient.full_name} nao pode ser agendado com este profissional.")
+
+        if session_capacity < len(patients):
+            self.add_error("session_capacity", "A capacidade precisa cobrir a quantidade de pacientes selecionados.")
+
+        if repeat_mode == self.RepeatMode.WEEKLY:
+            if not repeat_until and not repeat_count:
+                raise forms.ValidationError("Informe uma data final ou a quantidade de sessoes para a recorrencia.")
+            if repeat_until and cleaned_data.get("appointment_date") and repeat_until < cleaned_data["appointment_date"]:
+                self.add_error("repeat_until", "A data final nao pode ser anterior a primeira sessao.")
         return cleaned_data
 
 
 class AppointmentRescheduleSlotForm(StyledForm):
+    class Scope(models.TextChoices):
+        CURRENT = "current", "Apenas esta sessao"
+        CURRENT_AND_FUTURE = "current_and_future", "Esta e as proximas sessoes"
+
     professional = forms.ModelChoiceField(label="Profissional", queryset=Professional.objects.none())
     appointment_date = forms.DateField(
         label="Nova data",
@@ -212,20 +239,23 @@ class AppointmentRescheduleSlotForm(StyledForm):
         widget=forms.DateInput(attrs={"type": "date"}),
     )
     duration_minutes = forms.ChoiceField(label="Duracao", choices=DURATION_CHOICES, initial=60)
+    reschedule_scope = forms.ChoiceField(
+        label="Aplicar reagendamento",
+        choices=Scope.choices,
+        initial=Scope.CURRENT,
+        required=False,
+    )
     notes = forms.CharField(
         label="Observacoes",
         required=False,
         widget=forms.Textarea(attrs={"rows": 3}),
     )
-    selected_start = forms.TimeField(
-        required=False,
-        input_formats=["%H:%M"],
-        widget=forms.HiddenInput,
-    )
+    selected_start = forms.TimeField(required=False, input_formats=["%H:%M"], widget=forms.HiddenInput)
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request", None)
         self.original_appointment = kwargs.pop("original_appointment", None)
+        self.has_future_series = kwargs.pop("has_future_series", False)
         super().__init__(*args, **kwargs)
         patient = self.original_appointment.patient if self.original_appointment else None
         self.fields["professional"].queryset = visible_professionals_for_request(self.request, patient=patient)
@@ -236,6 +266,10 @@ class AppointmentRescheduleSlotForm(StyledForm):
             duration = self.original_appointment.ends_at - self.original_appointment.starts_at
             self.fields["duration_minutes"].initial = int(duration.total_seconds() // 60)
             self.fields["notes"].initial = self.original_appointment.notes
+
+        if not self.has_future_series:
+            self.fields["reschedule_scope"].widget = forms.HiddenInput()
+            self.fields["reschedule_scope"].initial = self.Scope.CURRENT
 
         if self.request:
             profile = get_profile(self.request.user)
@@ -250,7 +284,17 @@ class AppointmentRescheduleSlotForm(StyledForm):
 class ProfessionalAvailabilityForm(StyledModelForm):
     class Meta:
         model = ProfessionalAvailability
-        fields = ["professional", "weekday", "starts_at", "ends_at", "valid_from", "valid_until", "active", "notes"]
+        fields = [
+            "professional",
+            "weekday",
+            "starts_at",
+            "ends_at",
+            "session_capacity",
+            "valid_from",
+            "valid_until",
+            "active",
+            "notes",
+        ]
         widgets = {
             "starts_at": forms.TimeInput(attrs={"type": "time"}),
             "ends_at": forms.TimeInput(attrs={"type": "time"}),

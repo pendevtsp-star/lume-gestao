@@ -44,7 +44,10 @@ class SearchableListView(LoginRequiredMixin):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        query_params = self.request.GET.copy()
+        query_params.pop("page", None)
         context["q"] = self.request.GET.get("q", "").strip()
+        context["querystring"] = query_params.urlencode()
         return context
 
 

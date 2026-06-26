@@ -1,11 +1,11 @@
 {% if is_paginated %}
   <nav class="pagination" aria-label="Paginacao">
     {% if page_obj.has_previous %}
-      <a class="button secondary" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}">Anterior</a>
+      <a class="button secondary" href="?page={{ page_obj.previous_page_number }}{% if querystring %}&{{ querystring }}{% endif %}">Anterior</a>
     {% endif %}
     <span>Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
     {% if page_obj.has_next %}
-      <a class="button secondary" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}">Proxima</a>
+      <a class="button secondary" href="?page={{ page_obj.next_page_number }}{% if querystring %}&{{ querystring }}{% endif %}">Proxima</a>
     {% endif %}
   </nav>
 {% endif %}

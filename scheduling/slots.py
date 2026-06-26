@@ -13,7 +13,7 @@ def make_local_datetime(day, value):
     return timezone.make_aware(datetime.combine(day, value), timezone.get_current_timezone())
 
 
-def appointment_overlaps(professional_id, starts_at, ends_at, exclude_appointment_id=None):
+def active_appointments_for_slot(professional_id, starts_at, ends_at, exclude_appointment_id=None):
     queryset = Appointment.objects.filter(
         professional_id=professional_id,
         status__in=ACTIVE_APPOINTMENT_STATUSES,
@@ -22,7 +22,40 @@ def appointment_overlaps(professional_id, starts_at, ends_at, exclude_appointmen
     )
     if exclude_appointment_id:
         queryset = queryset.exclude(pk=exclude_appointment_id)
-    return queryset.exists()
+    return queryset
+
+
+def slot_capacity_snapshot(professional_id, starts_at, ends_at, exclude_appointment_id=None):
+    overlaps = active_appointments_for_slot(
+        professional_id,
+        starts_at,
+        ends_at,
+        exclude_appointment_id=exclude_appointment_id,
+    )
+    partial_overlaps = overlaps.exclude(starts_at=starts_at, ends_at=ends_at)
+    exact_overlaps = overlaps.filter(starts_at=starts_at, ends_at=ends_at)
+    active_count = exact_overlaps.count()
+    existing_capacity = max((appointment.slot_capacity for appointment in exact_overlaps), default=0)
+
+    return {
+        "partial_overlap": partial_overlaps.exists(),
+        "exact_count": active_count,
+        "existing_capacity": existing_capacity,
+        "remaining_capacity": max(existing_capacity - active_count, 0),
+        "slot_group": next((appointment.slot_group for appointment in exact_overlaps if appointment.slot_group), ""),
+    }
+
+
+def appointment_overlaps(professional_id, starts_at, ends_at, exclude_appointment_id=None):
+    snapshot = slot_capacity_snapshot(
+        professional_id,
+        starts_at,
+        ends_at,
+        exclude_appointment_id=exclude_appointment_id,
+    )
+    if snapshot["partial_overlap"]:
+        return True
+    return snapshot["existing_capacity"] > 0 and snapshot["remaining_capacity"] <= 0
 
 
 def slot_is_available(professional, starts_at, ends_at, exclude_appointment=None):
@@ -30,12 +63,15 @@ def slot_is_available(professional, starts_at, ends_at, exclude_appointment=None
         return False
     if ends_at <= starts_at:
         return False
-    if appointment_overlaps(
+    snapshot = slot_capacity_snapshot(
         professional.pk,
         starts_at,
         ends_at,
         exclude_appointment_id=getattr(exclude_appointment, "pk", None),
-    ):
+    )
+    if snapshot["partial_overlap"]:
+        return False
+    if snapshot["existing_capacity"] > 0 and snapshot["remaining_capacity"] <= 0:
         return False
     return ProfessionalAvailability.objects.slot_available(
         professional_id=professional.pk,
@@ -67,21 +103,33 @@ def generate_available_slots(professional, day, duration_minutes, exclude_appoin
         while cursor + duration <= window_end:
             starts_at = cursor
             ends_at = cursor + duration
-            if starts_at not in seen and not appointment_overlaps(
+            snapshot = slot_capacity_snapshot(
                 professional.pk,
                 starts_at,
                 ends_at,
                 exclude_appointment_id=getattr(exclude_appointment, "pk", None),
+            )
+            if (
+                starts_at not in seen
+                and not snapshot["partial_overlap"]
+                and (snapshot["existing_capacity"] == 0 or snapshot["remaining_capacity"] > 0)
             ):
                 seen.add(starts_at)
                 local_start = timezone.localtime(starts_at)
                 local_end = timezone.localtime(ends_at)
+                slot_capacity = snapshot["existing_capacity"] or window.session_capacity
+                occupied = snapshot["exact_count"]
+                remaining = slot_capacity - occupied if snapshot["existing_capacity"] else window.session_capacity
                 slots.append(
                     {
                         "starts_at": starts_at,
                         "ends_at": ends_at,
                         "start_value": local_start.strftime("%H:%M"),
                         "label": f"{local_start:%H:%M} - {local_end:%H:%M}",
+                        "capacity": slot_capacity,
+                        "occupied": occupied,
+                        "remaining_capacity": remaining,
+                        "group_slot": snapshot["existing_capacity"] > 0,
                     }
                 )
             cursor += duration

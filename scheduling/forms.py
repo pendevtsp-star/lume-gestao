@@ -1,6 +1,8 @@
 from django import forms
 from django.db import models
 from django.utils import timezone
+from calendar import monthrange
+from datetime import timedelta
 
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
@@ -305,6 +307,122 @@ class ProfessionalAvailabilityForm(StyledModelForm):
         profile = get_profile(self.request.user)
         if profile and profile.is_professional and profile.professional_id:
             self.fields["professional"].queryset = Professional.objects.filter(pk=profile.professional_id, active=True)
+
+
+class ProfessionalAvailabilityBatchForm(StyledForm):
+    class ValidScope(models.TextChoices):
+        WEEK = "week", "Apenas a semana da data escolhida"
+        MONTH = "month", "Apenas o mes da data escolhida"
+        CONTINUOUS = "continuous", "Sem data final"
+        CUSTOM = "custom", "Periodo personalizado"
+
+    professional = forms.ModelChoiceField(label="Profissional", queryset=Professional.objects.none())
+    weekdays = forms.MultipleChoiceField(
+        label="Dias da semana",
+        choices=ProfessionalAvailability.Weekday.choices,
+        widget=forms.CheckboxSelectMultiple,
+    )
+    reference_date = forms.DateField(
+        label="Data de referencia",
+        initial=timezone.localdate,
+        widget=forms.DateInput(attrs={"type": "date"}),
+        help_text="Usada para calcular a semana ou o mes em que esta regra vale.",
+    )
+    valid_scope = forms.ChoiceField(
+        label="Validade",
+        choices=ValidScope.choices,
+        initial=ValidScope.CONTINUOUS,
+        widget=forms.RadioSelect,
+    )
+    custom_valid_from = forms.DateField(
+        label="Inicio personalizado",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    custom_valid_until = forms.DateField(
+        label="Fim personalizado",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    window_1_start = forms.TimeField(label="Inicio 1", widget=forms.TimeInput(attrs={"type": "time"}))
+    window_1_end = forms.TimeField(label="Fim 1", widget=forms.TimeInput(attrs={"type": "time"}))
+    window_2_start = forms.TimeField(label="Inicio 2", required=False, widget=forms.TimeInput(attrs={"type": "time"}))
+    window_2_end = forms.TimeField(label="Fim 2", required=False, widget=forms.TimeInput(attrs={"type": "time"}))
+    window_3_start = forms.TimeField(label="Inicio 3", required=False, widget=forms.TimeInput(attrs={"type": "time"}))
+    window_3_end = forms.TimeField(label="Fim 3", required=False, widget=forms.TimeInput(attrs={"type": "time"}))
+    session_capacity = forms.IntegerField(label="Capacidade por sessao", min_value=1, initial=1)
+    active = forms.BooleanField(label="Ativa", required=False, initial=True)
+    notes = forms.CharField(label="Observacoes", required=False, widget=forms.Textarea(attrs={"rows": 3}))
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request", None)
+        super().__init__(*args, **kwargs)
+        self.fields["professional"].queryset = visible_professionals_for_request(self.request)
+        self.fields["weekdays"].widget.attrs.setdefault("class", "weekday-checkboxes")
+        self.fields["valid_scope"].widget.attrs.setdefault("class", "validity-radios")
+
+        if self.request:
+            profile = get_profile(self.request.user)
+            if profile and profile.is_professional and profile.professional_id:
+                self.fields["professional"].initial = profile.professional
+                self.fields["professional"].widget = forms.HiddenInput()
+
+    def clean_weekdays(self):
+        weekdays = self.cleaned_data.get("weekdays") or []
+        return [int(value) for value in weekdays]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        reference_date = cleaned_data.get("reference_date") or timezone.localdate()
+        valid_scope = cleaned_data.get("valid_scope") or self.ValidScope.CONTINUOUS
+        windows = []
+
+        for index in range(1, 4):
+            start = cleaned_data.get(f"window_{index}_start")
+            end = cleaned_data.get(f"window_{index}_end")
+            if bool(start) != bool(end):
+                self.add_error(f"window_{index}_start", "Preencha inicio e fim deste horario.")
+                self.add_error(f"window_{index}_end", "Preencha inicio e fim deste horario.")
+                continue
+            if not start and not end:
+                continue
+            if end <= start:
+                self.add_error(f"window_{index}_end", "O fim deve ser posterior ao inicio.")
+                continue
+            windows.append((start, end))
+
+        for current_start, current_end in windows:
+            for other_start, other_end in windows:
+                if (current_start, current_end) == (other_start, other_end):
+                    continue
+                if current_start < other_end and current_end > other_start:
+                    raise forms.ValidationError("As janelas de horario nao podem se sobrepor.")
+
+        if not windows:
+            raise forms.ValidationError("Informe ao menos um horario de atendimento.")
+
+        if valid_scope == self.ValidScope.WEEK:
+            valid_from = reference_date - timedelta(days=reference_date.weekday())
+            valid_until = valid_from + timedelta(days=6)
+        elif valid_scope == self.ValidScope.MONTH:
+            last_day = monthrange(reference_date.year, reference_date.month)[1]
+            valid_from = reference_date.replace(day=1)
+            valid_until = reference_date.replace(day=last_day)
+        elif valid_scope == self.ValidScope.CUSTOM:
+            valid_from = cleaned_data.get("custom_valid_from")
+            valid_until = cleaned_data.get("custom_valid_until")
+            if not valid_from or not valid_until:
+                raise forms.ValidationError("Informe inicio e fim para o periodo personalizado.")
+            if valid_until < valid_from:
+                self.add_error("custom_valid_until", "A data final nao pode ser anterior ao inicio.")
+        else:
+            valid_from = reference_date
+            valid_until = None
+
+        cleaned_data["time_windows"] = windows
+        cleaned_data["valid_from"] = valid_from
+        cleaned_data["valid_until"] = valid_until
+        return cleaned_data
 
 
 class ServicePackageForm(StyledModelForm):

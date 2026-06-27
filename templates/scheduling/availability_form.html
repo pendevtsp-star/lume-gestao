@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ section_label }}</p>
+    <h1>{{ page_title }}</h1>
+    <p class="page-subtitle">Crie uma regra para varios dias e horarios de uma vez.</p>
+  </div>
+  <a class="button secondary" href="{{ back_url }}">Voltar</a>
+</section>
+
+<form method="post" class="panel availability-form-panel">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="form-errors availability-form-errors">{{ form.non_field_errors }}</div>
+  {% endif %}
+  {% if form.professional.is_hidden %}
+    {{ form.professional }}
+  {% endif %}
+
+  <section class="availability-form-section">
+    <div class="availability-section-copy">
+      <span class="step-marker">1</span>
+      <div>
+        <h2>Profissional e dias</h2>
+        <p>Selecione os dias da semana em que esta mesma regra sera aplicada.</p>
+      </div>
+    </div>
+    <div class="availability-form-grid">
+      {% if not form.professional.is_hidden %}
+        <label class="form-field full-span">
+          <span>{{ form.professional.label }}</span>
+          {{ form.professional }}
+          {% for error in form.professional.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      {% endif %}
+      <fieldset class="availability-weekday-picker full-span">
+        <legend>{{ form.weekdays.label }}</legend>
+        <div class="weekday-card-grid">
+          {% for choice in form.weekdays %}
+            <label class="weekday-card">
+              {{ choice.tag }}
+              <span>{{ choice.choice_label }}</span>
+            </label>
+          {% endfor %}
+        </div>
+        {% for error in form.weekdays.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </fieldset>
+    </div>
+  </section>
+
+  <section class="availability-form-section">
+    <div class="availability-section-copy">
+      <span class="step-marker">2</span>
+      <div>
+        <h2>Horarios</h2>
+        <p>Cadastre uma ou mais janelas. Ex.: manha e tarde, sem criar regras separadas.</p>
+      </div>
+    </div>
+    <div class="availability-window-grid">
+      <article class="availability-window-card">
+        <strong>Horario 1</strong>
+        <label class="form-field">
+          <span>{{ form.window_1_start.label }}</span>
+          {{ form.window_1_start }}
+          {% for error in form.window_1_start.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ form.window_1_end.label }}</span>
+          {{ form.window_1_end }}
+          {% for error in form.window_1_end.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      </article>
+      <article class="availability-window-card">
+        <strong>Horario 2</strong>
+        <label class="form-field">
+          <span>{{ form.window_2_start.label }}</span>
+          {{ form.window_2_start }}
+          {% for error in form.window_2_start.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ form.window_2_end.label }}</span>
+          {{ form.window_2_end }}
+          {% for error in form.window_2_end.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      </article>
+      <article class="availability-window-card">
+        <strong>Horario 3</strong>
+        <label class="form-field">
+          <span>{{ form.window_3_start.label }}</span>
+          {{ form.window_3_start }}
+          {% for error in form.window_3_start.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ form.window_3_end.label }}</span>
+          {{ form.window_3_end }}
+          {% for error in form.window_3_end.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      </article>
+    </div>
+  </section>
+
+  <section class="availability-form-section">
+    <div class="availability-section-copy">
+      <span class="step-marker">3</span>
+      <div>
+        <h2>Validade e capacidade</h2>
+        <p>Defina se a regra vale por semana, mes, periodo especifico ou sem interrupcao.</p>
+      </div>
+    </div>
+    <div class="availability-form-grid">
+      <label class="form-field">
+        <span>{{ form.reference_date.label }}</span>
+        {{ form.reference_date }}
+        {% if form.reference_date.help_text %}<small>{{ form.reference_date.help_text }}</small>{% endif %}
+        {% for error in form.reference_date.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.session_capacity.label }}</span>
+        {{ form.session_capacity }}
+        <small>Esta sera a capacidade padrao usada na agenda.</small>
+        {% for error in form.session_capacity.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <fieldset class="availability-validity-picker full-span">
+        <legend>{{ form.valid_scope.label }}</legend>
+        <div class="validity-card-grid">
+          {% for choice in form.valid_scope %}
+            <label class="validity-card">
+              {{ choice.tag }}
+              <span>{{ choice.choice_label }}</span>
+            </label>
+          {% endfor %}
+        </div>
+        {% for error in form.valid_scope.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </fieldset>
+      <label class="form-field">
+        <span>{{ form.custom_valid_from.label }}</span>
+        {{ form.custom_valid_from }}
+        {% for error in form.custom_valid_from.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.custom_valid_until.label }}</span>
+        {{ form.custom_valid_until }}
+        {% for error in form.custom_valid_until.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field toggle-card">
+        {{ form.active }}
+        <span>{{ form.active.label }}</span>
+      </label>
+      <label class="form-field full-span">
+        <span>{{ form.notes.label }}</span>
+        {{ form.notes }}
+        {% for error in form.notes.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+    </div>
+  </section>
+
+  <div class="form-actions availability-form-actions">
+    <a class="button secondary" href="{{ back_url }}">Cancelar</a>
+    <button class="button primary" type="submit">Salvar regra de disponibilidade</button>
+  </div>
+</form>
+{% endblock %}

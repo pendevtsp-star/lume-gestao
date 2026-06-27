@@ -31,6 +31,7 @@ from scheduling.forms import (
     AppointmentRescheduleSlotForm,
     AppointmentSlotSearchForm,
     ProfessionalAvailabilityForm,
+    ProfessionalAvailabilityBatchForm,
     ServicePackageForm,
 )
 from scheduling.models import Appointment, AppointmentSeries, ProfessionalAvailability, ServicePackage, ServiceUsage
@@ -998,10 +999,9 @@ class ProfessionalAvailabilityListView(ProfessionalAvailabilityAccessMixin, Sear
         return context
 
 
-class ProfessionalAvailabilityCreateView(FormContextMixin, ProfessionalAvailabilityAccessMixin, CreateView):
-    model = ProfessionalAvailability
-    form_class = ProfessionalAvailabilityForm
-    template_name = "core/form.html"
+class ProfessionalAvailabilityCreateView(ProfessionalAvailabilityAccessMixin, FormView):
+    form_class = ProfessionalAvailabilityBatchForm
+    template_name = "scheduling/availability_form.html"
     success_url = reverse_lazy("scheduling:availabilities")
     page_title = "Disponibilidade"
     section_label = "Agenda"
@@ -1013,8 +1013,44 @@ class ProfessionalAvailabilityCreateView(FormContextMixin, ProfessionalAvailabil
         return kwargs
 
     def form_valid(self, form):
-        messages.success(self.request, "Disponibilidade cadastrada com sucesso.")
+        created_count = 0
+        updated_count = 0
+        with transaction.atomic():
+            for weekday in form.cleaned_data["weekdays"]:
+                for starts_at, ends_at in form.cleaned_data["time_windows"]:
+                    _availability, created = ProfessionalAvailability.objects.update_or_create(
+                        professional=form.cleaned_data["professional"],
+                        weekday=weekday,
+                        starts_at=starts_at,
+                        ends_at=ends_at,
+                        valid_from=form.cleaned_data["valid_from"],
+                        defaults={
+                            "valid_until": form.cleaned_data["valid_until"],
+                            "session_capacity": form.cleaned_data["session_capacity"],
+                            "active": form.cleaned_data["active"],
+                            "notes": form.cleaned_data.get("notes", ""),
+                        },
+                    )
+                    if created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+        message = f"{created_count} disponibilidade(s) criada(s)"
+        if updated_count:
+            message += f" e {updated_count} atualizada(s)"
+        messages.success(self.request, f"{message} com sucesso.")
         return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "page_title": self.page_title,
+                "section_label": self.section_label,
+                "back_url": reverse(self.back_url_name),
+            }
+        )
+        return context
 
 
 class ProfessionalAvailabilityUpdateView(FormContextMixin, ProfessionalAvailabilityAccessMixin, UpdateView):

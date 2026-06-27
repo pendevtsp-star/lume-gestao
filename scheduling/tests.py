@@ -696,6 +696,42 @@ class SchedulingTests(TestCase):
         self.assertRedirects(delete_response, reverse("scheduling:availabilities"))
         self.assertFalse(ProfessionalAvailability.objects.filter(pk=availability.pk).exists())
 
+    def test_management_can_create_availability_batch_for_days_and_windows(self):
+        user = get_user_model().objects.create_user(username="gestao-disponibilidade-lote", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        reference_date = timezone.localdate() + timedelta(days=14)
+        week_start = reference_date - timedelta(days=reference_date.weekday())
+        week_end = week_start + timedelta(days=6)
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:availability_create"),
+            {
+                "professional": self.professional.pk,
+                "weekdays": ["0", "2", "4"],
+                "reference_date": reference_date.isoformat(),
+                "valid_scope": "week",
+                "window_1_start": "08:00",
+                "window_1_end": "12:00",
+                "window_2_start": "14:00",
+                "window_2_end": "18:00",
+                "session_capacity": "6",
+                "active": "on",
+                "notes": "Semana experimental.",
+            },
+        )
+
+        self.assertRedirects(response, reverse("scheduling:availabilities"))
+        created_rules = ProfessionalAvailability.objects.filter(
+            professional=self.professional,
+            valid_from=week_start,
+            valid_until=week_end,
+            session_capacity=6,
+            notes="Semana experimental.",
+        )
+        self.assertEqual(created_rules.count(), 6)
+        self.assertEqual(set(created_rules.values_list("weekday", flat=True)), {0, 2, 4})
+
     def test_calendar_week_view_and_ics_export_are_available(self):
         user = get_user_model().objects.create_user(username="gestao-calendario", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})

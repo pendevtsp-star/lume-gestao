@@ -2087,6 +2087,9 @@ td small {
   gap: 0;
   overflow: hidden;
   border-radius: 18px;
+  background:
+    radial-gradient(circle at 4% 0%, rgba(118, 141, 94, 0.10), transparent 24%),
+    var(--panel);
 }
 
 .availability-form-errors {
@@ -2095,10 +2098,14 @@ td small {
 
 .availability-form-section {
   display: grid;
-  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr);
-  gap: 22px;
-  padding: 24px;
+  grid-template-columns: minmax(210px, 0.32fr) minmax(0, 1fr);
+  gap: 20px;
+  padding: 22px 24px;
   border-bottom: 1px solid var(--line);
+}
+
+.availability-form-section-compact {
+  align-items: start;
 }
 
 .availability-section-copy {
@@ -2115,7 +2122,7 @@ td small {
 .availability-section-copy p {
   margin-top: 6px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.42;
 }
@@ -2123,8 +2130,8 @@ td small {
 .step-marker {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
   border-radius: 999px;
   background: var(--sage-dark);
@@ -2135,7 +2142,7 @@ td small {
 .availability-form-grid,
 .availability-window-grid {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .availability-form-grid {
@@ -2149,11 +2156,11 @@ td small {
 }
 
 .weekday-card-grid {
-  grid-template-columns: repeat(7, minmax(88px, 1fr));
+  grid-template-columns: repeat(7, minmax(80px, 1fr));
 }
 
 .validity-card-grid {
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
 }
 
 .availability-weekday-picker,
@@ -2177,15 +2184,26 @@ td small {
 .validity-card {
   display: flex;
   align-items: center;
-  gap: 9px;
-  min-height: 52px;
-  padding: 12px;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px 10px;
   border: 1px solid rgba(118, 104, 78, 0.20);
   border-radius: 12px;
   background: #fffdf7;
   color: var(--text);
   cursor: pointer;
   font-weight: 900;
+}
+
+.weekday-card span,
+.validity-card span {
+  font-size: 14px;
+  line-height: 1.18;
+}
+
+.validity-card {
+  border-radius: 999px;
+  min-height: 44px;
 }
 
 .weekday-card input,
@@ -2200,8 +2218,8 @@ td small {
 .availability-window-card {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 14px;
   border: 1px solid rgba(118, 104, 78, 0.18);
   border-radius: 16px;
   background: linear-gradient(145deg, #fffdf7, #f7f0df);
@@ -2209,10 +2227,37 @@ td small {
 
 .availability-window-card > strong {
   grid-column: 1 / -1;
+  font-size: 16px;
+}
+
+.custom-period-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) repeat(2, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px dashed rgba(118, 104, 78, 0.30);
+  border-radius: 16px;
+  background: rgba(255, 250, 240, 0.72);
+}
+
+.custom-period-card strong,
+.custom-period-card small {
+  display: block;
+}
+
+.custom-period-card small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.availability-active-card {
+  min-height: 54px;
 }
 
 .availability-form-actions {
-  padding: 20px 24px 24px;
+  padding: 18px 24px 22px;
   margin-top: 0;
 }
 
@@ -3157,7 +3202,8 @@ td small {
   }
 
   .availability-form-section,
-  .availability-window-grid {
+  .availability-window-grid,
+  .custom-period-card {
     grid-template-columns: 1fr;
   }
 
@@ -3225,6 +3271,7 @@ td small {
 
   .availability-form-grid,
   .availability-window-card,
+  .custom-period-card,
   .weekday-card-grid,
   .validity-card-grid,
   .availability-week-grid {

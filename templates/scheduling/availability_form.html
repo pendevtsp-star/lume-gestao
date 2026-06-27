@@ -52,7 +52,7 @@
     </div>
   </section>
 
-  <section class="availability-form-section">
+  <section class="availability-form-section availability-form-section-compact">
     <div class="availability-section-copy">
       <span class="step-marker">2</span>
       <div>
@@ -136,17 +136,23 @@
         </div>
         {% for error in form.valid_scope.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
       </fieldset>
-      <label class="form-field">
-        <span>{{ form.custom_valid_from.label }}</span>
-        {{ form.custom_valid_from }}
-        {% for error in form.custom_valid_from.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-      </label>
-      <label class="form-field">
-        <span>{{ form.custom_valid_until.label }}</span>
-        {{ form.custom_valid_until }}
-        {% for error in form.custom_valid_until.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-      </label>
-      <label class="form-field toggle-card">
+      <div class="custom-period-card full-span">
+        <div>
+          <strong>Periodo personalizado</strong>
+          <small>Use estes campos apenas quando escolher validade personalizada.</small>
+        </div>
+        <label class="form-field">
+          <span>{{ form.custom_valid_from.label }}</span>
+          {{ form.custom_valid_from }}
+          {% for error in form.custom_valid_from.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ form.custom_valid_until.label }}</span>
+          {{ form.custom_valid_until }}
+          {% for error in form.custom_valid_until.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      </div>
+      <label class="form-field toggle-card availability-active-card">
         {{ form.active }}
         <span>{{ form.active.label }}</span>
       </label>

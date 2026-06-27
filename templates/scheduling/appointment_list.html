@@ -3,10 +3,12 @@
 {% block title %}Agenda | Lume Gestao{% endblock %}
 
 {% block content %}
-<section class="page-heading">
+<div class="agenda-page">
+<section class="page-heading agenda-page-heading">
   <div>
     <p class="eyebrow">Agenda</p>
     <h1>Agendamentos</h1>
+    <p class="page-subtitle">Semana organizada por horario, status e tipo de sessao.</p>
   </div>
   <div class="panel-actions">
     <a class="button secondary" href="{% url 'scheduling:appointments_ical' %}">Google Agenda .ics</a>
@@ -18,7 +20,7 @@
   </div>
 </section>
 
-<section class="metric-grid">
+<section class="metric-grid agenda-metrics">
   <article class="metric">
     <span>Atendimentos hoje</span>
     <strong>{{ today_total }}</strong>
@@ -53,6 +55,13 @@
       <a class="button secondary icon-button" href="?semana={{ next_week|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}" aria-label="Proxima semana">&#8250;</a>
     </div>
   </div>
+  <div class="agenda-legend" aria-label="Legenda da agenda">
+    <span><i class="legend-dot scheduled"></i> Agendado</span>
+    <span><i class="legend-dot requested"></i> Solicitado</span>
+    <span><i class="legend-dot completed"></i> Realizado</span>
+    <span><i class="legend-dot group"></i> Grupo</span>
+    <span><i class="legend-dot recurring"></i> Recorrente</span>
+  </div>
   <div class="calendar-wrap agenda-soft-wrap">
     <table class="calendar-grid-table agenda-grid-table">
       <thead>
@@ -61,7 +70,9 @@
           {% for day in week_days %}
             <th class="{% if day == today %}is-today{% endif %}">
               <a href="?semana={{ week_start|date:'Y-m-d' }}&dia={{ day|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}">
-                {{ day|date:"D d/m" }}
+                <span>{{ day|date:"D" }}</span>
+                <strong>{{ day|date:"d/m" }}</strong>
+                {% if day == today %}<small>Hoje</small>{% endif %}
               </a>
             </th>
           {% endfor %}
@@ -72,15 +83,16 @@
           <tr>
             <th class="calendar-hour">{{ row.hour|stringformat:"02d" }}:00</th>
             {% for cell in row.cells %}
-              <td class="{% if cell.day == today %}is-today{% endif %}">
+              <td class="{% if cell.day == today %}is-today{% endif %} {% if cell.appointments %}has-events{% endif %}">
                 {% for appointment in cell.appointments %}
                   <a class="calendar-event {{ appointment.status }} {% if appointment.slot_capacity > 1 %}is-group{% endif %}" href="{% if request.user.profile.role == 'patient' %}{% url 'scheduling:appointment_reschedule' appointment.pk %}{% else %}{% url 'scheduling:appointment_update' appointment.pk %}{% endif %}">
-                    <strong>{{ appointment.starts_at|date:"H:i" }} {{ appointment.patient.full_name }}</strong>
-                    <span>{{ appointment.professional.full_name }}</span>
-                    <small>
-                      {{ appointment.get_status_display }}
-                      {% if appointment.slot_capacity > 1 %} · Grupo {{ appointment.slot_capacity }}{% endif %}
-                      {% if appointment.series_id %} · Recorrente{% endif %}
+                    <span class="event-time">{{ appointment.starts_at|date:"H:i" }}</span>
+                    <strong>{{ appointment.patient.full_name }}</strong>
+                    <span class="event-professional">{{ appointment.professional.full_name }}</span>
+                    <small class="event-meta">
+                      <span>{{ appointment.get_status_display }}</span>
+                      {% if appointment.slot_capacity > 1 %}<span>Grupo {{ appointment.slot_capacity }}</span>{% endif %}
+                      {% if appointment.series_id %}<span>Recorrente</span>{% endif %}
                     </small>
                   </a>
                 {% endfor %}
@@ -107,7 +119,7 @@
           <time>{{ appointment.starts_at|date:"d/m H:i" }}</time>
           <div>
             <strong>{{ appointment.patient.full_name }}</strong>
-            <span>{{ appointment.professional.full_name }} · {{ appointment.get_status_display }}</span>
+            <span>{{ appointment.professional.full_name }} &middot; {{ appointment.get_status_display }}</span>
           </div>
           <div class="table-actions">
             <form method="post" action="{% url 'scheduling:appointment_confirm' appointment.pk %}">
@@ -136,9 +148,9 @@
         <div>
           <strong>{{ appointment.patient.full_name }}</strong>
           <span>
-            {{ appointment.professional.full_name }} · {{ appointment.get_status_display }}
-            {% if appointment.slot_capacity > 1 %} · Grupo {{ appointment.slot_capacity }}{% endif %}
-            {% if appointment.series_id %} · Recorrente{% endif %}
+            {{ appointment.professional.full_name }} &middot; {{ appointment.get_status_display }}
+            {% if appointment.slot_capacity > 1 %} &middot; Grupo {{ appointment.slot_capacity }}{% endif %}
+            {% if appointment.series_id %} &middot; Recorrente{% endif %}
           </span>
         </div>
         <div class="table-actions">
@@ -228,4 +240,5 @@
   </div>
   {% include "core/pagination.html" %}
 </section>
+</div>
 {% endblock %}

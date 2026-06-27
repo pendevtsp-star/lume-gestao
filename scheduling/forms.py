@@ -141,7 +141,13 @@ class AppointmentSlotSearchForm(StyledForm):
     )
     duration_minutes = forms.ChoiceField(label="Duracao", choices=DURATION_CHOICES, initial=60)
     service_units = forms.IntegerField(label="Creditos previstos", min_value=1, initial=1)
-    session_capacity = forms.IntegerField(label="Capacidade da sessao", min_value=1, initial=1, required=False)
+    session_capacity = forms.IntegerField(
+        label="Capacidade da sessao",
+        min_value=1,
+        initial=1,
+        required=False,
+        widget=forms.HiddenInput,
+    )
     repeat_mode = forms.ChoiceField(
         label="Recorrencia",
         choices=RepeatMode.choices,
@@ -207,9 +213,6 @@ class AppointmentSlotSearchForm(StyledForm):
                     patient, professional
                 ):
                     raise forms.ValidationError(f"{patient.full_name} nao pode ser agendado com este profissional.")
-
-        if session_capacity < len(patients):
-            self.add_error("session_capacity", "A capacidade precisa cobrir a quantidade de pacientes selecionados.")
 
         if repeat_mode == self.RepeatMode.WEEKLY:
             if not repeat_until and not repeat_count:

@@ -47,7 +47,7 @@
     <div class="panel-header">
       <div>
         <h2>Horarios livres</h2>
-        <p>Escolha um dos horarios calculados pela disponibilidade recorrente do profissional.</p>
+        <p>A capacidade vem da disponibilidade recorrente do profissional. Escolha o horario e o sistema calcula as vagas.</p>
       </div>
     </div>
 
@@ -88,7 +88,7 @@
               <span>
                 {{ slot_select_label }}
                 {% if slot.capacity > 1 %}
-                  · {{ slot.remaining_capacity }} vaga(s) livre(s) de {{ slot.capacity }}
+                  &middot; {{ slot.remaining_capacity }} vaga(s) livre(s) de {{ slot.capacity }}
                 {% endif %}
               </span>
             </button>

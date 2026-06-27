@@ -83,16 +83,24 @@
           <tr>
             <th class="calendar-hour">{{ row.hour|stringformat:"02d" }}:00</th>
             {% for cell in row.cells %}
-              <td class="{% if cell.day == today %}is-today{% endif %} {% if cell.appointments %}has-events{% endif %}">
-                {% for appointment in cell.appointments %}
-                  <a class="calendar-event {{ appointment.status }} {% if appointment.slot_capacity > 1 %}is-group{% endif %}" href="{% if request.user.profile.role == 'patient' %}{% url 'scheduling:appointment_reschedule' appointment.pk %}{% else %}{% url 'scheduling:appointment_update' appointment.pk %}{% endif %}">
-                    <span class="event-time">{{ appointment.starts_at|date:"H:i" }}</span>
-                    <strong>{{ appointment.patient.full_name }}</strong>
-                    <span class="event-professional">{{ appointment.professional.full_name }}</span>
+              <td class="{% if cell.day == today %}is-today{% endif %} {% if cell.sessions %}has-events{% endif %}">
+                {% for session in cell.sessions %}
+                  <a class="calendar-event {{ session.status_class }} {% if session.is_group %}is-group{% endif %}" href="{% if request.user.profile.role == 'patient' %}{% url 'scheduling:appointment_reschedule' session.appointment.pk %}{% else %}{% url 'scheduling:appointment_update' session.appointment.pk %}{% endif %}">
+                    <span class="event-time">{{ session.starts_at|date:"H:i" }}</span>
+                    <strong>{{ session.title }}</strong>
+                    <span class="event-professional">{{ session.professional.full_name }}</span>
+                    {% if session.is_group %}
+                      <span class="event-patients">
+                        {% for patient_name in session.patient_names %}
+                          {{ patient_name }}{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                        {% if session.hidden_count %}+{{ session.hidden_count }}{% endif %}
+                      </span>
+                    {% endif %}
                     <small class="event-meta">
-                      <span>{{ appointment.get_status_display }}</span>
-                      {% if appointment.slot_capacity > 1 %}<span>Grupo {{ appointment.slot_capacity }}</span>{% endif %}
-                      {% if appointment.series_id %}<span>Recorrente</span>{% endif %}
+                      <span>{{ session.status_display }}</span>
+                      {% if session.is_group %}<span>{{ session.occupied }}/{{ session.capacity }} alunos</span>{% endif %}
+                      {% if session.is_recurring %}<span>Recorrente</span>{% endif %}
                     </small>
                   </a>
                 {% endfor %}
@@ -183,7 +191,7 @@
     </div>
   </div>
   <div class="table-wrap">
-    <table>
+    <table class="appointment-detail-table">
       <thead>
         <tr>
           <th>Quando</th>

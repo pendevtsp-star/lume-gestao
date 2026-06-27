@@ -46,6 +46,27 @@ def slot_capacity_snapshot(professional_id, starts_at, ends_at, exclude_appointm
     }
 
 
+def availability_capacity_for_slot(professional, starts_at, ends_at):
+    if not professional or not starts_at or not ends_at:
+        return 1
+    local_start = timezone.localtime(starts_at)
+    local_end = timezone.localtime(ends_at)
+    window = (
+        ProfessionalAvailability.objects.filter(
+            professional=professional,
+            active=True,
+            weekday=local_start.weekday(),
+            valid_from__lte=local_start.date(),
+            starts_at__lte=local_start.time(),
+            ends_at__gte=local_end.time(),
+        )
+        .filter(Q(valid_until__isnull=True) | Q(valid_until__gte=local_start.date()))
+        .order_by("-session_capacity", "starts_at")
+        .first()
+    )
+    return window.session_capacity if window else 1
+
+
 def appointment_overlaps(professional_id, starts_at, ends_at, exclude_appointment_id=None):
     snapshot = slot_capacity_snapshot(
         professional_id,

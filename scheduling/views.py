@@ -35,6 +35,7 @@ from scheduling.forms import (
 )
 from scheduling.models import Appointment, AppointmentSeries, ProfessionalAvailability, ServicePackage, ServiceUsage
 from scheduling.slots import (
+    availability_capacity_for_slot,
     generate_available_slots,
     make_local_datetime,
     slot_capacity_snapshot,
@@ -205,7 +206,7 @@ def build_occurrence_payloads(
 ):
     payloads = []
     duration = timedelta(minutes=duration_minutes)
-    requested_capacity = max(requested_capacity, len(patient_ids))
+    requested_capacity = max(requested_capacity or 1, len(patient_ids))
     exclude_ids_by_date = exclude_ids_by_date or {}
 
     for current_date in dates:
@@ -230,7 +231,8 @@ def build_occurrence_payloads(
         if duplicate_appointments_exist(patient_ids, professional, starts_at, ends_at, exclude_ids=exclude_ids):
             raise ValidationError(f"{current_date:%d/%m/%Y}: ao menos um paciente ja possui este horario.")
 
-        slot_capacity = max(snapshot["existing_capacity"], requested_capacity) if snapshot["existing_capacity"] else requested_capacity
+        availability_capacity = availability_capacity_for_slot(professional, starts_at, ends_at)
+        slot_capacity = max(snapshot["existing_capacity"], requested_capacity, availability_capacity)
         if snapshot["exact_count"] + len(patient_ids) > slot_capacity:
             raise ValidationError(f"{current_date:%d/%m/%Y}: capacidade da sessao excedida para este horario.")
 
@@ -245,6 +247,53 @@ def build_occurrence_payloads(
         )
 
     return payloads
+
+
+def build_calendar_session_groups(appointments):
+    grouped = {}
+    for appointment in appointments:
+        if appointment.slot_capacity > 1:
+            key = (
+                appointment.professional_id,
+                appointment.starts_at,
+                appointment.ends_at,
+                appointment.slot_group or f"slot-{appointment.starts_at.isoformat()}",
+            )
+        else:
+            key = ("appointment", appointment.pk)
+        grouped.setdefault(key, []).append(appointment)
+
+    sessions = []
+    for group_appointments in grouped.values():
+        group_appointments = sorted(group_appointments, key=lambda item: item.patient.full_name)
+        first = group_appointments[0]
+        capacity = max(appointment.slot_capacity for appointment in group_appointments)
+        occupied = len(group_appointments)
+        requested = any(appointment.status == Appointment.Status.REQUESTED for appointment in group_appointments)
+        completed = all(appointment.status == Appointment.Status.COMPLETED for appointment in group_appointments)
+        status_class = Appointment.Status.REQUESTED if requested else Appointment.Status.COMPLETED if completed else first.status
+        patient_names = [appointment.patient.full_name for appointment in group_appointments]
+        preview_names = patient_names[:2]
+        sessions.append(
+            {
+                "appointment": first,
+                "starts_at": first.starts_at,
+                "ends_at": first.ends_at,
+                "professional": first.professional,
+                "status_class": status_class,
+                "status_display": "Solicitado" if requested else "Realizado" if completed else first.get_status_display(),
+                "is_group": capacity > 1,
+                "is_recurring": any(appointment.series_id for appointment in group_appointments),
+                "capacity": capacity,
+                "occupied": occupied,
+                "available": max(capacity - occupied, 0),
+                "title": "Sessao em grupo" if capacity > 1 else first.patient.full_name,
+                "patient_names": preview_names,
+                "hidden_count": max(occupied - len(preview_names), 0),
+            }
+        )
+
+    return sorted(sessions, key=lambda session: (session["starts_at"], session["professional"].full_name))
 
 
 class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
@@ -285,7 +334,14 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
             calendar_rows.append(
                 {
                     "hour": hour,
-                    "cells": [{"day": day, "appointments": events_by_day_hour[day][hour]} for day in week_days],
+                    "cells": [
+                        {
+                            "day": day,
+                            "appointments": events_by_day_hour[day][hour],
+                            "sessions": build_calendar_session_groups(events_by_day_hour[day][hour]),
+                        }
+                        for day in week_days
+                    ],
                 }
             )
 

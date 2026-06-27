@@ -387,6 +387,36 @@ class SchedulingTests(TestCase):
             6,
         )
 
+    def test_group_capacity_comes_from_professional_availability(self):
+        user = get_user_model().objects.create_user(username="gestao-capacidade-auto", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        day = timezone.localdate() + timedelta(days=8)
+        ProfessionalAvailability.objects.filter(
+            professional=self.professional,
+            weekday=day.weekday(),
+        ).update(session_capacity=6)
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:appointment_create"),
+            {
+                "patients": [self.patient.pk, self.patient_two.pk],
+                "professional": self.professional.pk,
+                "appointment_date": day.isoformat(),
+                "duration_minutes": "60",
+                "service_units": "1",
+                "repeat_mode": "none",
+                "selected_start": "09:00",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Appointment.objects.filter(slot_capacity=6).count(), 2)
+
+        agenda_response = self.client.get(reverse("scheduling:appointments"), {"semana": day.isoformat()})
+        self.assertContains(agenda_response, "Sessao em grupo")
+        self.assertContains(agenda_response, "2/6 alunos")
+
     def test_professional_can_confirm_requested_appointment(self):
         user = get_user_model().objects.create_user(username="prof-confirma", password="Senha@123")
         UserProfile.objects.update_or_create(

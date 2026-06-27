@@ -31,19 +31,38 @@
         {% for professional in professionals %}
           <tr>
             <td>
-              <div class="entity-cell">
-                <span class="avatar">
-                  {% if professional.photo %}
-                    <img src="{{ professional.photo.url }}" alt="">
-                  {% else %}
-                    {{ professional.full_name|slice:":1" }}
+              <details class="entity-cascade">
+                <summary class="entity-cell entity-summary">
+                  <span class="avatar" title="Ver detalhes de {{ professional.full_name }}">
+                    {% if professional.photo %}
+                      <img src="{{ professional.photo.url }}" alt="">
+                    {% else %}
+                      {{ professional.full_name|slice:":1" }}
+                    {% endif %}
+                  </span>
+                  <span>
+                    <strong>{{ professional.full_name }}</strong>
+                    {% if professional.phone %}<small>{{ professional.phone }}</small>{% endif %}
+                    <small>Clique na foto para ver detalhes</small>
+                  </span>
+                </summary>
+                <div class="entity-detail-card">
+                  <dl class="detail-list">
+                    <div><dt>Especialidade</dt><dd>{{ professional.get_specialty_display }}</dd></div>
+                    <div><dt>Registro</dt><dd>{{ professional.registration_number|default:"-" }}</dd></div>
+                    <div><dt>Telefone</dt><dd>{{ professional.phone|default:"-" }}</dd></div>
+                    <div><dt>E-mail</dt><dd>{{ professional.email|default:"-" }}</dd></div>
+                    <div><dt>Pacientes atendidos</dt><dd>{{ professional.active_patient_count }}</dd></div>
+                    <div><dt>Proximos atendimentos</dt><dd>{{ professional.upcoming_appointment_count }}</dd></div>
+                  </dl>
+                  {% if professional.bio %}
+                    <div class="detail-block">
+                      <strong>Observacoes</strong>
+                      <p>{{ professional.bio }}</p>
+                    </div>
                   {% endif %}
-                </span>
-                <span>
-                  <strong>{{ professional.full_name }}</strong>
-                  {% if professional.phone %}<small>{{ professional.phone }}</small>{% endif %}
-                </span>
-              </div>
+                </div>
+              </details>
             </td>
             <td>{{ professional.get_specialty_display }}</td>
             <td>{{ professional.registration_number|default:"-" }}</td>

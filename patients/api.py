@@ -10,6 +10,7 @@ from patients.serializers import (
     ProfessionalNoteSerializer,
     ProfessionalPatientAssignmentSerializer,
 )
+from patients.services import deactivate_patient_relationships, patient_professional_link_exists
 from patients.views import patients_for_user
 
 
@@ -37,13 +38,16 @@ class PatientViewSet(ModelViewSet):
 
     def perform_update(self, serializer):
         self.require_administration()
-        serializer.save()
+        patient = serializer.save()
+        if not patient.active:
+            deactivate_patient_relationships(patient)
 
     def perform_destroy(self, instance):
         self.require_administration()
         instance.active = False
         instance.full_clean()
         instance.save(update_fields=["active", "updated_at"])
+        deactivate_patient_relationships(instance)
 
 
 class ProfessionalPatientAssignmentViewSet(ModelViewSet):
@@ -77,11 +81,7 @@ class ProfessionalNoteViewSet(ModelViewSet):
         if not profile or not profile.is_professional or not profile.professional_id:
             raise PermissionDenied("Apenas profissionais podem registrar prontuario.")
         patient = serializer.validated_data.get("patient")
-        if not ProfessionalPatientAssignment.objects.filter(
-            patient=patient,
-            professional=profile.professional,
-            active=True,
-        ).exists():
+        if not patient_professional_link_exists(patient, profile.professional):
             raise PermissionDenied("Paciente nao vinculado a este profissional.")
         serializer.save(professional=profile.professional)
 

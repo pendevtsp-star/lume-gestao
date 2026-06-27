@@ -31,16 +31,30 @@
         {% for employee in employees %}
           <tr>
             <td>
-              <div class="entity-cell">
-                <span class="avatar">
-                  {% if employee.photo %}
-                    <img src="{{ employee.photo.url }}" alt="">
-                  {% else %}
-                    {{ employee.full_name|slice:":1" }}
-                  {% endif %}
-                </span>
-                <span><strong>{{ employee.full_name }}</strong></span>
-              </div>
+              <details class="entity-cascade">
+                <summary class="entity-cell entity-summary">
+                  <span class="avatar" title="Ver detalhes de {{ employee.full_name }}">
+                    {% if employee.photo %}
+                      <img src="{{ employee.photo.url }}" alt="">
+                    {% else %}
+                      {{ employee.full_name|slice:":1" }}
+                    {% endif %}
+                  </span>
+                  <span>
+                    <strong>{{ employee.full_name }}</strong>
+                    <small>Clique na foto para ver detalhes</small>
+                  </span>
+                </summary>
+                <div class="entity-detail-card">
+                  <dl class="detail-list">
+                    <div><dt>Funcao</dt><dd>{{ employee.get_role_display }}</dd></div>
+                    <div><dt>Telefone</dt><dd>{{ employee.phone|default:"-" }}</dd></div>
+                    <div><dt>E-mail</dt><dd>{{ employee.email|default:"-" }}</dd></div>
+                    <div><dt>Admissao</dt><dd>{{ employee.admission_date|date:"d/m/Y"|default:"-" }}</dd></div>
+                    <div><dt>Status</dt><dd>{% if employee.active %}Ativo{% else %}Inativo{% endif %}</dd></div>
+                  </dl>
+                </div>
+              </details>
             </td>
             <td>{{ employee.get_role_display }}</td>
             <td>{{ employee.phone|default:employee.email|default:"-" }}</td>

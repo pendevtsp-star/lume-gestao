@@ -9,10 +9,13 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.permissions import RoleRequiredMixin, get_profile
+from billing.models import Membership
 from core.exports import pdf_response, xlsx_response
 from core.views import FormContextMixin, SearchableListView
 from patients.forms import PatientForm, ProfessionalNoteForm, ProfessionalPatientAssignmentForm, note_type_options
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
+from patients.services import deactivate_patient_relationships, patient_ids_for_professional
+from scheduling.models import Appointment, ServicePackage
 
 
 class PatientAccessMixin(RoleRequiredMixin):
@@ -36,11 +39,7 @@ def patients_for_user(user):
     if profile.is_patient and profile.patient_id:
         return queryset.filter(pk=profile.patient_id)
     if profile.is_professional and profile.professional_id:
-        patient_ids = ProfessionalPatientAssignment.objects.filter(
-            professional=profile.professional,
-            active=True,
-        ).values_list("patient_id", flat=True)
-        return queryset.filter(pk__in=patient_ids)
+        return queryset.filter(pk__in=patient_ids_for_professional(profile.professional))
     return queryset.none()
 
 
@@ -49,10 +48,75 @@ class PatientListView(PatientAccessMixin, SearchableListView, ListView):
     template_name = "patients/patient_list.html"
     context_object_name = "patients"
     paginate_by = 12
-    search_fields = ["full_name", "cpf", "phone", "email"]
+    search_fields = [
+        "full_name",
+        "cpf",
+        "phone",
+        "email",
+        "emergency_contact",
+        "address",
+        "clinical_notes",
+        "memberships__plan__name",
+        "memberships__status",
+        "memberships__service_packages__status",
+        "appointments__professional__full_name",
+        "appointments__notes",
+    ]
 
     def get_queryset(self):
-        return patients_for_user(self.request.user)
+        queryset = patients_for_user(self.request.user)
+        query = self.request.GET.get("q", "").strip()
+        if not query:
+            return queryset
+
+        filters = Q()
+        for field in self.search_fields:
+            filters |= Q(**{f"{field}__icontains": query})
+
+        digits = "".join(character for character in query if character.isdigit())
+        if digits:
+            filters |= Q(cpf__icontains=digits) | Q(phone__icontains=digits)
+
+        return queryset.filter(filters).distinct()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        patients = list(context["patients"])
+        patient_ids = [patient.pk for patient in patients]
+        memberships_by_patient = {patient_id: [] for patient_id in patient_ids}
+        packages_by_patient = {patient_id: [] for patient_id in patient_ids}
+        professionals_by_patient = {patient_id: [] for patient_id in patient_ids}
+
+        for membership in (
+            Membership.objects.select_related("plan")
+            .filter(patient_id__in=patient_ids)
+            .order_by("patient__full_name", "-start_date")
+        ):
+            memberships_by_patient.setdefault(membership.patient_id, []).append(membership)
+
+        for package in (
+            ServicePackage.objects.select_related("membership__plan")
+            .filter(membership__patient_id__in=patient_ids)
+            .exclude(status=ServicePackage.Status.CANCELED)
+            .order_by("membership__patient__full_name", "-starts_on")
+        ):
+            packages_by_patient.setdefault(package.membership.patient_id, []).append(package)
+
+        for appointment in (
+            Appointment.objects.select_related("professional")
+            .filter(patient_id__in=patient_ids, professional__active=True)
+            .exclude(status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED])
+            .order_by("patient_id", "professional__full_name", "-starts_at")
+        ):
+            current = professionals_by_patient.setdefault(appointment.patient_id, [])
+            if appointment.professional not in current:
+                current.append(appointment.professional)
+
+        for patient in patients:
+            patient.detail_memberships = memberships_by_patient.get(patient.pk, [])
+            patient.detail_packages = packages_by_patient.get(patient.pk, [])
+            patient.detail_professionals = professionals_by_patient.get(patient.pk, [])
+        return context
 
 
 class PatientCreateView(FormContextMixin, RoleRequiredMixin, CreateView):
@@ -92,7 +156,10 @@ class PatientUpdateView(FormContextMixin, PatientAccessMixin, UpdateView):
 
     def form_valid(self, form):
         messages.success(self.request, "Paciente atualizado com sucesso.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        if not self.object.active:
+            deactivate_patient_relationships(self.object)
+        return response
 
 
 class PatientDeleteView(FormContextMixin, RoleRequiredMixin, DeleteView):
@@ -111,6 +178,7 @@ class PatientDeleteView(FormContextMixin, RoleRequiredMixin, DeleteView):
         patient.active = False
         patient.full_clean()
         patient.save(update_fields=["active", "updated_at"])
+        deactivate_patient_relationships(patient)
         messages.success(self.request, "Paciente excluido da lista ativa com sucesso.")
         return redirect(self.success_url)
 

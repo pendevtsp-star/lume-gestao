@@ -6,7 +6,7 @@ from django.db import transaction
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
 from core.api_permissions import ClinicApiPermission
-from patients.models import ProfessionalPatientAssignment
+from patients.services import patient_ids_for_professional, patient_professional_link_exists
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
 from scheduling.serializers import (
     AppointmentSerializer,
@@ -49,11 +49,7 @@ class AppointmentViewSet(ModelViewSet):
             if profile.is_patient:
                 if patient != profile.patient:
                     raise PermissionDenied("Paciente so pode agendar para si mesmo.")
-                if not ProfessionalPatientAssignment.objects.filter(
-                    patient=patient,
-                    professional=professional,
-                    active=True,
-                ).exists():
+                if not patient_professional_link_exists(patient, professional):
                     raise PermissionDenied("Profissional nao vinculado a este paciente.")
                 serializer.save(
                     booked_by=self.request.user,
@@ -64,11 +60,7 @@ class AppointmentViewSet(ModelViewSet):
             if profile.is_professional:
                 if professional != profile.professional:
                     raise PermissionDenied("Profissional so pode agendar na propria agenda.")
-                if not ProfessionalPatientAssignment.objects.filter(
-                    patient=patient,
-                    professional=professional,
-                    active=True,
-                ).exists():
+                if not patient_professional_link_exists(patient, professional):
                     raise PermissionDenied("Paciente nao vinculado a este profissional.")
                 serializer.save(
                     booked_by=self.request.user,
@@ -94,11 +86,7 @@ class AppointmentViewSet(ModelViewSet):
             patient = serializer.validated_data.get("patient", serializer.instance.patient)
             if professional != profile.professional:
                 raise PermissionDenied("Profissional so pode alterar a propria agenda.")
-            if not ProfessionalPatientAssignment.objects.filter(
-                patient=patient,
-                professional=profile.professional,
-                active=True,
-            ).exists():
+            if not patient_professional_link_exists(patient, profile.professional):
                 raise PermissionDenied("Paciente nao vinculado a este profissional.")
             serializer.save()
             return
@@ -175,11 +163,7 @@ class ServicePackageViewSet(ModelViewSet):
         if profile.is_patient and profile.patient_id:
             return queryset.filter(membership__patient=profile.patient)
         if profile.is_professional and profile.professional_id:
-            patient_ids = ProfessionalPatientAssignment.objects.filter(
-                professional=profile.professional,
-                active=True,
-            ).values_list("patient_id", flat=True)
-            return queryset.filter(membership__patient_id__in=patient_ids)
+            return queryset.filter(membership__patient_id__in=patient_ids_for_professional(profile.professional))
         return queryset.none()
 
     def require_finance_role(self):
@@ -199,7 +183,9 @@ class ServicePackageViewSet(ModelViewSet):
 
     def perform_destroy(self, instance):
         self.require_finance_role()
-        instance.delete()
+        instance.status = ServicePackage.Status.CANCELED
+        instance.full_clean()
+        instance.save(update_fields=["status", "updated_at"])
 
 
 class ServiceUsageViewSet(ModelViewSet):
@@ -237,11 +223,7 @@ class ServiceUsageViewSet(ModelViewSet):
         if profile and profile.is_professional:
             if appointment.professional_id != profile.professional_id:
                 raise PermissionDenied("Profissional so pode baixar atendimentos da propria agenda.")
-            if not ProfessionalPatientAssignment.objects.filter(
-                patient=appointment.patient,
-                professional=profile.professional,
-                active=True,
-            ).exists():
+            if not patient_professional_link_exists(appointment.patient, profile.professional):
                 raise PermissionDenied("Paciente nao vinculado a este profissional.")
         if appointment.status in {Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED}:
             raise PermissionDenied("Agendamentos cancelados ou reagendados nao consomem credito.")

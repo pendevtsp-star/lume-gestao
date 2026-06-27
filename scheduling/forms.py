@@ -6,7 +6,8 @@ from accounts.models import UserProfile
 from accounts.permissions import get_profile
 from core.forms import StyledModelForm
 from core.models import ClinicSettings
-from patients.models import Patient, ProfessionalPatientAssignment
+from patients.models import Patient
+from patients.services import patient_professional_link_exists, patient_ids_for_professional, professional_ids_for_patient
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage
 from team.models import Professional
 
@@ -47,11 +48,7 @@ def visible_patients_for_request(request):
     if profile.is_patient and profile.patient_id:
         return queryset.filter(pk=profile.patient_id)
     if profile.is_professional and profile.professional_id:
-        patient_ids = ProfessionalPatientAssignment.objects.filter(
-            professional=profile.professional,
-            active=True,
-        ).values_list("patient_id", flat=True)
-        return queryset.filter(pk__in=patient_ids)
+        return queryset.filter(pk__in=patient_ids_for_professional(profile.professional))
     return queryset.none()
 
 
@@ -71,11 +68,7 @@ def visible_professionals_for_request(request, patient=None):
         return queryset.filter(pk=profile.professional_id)
     if profile.is_patient and profile.patient_id:
         patient = patient or profile.patient
-        professional_ids = ProfessionalPatientAssignment.objects.filter(
-            patient=patient,
-            active=True,
-        ).values_list("professional_id", flat=True)
-        return queryset.filter(pk__in=professional_ids)
+        return queryset.filter(pk__in=professional_ids_for_patient(patient))
     return queryset.none()
 
 
@@ -113,11 +106,10 @@ class AppointmentForm(StyledModelForm):
 
         if profile.is_patient and profile.patient_id:
             self.fields["patient"].queryset = self.fields["patient"].queryset.filter(pk=profile.patient_id)
-            professional_ids = ProfessionalPatientAssignment.objects.filter(
-                patient=profile.patient,
+            self.fields["professional"].queryset = Professional.objects.filter(
+                pk__in=professional_ids_for_patient(profile.patient),
                 active=True,
-            ).values_list("professional_id", flat=True)
-            self.fields["professional"].queryset = Professional.objects.filter(pk__in=professional_ids, active=True)
+            )
             self.fields["status"].choices = [
                 (Appointment.Status.REQUESTED, "Solicitado"),
                 (Appointment.Status.CANCELED, "Cancelado"),
@@ -126,11 +118,9 @@ class AppointmentForm(StyledModelForm):
 
         if profile.is_professional and profile.professional_id:
             self.fields["professional"].queryset = self.fields["professional"].queryset.filter(pk=profile.professional_id)
-            patient_ids = ProfessionalPatientAssignment.objects.filter(
-                professional=profile.professional,
-                active=True,
-            ).values_list("patient_id", flat=True)
-            self.fields["patient"].queryset = self.fields["patient"].queryset.filter(pk__in=patient_ids)
+            self.fields["patient"].queryset = self.fields["patient"].queryset.filter(
+                pk__in=patient_ids_for_professional(profile.professional)
+            )
 
 
 class AppointmentSlotSearchForm(StyledForm):
@@ -213,7 +203,9 @@ class AppointmentSlotSearchForm(StyledForm):
         if self.request and patients and professional:
             for patient in patients:
                 allowed_professionals = visible_professionals_for_request(self.request, patient=patient)
-                if not allowed_professionals.filter(pk=professional.pk).exists():
+                if not allowed_professionals.filter(pk=professional.pk).exists() and not patient_professional_link_exists(
+                    patient, professional
+                ):
                     raise forms.ValidationError(f"{patient.full_name} nao pode ser agendado com este profissional.")
 
         if session_capacity < len(patients):

@@ -19,7 +19,7 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views import View
-from django.views.generic import CreateView, FormView, ListView, UpdateView
+from django.views.generic import CreateView, DeleteView, FormView, ListView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.permissions import FinanceAccessMixin, RoleRequiredMixin, get_profile
@@ -968,7 +968,12 @@ class ServicePackageListView(FinanceAccessMixin, SearchableListView, ListView):
     search_fields = ["membership__patient__full_name", "membership__plan__name", "status"]
 
     def get_queryset(self):
-        return super().get_queryset().select_related("membership__patient", "membership__plan")
+        return (
+            super()
+            .get_queryset()
+            .select_related("membership__patient", "membership__plan")
+            .exclude(status=ServicePackage.Status.CANCELED)
+        )
 
 
 class ServicePackageCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
@@ -997,3 +1002,35 @@ class ServicePackageUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView)
     def form_valid(self, form):
         messages.success(self.request, "Pacote atualizado com sucesso.")
         return super().form_valid(form)
+
+
+class ServicePackageDeleteView(FormContextMixin, FinanceAccessMixin, DeleteView):
+    model = ServicePackage
+    template_name = "core/confirm_deactivate.html"
+    success_url = reverse_lazy("scheduling:packages")
+    page_title = "Excluir pacote"
+    section_label = "Agenda"
+    back_url_name = "scheduling:packages"
+
+    def form_valid(self, form):
+        package = self.object
+        package.status = ServicePackage.Status.CANCELED
+        package.full_clean()
+        package.save(update_fields=["status", "updated_at"])
+        messages.success(self.request, "Pacote excluido da lista ativa com sucesso.")
+        return redirect(self.success_url)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        package = self.object
+        context.update(
+            {
+                "object_name": f"{package.membership.patient.full_name} - {package.membership.plan.name}",
+                "entity_label": "pacote",
+                "delete_button_label": "Excluir pacote",
+                "delete_explanation": (
+                    "O pacote sera cancelado para preservar o historico de aulas, baixas e relatorios."
+                ),
+            }
+        )
+        return context

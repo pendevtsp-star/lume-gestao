@@ -1,6 +1,7 @@
 from rest_framework.viewsets import ModelViewSet
 
 from core.api_permissions import FinanceApiPermission
+from patients.services import deactivate_professional_relationships
 from team.models import Employee, Professional
 from team.serializers import EmployeeSerializer, ProfessionalSerializer
 
@@ -27,7 +28,13 @@ class ProfessionalViewSet(ModelViewSet):
     search_fields = ["full_name", "email", "phone", "specialty", "registration_number"]
     ordering_fields = ["full_name", "created_at"]
 
+    def perform_update(self, serializer):
+        professional = serializer.save()
+        if not professional.active:
+            deactivate_professional_relationships(professional)
+
     def perform_destroy(self, instance):
         instance.active = False
         instance.full_clean()
         instance.save(update_fields=["active", "updated_at"])
+        deactivate_professional_relationships(instance)

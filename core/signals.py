@@ -7,7 +7,14 @@ from core.audit import get_current_user, instance_snapshot
 from core.integrations.google_calendar import delete_google_event, sync_appointment_to_google
 from core.integrations.http import IntegrationError
 from core.models import AuditLog
+from patients.models import Patient
+from patients.services import (
+    deactivate_patient_relationships,
+    deactivate_professional_relationships,
+    refresh_assignment_for_appointment,
+)
 from scheduling.models import Appointment
+from team.models import Professional
 
 TRACKED_APPS = {"accounts", "patients", "team", "billing", "scheduling", "core"}
 IGNORED_MODELS = {"AuditLog"}
@@ -86,6 +93,30 @@ def record_google_sync_error(message):
     integration = GoogleCalendarIntegration.load()
     integration.last_error = str(message)
     integration.save(update_fields=["last_error", "updated_at"])
+
+
+@receiver(post_save, sender=Appointment)
+def refresh_patient_professional_link(sender, instance, **kwargs):
+    if kwargs.get("raw"):
+        return
+
+    transaction.on_commit(lambda: refresh_assignment_for_appointment(instance))
+
+
+@receiver(post_save, sender=Patient)
+def deactivate_patient_links_after_save(sender, instance, **kwargs):
+    if kwargs.get("raw") or instance.active:
+        return
+
+    transaction.on_commit(lambda: deactivate_patient_relationships(instance))
+
+
+@receiver(post_save, sender=Professional)
+def deactivate_professional_links_after_save(sender, instance, **kwargs):
+    if kwargs.get("raw") or instance.active:
+        return
+
+    transaction.on_commit(lambda: deactivate_professional_relationships(instance))
 
 
 @receiver(post_save, sender=Appointment)

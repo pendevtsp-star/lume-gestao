@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Lume Gestao{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260626-whatsapp-queue">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260627-cascade-details">
 </head>
 <body>
   <div class="app-shell">
@@ -59,7 +59,6 @@
           </details>
           <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Pacotes</span></a>
           <a href="{% url 'billing:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos</span></a>
-          <a href="{% url 'patients:assignments' %}"><span class="nav-icon icon-links" aria-hidden="true"></span><span>Vinculos</span></a>
           <a href="{% url 'team:professionals' %}"><span class="nav-icon icon-professionals" aria-hidden="true"></span><span>Profissionais</span></a>
           <a href="{% url 'team:employees' %}"><span class="nav-icon icon-employees" aria-hidden="true"></span><span>Funcionarios</span></a>
         {% endif %}

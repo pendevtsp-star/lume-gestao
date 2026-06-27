@@ -12,8 +12,8 @@
 </section>
 
 <section class="panel">
-  <form class="toolbar" method="get">
-    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por nome, CPF, telefone ou e-mail">
+  <form class="toolbar" method="get" data-live-search-form>
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por nome, CPF, telefone, plano ou profissional" autocomplete="off" data-live-search-input>
     <button class="button secondary" type="submit">Buscar</button>
   </form>
 
@@ -32,19 +32,64 @@
         {% for patient in patients %}
           <tr>
             <td>
-              <div class="entity-cell">
-                <span class="avatar">
-                  {% if patient.photo %}
-                    <img src="{{ patient.photo.url }}" alt="">
-                  {% else %}
-                    {{ patient.full_name|slice:":1" }}
+              <details class="entity-cascade">
+                <summary class="entity-cell entity-summary">
+                  <span class="avatar" title="Ver detalhes de {{ patient.full_name }}">
+                    {% if patient.photo %}
+                      <img src="{{ patient.photo.url }}" alt="">
+                    {% else %}
+                      {{ patient.full_name|slice:":1" }}
+                    {% endif %}
+                  </span>
+                  <span>
+                    <strong>{{ patient.full_name }}</strong>
+                    {% if patient.cpf %}<small>CPF {{ patient.cpf }}</small>{% endif %}
+                    <small>Clique na foto para ver detalhes</small>
+                  </span>
+                </summary>
+                <div class="entity-detail-card">
+                  <dl class="detail-list">
+                    <div><dt>Telefone</dt><dd>{{ patient.phone|default:"-" }}</dd></div>
+                    <div><dt>E-mail</dt><dd>{{ patient.email|default:"-" }}</dd></div>
+                    <div><dt>Nascimento</dt><dd>{{ patient.birth_date|date:"d/m/Y"|default:"-" }}</dd></div>
+                    <div><dt>Contato emergencia</dt><dd>{{ patient.emergency_contact|default:"-" }}</dd></div>
+                  </dl>
+                  <div class="detail-block">
+                    <strong>Pacote atual</strong>
+                    {% if patient.detail_packages %}
+                      {% for package in patient.detail_packages %}
+                        <p>{{ package.membership.plan.name }}: {{ package.used_sessions }}/{{ package.total_sessions }} usados, {{ package.remaining_sessions }} restantes. Status: {{ package.get_status_display }}.</p>
+                      {% endfor %}
+                    {% else %}
+                      <p>Nenhum pacote ativo cadastrado.</p>
+                    {% endif %}
+                  </div>
+                  <div class="detail-block">
+                    <strong>Mensalidade / plano</strong>
+                    {% if patient.detail_memberships %}
+                      {% for membership in patient.detail_memberships %}
+                        <p>{{ membership.plan.name }}: {{ membership.get_status_display }} desde {{ membership.start_date|date:"d/m/Y" }}.</p>
+                      {% endfor %}
+                    {% else %}
+                      <p>Nenhuma mensalidade cadastrada.</p>
+                    {% endif %}
+                  </div>
+                  <div class="detail-block">
+                    <strong>Profissionais por atendimento</strong>
+                    {% if patient.detail_professionals %}
+                      <p>{% for professional in patient.detail_professionals %}{{ professional.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+                    {% else %}
+                      <p>Nenhum atendimento vinculado.</p>
+                    {% endif %}
+                  </div>
+                  {% if patient.clinical_notes %}
+                    <div class="detail-block">
+                      <strong>Observacoes clinicas</strong>
+                      <p>{{ patient.clinical_notes }}</p>
+                    </div>
                   {% endif %}
-                </span>
-                <span>
-                  <strong>{{ patient.full_name }}</strong>
-                  {% if patient.cpf %}<small>CPF {{ patient.cpf }}</small>{% endif %}
-                </span>
-              </div>
+                </div>
+              </details>
             </td>
             <td>{{ patient.phone|default:"-" }}</td>
             <td>{{ patient.email|default:"-" }}</td>
@@ -64,4 +109,22 @@
   </div>
   {% include "core/pagination.html" %}
 </section>
+<script>
+  (() => {
+    const form = document.querySelector("[data-live-search-form]");
+    const input = document.querySelector("[data-live-search-input]");
+    if (!form || !input) return;
+
+    let timer = null;
+    let previousValue = input.value;
+    input.addEventListener("input", () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (input.value === previousValue) return;
+        previousValue = input.value;
+        form.requestSubmit();
+      }, 450);
+    });
+  })();
+</script>
 {% endblock %}

@@ -14,6 +14,7 @@ from scheduling.views import (
     ProfessionalAvailabilityListView,
     ProfessionalAvailabilityUpdateView,
     ServicePackageCreateView,
+    ServicePackageDeleteView,
     ServicePackageListView,
     ServicePackageUpdateView,
 )
@@ -36,4 +37,5 @@ urlpatterns = [
     path("pacotes/", ServicePackageListView.as_view(), name="packages"),
     path("pacotes/novo/", ServicePackageCreateView.as_view(), name="package_create"),
     path("pacotes/<int:pk>/editar/", ServicePackageUpdateView.as_view(), name="package_update"),
+    path("pacotes/<int:pk>/excluir/", ServicePackageDeleteView.as_view(), name="package_delete"),
 ]

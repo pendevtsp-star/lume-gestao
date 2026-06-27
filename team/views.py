@@ -1,11 +1,15 @@
 from django.contrib import messages
+from django.db.models import Count, Q
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.permissions import RoleRequiredMixin
 from core.views import FormContextMixin, SearchableListView
+from patients.services import deactivate_professional_relationships
+from scheduling.models import Appointment
 from team.forms import EmployeeForm, ProfessionalForm
 from team.models import Employee, Professional
 
@@ -105,6 +109,31 @@ class ProfessionalListView(TeamAdminMixin, SearchableListView, ListView):
     paginate_by = 12
     search_fields = ["full_name", "email", "phone", "specialty", "registration_number"]
 
+    def get_queryset(self):
+        return super().get_queryset().annotate(
+            active_patient_count=Count(
+                "appointments__patient",
+                filter=Q(
+                    appointments__patient__active=True,
+                    appointments__status__in=[
+                        Appointment.Status.REQUESTED,
+                        Appointment.Status.SCHEDULED,
+                        Appointment.Status.COMPLETED,
+                        Appointment.Status.NO_SHOW,
+                    ],
+                ),
+                distinct=True,
+            ),
+            upcoming_appointment_count=Count(
+                "appointments",
+                filter=Q(
+                    appointments__starts_at__gte=timezone.now(),
+                    appointments__status__in=[Appointment.Status.REQUESTED, Appointment.Status.SCHEDULED],
+                ),
+                distinct=True,
+            ),
+        ).order_by("full_name")
+
 
 class ProfessionalCreateView(FormContextMixin, TeamAdminMixin, CreateView):
     model = Professional
@@ -131,7 +160,10 @@ class ProfessionalUpdateView(FormContextMixin, TeamAdminMixin, UpdateView):
 
     def form_valid(self, form):
         messages.success(self.request, "Profissional atualizado com sucesso.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        if not self.object.active:
+            deactivate_professional_relationships(self.object)
+        return response
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -150,5 +182,10 @@ class ProfessionalDeleteView(SoftDeleteTeamView):
     back_url_name = "team:professionals"
     entity_label = "profissional"
     delete_button_label = "Excluir profissional"
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        deactivate_professional_relationships(self.object)
+        return response
 
 # Create your views here.

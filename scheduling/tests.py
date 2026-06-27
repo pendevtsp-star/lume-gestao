@@ -139,6 +139,26 @@ class SchedulingTests(TestCase):
         self.assertEqual(package.used_sessions, 2)
         self.assertTrue(ServiceUsage.objects.filter(appointment=appointment).exists())
 
+    def test_appointment_save_creates_backend_assignment(self):
+        ProfessionalPatientAssignment.objects.filter(patient=self.patient, professional=self.professional).delete()
+        start = timezone.now() + timedelta(days=1)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            Appointment.objects.create(
+                patient=self.patient,
+                professional=self.professional,
+                starts_at=start,
+                ends_at=start + timedelta(hours=1),
+            )
+
+        self.assertTrue(
+            ProfessionalPatientAssignment.objects.filter(
+                patient=self.patient,
+                professional=self.professional,
+                active=True,
+            ).exists()
+        )
+
     def test_cancel_does_not_consume_package(self):
         user = get_user_model().objects.create_user(username="paciente-cancelar", password="Senha@123")
         UserProfile.objects.update_or_create(
@@ -512,6 +532,32 @@ class SchedulingTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertFalse(ServicePackage.objects.filter(total_sessions=99).exists())
+
+    def test_management_can_soft_delete_service_package_from_web(self):
+        user = get_user_model().objects.create_user(username="gestao-excluir-pacote", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        package = ServicePackage.objects.create(membership=self.membership, total_sessions=6)
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("scheduling:package_delete", args=[package.pk]))
+
+        package.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(package.status, ServicePackage.Status.CANCELED)
+        list_response = self.client.get(reverse("scheduling:packages"))
+        self.assertNotContains(list_response, self.patient.full_name)
+
+    def test_service_package_api_destroy_cancels_package(self):
+        user = get_user_model().objects.create_user(username="gestao-api-excluir-pacote", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        package = ServicePackage.objects.create(membership=self.membership, total_sessions=6)
+        self.client.force_login(user)
+
+        response = self.client.delete(f"/api/v1/service-packages/{package.pk}/")
+
+        package.refresh_from_db()
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(package.status, ServicePackage.Status.CANCELED)
 
     def test_professional_cannot_register_usage_for_other_professional_api(self):
         other_professional = Professional.objects.create(

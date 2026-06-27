@@ -47,6 +47,7 @@ from core.models import (
     WhatsAppMessageTemplate,
 )
 from patients.models import Patient, ProfessionalPatientAssignment
+from patients.services import patient_ids_for_professional, professional_ids_for_patient
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
 
@@ -122,11 +123,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         if profile and profile.is_patient and profile.patient_id:
             patient_queryset = patient_queryset.filter(pk=profile.patient_id)
         elif profile and profile.is_professional and profile.professional_id:
-            patient_ids = ProfessionalPatientAssignment.objects.filter(
-                professional=profile.professional,
-                active=True,
-            ).values_list("patient_id", flat=True)
-            patient_queryset = patient_queryset.filter(pk__in=patient_ids)
+            patient_queryset = patient_queryset.filter(pk__in=patient_ids_for_professional(profile.professional))
 
         pending_payments = Payment.objects.filter(status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE])
         paid_this_month = Payment.objects.filter(status=Payment.Status.PAID, paid_at__gte=month_start)
@@ -296,6 +293,10 @@ class ClinicSettingsUpdateView(ManagementAccessMixin, UpdateView):
 def default_professional_for_patient(patient):
     if not patient:
         return None
+    professional_ids = professional_ids_for_patient(patient)
+    professional = Professional.objects.filter(pk__in=professional_ids, active=True).order_by("full_name").first()
+    if professional:
+        return professional
     assignment = (
         ProfessionalPatientAssignment.objects.select_related("professional")
         .filter(patient=patient, active=True)

@@ -1,12 +1,17 @@
+from datetime import timedelta
+
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import UserProfile
+from billing.models import Membership, ServicePlan
 from patients.models import Patient
 from patients.models import ProfessionalNote
 from patients.models import ProfessionalPatientAssignment
+from scheduling.models import Appointment, ServicePackage
 from team.models import Professional
 
 
@@ -48,6 +53,28 @@ class PatientAccessTests(TestCase):
         response = self.client.get(reverse("patients:list"))
 
         self.assertContains(response, assigned.full_name)
+        self.assertNotContains(response, other.full_name)
+
+    def test_professional_sees_patient_from_automatic_appointment_link(self):
+        professional = Professional.objects.create(full_name="Dra. Agenda Auto", specialty=Professional.Specialty.PILATES)
+        patient = Patient.objects.create(full_name="Paciente Atendimento Auto")
+        other = Patient.objects.create(full_name="Paciente Sem Atendimento")
+        Appointment.objects.create(
+            patient=patient,
+            professional=professional,
+            starts_at=timezone.now() + timedelta(days=1),
+            ends_at=timezone.now() + timedelta(days=1, hours=1),
+        )
+        user = get_user_model().objects.create_user(username="prof-auto", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": professional},
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("patients:list"))
+
+        self.assertContains(response, patient.full_name)
         self.assertNotContains(response, other.full_name)
 
     def test_professional_record_only_shows_own_notes_by_patient(self):
@@ -256,6 +283,86 @@ class PatientAccessTests(TestCase):
         patient.refresh_from_db()
         self.assertEqual(response.status_code, 302)
         self.assertFalse(patient.active)
+
+    def test_patient_delete_cancels_active_package(self):
+        patient = Patient.objects.create(full_name="Paciente Pacote Excluir")
+        plan = ServicePlan.objects.create(
+            name="Plano Pacote",
+            category=ServicePlan.Category.PILATES,
+            monthly_price="300.00",
+        )
+        membership = Membership.objects.create(patient=patient, plan=plan, due_day=10)
+        package = ServicePackage.objects.create(membership=membership, total_sessions=8)
+        user = get_user_model().objects.create_user(username="gerente-pacote-paciente", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("patients:delete", args=[patient.pk]))
+
+        package.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(package.status, ServicePackage.Status.CANCELED)
+
+    def test_patient_list_shows_package_details_in_cascade(self):
+        patient = Patient.objects.create(full_name="Paciente Detalhe Pacote")
+        plan = ServicePlan.objects.create(
+            name="Pilates Detalhado",
+            category=ServicePlan.Category.PILATES,
+            monthly_price="350.00",
+        )
+        membership = Membership.objects.create(patient=patient, plan=plan, due_day=10)
+        ServicePackage.objects.create(membership=membership, total_sessions=8, used_sessions=2)
+        user = get_user_model().objects.create_user(username="gerente-detalhe-paciente", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("patients:list"))
+
+        self.assertContains(response, "Pacote atual")
+        self.assertContains(response, "Pilates Detalhado")
+
+    def test_patient_search_matches_partial_patient_context(self):
+        matched = Patient.objects.create(full_name="Mariana Contexto")
+        other = Patient.objects.create(full_name="Bianca Fora")
+        user = get_user_model().objects.create_user(username="gerente-busca-paciente", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("patients:list"), {"q": "rian"})
+
+        self.assertContains(response, matched.full_name)
+        self.assertNotContains(response, other.full_name)
+
+    def test_patient_search_matches_plan_and_professional_context(self):
+        patient = Patient.objects.create(full_name="Paciente Contexto Relacionado")
+        other = Patient.objects.create(full_name="Paciente Sem Contexto")
+        professional = Professional.objects.create(
+            full_name="Dra. Aurora Busca",
+            specialty=Professional.Specialty.PILATES,
+        )
+        plan = ServicePlan.objects.create(
+            name="Pilates Clinico Busca",
+            category=ServicePlan.Category.PILATES,
+            monthly_price="360.00",
+        )
+        Membership.objects.create(patient=patient, plan=plan, due_day=10)
+        Appointment.objects.create(
+            patient=patient,
+            professional=professional,
+            starts_at=timezone.now() + timedelta(days=1),
+            ends_at=timezone.now() + timedelta(days=1, hours=1),
+        )
+        user = get_user_model().objects.create_user(username="gerente-busca-contexto", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        plan_response = self.client.get(reverse("patients:list"), {"q": "clinico busca"})
+        professional_response = self.client.get(reverse("patients:list"), {"q": "aurora"})
+
+        self.assertContains(plan_response, patient.full_name)
+        self.assertNotContains(plan_response, other.full_name)
+        self.assertContains(professional_response, patient.full_name)
+        self.assertNotContains(professional_response, other.full_name)
 
     def test_patient_api_destroy_soft_deletes_patient(self):
         patient = Patient.objects.create(full_name="Paciente API Excluir")

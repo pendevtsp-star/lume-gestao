@@ -5,13 +5,14 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncMonth
+from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import ListView, TemplateView, View
 
 from accounts.models import UserProfile
 from accounts.permissions import ManagementAccessMixin, RoleRequiredMixin
 from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
-from core.exports import pdf_response, xlsx_response
+from core.exports import br_currency, pdf_response, xlsx_response
 from core.models import AuditLog
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment
@@ -77,6 +78,18 @@ def prettify_value(value):
         rendered = ", ".join(f"{key}: {prettify_value(item)}" for key, item in value.items())
         return rendered or "-"
     return str(value)
+
+
+def br_percent(value):
+    return f"{value}%".replace(".", ",")
+
+
+def br_date(value):
+    if isinstance(value, str):
+        parsed = coerce_date(value)
+        if parsed:
+            return parsed.strftime("%d/%m/%Y")
+    return value.strftime("%d/%m/%Y") if hasattr(value, "strftime") else str(value)
 
 
 def user_can_access_audit(user):
@@ -565,9 +578,60 @@ class FinancialReportExportView(FinancialReportView, View):
         return xlsx_response("relatorio_financeiro_lume.xlsx", sheets)
 
     def export_pdf(self, data):
+        money_labels = {
+            "Receita total",
+            "Receita por cobrancas avulsas",
+            "Despesa total",
+            "Despesas pagas",
+            "Despesas em aberto",
+            "Resultado do periodo",
+            "Contas a receber",
+            "Contas vencidas",
+        }
+        summary_lines = [
+            f"{label}: {br_currency(value) if label in money_labels else br_percent(value) if label == 'Margem' else value}"
+            for label, value in self.summary_rows(data)
+        ]
+        if summary_lines:
+            summary_lines[0] = f"Periodo: {br_date(data['start'])} a {br_date(data['end'])}"
         sections = [
-            ("Resumo financeiro", [f"{label}: {value}" for label, value in self.summary_rows(data)]),
+            ("Resumo financeiro", summary_lines),
             ("Leitura rapida", [data["health_summary"]]),
+        ]
+        charts = [
+            {
+                "title": "Receita x despesa por mes",
+                "rows": [
+                    {
+                        "label": row["month"].strftime("%m/%Y"),
+                        "value": row["net"],
+                        "display": f"Resultado {br_currency(row['net'])}",
+                        "color": "#60724F" if row["net"] >= 0 else "#B06B3A",
+                    }
+                    for row in data["monthly_flow"]
+                ],
+            },
+            {
+                "title": "Principais receitas",
+                "rows": [
+                    {"label": row["label"], "value": row["value"], "display": br_currency(row["value"])}
+                    for row in data["revenue_by_source"]
+                    if row["value"]
+                ],
+            },
+            {
+                "title": "Principais despesas",
+                "rows": [
+                    {
+                        "label": row["label"],
+                        "value": row["value"],
+                        "display": br_currency(row["value"]),
+                        "color": "#B06B3A",
+                    }
+                    for row in data["expenses_by_category"]
+                    if row["value"]
+                ],
+            },
         ]
         tables = [
             (
@@ -576,10 +640,10 @@ class FinancialReportExportView(FinancialReportView, View):
                 [
                     (
                         row["month"].strftime("%m/%Y"),
-                        row["revenue"],
-                        row["expenses"],
-                        row["net"],
-                        f"{row['margin']}%",
+                        br_currency(row["revenue"]),
+                        br_currency(row["expenses"]),
+                        br_currency(row["net"]),
+                        br_percent(row["margin"]),
                     )
                     for row in data["monthly_flow"]
                 ],
@@ -588,7 +652,7 @@ class FinancialReportExportView(FinancialReportView, View):
                 "Receita por origem",
                 ["Origem", "Lancamentos", "Percentual", "Total"],
                 [
-                    (row["label"], row["count"] or "-", f"{row['percentage']}%", row["value"])
+                    (row["label"], row["count"] or "-", br_percent(row["percentage"]), br_currency(row["value"]))
                     for row in data["revenue_by_source"]
                 ],
             ),
@@ -596,7 +660,7 @@ class FinancialReportExportView(FinancialReportView, View):
                 "Despesas por categoria",
                 ["Categoria", "Lancamentos", "Percentual", "Total"],
                 [
-                    (row["label"], row["count"] or "-", f"{row['percentage']}%", row["value"])
+                    (row["label"], row["count"] or "-", br_percent(row["percentage"]), br_currency(row["value"]))
                     for row in data["expenses_by_category"]
                 ],
             ),
@@ -605,9 +669,48 @@ class FinancialReportExportView(FinancialReportView, View):
             "relatorio_financeiro_lume.pdf",
             "Relatorio financeiro - Lume",
             sections=sections,
+            charts=charts,
             tables=tables,
             landscape_page=True,
+            disposition="inline" if self.request.GET.get("inline") == "1" else "attachment",
         )
+
+
+class PdfPreviewMixin:
+    template_name = "reports/pdf_preview.html"
+    export_name = ""
+    page_title = ""
+    back_name = ""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        query = self.request.GET.copy()
+        query.pop("inline", None)
+        query_string = query.urlencode()
+        export_url = reverse(self.export_name, args=["pdf"])
+        back_url = reverse(self.back_name)
+        inline_url = f"{export_url}?inline=1"
+        download_url = export_url
+        if query_string:
+            inline_url = f"{export_url}?{query_string}&inline=1"
+            download_url = f"{export_url}?{query_string}"
+            back_url = f"{back_url}?{query_string}"
+        context.update(
+            {
+                "page_title": self.page_title,
+                "section_label": "Pre-visualizacao",
+                "inline_url": inline_url,
+                "download_url": download_url,
+                "back_url": back_url,
+            }
+        )
+        return context
+
+
+class FinancialReportPdfPreviewView(PdfPreviewMixin, FinancialReportView):
+    export_name = "reports:financial_export"
+    page_title = "Pre-visualizar relatorio financeiro"
+    back_name = "reports:financial"
 
 
 class ClinicAdhesionReportView(PeriodReportMixin, RoleRequiredMixin, TemplateView):
@@ -887,6 +990,37 @@ class ClinicAdhesionReportExportView(ClinicAdhesionReportView, View):
             ("Resumo de adesao", [f"{label}: {value}" for label, value in self.summary_rows(data)]),
             ("Leitura operacional", [data["adhesion_summary"]]),
         ]
+        sections[0] = (
+            "Resumo de adesao",
+            [
+                f"{label}: {br_date(data['start'])} a {br_date(data['end'])}" if label == "Periodo" else f"{label}: {value}"
+                for label, value in self.summary_rows(data)
+            ],
+        )
+        charts = [
+            {
+                "title": "Atendimentos por profissional",
+                "rows": [
+                    {
+                        "label": row["label"],
+                        "value": row["completed"],
+                        "display": f"{row['completed']} realizados",
+                    }
+                    for row in data["appointments_by_professional"]
+                ],
+            },
+            {
+                "title": "Distribuicao de planos ativos",
+                "rows": [
+                    {
+                        "label": row["label"],
+                        "value": row["total"],
+                        "display": f"{row['total']} - {br_percent(row['percentage'])}",
+                    }
+                    for row in data["plan_mix"]
+                ],
+            },
+        ]
         tables = [
             (
                 "Atendimentos por profissional",
@@ -904,16 +1038,24 @@ class ClinicAdhesionReportExportView(ClinicAdhesionReportView, View):
             (
                 "Planos ativos",
                 ["Plano", "Quantidade", "Percentual"],
-                [(row["label"], row["total"], f"{row['percentage']}%") for row in data["plan_mix"]],
+                [(row["label"], row["total"], br_percent(row["percentage"])) for row in data["plan_mix"]],
             ),
         ]
         return pdf_response(
             "relatorio_adesao_clinica_lume.pdf",
             "Relatorio de gestao de adesao - Lume",
             sections=sections,
+            charts=charts,
             tables=tables,
             landscape_page=True,
+            disposition="inline" if self.request.GET.get("inline") == "1" else "attachment",
         )
+
+
+class ClinicAdhesionReportPdfPreviewView(PdfPreviewMixin, ClinicAdhesionReportView):
+    export_name = "reports:clinic_export"
+    page_title = "Pre-visualizar relatorio de adesao"
+    back_name = "reports:clinic"
 
 
 class AuditReportView(ManagementAccessMixin, ListView):
@@ -1058,4 +1200,11 @@ class AuditReportExportView(ManagementAccessMixin, View):
             sections=[("Resumo", [f"Eventos exportados: {queryset.count()}"])],
             tables=tables,
             landscape_page=True,
+            disposition="inline" if self.request.GET.get("inline") == "1" else "attachment",
         )
+
+
+class AuditReportPdfPreviewView(PdfPreviewMixin, AuditReportView):
+    export_name = "reports:audit_export"
+    page_title = "Pre-visualizar relatorio de auditoria"
+    back_name = "reports:audit"

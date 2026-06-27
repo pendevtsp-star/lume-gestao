@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import messages
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
+from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.urls import reverse_lazy
 from django.views import View
@@ -430,6 +431,18 @@ class ProfessionalRecordExportView(ProfessionalRecordAccessMixin, View):
             ("Observacoes", professional.bio or "-"),
         ]
 
+    def signature_data(self):
+        professional = self.get_professional()
+        if professional:
+            role = professional.get_specialty_display()
+            if professional.registration_number:
+                role = f"{role} - {professional.registration_number}"
+            return {"name": professional.full_name, "role": role}
+        return {
+            "name": self.request.user.profile.display_name,
+            "role": "Administracao - relatorio gerado pelo Lume Gestao",
+        }
+
     def note_rows(self):
         return [
             (
@@ -515,6 +528,27 @@ class ProfessionalRecordExportView(ProfessionalRecordAccessMixin, View):
             sections=sections,
             tables=tables,
             landscape_page=True,
+            signature=self.signature_data(),
+            disposition="inline" if self.request.GET.get("inline") == "1" else "attachment",
+        )
+
+
+class ProfessionalRecordPdfPreviewView(ProfessionalRecordExportView):
+    template_name = "reports/pdf_preview.html"
+
+    def get(self, request, *args, **kwargs):
+        self.patient = get_object_or_404(patients_for_user(request.user), pk=kwargs["patient_pk"])
+        export_url = reverse("patients:note_export", args=[self.patient.pk, "pdf"])
+        return TemplateResponse(
+            request,
+            self.template_name,
+            {
+                "page_title": f"Pre-visualizar prontuario - {self.patient.full_name}",
+                "section_label": "Pre-visualizacao",
+                "inline_url": f"{export_url}?inline=1",
+                "download_url": export_url,
+                "back_url": reverse("patients:patient_notes", args=[self.patient.pk]),
+            },
         )
 
 # Create your views here.

@@ -2,7 +2,7 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 from django.utils import timezone
 
-from core.exports import pdf_response
+from core.exports import br_currency, pdf_response
 from core.integrations.whatsapp import send_whatsapp_text
 from core.models import ClinicSettings
 
@@ -60,10 +60,10 @@ def build_document_pdf(document):
             ["Valor do servico", "ISS", "Valor ISS", "Total"],
             [
                 (
-                    f"R$ {document.amount:.2f}",
-                    f"{document.iss_rate:.2f}%",
-                    f"R$ {document.iss_amount:.2f}",
-                    f"R$ {document.total_amount:.2f}",
+                    br_currency(document.amount),
+                    f"{document.iss_rate:.2f}%".replace(".", ","),
+                    br_currency(document.iss_amount),
+                    br_currency(document.total_amount),
                 )
             ],
         ),

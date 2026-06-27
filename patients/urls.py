@@ -13,6 +13,7 @@ from patients.views import (
     ProfessionalNoteListView,
     ProfessionalNoteUpdateView,
     ProfessionalRecordExportView,
+    ProfessionalRecordPdfPreviewView,
     ProfessionalRecordPatientListView,
 )
 
@@ -30,6 +31,11 @@ urlpatterns = [
     path("prontuario/<int:patient_pk>/", ProfessionalNoteListView.as_view(), name="patient_notes"),
     path("prontuario/<int:patient_pk>/novo/", ProfessionalNoteCreateView.as_view(), name="note_create"),
     path("prontuario/<int:patient_pk>/<int:pk>/editar/", ProfessionalNoteUpdateView.as_view(), name="note_update"),
+    path(
+        "prontuario/<int:patient_pk>/preview/pdf/",
+        ProfessionalRecordPdfPreviewView.as_view(),
+        name="note_pdf_preview",
+    ),
     path(
         "prontuario/<int:patient_pk>/exportar/<str:export_format>/",
         ProfessionalRecordExportView.as_view(),

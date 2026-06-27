@@ -4,7 +4,8 @@ from django.contrib import messages
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.urls import reverse_lazy
+from django.template.response import TemplateResponse
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, TemplateView, UpdateView
@@ -182,8 +183,26 @@ class FiscalDocumentPdfView(FinanceAccessMixin, View):
     def get(self, request, pk, *args, **kwargs):
         document = FiscalDocument.objects.get(pk=pk)
         response = HttpResponse(build_document_pdf(document), content_type="application/pdf")
-        response["Content-Disposition"] = f'attachment; filename="documento-fiscal-{document.pk}.pdf"'
+        disposition = "inline" if request.GET.get("inline") == "1" else "attachment"
+        response["Content-Disposition"] = f'{disposition}; filename="documento-fiscal-{document.pk}.pdf"'
         return response
+
+
+class FiscalDocumentPdfPreviewView(FinanceAccessMixin, View):
+    def get(self, request, pk, *args, **kwargs):
+        document = FiscalDocument.objects.get(pk=pk)
+        export_url = reverse("fiscal:document_pdf", args=[document.pk])
+        return TemplateResponse(
+            request,
+            "reports/pdf_preview.html",
+            {
+                "page_title": f"Pre-visualizar documento fiscal - {document.customer_name}",
+                "section_label": "Pre-visualizacao",
+                "inline_url": f"{export_url}?inline=1",
+                "download_url": export_url,
+                "back_url": reverse("fiscal:dashboard"),
+            },
+        )
 
 
 class FiscalDocumentEmailView(FinanceAccessMixin, View):

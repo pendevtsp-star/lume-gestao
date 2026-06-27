@@ -64,5 +64,12 @@ class FiscalModuleTests(TestCase):
             customer_name="Maria Clara",
         )
         response = self.client.get(reverse("fiscal:document_pdf", args=[document.pk]))
+        inline_response = self.client.get(reverse("fiscal:document_pdf", args=[document.pk]), {"inline": "1"})
+        preview_response = self.client.get(reverse("fiscal:document_pdf_preview", args=[document.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("attachment", response["Content-Disposition"])
+        self.assertEqual(inline_response["Content-Type"], "application/pdf")
+        self.assertIn("inline", inline_response["Content-Disposition"])
+        self.assertContains(preview_response, "Pre-visualizar documento fiscal")
+        self.assertContains(preview_response, "Baixar PDF")

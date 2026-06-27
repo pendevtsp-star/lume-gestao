@@ -194,7 +194,7 @@
             <td><span class="status-pill {% if document.status == 'issued' or document.status == 'sent' %}is-success{% elif document.status == 'failed' %}is-danger{% elif document.status == 'draft' %}is-warning{% else %}is-muted{% endif %}">{{ document.get_status_display }}</span></td>
             <td class="right table-actions">
               <a class="table-action" href="{% url 'fiscal:document_update' document.pk %}">Editar</a>
-              <a class="table-action" href="{% url 'fiscal:document_pdf' document.pk %}">PDF</a>
+              <a class="table-action" href="{% url 'fiscal:document_pdf_preview' document.pk %}">PDF</a>
               <form method="post" action="{% url 'fiscal:document_issue' document.pk %}">
                 {% csrf_token %}
                 <button class="table-action link-button" type="submit">Emitir</button>

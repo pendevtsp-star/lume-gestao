@@ -3132,6 +3132,20 @@ td small {
   min-width: 520px;
 }
 
+.pdf-preview-panel {
+  min-height: 74vh;
+  padding: 12px;
+}
+
+.pdf-preview-frame {
+  display: block;
+  width: 100%;
+  min-height: 74vh;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
 .audit-changes {
   display: grid;
   gap: 7px;

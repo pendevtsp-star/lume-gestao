@@ -9,7 +9,7 @@
     <h1>Gestao de adesao da clinica</h1>
   </div>
   <div class="panel-actions">
-    <a class="button secondary" href="{% url 'reports:clinic_export' 'pdf' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&professional={{ selected_professional }}&plan={{ selected_plan }}&patient_status={{ selected_patient_status }}&patient={{ selected_patient }}">Exportar PDF</a>
+    <a class="button secondary" href="{% url 'reports:clinic_pdf_preview' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&professional={{ selected_professional }}&plan={{ selected_plan }}&patient_status={{ selected_patient_status }}&patient={{ selected_patient }}">Pre-visualizar PDF</a>
     <a class="button secondary" href="{% url 'reports:clinic_export' 'xlsx' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&professional={{ selected_professional }}&plan={{ selected_plan }}&patient_status={{ selected_patient_status }}&patient={{ selected_patient }}">Exportar Excel</a>
   </div>
 </section>

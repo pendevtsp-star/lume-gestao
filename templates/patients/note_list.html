@@ -10,7 +10,7 @@
   </div>
   <div class="panel-actions">
     <a class="button secondary" href="{% url 'patients:notes' %}">Pacientes</a>
-    <a class="button secondary" href="{% url 'patients:note_export' patient.pk 'pdf' %}">Exportar PDF</a>
+    <a class="button secondary" href="{% url 'patients:note_pdf_preview' patient.pk %}">Pre-visualizar PDF</a>
     <a class="button secondary" href="{% url 'patients:note_export' patient.pk 'xlsx' %}">Exportar Excel</a>
     {% include "patients/note_type_menu.html" with patient=patient %}
   </div>

@@ -9,7 +9,7 @@
     <h1>Auditoria</h1>
   </div>
   <div class="panel-actions">
-    <a class="button secondary" href="{% url 'reports:audit_export' 'pdf' %}?q={{ q }}&action={{ selected_action }}&model={{ selected_model }}&actor={{ selected_actor }}&date_from={{ date_from }}&date_to={{ date_to }}">Exportar PDF</a>
+    <a class="button secondary" href="{% url 'reports:audit_pdf_preview' %}?q={{ q }}&action={{ selected_action }}&model={{ selected_model }}&actor={{ selected_actor }}&date_from={{ date_from }}&date_to={{ date_to }}">Pre-visualizar PDF</a>
     <a class="button secondary" href="{% url 'reports:audit_export' 'xlsx' %}?q={{ q }}&action={{ selected_action }}&model={{ selected_model }}&actor={{ selected_actor }}&date_from={{ date_from }}&date_to={{ date_to }}">Exportar Excel</a>
   </div>
 </section>

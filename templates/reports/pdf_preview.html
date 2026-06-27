@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ section_label }}</p>
+    <h1>{{ page_title }}</h1>
+    <p class="page-subtitle">Confira o arquivo antes de baixar ou enviar para outra pessoa.</p>
+  </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="{{ back_url }}">Voltar</a>
+    <a class="button primary" href="{{ download_url }}">Baixar PDF</a>
+  </div>
+</section>
+
+<section class="panel pdf-preview-panel">
+  <iframe class="pdf-preview-frame" src="{{ inline_url }}" title="{{ page_title }}"></iframe>
+</section>
+{% endblock %}

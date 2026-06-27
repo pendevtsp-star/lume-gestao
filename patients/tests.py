@@ -157,10 +157,17 @@ class PatientAccessTests(TestCase):
         self.client.force_login(user)
 
         pdf_response = self.client.get(reverse("patients:note_export", args=[patient.pk, "pdf"]))
+        inline_pdf_response = self.client.get(reverse("patients:note_export", args=[patient.pk, "pdf"]), {"inline": "1"})
+        preview_response = self.client.get(reverse("patients:note_pdf_preview", args=[patient.pk]))
         xlsx_response = self.client.get(reverse("patients:note_export", args=[patient.pk, "xlsx"]))
 
         self.assertEqual(pdf_response.status_code, 200)
         self.assertEqual(pdf_response["Content-Type"], "application/pdf")
+        self.assertIn("attachment", pdf_response["Content-Disposition"])
+        self.assertEqual(inline_pdf_response["Content-Type"], "application/pdf")
+        self.assertIn("inline", inline_pdf_response["Content-Disposition"])
+        self.assertContains(preview_response, "Pre-visualizar prontuario")
+        self.assertContains(preview_response, "Baixar PDF")
         self.assertEqual(xlsx_response.status_code, 200)
         self.assertEqual(
             xlsx_response["Content-Type"],

@@ -92,18 +92,29 @@ class ReportsAccessTests(TestCase):
         self.client.force_login(self.user)
 
         pdf_response = self.client.get(reverse("reports:export", args=["pdf"]))
+        inline_pdf_response = self.client.get(reverse("reports:financial_export", args=["pdf"]), {"inline": "1"})
+        preview_response = self.client.get(reverse("reports:financial_pdf_preview"))
         xlsx_response = self.client.get(reverse("reports:export", args=["xlsx"]))
         clinic_pdf_response = self.client.get(reverse("reports:clinic_export", args=["pdf"]))
+        clinic_preview_response = self.client.get(reverse("reports:clinic_pdf_preview"))
+        audit_preview_response = self.client.get(reverse("reports:audit_pdf_preview"))
         audit_xlsx_response = self.client.get(reverse("reports:audit_export", args=["xlsx"]))
 
         self.assertEqual(pdf_response.status_code, 200)
         self.assertEqual(pdf_response["Content-Type"], "application/pdf")
+        self.assertIn("attachment", pdf_response["Content-Disposition"])
+        self.assertEqual(inline_pdf_response["Content-Type"], "application/pdf")
+        self.assertIn("inline", inline_pdf_response["Content-Disposition"])
+        self.assertContains(preview_response, "Pre-visualizar relatorio financeiro")
+        self.assertContains(preview_response, "Baixar PDF")
         self.assertEqual(xlsx_response.status_code, 200)
         self.assertEqual(
             xlsx_response["Content-Type"],
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
         self.assertEqual(clinic_pdf_response["Content-Type"], "application/pdf")
+        self.assertContains(clinic_preview_response, "Pre-visualizar relatorio de adesao")
+        self.assertContains(audit_preview_response, "Pre-visualizar relatorio de auditoria")
         self.assertEqual(
             audit_xlsx_response["Content-Type"],
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

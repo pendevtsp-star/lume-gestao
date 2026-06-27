@@ -1,5 +1,6 @@
 from io import BytesIO
 from pathlib import Path
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.http import HttpResponse
@@ -11,13 +12,22 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 def as_text(value):
     if value is None:
         return ""
     return str(value)
+
+
+def br_currency(value):
+    try:
+        decimal_value = Decimal(str(value or "0"))
+    except (InvalidOperation, ValueError):
+        return as_text(value)
+    formatted = f"{decimal_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {formatted}"
 
 
 def xlsx_response(filename, sheets):
@@ -53,7 +63,16 @@ def xlsx_response(filename, sheets):
     return response
 
 
-def pdf_response(filename, title, sections=None, tables=None, landscape_page=False):
+def pdf_response(
+    filename,
+    title,
+    sections=None,
+    tables=None,
+    charts=None,
+    signature=None,
+    landscape_page=False,
+    disposition="attachment",
+):
     buffer = BytesIO()
     page_size = landscape(A4) if landscape_page else A4
     margin = 1.25 * cm
@@ -71,6 +90,10 @@ def pdf_response(filename, title, sections=None, tables=None, landscape_page=Fal
     for heading, lines in sections or []:
         story.append(_build_section_card(heading, lines, page_size, margin, styles))
         story.append(Spacer(1, 0.22 * cm))
+
+    for chart in charts or []:
+        story.append(_build_bar_chart(chart, page_size, margin, styles))
+        story.append(Spacer(1, 0.28 * cm))
 
     for heading, headers, rows in tables or []:
         story.append(Paragraph(heading, styles["SectionTitle"]))
@@ -101,9 +124,13 @@ def pdf_response(filename, title, sections=None, tables=None, landscape_page=Fal
         story.append(table)
         story.append(Spacer(1, 0.32 * cm))
 
+    if signature:
+        story.append(Spacer(1, 0.45 * cm))
+        story.append(_build_signature_block(signature, page_size, margin, styles))
+
     document.build(story, onFirstPage=_draw_pdf_footer, onLaterPages=_draw_pdf_footer)
     response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f'{disposition}; filename="{filename}"'
     return response
 
 
@@ -224,6 +251,90 @@ def _build_section_card(heading, lines, page_size, margin, styles):
         )
     )
     return table
+
+
+def _build_bar_chart(chart, page_size, margin, styles):
+    title = chart.get("title", "Grafico")
+    rows = chart.get("rows", [])[:8]
+    available_width = page_size[0] - (margin * 2)
+    max_value = max([abs(_number_value(row.get("value"))) for row in rows] or [1]) or 1
+    table_rows = [[Paragraph(title, styles["SectionTitle"]), "", ""]]
+    for row in rows:
+        value = _number_value(row.get("value"))
+        ratio = min(abs(value) / max_value, 1)
+        filled_width = max(0.18 * cm, ratio * 7.2 * cm) if value else 0.18 * cm
+        bar_color = colors.HexColor(row.get("color") or ("#60724F" if value >= 0 else "#B06B3A"))
+        bar = Table([[""]], colWidths=[filled_width], rowHeights=[0.22 * cm])
+        bar.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), bar_color),
+                    ("BOX", (0, 0), (-1, -1), 0, bar_color),
+                ]
+            )
+        )
+        table_rows.append(
+            [
+                Paragraph(as_text(row.get("label")), styles["TableCell"]),
+                bar,
+                Paragraph(as_text(row.get("display", row.get("value"))), styles["TableCell"]),
+            ]
+        )
+    table = Table(table_rows, colWidths=[available_width * 0.34, available_width * 0.46, available_width * 0.20])
+    table.setStyle(
+        TableStyle(
+            [
+                ("SPAN", (0, 0), (-1, 0)),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFFDF7")),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2D8C6")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    return table
+
+
+def _build_signature_block(signature, page_size, margin, styles):
+    available_width = page_size[0] - (margin * 2)
+    name = as_text(signature.get("name") or "Profissional responsavel")
+    role = as_text(signature.get("role") or "Profissional")
+    content = [
+        Paragraph("Assinatura do profissional", styles["SectionTitle"]),
+        Spacer(1, 0.58 * cm),
+        Table(
+            [[""]],
+            colWidths=[7.2 * cm],
+            rowHeights=[0.02 * cm],
+            style=[("LINEABOVE", (0, 0), (-1, -1), 0.8, colors.HexColor("#263028"))],
+        ),
+        Paragraph(name, styles["SectionLine"]),
+        Paragraph(role, styles["ReportMeta"]),
+    ]
+    table = Table([[content]], colWidths=[available_width])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFFDF7")),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2D8C6")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+            ]
+        )
+    )
+    return KeepTogether(table)
+
+
+def _number_value(value):
+    try:
+        return float(Decimal(str(value or "0")))
+    except (InvalidOperation, ValueError):
+        return 0.0
 
 
 def _table_column_widths(headers, rows, available_width):

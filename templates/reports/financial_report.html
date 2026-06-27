@@ -9,7 +9,7 @@
     <h1>Financeiro</h1>
   </div>
   <div class="panel-actions">
-    <a class="button secondary" href="{% url 'reports:financial_export' 'pdf' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&plan={{ selected_plan }}&method={{ selected_method }}&kind={{ selected_kind }}&category={{ selected_category }}&include_charges={% if include_charges %}1{% else %}0{% endif %}">Exportar PDF</a>
+    <a class="button secondary" href="{% url 'reports:financial_pdf_preview' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&plan={{ selected_plan }}&method={{ selected_method }}&kind={{ selected_kind }}&category={{ selected_category }}&include_charges={% if include_charges %}1{% else %}0{% endif %}">Pre-visualizar PDF</a>
     <a class="button secondary" href="{% url 'reports:financial_export' 'xlsx' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&plan={{ selected_plan }}&method={{ selected_method }}&kind={{ selected_kind }}&category={{ selected_category }}&include_charges={% if include_charges %}1{% else %}0{% endif %}">Exportar Excel</a>
   </div>
 </section>

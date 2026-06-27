@@ -650,7 +650,21 @@ h2 {
 }
 
 .fiscal-settings-form .toggle-card {
-  min-height: 56px;
+  min-height: 52px;
+}
+
+.toggle-card input.field-control,
+.toggle-card input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+}
+
+.toggle-card small,
+.toggle-card .field-error {
+  grid-column: 2 / -1;
+  min-width: 0;
 }
 
 .fiscal-documents-card .filters {
@@ -1011,15 +1025,28 @@ td small {
 }
 
 .table-action {
-  border: 0;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(96, 114, 79, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 253, 246, 0.82);
   color: var(--sage-dark);
   cursor: pointer;
+  font-size: 12px;
   font-weight: 800;
-  padding: 0;
+  line-height: 1;
+}
+
+.table-action:hover,
+.table-action:focus-visible {
+  border-color: rgba(96, 114, 79, 0.38);
+  background: rgba(223, 231, 207, 0.62);
 }
 
 .danger-link {
+  border-color: rgba(159, 61, 56, 0.20);
   color: var(--danger);
 }
 
@@ -1032,8 +1059,14 @@ td small {
 .table-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  white-space: nowrap;
+  gap: 7px;
+  flex-wrap: wrap;
+  white-space: normal;
+}
+
+.table-actions form {
+  display: inline-flex;
+  margin: 0;
 }
 
 .empty {
@@ -1960,24 +1993,17 @@ td small {
 }
 
 .appointment-detail-table {
-  min-width: 1120px;
+  min-width: 1040px;
 }
 
 .appointment-detail-table th:last-child,
 .appointment-detail-table td:last-child {
-  width: 360px;
+  width: 280px;
 }
 
 .appointment-detail-table .table-actions {
   justify-content: flex-start;
-  gap: 8px 12px;
-  white-space: normal;
-}
-
-.appointment-detail-table .table-action {
-  display: inline-flex;
-  min-height: 28px;
-  align-items: center;
+  gap: 6px;
 }
 
 .availability-page {
@@ -2895,6 +2921,10 @@ td small {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fffdf6;
+}
+
+.toggle-card span {
+  min-width: 0;
 }
 
 .queue-list {

@@ -14,6 +14,7 @@
       {% csrf_token %}
       <input type="hidden" name="action" value="send_template:{{ template.template_type }}">
       <input type="hidden" name="tab" value="messages">
+      <input type="hidden" name="message" value="{{ template.template_type }}">
       <div class="quick-send-grid">
         {% if send_kind == "appointment" %}
           <label class="form-field">
@@ -66,6 +67,7 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="save_template:{{ template.template_type }}">
         <input type="hidden" name="tab" value="messages">
+        <input type="hidden" name="message" value="{{ template.template_type }}">
         <div class="form-grid compact-form-grid">
           {% for field in form %}
             <label class="form-field">

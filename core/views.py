@@ -19,6 +19,7 @@ from core.forms import (
     ClinicSettingsForm,
     GoogleCalendarIntegrationForm,
     WhatsAppAppointmentSendForm,
+    WhatsAppAutomationSettingsForm,
     WhatsAppBirthdaySendForm,
     WhatsAppChargeSendForm,
     WhatsAppIntegrationForm,
@@ -43,6 +44,7 @@ from core.models import (
     ClinicSettings,
     GoogleCalendarIntegration,
     WhatsAppIntegration,
+    WhatsAppAutomationSettings,
     WhatsAppMessageLog,
     WhatsAppMessageTemplate,
 )
@@ -50,6 +52,7 @@ from patients.models import Patient, ProfessionalPatientAssignment
 from patients.services import patient_ids_for_professional, professional_ids_for_patient
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
+from core.services.whatsapp_automation import enqueue_automatic_whatsapp_messages
 
 
 WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"]
@@ -417,6 +420,11 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
     template_name = "core/integrations.html"
 
     WHATSAPP_TABS = {"panel", "connections", "messages"}
+    MESSAGE_TABS = {
+        WhatsAppMessageTemplate.TemplateType.APPOINTMENT,
+        WhatsAppMessageTemplate.TemplateType.CHARGE,
+        WhatsAppMessageTemplate.TemplateType.BIRTHDAY,
+    }
 
     def get_active_tab(self):
         selected = self.request.GET.get("tab") or self.request.POST.get("tab") or "panel"
@@ -445,6 +453,10 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             WhatsAppMessageTemplate.TemplateType.BIRTHDAY: WhatsAppBirthdaySendForm(prefix="send-birthday"),
         }
 
+    def get_active_message_type(self):
+        selected = self.request.GET.get("message") or self.request.POST.get("message") or WhatsAppMessageTemplate.TemplateType.APPOINTMENT
+        return selected if selected in self.MESSAGE_TABS else WhatsAppMessageTemplate.TemplateType.APPOINTMENT
+
     def build_context(
         self,
         *,
@@ -452,6 +464,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         whatsapp_form=None,
         template_forms=None,
         send_forms=None,
+        automation_form=None,
         active_tab=None,
     ):
         google_integration = GoogleCalendarIntegration.load()
@@ -481,7 +494,10 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             "whatsapp_templates": templates,
             "template_forms": template_forms,
             "send_forms": send_forms,
+            "automation_form": automation_form
+            or WhatsAppAutomationSettingsForm(prefix="automation", instance=WhatsAppAutomationSettings.load()),
             "preview_messages": previews,
+            "active_message_type": self.get_active_message_type(),
             "recent_logs": recent_logs,
             "scheduled_logs": scheduled_logs,
             "connected_numbers_total": 1 if whatsapp_integration.is_connected else 0,
@@ -550,7 +566,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             template.updated_by = request.user
             template.save()
             messages.success(request, f"{template.title} salva com sucesso.")
-            return redirect(f"{reverse('integrations')}?tab=messages")
+            return redirect(f"{reverse('integrations')}?tab=messages&message={template_type}")
         template_forms = self.default_template_forms(templates)
         template_forms[template_type] = form
         return self.render_with_forms(template_forms=template_forms, active_tab="messages")
@@ -610,7 +626,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 error_message=str(exc),
             )
             messages.error(request, str(exc))
-            return redirect(f"{reverse('integrations')}?tab=messages")
+            return redirect(f"{reverse('integrations')}?tab=messages&message={template_type}")
 
         if form.cleaned_data.get("send_mode") == form.SEND_SCHEDULED:
             self.create_whatsapp_log(
@@ -624,7 +640,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 scheduled_for=form.cleaned_data["scheduled_for"],
             )
             messages.success(request, "Mensagem agendada com sucesso.")
-            return redirect(f"{reverse('integrations')}?tab=messages")
+            return redirect(f"{reverse('integrations')}?tab=messages&message={template_type}")
 
         try:
             result = send_whatsapp_text(target_number, rendered_message, integration=integration)
@@ -640,7 +656,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 error_message=str(exc),
             )
             messages.error(request, str(exc))
-            return redirect(f"{reverse('integrations')}?tab=messages")
+            return redirect(f"{reverse('integrations')}?tab=messages&message={template_type}")
 
         status = WhatsAppMessageLog.Status.DRY_RUN if result.get("dry_run") else WhatsAppMessageLog.Status.SENT
         self.create_whatsapp_log(
@@ -657,7 +673,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         )
         detail = "simulada" if status == WhatsAppMessageLog.Status.DRY_RUN else "enviada"
         messages.success(request, f"Mensagem {detail} com sucesso.")
-        return redirect(f"{reverse('integrations')}?tab=messages")
+        return redirect(f"{reverse('integrations')}?tab=messages&message={template_type}")
 
     def cancel_scheduled_message(self, request, log_id):
         scheduled_log = (
@@ -726,7 +742,19 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 detail = "modo teste" if result.get("dry_run") else "enviado pela API"
                 messages.success(request, f"WhatsApp validado em {detail}.")
             return redirect(f"{reverse('integrations')}?tab=connections")
+        elif action == "save_automation":
+            form = WhatsAppAutomationSettingsForm(
+                request.POST,
+                prefix="automation",
+                instance=WhatsAppAutomationSettings.load(),
+            )
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Automacoes do WhatsApp salvas com sucesso.")
+                return redirect(f"{reverse('integrations')}?tab=messages&message={self.get_active_message_type()}")
+            return self.render_with_forms(automation_form=form, active_tab="messages")
         elif action == "run_scheduled_whatsapp":
+            enqueue_automatic_whatsapp_messages(limit=20)
             summary = process_scheduled_whatsapp_messages(limit=20)
             if summary["failed"]:
                 messages.warning(

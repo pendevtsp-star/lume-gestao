@@ -1,0 +1,188 @@
+from datetime import datetime, time, timedelta
+
+from django.utils import timezone
+
+from billing.models import Charge, Membership, Payment, ServicePlan
+from core.integrations.whatsapp import format_whatsapp_currency, render_whatsapp_template
+from core.models import ClinicSettings, WhatsAppAutomationSettings, WhatsAppIntegration, WhatsAppMessageLog, WhatsAppMessageTemplate
+from patients.models import Patient, ProfessionalPatientAssignment
+from patients.services import professional_ids_for_patient
+from scheduling.models import Appointment
+from team.models import Professional
+
+
+def default_professional_for_patient(patient):
+    if not patient:
+        return None
+    professional_ids = professional_ids_for_patient(patient)
+    professional = Professional.objects.filter(pk__in=professional_ids, active=True).order_by("full_name").first()
+    if professional:
+        return professional
+    assignment = (
+        ProfessionalPatientAssignment.objects.select_related("professional")
+        .filter(patient=patient, active=True)
+        .order_by("created_at")
+        .first()
+    )
+    return assignment.professional if assignment else None
+
+
+def build_whatsapp_message_context(patient=None, professional=None, appointment=None, payment=None, charge=None):
+    clinic_settings = ClinicSettings.load()
+    patient = patient or getattr(appointment, "patient", None)
+    if not patient and payment:
+        patient = payment.membership.patient
+    if not patient and charge:
+        patient = charge.patient
+    professional = professional or getattr(appointment, "professional", None) or default_professional_for_patient(patient)
+
+    if appointment:
+        appointment_date = timezone.localtime(appointment.starts_at).strftime("%d/%m/%Y")
+        appointment_time = timezone.localtime(appointment.starts_at).strftime("%H:%M")
+    else:
+        appointment_date = (timezone.localdate() + timedelta(days=1)).strftime("%d/%m/%Y")
+        appointment_time = "09:00"
+
+    due_date = "-"
+    amount = "-"
+    if payment:
+        due_date = payment.due_date.strftime("%d/%m/%Y")
+        amount = format_whatsapp_currency(payment.amount)
+    elif charge:
+        due_date = charge.due_date.strftime("%d/%m/%Y")
+        amount = format_whatsapp_currency(charge.amount)
+
+    clinic_phone = clinic_settings.phone or WhatsAppIntegration.load().clinic_whatsapp_number or "-"
+    return {
+        "[Paciente]": patient.full_name if patient else "Paciente",
+        "[Profissional]": professional.full_name if professional else clinic_settings.clinic_name,
+        "[Data]": appointment_date,
+        "[Horario]": appointment_time,
+        "[Valor]": amount,
+        "[DataVencimento]": due_date,
+        "[Clinica]": clinic_settings.clinic_name,
+        "[TelefoneClinica]": clinic_phone,
+    }
+
+
+def whatsapp_preview_context(template_type):
+    sample_patient = Patient(full_name="Maria Clara", phone="11999990000")
+    sample_professional = Professional(full_name="Dra. Helena", specialty=Professional.Specialty.PILATES)
+    sample_date = timezone.localdate() + timedelta(days=1)
+    sample_appointment = Appointment(
+        patient=sample_patient,
+        professional=sample_professional,
+        starts_at=timezone.make_aware(datetime.combine(sample_date, time(9, 0))),
+        ends_at=timezone.make_aware(datetime.combine(sample_date, time(10, 0))),
+    )
+    if template_type == WhatsAppMessageTemplate.TemplateType.CHARGE:
+        plan = ServicePlan(name="Pilates", category=ServicePlan.Category.PILATES, monthly_price=0)
+        membership = Membership(patient=sample_patient, plan=plan)
+        sample_payment = Payment(membership=membership, due_date=timezone.localdate() + timedelta(days=5), amount="320.00")
+        return build_whatsapp_message_context(payment=sample_payment, professional=sample_professional)
+    if template_type == WhatsAppMessageTemplate.TemplateType.BIRTHDAY:
+        return build_whatsapp_message_context(patient=sample_patient, professional=sample_professional)
+    return build_whatsapp_message_context(appointment=sample_appointment)
+
+
+def whatsapp_target_number(custom_number, patient=None):
+    from core.integrations.http import IntegrationError
+
+    if custom_number:
+        return custom_number
+    if patient and patient.phone:
+        return patient.phone
+    raise IntegrationError("O destinatario selecionado nao possui telefone cadastrado. Informe um numero manualmente.")
+
+
+def _create_scheduled_log(*, integration, template, patient, appointment=None, scheduled_for=None):
+    rendered_message = render_whatsapp_template(
+        template.body,
+        build_whatsapp_message_context(patient=patient, appointment=appointment),
+    )
+    return WhatsAppMessageLog.objects.create(
+        integration=integration,
+        template=template,
+        patient=patient,
+        appointment=appointment,
+        recipient_name=patient.full_name,
+        recipient_number=patient.phone,
+        rendered_message=rendered_message,
+        status=WhatsAppMessageLog.Status.SCHEDULED,
+        scheduled_for=scheduled_for,
+    )
+
+
+def enqueue_automatic_whatsapp_messages(now=None, limit=100):
+    now = now or timezone.now()
+    local_now = timezone.localtime(now)
+    settings = WhatsAppAutomationSettings.load()
+    integration = WhatsAppIntegration.load()
+    WhatsAppMessageTemplate.ensure_defaults()
+    created = {"appointment": 0, "birthday": 0}
+
+    if not integration.is_connected:
+        return created
+
+    if settings.appointment_reminders_enabled:
+        template = WhatsAppMessageTemplate.objects.get(template_type=WhatsAppMessageTemplate.TemplateType.APPOINTMENT)
+        if template.active:
+            reminder_start = now + timedelta(hours=settings.appointment_reminder_hours_before)
+            reminder_end = reminder_start + timedelta(minutes=60)
+            appointments = (
+                Appointment.objects.select_related("patient", "professional")
+                .filter(
+                    status=Appointment.Status.SCHEDULED,
+                    starts_at__gte=reminder_start,
+                    starts_at__lt=reminder_end,
+                    patient__phone__gt="",
+                )
+                .order_by("starts_at")[:limit]
+            )
+            for appointment in appointments:
+                exists = WhatsAppMessageLog.objects.filter(
+                    template=template,
+                    appointment=appointment,
+                ).exclude(status=WhatsAppMessageLog.Status.CANCELED).exists()
+                if exists:
+                    continue
+                _create_scheduled_log(
+                    integration=integration,
+                    template=template,
+                    patient=appointment.patient,
+                    appointment=appointment,
+                    scheduled_for=now,
+                )
+                created["appointment"] += 1
+
+    if settings.birthday_messages_enabled and local_now.time() >= settings.birthday_send_time:
+        template = WhatsAppMessageTemplate.objects.get(template_type=WhatsAppMessageTemplate.TemplateType.BIRTHDAY)
+        if template.active:
+            today = local_now.date()
+            patients = Patient.objects.filter(
+                active=True,
+                birth_date__month=today.month,
+                birth_date__day=today.day,
+                phone__gt="",
+            ).order_by("full_name")[:limit]
+            for patient in patients:
+                exists = (
+                    WhatsAppMessageLog.objects.filter(
+                        template=template,
+                        patient=patient,
+                        scheduled_for__date=today,
+                    )
+                    .exclude(status=WhatsAppMessageLog.Status.CANCELED)
+                    .exists()
+                )
+                if exists:
+                    continue
+                _create_scheduled_log(
+                    integration=integration,
+                    template=template,
+                    patient=patient,
+                    scheduled_for=now,
+                )
+                created["birthday"] += 1
+
+    return created

@@ -171,7 +171,13 @@
           </div>
 
           {% if not google_configured %}
-            <div class="message warning">Configure GOOGLE_CALENDAR_CLIENT_ID e GOOGLE_CALENDAR_CLIENT_SECRET no .env para liberar a conexao com Google.</div>
+            <div class="google-setup-guide">
+              <strong>Antes de conectar, o administrador precisa liberar o acesso Google neste computador/servidor.</strong>
+              <span>1. Crie um app OAuth no Google Cloud Console.</span>
+              <span>2. Cadastre a URL de retorno: <code>{{ request.scheme }}://{{ request.get_host }}{% url 'integrations_google_callback' %}</code></span>
+              <span>3. Preencha no arquivo <code>.env</code>: <code>GOOGLE_CALENDAR_CLIENT_ID</code> e <code>GOOGLE_CALENDAR_CLIENT_SECRET</code>.</span>
+              <span>4. Reinicie o sistema. Depois disso o botao “Conectar conta Google” aparece para o usuario final.</span>
+            </div>
           {% endif %}
 
           <dl class="integration-facts compact-facts">
@@ -323,27 +329,70 @@
           <div class="panel-header">
             <div>
               <h3>Mensagens prontas</h3>
-              <p>Escolha o tipo de mensagem, selecione o paciente ou referencia e envie agora ou agende para depois.</p>
+              <p>Escolha abaixo qual modelo deseja usar. A pagina mostra apenas uma mensagem por vez para ficar mais leve.</p>
             </div>
           </div>
-          <div class="message-help-grid">
-            <article><strong>Agendamento</strong><p>Lembretes e confirmacoes de sessoes futuras.</p></article>
-            <article><strong>Cobranca</strong><p>Avisos de mensalidades, vencimentos e cobrancas avulsas.</p></article>
-            <article><strong>Aniversario</strong><p>Mensagens especiais para pacientes ativos.</p></article>
+          <div class="message-selector">
+            <a class="{% if active_message_type == 'appointment' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages&message=appointment">
+              <strong>Agendamento</strong>
+              <span>Consultas e sessoes futuras</span>
+            </a>
+            <a class="{% if active_message_type == 'charge' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages&message=charge">
+              <strong>Cobranca</strong>
+              <span>Mensalidades e vencimentos</span>
+            </a>
+            <a class="{% if active_message_type == 'birthday' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages&message=birthday">
+              <strong>Aniversario</strong>
+              <span>Parabens automatico</span>
+            </a>
           </div>
         </section>
 
-        {% with template=whatsapp_templates.appointment form=template_forms.appointment send_form=send_forms.appointment preview=preview_messages.appointment send_kind="appointment" %}
-          {% include "core/partials/whatsapp_template_card.html" %}
-        {% endwith %}
+        <section class="panel automation-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Bot automatico</h3>
+              <p>O worker local verifica a fila periodicamente e agenda lembretes sem acao manual do admin.</p>
+            </div>
+          </div>
+          <form method="post" class="integration-body compact-integration-body automation-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_automation">
+            <input type="hidden" name="tab" value="messages">
+            <input type="hidden" name="message" value="{{ active_message_type }}">
+            <div class="friendly-form-grid automation-grid">
+              {% for field in automation_form %}
+                <label class="form-field {% if field.field.widget.input_type == 'checkbox' %}toggle-card{% endif %}">
+                  {% if field.field.widget.input_type == 'checkbox' %}
+                    {{ field }}
+                    <span>{{ field.label }}</span>
+                  {% else %}
+                    <span>{{ field.label }}</span>
+                    {{ field }}
+                  {% endif %}
+                  {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+                </label>
+              {% endfor %}
+            </div>
+            <div class="form-actions compact-actions">
+              <button class="button secondary" type="submit">Salvar automacoes</button>
+            </div>
+          </form>
+        </section>
 
-        {% with template=whatsapp_templates.charge form=template_forms.charge send_form=send_forms.charge preview=preview_messages.charge send_kind="charge" %}
-          {% include "core/partials/whatsapp_template_card.html" %}
-        {% endwith %}
-
-        {% with template=whatsapp_templates.birthday form=template_forms.birthday send_form=send_forms.birthday preview=preview_messages.birthday send_kind="birthday" %}
-          {% include "core/partials/whatsapp_template_card.html" %}
-        {% endwith %}
+        {% if active_message_type == "appointment" %}
+          {% with template=whatsapp_templates.appointment form=template_forms.appointment send_form=send_forms.appointment preview=preview_messages.appointment send_kind="appointment" %}
+            {% include "core/partials/whatsapp_template_card.html" %}
+          {% endwith %}
+        {% elif active_message_type == "charge" %}
+          {% with template=whatsapp_templates.charge form=template_forms.charge send_form=send_forms.charge preview=preview_messages.charge send_kind="charge" %}
+            {% include "core/partials/whatsapp_template_card.html" %}
+          {% endwith %}
+        {% else %}
+          {% with template=whatsapp_templates.birthday form=template_forms.birthday send_form=send_forms.birthday preview=preview_messages.birthday send_kind="birthday" %}
+            {% include "core/partials/whatsapp_template_card.html" %}
+          {% endwith %}
+        {% endif %}
       </div>
     {% endif %}
   </article>

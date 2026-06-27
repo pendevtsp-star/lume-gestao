@@ -2003,6 +2003,33 @@ td small {
   align-items: center;
 }
 
+.google-setup-guide {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid rgba(167, 109, 27, 0.18);
+  border-radius: 14px;
+  background: #f7efe2;
+  color: #7b5a21;
+  font-weight: 800;
+}
+
+.google-setup-guide strong {
+  color: #6f4a12;
+}
+
+.google-setup-guide span {
+  color: #6e7469;
+  font-size: 14px;
+}
+
+.google-setup-guide code {
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.65);
+  color: #4b3b20;
+}
+
 .compact-integration-body {
   padding: 0;
 }
@@ -2020,6 +2047,10 @@ td small {
 
 .test-form-grid {
   grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr);
+}
+
+.automation-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .toggle-card {
@@ -2067,6 +2098,50 @@ td small {
   border: 1px solid var(--line);
   border-radius: 20px;
   background: linear-gradient(180deg, #fff, #fbfaf4);
+}
+
+.automation-panel {
+  padding: 18px;
+}
+
+.automation-panel .panel-header {
+  margin: -18px -18px 14px;
+}
+
+.message-selector {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 16px;
+}
+
+.message-selector a {
+  display: grid;
+  gap: 4px;
+  min-height: 82px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.message-selector a:hover,
+.message-selector a:focus-visible,
+.message-selector a.is-active {
+  border-color: rgba(96, 114, 79, 0.45);
+  box-shadow: 0 12px 24px rgba(58, 70, 50, 0.10);
+  transform: translateY(-1px);
+}
+
+.message-selector a.is-active {
+  background: linear-gradient(135deg, #f9f5e8, #e8f1dd);
+}
+
+.message-selector span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .message-template-card-compact {
@@ -2381,6 +2456,7 @@ td small {
 
   .friendly-form-grid,
   .test-form-grid,
+  .automation-grid,
   .quick-send-grid,
   .compact-form-grid {
     grid-template-columns: 1fr;
@@ -2412,6 +2488,7 @@ td small {
   .connection-grid,
   .friendly-form-grid,
   .test-form-grid,
+  .automation-grid,
   .quick-send-grid,
   .compact-form-grid,
   .integration-stack,
@@ -2431,6 +2508,7 @@ td small {
   }
 
   .card-grid,
+  .message-selector,
   .report-highlight-grid {
     grid-template-columns: 1fr;
   }

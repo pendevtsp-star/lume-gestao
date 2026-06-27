@@ -5,6 +5,7 @@ from core.models import (
     ClinicSettings,
     GoogleCalendarIntegration,
     WhatsAppIntegration,
+    WhatsAppAutomationSettings,
     WhatsAppMessageLog,
     WhatsAppMessageTemplate,
 )
@@ -40,6 +41,17 @@ class WhatsAppMessageTemplateAdmin(admin.ModelAdmin):
     list_display = ("title", "template_type", "active", "send_time", "updated_by", "updated_at")
     list_filter = ("template_type", "active")
     search_fields = ("title", "description", "body")
+
+
+@admin.register(WhatsAppAutomationSettings)
+class WhatsAppAutomationSettingsAdmin(admin.ModelAdmin):
+    list_display = (
+        "appointment_reminders_enabled",
+        "appointment_reminder_hours_before",
+        "birthday_messages_enabled",
+        "birthday_send_time",
+        "updated_at",
+    )
 
 
 @admin.register(WhatsAppMessageLog)

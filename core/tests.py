@@ -16,6 +16,7 @@ from core.models import (
     AuditLog,
     ClinicSettings,
     GoogleCalendarIntegration,
+    WhatsAppAutomationSettings,
     WhatsAppIntegration,
     WhatsAppMessageLog,
     WhatsAppMessageTemplate,
@@ -402,6 +403,16 @@ class IntegrationsTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Integracoes")
 
+    def test_messages_tab_filters_single_template(self):
+        self.client.force_login(self.management)
+
+        response = self.client.get(f"{reverse('integrations')}?tab=messages&message=charge")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Mensagem de Cobranca")
+        self.assertNotContains(response, "Mensagem de Agendamento")
+        self.assertNotContains(response, "Mensagem de Aniversario")
+
     def test_administration_can_open_integrations(self):
         self.client.force_login(self.administration)
 
@@ -485,6 +496,50 @@ class IntegrationsTests(TestCase):
         log = WhatsAppMessageLog.objects.get(template=template)
         self.assertEqual(log.status, WhatsAppMessageLog.Status.DRY_RUN)
         self.assertEqual(log.patient, self.patient)
+        self.assertIn(self.patient.full_name, log.rendered_message)
+
+    def test_management_can_save_whatsapp_automation_settings(self):
+        self.client.force_login(self.management)
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "save_automation",
+                "tab": "messages",
+                "message": "appointment",
+                "automation-appointment_reminders_enabled": "on",
+                "automation-appointment_reminder_hours_before": 12,
+                "automation-birthday_messages_enabled": "on",
+                "automation-birthday_send_time": "07:30",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        automation = WhatsAppAutomationSettings.load()
+        self.assertTrue(automation.appointment_reminders_enabled)
+        self.assertEqual(automation.appointment_reminder_hours_before, 12)
+        self.assertTrue(automation.birthday_messages_enabled)
+        self.assertEqual(automation.birthday_send_time, time(7, 30))
+
+    def test_whatsapp_queue_command_creates_automatic_appointment_reminder(self):
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"enabled": True, "dry_run": True, "phone_number_id": "123", "clinic_whatsapp_number": "5511999990000"},
+        )
+        WhatsAppMessageTemplate.ensure_defaults()
+        start = timezone.now() + timedelta(hours=24, minutes=10)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            status=Appointment.Status.SCHEDULED,
+        )
+
+        call_command("process_whatsapp_queue", limit=10, verbosity=0)
+
+        log = WhatsAppMessageLog.objects.get(appointment=appointment)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.DRY_RUN)
         self.assertIn(self.patient.full_name, log.rendered_message)
 
     def test_management_can_send_birthday_message_from_dashboard(self):

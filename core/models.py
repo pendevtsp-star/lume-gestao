@@ -216,6 +216,25 @@ class WhatsAppMessageTemplate(TimeStampedModel):
         return templates
 
 
+class WhatsAppAutomationSettings(TimeStampedModel):
+    appointment_reminders_enabled = models.BooleanField("enviar lembretes de consulta automaticamente", default=True)
+    appointment_reminder_hours_before = models.PositiveSmallIntegerField("horas antes da consulta", default=24)
+    birthday_messages_enabled = models.BooleanField("enviar aniversarios automaticamente", default=True)
+    birthday_send_time = models.TimeField("horario do aniversario", default=time(8, 0))
+
+    class Meta:
+        verbose_name = "automacao WhatsApp"
+        verbose_name_plural = "automacoes WhatsApp"
+
+    def __str__(self):
+        return "Automacoes WhatsApp"
+
+    @classmethod
+    def load(cls):
+        settings_object, _ = cls.objects.get_or_create(pk=1)
+        return settings_object
+
+
 class WhatsAppMessageLog(TimeStampedModel):
     class Status(models.TextChoices):
         SCHEDULED = "scheduled", "Agendada"

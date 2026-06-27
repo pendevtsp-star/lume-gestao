@@ -2,7 +2,13 @@ from django import forms
 from django.utils import timezone
 
 from billing.models import Charge, Payment
-from core.models import ClinicSettings, GoogleCalendarIntegration, WhatsAppIntegration, WhatsAppMessageTemplate
+from core.models import (
+    ClinicSettings,
+    GoogleCalendarIntegration,
+    WhatsAppAutomationSettings,
+    WhatsAppIntegration,
+    WhatsAppMessageTemplate,
+)
 from patients.models import Patient
 from scheduling.models import Appointment
 
@@ -84,6 +90,20 @@ class WhatsAppMessageTemplateForm(StyledModelForm):
         widgets = {
             "body": forms.Textarea(attrs={"rows": 5}),
             "send_time": forms.TimeInput(attrs={"type": "time"}),
+        }
+
+
+class WhatsAppAutomationSettingsForm(StyledModelForm):
+    class Meta:
+        model = WhatsAppAutomationSettings
+        fields = [
+            "appointment_reminders_enabled",
+            "appointment_reminder_hours_before",
+            "birthday_messages_enabled",
+            "birthday_send_time",
+        ]
+        widgets = {
+            "birthday_send_time": forms.TimeInput(attrs={"type": "time"}),
         }
 
 

@@ -681,6 +681,21 @@ class SchedulingTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_availability_board_loads_and_delete_removes_rule(self):
+        user = get_user_model().objects.create_user(username="gestao-disponibilidade-ui", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        availability = ProfessionalAvailability.objects.filter(professional=self.professional).first()
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("scheduling:availabilities"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Configure os horarios recorrentes")
+        self.assertContains(response, f"{availability.session_capacity} vaga")
+
+        delete_response = self.client.post(reverse("scheduling:availability_delete", args=[availability.pk]))
+        self.assertRedirects(delete_response, reverse("scheduling:availabilities"))
+        self.assertFalse(ProfessionalAvailability.objects.filter(pk=availability.pk).exists())
+
     def test_calendar_week_view_and_ics_export_are_available(self):
         user = get_user_model().objects.create_user(username="gestao-calendario", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})

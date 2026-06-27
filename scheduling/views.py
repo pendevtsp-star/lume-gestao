@@ -113,6 +113,12 @@ def filter_appointment_search(queryset, query):
     )
 
 
+def filter_availability_search(queryset, query):
+    if not query:
+        return queryset
+    return queryset.filter(Q(professional__full_name__icontains=query) | Q(notes__icontains=query))
+
+
 def calendar_week_start(request):
     selected = parse_date(request.GET.get("semana", "")) or timezone.localdate()
     return selected - timedelta(days=selected.weekday())
@@ -955,7 +961,41 @@ class ProfessionalAvailabilityListView(ProfessionalAvailabilityAccessMixin, Sear
     search_fields = ["professional__full_name", "notes"]
 
     def get_queryset(self):
-        return availabilities_for_user(self.request.user)
+        return filter_availability_search(availabilities_for_user(self.request.user), self.request.GET.get("q", "").strip())
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        availabilities = list(self.get_queryset())
+        grouped = {}
+        for availability in availabilities:
+            professional = availability.professional
+            grouped.setdefault(
+                professional.pk,
+                {
+                    "professional": professional,
+                    "days": {weekday: [] for weekday, _label in ProfessionalAvailability.Weekday.choices},
+                    "total": 0,
+                    "active": 0,
+                },
+            )
+            grouped[professional.pk]["days"][availability.weekday].append(availability)
+            grouped[professional.pk]["total"] += 1
+            if availability.active:
+                grouped[professional.pk]["active"] += 1
+
+        context["weekday_choices"] = ProfessionalAvailability.Weekday.choices
+        availability_boards = []
+        for board in grouped.values():
+            board["weekdays"] = [
+                {"value": weekday, "label": label, "items": board["days"][weekday]}
+                for weekday, label in ProfessionalAvailability.Weekday.choices
+            ]
+            availability_boards.append(board)
+        context["availability_boards"] = sorted(
+            availability_boards,
+            key=lambda item: item["professional"].full_name,
+        )
+        return context
 
 
 class ProfessionalAvailabilityCreateView(FormContextMixin, ProfessionalAvailabilityAccessMixin, CreateView):
@@ -997,6 +1037,41 @@ class ProfessionalAvailabilityUpdateView(FormContextMixin, ProfessionalAvailabil
     def form_valid(self, form):
         messages.success(self.request, "Disponibilidade atualizada com sucesso.")
         return super().form_valid(form)
+
+
+class ProfessionalAvailabilityDeleteView(FormContextMixin, ProfessionalAvailabilityAccessMixin, DeleteView):
+    model = ProfessionalAvailability
+    template_name = "core/confirm_deactivate.html"
+    success_url = reverse_lazy("scheduling:availabilities")
+    page_title = "Excluir disponibilidade"
+    section_label = "Agenda"
+    back_url_name = "scheduling:availabilities"
+
+    def get_queryset(self):
+        return availabilities_for_user(self.request.user)
+
+    def form_valid(self, form):
+        self.object.delete()
+        messages.success(self.request, "Disponibilidade excluida com sucesso.")
+        return redirect(self.success_url)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        availability = self.object
+        context.update(
+            {
+                "object_name": (
+                    f"{availability.professional.full_name} - {availability.get_weekday_display()} "
+                    f"{availability.starts_at:%H:%M} ate {availability.ends_at:%H:%M}"
+                ),
+                "entity_label": "disponibilidade",
+                "delete_button_label": "Excluir disponibilidade",
+                "delete_explanation": (
+                    "Agendamentos ja criados continuam preservados. Esta regra de horario deixara de gerar novas vagas."
+                ),
+            }
+        )
+        return context
 
 
 class AgendaSettingsUpdateView(FormContextMixin, AgendaSettingsAccessMixin, UpdateView):

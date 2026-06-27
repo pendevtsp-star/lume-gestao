@@ -3,26 +3,74 @@
 {% block title %}Disponibilidade | Lume Gestao{% endblock %}
 
 {% block content %}
-<section class="page-heading">
+<div class="availability-page">
+<section class="page-heading availability-heading">
   <div>
     <p class="eyebrow">Agenda</p>
     <h1>Disponibilidade</h1>
+    <p class="page-subtitle">Configure os horarios recorrentes e a capacidade padrao de cada sessao.</p>
   </div>
   <a class="button primary" href="{% url 'scheduling:availability_create' %}">Nova disponibilidade</a>
 </section>
 
-<section class="panel">
+<section class="panel availability-overview-panel">
   <form class="toolbar" method="get">
     <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar profissional ou observacao">
     <button class="button secondary" type="submit">Buscar</button>
   </form>
+
+  {% if availability_boards %}
+    <div class="availability-board-list">
+      {% for board in availability_boards %}
+        <article class="availability-board">
+          <div class="availability-board-head">
+            <div>
+              <h2>{{ board.professional.full_name }}</h2>
+              <p>{{ board.active }} ativa(s) de {{ board.total }} regra(s)</p>
+            </div>
+            <a class="button secondary compact" href="{% url 'scheduling:availability_create' %}">Adicionar horario</a>
+          </div>
+          <div class="availability-week-grid">
+            {% for weekday in board.weekdays %}
+              <div class="availability-day-card">
+                <strong>{{ weekday.label }}</strong>
+                {% for availability in weekday.items %}
+                  <div class="availability-slot-pill {% if not availability.active %}is-inactive{% endif %}">
+                    <span>{{ availability.starts_at|time:"H:i" }}-{{ availability.ends_at|time:"H:i" }}</span>
+                    <small>{{ availability.session_capacity }} vaga(s)</small>
+                  </div>
+                {% empty %}
+                  <span class="availability-empty">Sem horario</span>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state soft">
+      <strong>Nenhuma disponibilidade encontrada.</strong>
+      <span>Cadastre o primeiro horario recorrente para liberar vagas na agenda.</span>
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel availability-table-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Regras cadastradas</h2>
+      <p>Edite, pause ou exclua uma disponibilidade especifica.</p>
+    </div>
+  </div>
   <div class="table-wrap">
-    <table>
+    <table class="availability-table">
       <thead>
         <tr>
           <th>Profissional</th>
           <th>Recorrencia</th>
           <th>Horario</th>
+          <th>Capacidade</th>
           <th>Periodo</th>
           <th>Status</th>
           <th class="right">Acao</th>
@@ -34,19 +82,24 @@
             <td><strong>{{ availability.professional.full_name }}</strong></td>
             <td>{{ availability.get_weekday_display }}</td>
             <td>{{ availability.starts_at|time:"H:i" }} ate {{ availability.ends_at|time:"H:i" }}</td>
+            <td><strong>{{ availability.session_capacity }} vaga(s)</strong></td>
             <td>
               {{ availability.valid_from|date:"d/m/Y" }}
               <small>{% if availability.valid_until %}ate {{ availability.valid_until|date:"d/m/Y" }}{% else %}sem data final{% endif %}</small>
             </td>
             <td><span class="badge {% if availability.active %}active{% else %}canceled{% endif %}">{% if availability.active %}Ativa{% else %}Inativa{% endif %}</span></td>
-            <td class="right"><a class="table-action" href="{% url 'scheduling:availability_update' availability.pk %}">Editar</a></td>
+            <td class="right table-actions">
+              <a class="table-action" href="{% url 'scheduling:availability_update' availability.pk %}">Editar</a>
+              <a class="table-action danger-link" href="{% url 'scheduling:availability_delete' availability.pk %}">Excluir</a>
+            </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty">Nenhuma disponibilidade cadastrada.</td></tr>
+          <tr><td colspan="7" class="empty">Nenhuma disponibilidade cadastrada.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% include "core/pagination.html" %}
 </section>
+</div>
 {% endblock %}

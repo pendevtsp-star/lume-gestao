@@ -1976,6 +1976,112 @@ td small {
   align-items: center;
 }
 
+.availability-page {
+  display: grid;
+  gap: 18px;
+}
+
+.availability-page .panel {
+  border-radius: 18px;
+}
+
+.availability-overview-panel {
+  overflow: hidden;
+}
+
+.availability-board-list {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.availability-board {
+  border: 1px solid rgba(118, 104, 78, 0.18);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(118, 141, 94, 0.10), transparent 28%),
+    #fffdf7;
+  box-shadow: 0 14px 28px rgba(70, 62, 44, 0.06);
+  overflow: hidden;
+}
+
+.availability-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #fffaf0, #f7f0df);
+}
+
+.availability-board-head h2,
+.availability-board-head p {
+  margin: 0;
+}
+
+.availability-board-head p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.availability-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  gap: 1px;
+  background: var(--line);
+}
+
+.availability-day-card {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-height: 132px;
+  padding: 13px;
+  background: rgba(255, 253, 246, 0.96);
+}
+
+.availability-day-card > strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.availability-slot-pill {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border-left: 4px solid var(--sage-dark);
+  border-radius: 10px;
+  background: linear-gradient(145deg, #edf4df, #fffaf0);
+  color: var(--text);
+}
+
+.availability-slot-pill span {
+  font-weight: 900;
+}
+
+.availability-slot-pill small,
+.availability-empty {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.availability-slot-pill.is-inactive {
+  border-left-color: #c8bca8;
+  background: #f3eee4;
+  opacity: 0.72;
+}
+
+.availability-table th:last-child,
+.availability-table td:last-child {
+  width: 160px;
+}
+
 .report-filter-panel {
   margin-bottom: 18px;
 }

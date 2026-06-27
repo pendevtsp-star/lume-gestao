@@ -16,6 +16,10 @@ function repoRoot() {
   return path.resolve(__dirname, "..");
 }
 
+function backendDataDir() {
+  return path.join(app.getPath("userData"), "backend-data");
+}
+
 function appIconPath() {
   const resourcesRoot = process.resourcesPath || repoRoot();
   const candidates = app.isPackaged
@@ -77,8 +81,90 @@ function backendCommand() {
   };
 }
 
+function copyIfExists(source, destination) {
+  if (!fs.existsSync(source)) {
+    return false;
+  }
+
+  fs.cpSync(source, destination, { recursive: true });
+  return true;
+}
+
+function createDesktopDataBackup(reason, versionLabel = app.getVersion()) {
+  const dataDir = backendDataDir();
+  const databasePath = path.join(dataDir, "db.sqlite3");
+  const mediaPath = path.join(dataDir, "media");
+
+  if (!fs.existsSync(databasePath) && !fs.existsSync(mediaPath)) {
+    return null;
+  }
+
+  const safeVersion = String(versionLabel).replace(/[^a-zA-Z0-9._-]/g, "-");
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupDir = path.join(dataDir, "backups", `${reason}-${safeVersion}-${timestamp}`);
+  fs.mkdirSync(backupDir, { recursive: true });
+
+  const copied = {
+    database: copyIfExists(databasePath, path.join(backupDir, "db.sqlite3")),
+    media: copyIfExists(mediaPath, path.join(backupDir, "media")),
+  };
+
+  fs.writeFileSync(
+    path.join(backupDir, "manifest.json"),
+    JSON.stringify(
+      {
+        createdAt: new Date().toISOString(),
+        appVersion: app.getVersion(),
+        reason,
+        copied,
+      },
+      null,
+      2
+    )
+  );
+
+  console.log(`[backup] Dados locais salvos em ${backupDir}`);
+  return backupDir;
+}
+
+function createStartupBackupBeforeMigrations() {
+  if (!app.isPackaged) {
+    return;
+  }
+
+  try {
+    const dataDir = backendDataDir();
+    const markerPath = path.join(dataDir, "backups", ".last-startup-backup-version");
+    const currentVersion = app.getVersion();
+    const previousMarker = fs.existsSync(markerPath) ? fs.readFileSync(markerPath, "utf8").trim() : "";
+
+    if (previousMarker === currentVersion) {
+      return;
+    }
+
+    const backupDir = createDesktopDataBackup("before-migrations", currentVersion);
+    fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+    fs.writeFileSync(markerPath, currentVersion);
+
+    if (backupDir) {
+      dialog.showMessageBox({
+        type: "info",
+        title: "Backup local criado",
+        message: "Criamos um backup dos dados locais antes de abrir esta versao.",
+        detail: backupDir,
+      });
+    }
+  } catch (error) {
+    console.error(`[backup] ${error.message}`);
+    dialog.showErrorBox(
+      "Falha ao criar backup local",
+      "Nao foi possivel criar o backup antes de abrir esta versao. Verifique espaco em disco e permissoes da pasta de dados."
+    );
+  }
+}
+
 function startBackend() {
-  const dataDir = path.join(app.getPath("userData"), "backend-data");
+  const dataDir = backendDataDir();
   fs.mkdirSync(dataDir, { recursive: true });
 
   const backend = backendCommand();
@@ -158,6 +244,11 @@ function configureAutoUpdates() {
 
   autoUpdater.on("update-downloaded", async (info) => {
     if (!mainWindow || mainWindow.isDestroyed()) {
+      try {
+        createDesktopDataBackup("before-update-install", info.version);
+      } catch (error) {
+        console.error(`[backup] ${error.message}`);
+      }
       autoUpdater.quitAndInstall();
       return;
     }
@@ -173,6 +264,16 @@ function configureAutoUpdates() {
     });
 
     if (result.response === 0) {
+      try {
+        createDesktopDataBackup("before-update-install", info.version);
+      } catch (error) {
+        dialog.showErrorBox(
+          "Falha ao criar backup local",
+          "A atualizacao nao sera instalada agora porque nao foi possivel criar o backup dos dados locais."
+        );
+        console.error(`[backup] ${error.message}`);
+        return;
+      }
       autoUpdater.quitAndInstall();
     }
   });
@@ -230,6 +331,7 @@ if (!singleInstanceLock) {
 
 if (singleInstanceLock) {
   app.whenReady().then(async () => {
+    createStartupBackupBeforeMigrations();
     startBackend();
 
     try {

@@ -30,6 +30,8 @@ if (Test-Path $BackendBin) {
   --collect-submodules accounts `
   --collect-submodules billing `
   --collect-submodules core `
+  --collect-submodules fiscal `
+  --collect-submodules mobile `
   --collect-submodules patients `
   --collect-submodules reports `
   --collect-submodules scheduling `

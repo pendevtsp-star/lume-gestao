@@ -19,6 +19,7 @@ Release candidata para testes beta com usuarios finais selecionados.
 - Ajustes visuais nos principais fluxos de agenda, integracoes e documentos exportaveis.
 - Checklist de release beta documentado em `docs/RELEASE_BETA_CHECKLIST.md`.
 - Backup local documentado para Docker/PostgreSQL e app desktop.
+- Backup automatico dos dados locais do desktop antes da primeira abertura de uma nova versao e antes de instalar updates baixados.
 - Worker de mensagens preparado para processar agendamentos no servidor local e no desktop.
 
 ## Limitacoes conhecidas para o beta

@@ -2,7 +2,11 @@
   "name": "lume-gestao-desktop",
   "version": "0.1.0",
   "description": "Aplicativo desktop do Lume Gestao.",
-  "author": "Lume Studio",
+  "homepage": "https://github.com/pendevtsp-star/lume-gestao",
+  "author": {
+    "name": "Lume Studio",
+    "email": "suporte@lume.local"
+  },
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -76,7 +80,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "Office"
+      "category": "Office",
+      "maintainer": "Lume Studio <suporte@lume.local>"
     }
   }
 }

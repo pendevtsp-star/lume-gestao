@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'billing',
     'scheduling',
     'reports',
+    'fiscal',
     'mobile',
 ]
 

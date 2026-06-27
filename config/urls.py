@@ -66,6 +66,7 @@ urlpatterns = [
     path('financeiro/', include('billing.urls')),
     path('agenda/', include('scheduling.urls')),
     path('relatorios/', include('reports.urls')),
+    path('fiscal/', include('fiscal.urls')),
     path('api/v1/mobile/', include('mobile.urls')),
     path('api/v1/', include(router.urls)),
     path('login/', auth_views.LoginView.as_view(), name='login'),

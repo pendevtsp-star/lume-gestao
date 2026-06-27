@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Documento Fiscal | Lume Gestao{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Modulo fiscal</p>
+    <h1>{% if object %}Editar documento{% else %}Novo documento{% endif %}</h1>
+    <p class="page-subtitle">Preencha os dados para NFS-e ou recibo interno.</p>
+  </div>
+  <a class="button secondary" href="{% url 'fiscal:dashboard' %}">Voltar</a>
+</div>
+
+<section class="panel">
+  <form method="post" class="form-grid">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="form-errors full-span">{{ form.non_field_errors }}</div>
+    {% endif %}
+    {% for field in form %}
+      <label class="form-field {% if field.name == 'notes' or field.name == 'description' %}full-span{% endif %}">
+        <span>{{ field.label }}</span>
+        {{ field }}
+        {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+        {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+    {% endfor %}
+    <div class="form-actions full-span">
+      <button class="button" type="submit">Salvar documento</button>
+      <a class="button secondary" href="{% url 'fiscal:dashboard' %}">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -6,8 +6,9 @@ Use este checklist antes de cadastrar pacientes reais, prontuarios, pagamentos o
 
 - [ ] `DEBUG=False` no `.env` real da VPS.
 - [ ] `SECRET_KEY` forte, unica, com mais de 50 caracteres e fora do Git.
-- [ ] `ALLOWED_HOSTS` contem apenas o dominio publico correto, por exemplo `sistema.seudominio.com.br`.
-- [ ] `CSRF_TRUSTED_ORIGINS` contem apenas origem HTTPS correta, por exemplo `https://sistema.seudominio.com.br`.
+- [ ] `ALLOWED_HOSTS=sistema.clinicafisiolume.com.br`.
+- [ ] `CSRF_TRUSTED_ORIGINS=https://sistema.clinicafisiolume.com.br`.
+- [ ] `PUBLIC_BASE_URL=https://sistema.clinicafisiolume.com.br`, quando usado para links absolutos.
 - [ ] `LUME_STRICT_PRODUCTION=True`.
 - [ ] `LUME_SEED_DEMO=False`.
 - [ ] Dados demonstrativos removidos antes do uso real.
@@ -15,7 +16,9 @@ Use este checklist antes de cadastrar pacientes reais, prontuarios, pagamentos o
 ## HTTPS, Cloudflare e rede
 
 - [ ] HTTPS funcionando com certificado valido.
-- [ ] Cloudflare em modo SSL/TLS `Full (strict)`.
+- [ ] Registro `A sistema -> IP_DA_VPS` criado na Cloudflare sem IP fixo no codigo.
+- [ ] Cloudflare mantida em `DNS only` ate Nginx e HTTPS estarem funcionando na VPS.
+- [ ] Cloudflare em modo SSL/TLS `Full (strict)` depois da validacao de HTTPS na VPS.
 - [ ] Porta `8000` nao exposta publicamente; app acessivel apenas via Nginx.
 - [ ] `docker-compose.prod.yml` publica `127.0.0.1:8000:8000`, nao `0.0.0.0:8000:8000`.
 - [ ] Firewall ativo liberando apenas o necessario, normalmente `22`, `80` e `443`.
@@ -38,7 +41,9 @@ Use este checklist antes de cadastrar pacientes reais, prontuarios, pagamentos o
 - [ ] SMTP real configurado e testado.
 - [ ] Recuperacao de senha envia e-mail real.
 - [ ] Google Calendar configurado apenas com credenciais reais da clinica.
+- [ ] Callback Google autorizado: `https://sistema.clinicafisiolume.com.br/integracoes/google/callback/`.
 - [ ] WhatsApp permanece com `WHATSAPP_DRY_RUN=True` ate credenciais, numero e templates serem validados.
+- [ ] URLs publicas de futuras integracoes, callbacks ou webhooks usam `https://sistema.clinicafisiolume.com.br`.
 - [ ] Tokens e secrets de Google, Meta e e-mail nao aparecem em logs, commits ou prints.
 
 ## Dados sensiveis e logs

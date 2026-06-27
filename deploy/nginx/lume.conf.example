@@ -1,10 +1,11 @@
 # Lume Gestao - exemplo de Nginx para VPS Linux
 #
-# Dominio de exemplo:
-# sistema.seudominio.com.br
+# Dominio real:
+# sistema.clinicafisiolume.com.br
 #
 # Cloudflare:
-# - Use SSL/TLS em "Full (strict)".
+# - Antes da VPS estar com Nginx e HTTPS funcionando, deixe o registro como DNS only.
+# - Depois da validacao, ative o proxy e use SSL/TLS em "Full (strict)".
 # - O servidor de origem precisa ter certificado valido.
 # - Este arquivo nao inclui certificados reais.
 #
@@ -16,7 +17,7 @@
 
 server {
     listen 80;
-    server_name sistema.seudominio.com.br;
+    server_name sistema.clinicafisiolume.com.br;
 
     # Usado pelo Certbot/Let's Encrypt antes do HTTPS estar ativo.
     location /.well-known/acme-challenge/ {
@@ -31,12 +32,12 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name sistema.seudominio.com.br;
+    server_name sistema.clinicafisiolume.com.br;
 
     # Substitua pelos caminhos reais do certificado do servidor.
     # Com Cloudflare Full (strict), pode ser Let's Encrypt ou Cloudflare Origin Certificate.
-    ssl_certificate /etc/letsencrypt/live/sistema.seudominio.com.br/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/sistema.seudominio.com.br/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/sistema.clinicafisiolume.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/sistema.clinicafisiolume.com.br/privkey.pem;
 
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;

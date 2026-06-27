@@ -47,6 +47,7 @@ CSRF_TRUSTED_ORIGINS = config(
     default="",
     cast=lambda value: [origin.strip() for origin in value.split(",") if origin.strip()],
 )
+PUBLIC_BASE_URL = config("PUBLIC_BASE_URL", default="")
 
 
 def _looks_like_placeholder(value):

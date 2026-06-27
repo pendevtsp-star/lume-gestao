@@ -7,7 +7,8 @@ Este guia considera desenvolvimento em Windows e producao em Ubuntu 24.04 LTS. N
 ## 1. Pre-requisitos
 
 - Repositorio no GitHub: `https://github.com/pendevtsp-star/lume-gestao.git`.
-- Dominio gerenciado pela Cloudflare, por exemplo `sistema.seudominio.com.br`.
+- Dominio gerenciado pela Cloudflare: `clinicafisiolume.com.br`.
+- URL oficial do sistema: `https://sistema.clinicafisiolume.com.br`.
 - VPS Ubuntu 24.04 LTS.
 - Acesso SSH como usuario com `sudo`.
 - Git instalado localmente no Windows para enviar atualizacoes.
@@ -42,12 +43,21 @@ No Cloudflare:
 
 1. Crie um registro `A`.
 2. Nome: `sistema`.
-3. Conteudo: IP publico da VPS.
-4. Proxy: pode iniciar cinza durante validacao e depois ativar laranja.
+3. Conteudo: `IP_DA_VPS`.
+4. Proxy: mantenha `DNS only` durante validacao e so depois ative `Proxied`.
+
+Registro esperado:
+
+```text
+A sistema -> IP_DA_VPS
+```
+
+Nao coloque IP fixo no codigo ou em arquivos versionados; o IP fica apenas no DNS da Cloudflare.
 
 Configuracao SSL/TLS recomendada:
 
-- Modo: `Full (strict)`.
+- Antes do HTTPS estar pronto na VPS: mantenha o registro como `DNS only`.
+- Depois do HTTPS validado na VPS: use modo `Full (strict)` e proxy ativo.
 - Always Use HTTPS: ativo.
 - Automatic HTTPS Rewrites: ativo.
 
@@ -136,11 +146,14 @@ nano .env
 Troque obrigatoriamente:
 
 - `SECRET_KEY`
-- `ALLOWED_HOSTS=sistema.seudominio.com.br`
-- `CSRF_TRUSTED_ORIGINS=https://sistema.seudominio.com.br`
+- `ALLOWED_HOSTS=sistema.clinicafisiolume.com.br`
+- `CSRF_TRUSTED_ORIGINS=https://sistema.clinicafisiolume.com.br`
+- `PUBLIC_BASE_URL=https://sistema.clinicafisiolume.com.br`
 - `POSTGRES_PASSWORD`
 - `EMAIL_HOST_PASSWORD`
 - credenciais Google e WhatsApp quando forem usadas
+
+Nunca versionar o arquivo `.env` real. Ele deve existir somente na VPS.
 
 Valores importantes para dados reais:
 
@@ -153,6 +166,13 @@ WHATSAPP_DRY_RUN=True
 ```
 
 Mantenha `WHATSAPP_DRY_RUN=True` ate validar numero, templates e permissao da Meta.
+
+URLs publicas de integracao:
+
+- Base publica do sistema: `https://sistema.clinicafisiolume.com.br`.
+- Callback Google Agenda existente: `https://sistema.clinicafisiolume.com.br/integracoes/google/callback/`.
+- Tela de integracoes existente: `https://sistema.clinicafisiolume.com.br/integracoes/`.
+- O projeto ainda nao possui webhook publico versionado para WhatsApp/Meta; nao cadastre endpoints inventados.
 
 ## 8. Subida dos containers
 
@@ -207,7 +227,7 @@ sudo nano /etc/nginx/sites-available/lume
 
 No arquivo, confirme:
 
-- `server_name sistema.seudominio.com.br;`
+- `server_name sistema.clinicafisiolume.com.br;`
 - `proxy_pass http://127.0.0.1:8000;`
 - caminhos `/srv/lume-gestao/data/staticfiles/` e `/srv/lume-gestao/data/media/`
 
@@ -230,7 +250,7 @@ sudo apt install -y certbot python3-certbot-nginx
 Emita o certificado:
 
 ```bash
-sudo certbot --nginx -d sistema.seudominio.com.br
+sudo certbot --nginx -d sistema.clinicafisiolume.com.br
 ```
 
 Teste renovacao:
@@ -239,12 +259,12 @@ Teste renovacao:
 sudo certbot renew --dry-run
 ```
 
-Depois volte na Cloudflare e confirme SSL/TLS em `Full (strict)`.
+Depois de confirmar que o HTTPS responde corretamente na VPS, volte na Cloudflare, ative o proxy e configure SSL/TLS em `Full (strict)`.
 
 Teste:
 
 ```bash
-curl -I https://sistema.seudominio.com.br/healthz/
+curl -I https://sistema.clinicafisiolume.com.br/healthz/
 ```
 
 ## 11. Criacao do superusuario
@@ -318,7 +338,7 @@ docker compose -f docker-compose.prod.yml ps
 Valide:
 
 ```bash
-curl -I https://sistema.seudominio.com.br/healthz/
+curl -I https://sistema.clinicafisiolume.com.br/healthz/
 docker compose -f docker-compose.prod.yml logs --tail=80 web
 ```
 
@@ -369,7 +389,9 @@ Antes de liberar usuarios reais:
 - `LUME_STRICT_PRODUCTION=True`.
 - `LUME_SEED_DEMO=False`.
 - `ALLOWED_HOSTS` e `CSRF_TRUSTED_ORIGINS` com dominio real.
-- Cloudflare em `Full (strict)`.
+- DNS Cloudflare sem IP fixo no codigo; registro `A sistema -> IP_DA_VPS`.
+- HTTPS ativo na VPS antes de ativar Cloudflare `Proxied` e `Full (strict)`.
+- Cloudflare em `Full (strict)` apos validacao.
 - HTTPS ativo com Certbot e `certbot renew --dry-run` aprovado.
 - `/healthz/` respondendo HTTP 200.
 - Nginx com `nginx -t` aprovado.

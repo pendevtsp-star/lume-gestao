@@ -56,6 +56,12 @@ Pela tela:
 http://127.0.0.1:8000/integracoes/
 ```
 
+Em producao:
+
+```text
+https://sistema.clinicafisiolume.com.br/integracoes/
+```
+
 Recursos principais da tela:
 
 - configuracao do numero principal da clinica;
@@ -82,3 +88,7 @@ No app desktop, a fila roda localmente enquanto o aplicativo estiver aberto.
 ## Importante sobre templates
 
 Mensagens iniciadas pela clinica, como lembrete de vencimento ou aviso de consulta, normalmente precisam de template aprovado pela Meta quando enviadas fora da janela de atendimento do WhatsApp. O modulo atual prepara texto simples para teste; a proxima etapa de producao deve adicionar envio por templates.
+
+## URLs publicas
+
+Use `https://sistema.clinicafisiolume.com.br` como base publica para qualquer configuracao futura de callback, webhook ou tela de integracao da Meta. O projeto atual nao possui endpoint publico de webhook do WhatsApp versionado; nao cadastre endpoints inventados no painel da Meta.

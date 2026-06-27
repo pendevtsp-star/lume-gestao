@@ -6,10 +6,10 @@ O fluxo de recuperacao de senha ja usa envio de e-mail. Em desenvolvimento, o pr
 
 ```text
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-DEFAULT_FROM_EMAIL=Lume Gestao <nao-responda@seudominio.com.br>
-EMAIL_HOST=smtp.seudominio.com.br
+DEFAULT_FROM_EMAIL=Lume Gestao <nao-responda@clinicafisiolume.com.br>
+EMAIL_HOST=smtp.clinicafisiolume.com.br
 EMAIL_PORT=587
-EMAIL_HOST_USER=nao-responda@seudominio.com.br
+EMAIL_HOST_USER=nao-responda@clinicafisiolume.com.br
 EMAIL_HOST_PASSWORD=troque-esta-senha-do-email
 EMAIL_USE_TLS=True
 EMAIL_TIMEOUT=15

@@ -51,7 +51,7 @@ backups/lume_media_YYYYMMDD_HHMMSS.tar.gz
 git status
 git rev-parse --short HEAD
 docker compose -f docker-compose.prod.yml ps
-curl -I https://sistema.seudominio.com.br/healthz/
+curl -I https://sistema.clinicafisiolume.com.br/healthz/
 ```
 
 Guarde o hash atual para rollback.
@@ -118,7 +118,7 @@ curl http://127.0.0.1:8000/healthz/
 Publico via Nginx/HTTPS:
 
 ```bash
-curl -I https://sistema.seudominio.com.br/healthz/
+curl -I https://sistema.clinicafisiolume.com.br/healthz/
 ```
 
 Esperado:
@@ -171,7 +171,7 @@ Se a atualizacao falhar, volte ao hash salvo antes da atualizacao:
 git checkout HASH_ANTERIOR
 docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml logs --tail=120 web
-curl -I https://sistema.seudominio.com.br/healthz/
+curl -I https://sistema.clinicafisiolume.com.br/healthz/
 ```
 
 Se precisar voltar para a branch depois:

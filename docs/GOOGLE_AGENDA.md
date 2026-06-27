@@ -15,11 +15,13 @@ O Lume Gestao ja possui exportacao `.ics`. Esta etapa adiciona a base OAuth para
 http://127.0.0.1:8000/integracoes/google/callback/
 ```
 
-Na maquina da clinica, use tambem a URL com IP local:
+Em producao, use a URL publica oficial:
 
 ```text
-http://IP_DA_MAQUINA_DA_CLINICA:8000/integracoes/google/callback/
+https://sistema.clinicafisiolume.com.br/integracoes/google/callback/
 ```
+
+Nao use IP fixo nas credenciais de producao. O dominio `sistema.clinicafisiolume.com.br` sera apontado para a VPS pelo DNS da Cloudflare.
 
 ## Variaveis no .env
 
@@ -41,6 +43,12 @@ Entre como gerencia e acesse:
 
 ```text
 http://127.0.0.1:8000/integracoes/
+```
+
+Em producao:
+
+```text
+https://sistema.clinicafisiolume.com.br/integracoes/
 ```
 
 Clique em `Conectar`, autorize a conta Google e depois use `Sincronizar agenda`.

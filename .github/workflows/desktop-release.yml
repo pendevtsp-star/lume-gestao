@@ -131,7 +131,7 @@ jobs:
             dist/desktop/*.deb
             dist/desktop/*.dmg
             dist/desktop/*.exe
-            dist/desktop/*.yml
+            dist/desktop/latest*.yml
             dist/desktop/*.zip
           if-no-files-found: error
 
@@ -145,13 +145,28 @@ jobs:
         with:
           path: release-artifacts
 
+      - name: Prepare release files
+        shell: bash
+        run: |
+          mkdir -p release-files
+          find release-artifacts -type f \
+            \( -name "*.AppImage" \
+            -o -name "*.blockmap" \
+            -o -name "*.deb" \
+            -o -name "*.dmg" \
+            -o -name "*.exe" \
+            -o -name "*.zip" \
+            -o -name "latest*.yml" \) \
+            -exec cp "{}" release-files/ \;
+          ls -lh release-files
+
       - name: Publish GitHub release
         uses: ncipollo/release-action@v1
         with:
           name: Lume Gestao ${{ github.ref_name }}
           tag: ${{ github.ref_name }}
           prerelease: true
-          artifacts: release-artifacts/**/*
+          artifacts: release-files/*
           allowUpdates: true
           artifactErrorsFailBuild: true
           removeArtifacts: true

@@ -1755,8 +1755,8 @@ td small {
 .integration-body,
 .integration-footer {
   display: grid;
-  gap: 16px;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 16px 18px;
 }
 
 .integration-footer {
@@ -1766,9 +1766,9 @@ td small {
 
 .integration-facts {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
-  padding: 12px;
+  padding: 10px 12px;
   border-radius: 8px;
   background: var(--muted-panel);
 }
@@ -1802,6 +1802,10 @@ td small {
   grid-template-columns: minmax(0, 1.8fr) minmax(320px, 0.9fr);
 }
 
+.integration-stack-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .zap-panel {
   padding: 0;
   overflow: hidden;
@@ -1810,9 +1814,9 @@ td small {
 .zap-header {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
+  gap: 18px;
   align-items: flex-start;
-  padding: 28px 28px 18px;
+  padding: 24px 26px 16px;
   background:
     radial-gradient(circle at top left, rgba(130, 173, 194, 0.20), transparent 42%),
     linear-gradient(135deg, #fbfaf3, #f0efe4);
@@ -1830,13 +1834,13 @@ td small {
 
 .zap-tabs {
   display: flex;
-  gap: 10px;
-  padding: 0 28px 20px;
+  gap: 8px;
+  padding: 0 26px 14px;
   border-bottom: 1px solid var(--line);
 }
 
 .zap-tabs a {
-  padding: 10px 16px;
+  padding: 9px 15px;
   border-radius: 999px;
   color: var(--muted);
   font-weight: 800;
@@ -1851,8 +1855,8 @@ td small {
 .zap-connections,
 .zap-message-list {
   display: grid;
-  gap: 20px;
-  padding: 24px 28px 28px;
+  gap: 16px;
+  padding: 20px 26px 24px;
 }
 
 .zap-metrics {
@@ -1862,7 +1866,7 @@ td small {
 }
 
 .metric-card {
-  padding: 20px;
+  padding: 18px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: linear-gradient(180deg, #fffdf7, #f4f1e5);
@@ -1929,13 +1933,13 @@ td small {
 .zap-guide-grid,
 .message-help-grid {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .zap-guide-grid article,
 .message-help-grid article {
-  padding: 18px;
+  padding: 15px;
   border: 1px solid #e3dccb;
   border-radius: 18px;
   background: #fff;
@@ -1957,6 +1961,75 @@ td small {
 .connection-card,
 .google-panel {
   align-self: start;
+}
+
+.connection-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.connection-card-feature,
+.test-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.test-card {
+  grid-column: 1 / -1;
+}
+
+.connection-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.connection-card-head h3 {
+  margin: 4px 0 6px;
+  font-size: 20px;
+}
+
+.connection-card-head p {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.connection-actions,
+.integration-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.compact-integration-body {
+  padding: 0;
+}
+
+.compact-facts {
+  margin-top: 2px;
+}
+
+.friendly-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(120px, 0.6fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.test-form-grid {
+  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr);
+}
+
+.toggle-card {
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdf6;
 }
 
 .queue-list {
@@ -1988,12 +2061,16 @@ td small {
 
 .message-template-card {
   display: grid;
-  gap: 22px;
+  gap: 18px;
   grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.8fr);
-  padding: 24px;
+  padding: 20px;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: linear-gradient(180deg, #fff, #fbfaf4);
+}
+
+.message-template-card-compact {
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
 }
 
 .message-template-main,
@@ -2001,7 +2078,7 @@ td small {
 .template-editor,
 .template-send-form {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .message-template-head {
@@ -2023,14 +2100,14 @@ td small {
 .token-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .token-chip {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 32px;
+  padding: 0 12px;
   border: 1px solid #d9d0be;
   border-radius: 12px;
   background: #fff;
@@ -2041,8 +2118,49 @@ td small {
   padding-left: 4px;
 }
 
+.quick-send-grid,
+.compact-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compact-actions {
+  margin-top: 2px;
+}
+
+.template-advanced {
+  border: 1px solid #e3dccb;
+  border-radius: 14px;
+  background: #fffdf7;
+}
+
+.template-advanced summary {
+  padding: 12px 14px;
+  color: var(--sage-dark);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.template-advanced[open] {
+  padding-bottom: 14px;
+}
+
+.template-advanced[open] summary {
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e8dfcd;
+}
+
+.template-advanced > .token-row,
+.template-advanced > .template-editor,
+.connection-advanced > .integration-body,
+.connection-advanced > .form-grid,
+.connection-advanced > .template-editor {
+  margin-inline: 14px;
+}
+
 .message-preview {
-  padding: 18px;
+  padding: 16px;
   border: 1px solid #e3dccb;
   border-radius: 18px;
   background: #fff;
@@ -2062,7 +2180,7 @@ td small {
 .message-preview p {
   margin: 0;
   color: #3c4330;
-  line-height: 1.7;
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
@@ -2103,6 +2221,11 @@ td small {
   background: rgba(49, 112, 91, 0.12);
   color: var(--success);
   font-weight: 800;
+}
+
+.message.warning {
+  background: rgba(167, 109, 27, 0.12);
+  color: var(--warning);
 }
 
 .login-page {
@@ -2243,6 +2366,7 @@ td small {
   .split-grid,
   .patient-summary,
   .card-grid,
+  .connection-grid,
   .report-highlight-grid,
   .integration-stack,
   .zap-metrics,
@@ -2252,6 +2376,13 @@ td small {
   }
 
   .message-template-card {
+    grid-template-columns: 1fr;
+  }
+
+  .friendly-form-grid,
+  .test-form-grid,
+  .quick-send-grid,
+  .compact-form-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -2278,6 +2409,11 @@ td small {
     .form-grid,
   .toolbar,
   .filter-panel,
+  .connection-grid,
+  .friendly-form-grid,
+  .test-form-grid,
+  .quick-send-grid,
+  .compact-form-grid,
   .integration-stack,
   .zap-metrics,
   .zap-guide-grid,

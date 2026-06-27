@@ -1,0 +1,91 @@
+<article class="message-template-card message-template-card-compact">
+  <div class="message-template-main">
+    <div class="message-template-head">
+      <div>
+        <h3>{{ template.title }}</h3>
+        <p>{{ template.description }}</p>
+      </div>
+      <span class="status-pill {% if template.active %}is-success{% else %}is-muted{% endif %}">
+        {% if template.active %}Ativa{% else %}Pausada{% endif %}
+      </span>
+    </div>
+
+    <form method="post" class="template-send-form quick-send-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="send_template:{{ template.template_type }}">
+      <input type="hidden" name="tab" value="messages">
+      <div class="quick-send-grid">
+        {% if send_kind == "appointment" %}
+          <label class="form-field">
+            <span>{{ send_form.appointment.label }}</span>
+            {{ send_form.appointment }}
+            {% for error in send_form.appointment.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+          </label>
+        {% elif send_kind == "charge" %}
+          <label class="form-field">
+            <span>{{ send_form.reference.label }}</span>
+            {{ send_form.reference }}
+            {% for error in send_form.reference.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+          </label>
+        {% else %}
+          <label class="form-field">
+            <span>{{ send_form.patient.label }}</span>
+            {{ send_form.patient }}
+            {% for error in send_form.patient.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+          </label>
+        {% endif %}
+        <label class="form-field">
+          <span>{{ send_form.send_mode.label }}</span>
+          {{ send_form.send_mode }}
+          {% for error in send_form.send_mode.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ send_form.scheduled_for.label }}</span>
+          {{ send_form.scheduled_for }}
+          {% for error in send_form.scheduled_for.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ send_form.custom_number.label }}</span>
+          {{ send_form.custom_number }}
+          {% for error in send_form.custom_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      </div>
+      <div class="form-actions compact-actions">
+        <button class="button primary" type="submit">Enviar ou agendar</button>
+      </div>
+    </form>
+
+    <details class="template-advanced">
+      <summary>Editar texto e variaveis</summary>
+      <div class="token-row">
+        {% for token in template.variable_tokens %}
+          <span class="token-chip">{{ token }}</span>
+        {% endfor %}
+      </div>
+      <form method="post" class="template-editor">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_template:{{ template.template_type }}">
+        <input type="hidden" name="tab" value="messages">
+        <div class="form-grid compact-form-grid">
+          {% for field in form %}
+            <label class="form-field">
+              <span>{{ field.label }}</span>
+              {{ field }}
+              {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+            </label>
+          {% endfor %}
+        </div>
+        <div class="form-actions compact-actions">
+          <button class="button secondary" type="submit">Salvar modelo</button>
+        </div>
+      </form>
+    </details>
+  </div>
+
+  <aside class="message-template-side">
+    <div class="message-preview">
+      <span class="message-preview-label">Previa</span>
+      <p>{{ preview|linebreaksbr }}</p>
+    </div>
+  </aside>
+</article>

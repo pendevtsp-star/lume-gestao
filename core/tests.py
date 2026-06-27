@@ -392,6 +392,16 @@ class IntegrationsTests(TestCase):
         self.assertContains(response, "Google Agenda")
         self.assertContains(response, "ZapFisio")
 
+    def test_management_can_open_integration_tabs(self):
+        self.client.force_login(self.management)
+
+        for tab in ["connections", "messages"]:
+            with self.subTest(tab=tab):
+                response = self.client.get(f"{reverse('integrations')}?tab={tab}")
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "Integracoes")
+
     def test_administration_can_open_integrations(self):
         self.client.force_login(self.administration)
 
@@ -587,6 +597,32 @@ class IntegrationsTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIn("accounts.google.com", response["Location"])
+
+    def test_management_can_disconnect_google_calendar(self):
+        self.client.force_login(self.management)
+        integration = GoogleCalendarIntegration.load()
+        integration.enabled = True
+        integration.connected_email = "clinica@lume.local"
+        integration.refresh_token = "refresh-token"
+        integration.access_token = "access-token"
+        integration.token_expires_at = timezone.now() + timedelta(hours=1)
+        integration.save()
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "disconnect_google",
+                "tab": "connections",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        integration.refresh_from_db()
+        self.assertFalse(integration.enabled)
+        self.assertEqual(integration.connected_email, "")
+        self.assertEqual(integration.refresh_token, "")
+        self.assertEqual(integration.access_token, "")
+        self.assertIsNone(integration.token_expires_at)
 
 
 class GoogleCalendarSignalTests(TestCase):

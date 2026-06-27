@@ -681,6 +681,27 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 messages.success(request, "Configuracao do Google Agenda salva.")
                 return redirect(f"{reverse('integrations')}?tab=connections")
             return self.render_with_forms(google_form=form, active_tab="connections")
+        elif action == "disconnect_google":
+            integration = GoogleCalendarIntegration.load()
+            integration.enabled = False
+            integration.access_token = ""
+            integration.refresh_token = ""
+            integration.token_expires_at = None
+            integration.connected_email = ""
+            integration.last_error = ""
+            integration.save(
+                update_fields=[
+                    "enabled",
+                    "access_token",
+                    "refresh_token",
+                    "token_expires_at",
+                    "connected_email",
+                    "last_error",
+                    "updated_at",
+                ]
+            )
+            messages.success(request, "Conta Google desconectada com sucesso.")
+            return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "save_whatsapp":
             form = WhatsAppIntegrationForm(request.POST, prefix="whatsapp", instance=WhatsAppIntegration.load())
             if form.is_valid():

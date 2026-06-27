@@ -8,23 +8,28 @@
     <p class="eyebrow">{{ section_label }}</p>
     <h1>{{ page_title }}</h1>
   </div>
-  <a class="button secondary" href="{% url 'settings' %}">Configuracoes</a>
+  <a class="button secondary" href="{% url 'settings' %}">Configuracoes da clinica</a>
 </section>
 
-<section class="integration-stack">
+<section class="integration-stack integration-stack-single">
   <article class="panel zap-panel">
     <div class="zap-header">
       <div>
-        <p class="eyebrow">WhatsApp</p>
-        <h2>ZapFisio</h2>
-        <p class="zap-subtitle">Conecte o numero da clinica, padronize mensagens e escolha se cada envio sai agora ou fica agendado para depois.</p>
+        <p class="eyebrow">Central de integracoes</p>
+        <h2>WhatsApp e Google Agenda</h2>
+        <p class="zap-subtitle">Configure os canais da clinica em poucos passos. O painel mostra o status, Conexoes cuida das contas e Mensagens organiza os envios pelo ZapFisio.</p>
       </div>
-      <span class="status-pill {% if whatsapp.is_connected %}is-success{% else %}is-muted{% endif %}">
-        {% if whatsapp.is_connected %}Conectado{% else %}Aguardando configuracao{% endif %}
-      </span>
+      <div class="integration-status-row">
+        <span class="status-pill {% if whatsapp.is_connected %}is-success{% else %}is-muted{% endif %}">
+          WhatsApp {% if whatsapp.is_connected %}conectado{% else %}pendente{% endif %}
+        </span>
+        <span class="status-pill {% if google.is_connected %}is-success{% else %}is-muted{% endif %}">
+          Google {% if google.is_connected %}conectado{% else %}pendente{% endif %}
+        </span>
+      </div>
     </div>
 
-    <nav class="zap-tabs" aria-label="Abas do WhatsApp">
+    <nav class="zap-tabs" aria-label="Abas de integracoes">
       <a class="{% if active_tab == 'panel' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=panel">Painel</a>
       <a class="{% if active_tab == 'connections' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=connections">Conexoes</a>
       <a class="{% if active_tab == 'messages' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages">Mensagens</a>
@@ -55,21 +60,21 @@
           <div class="panel-header">
             <div>
               <h3>Como usar</h3>
-              <p>Fluxo rapido para a equipe configurar e disparar mensagens sem depender de ajuste tecnico.</p>
+              <p>Fluxo rapido para configurar canais e disparar mensagens sem depender de ajuste tecnico.</p>
             </div>
           </div>
           <div class="zap-guide-grid">
             <article>
-              <strong>1. Conecte o numero</strong>
-              <p>Cadastre o WhatsApp principal da clinica, escolha modo teste ou envio real e valide com um disparo simples.</p>
+              <strong>1. Conecte os canais</strong>
+              <p>Cadastre o WhatsApp da clinica e conecte a conta Google que recebera os agendamentos.</p>
             </article>
             <article>
               <strong>2. Ajuste os modelos</strong>
-              <p>Edite os textos padrao de agendamento, cobranca e aniversario mantendo as variaveis prontas do sistema.</p>
+              <p>Personalize mensagens de agendamento, cobranca e aniversario apenas quando precisar.</p>
             </article>
             <article>
-              <strong>3. Envie ou agende</strong>
-              <p>Selecione o paciente ou referencia, decida se vai enviar agora ou em outro horario e acompanhe tudo pelo painel.</p>
+              <strong>3. Envie ou sincronize</strong>
+              <p>Agende mensagens, processe a fila e sincronize os proximos atendimentos com o Google.</p>
             </article>
           </div>
         </section>
@@ -152,59 +157,161 @@
         </section>
       </div>
     {% elif active_tab == "connections" %}
-      <div class="zap-connections">
-        <section class="panel connection-card">
-          <div class="panel-header">
+      <div class="zap-connections connection-grid">
+        <section class="panel connection-card connection-card-feature">
+          <div class="connection-card-head">
             <div>
-              <h3>Numero da clinica</h3>
-              <p>Cadastre o numero principal, escolha se a integracao fica em teste e guarde aqui os identificadores da conta.</p>
+              <p class="eyebrow">Google Agenda</p>
+              <h3>{% if google.is_connected %}Conta conectada{% else %}Conectar agenda{% endif %}</h3>
+              <p>Sincronize os atendimentos do Lume com a agenda Google da clinica.</p>
             </div>
+            <span class="status-pill {% if google.is_connected %}is-success{% else %}is-muted{% endif %}">
+              {% if google.is_connected %}Conectado{% else %}Pendente{% endif %}
+            </span>
           </div>
-          <form method="post" class="integration-body">
+
+          {% if not google_configured %}
+            <div class="message warning">Configure GOOGLE_CALENDAR_CLIENT_ID e GOOGLE_CALENDAR_CLIENT_SECRET no .env para liberar a conexao com Google.</div>
+          {% endif %}
+
+          <dl class="integration-facts compact-facts">
+            <div><dt>Conta</dt><dd>{{ google.connected_email|default:"Nenhuma conta conectada" }}</dd></div>
+            <div><dt>Agenda</dt><dd>{{ google.calendar_id|default:"primary" }}</dd></div>
+            <div><dt>Ultima sincronizacao</dt><dd>{{ google.last_sync_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
+            <div><dt>Ultimo erro</dt><dd>{{ google.last_error|default:"-" }}</dd></div>
+          </dl>
+
+          <div class="connection-actions">
+            {% if google_configured %}
+              <a class="button primary" href="{% url 'integrations_google_connect' %}">
+                {% if google.is_connected %}Conectar outra conta{% else %}Conectar conta Google{% endif %}
+              </a>
+            {% endif %}
+            <form method="post" action="{% url 'integrations_google_sync' %}">
+              {% csrf_token %}
+              <button class="button secondary" type="submit" {% if not google.is_connected %}disabled{% endif %}>Sincronizar agora</button>
+            </form>
+            {% if google.is_connected %}
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="disconnect_google">
+                <input type="hidden" name="tab" value="connections">
+                <button class="button ghost" type="submit">Desconectar</button>
+              </form>
+            {% endif %}
+          </div>
+
+          <details class="template-advanced connection-advanced">
+            <summary>Ajustes avancados da agenda</summary>
+            <form method="post" class="integration-body compact-integration-body">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_google">
+              <input type="hidden" name="tab" value="connections">
+              <div class="form-grid compact-form-grid">
+                {% for field in google_form %}
+                  <label class="form-field">
+                    <span>{{ field.label }}</span>
+                    {{ field }}
+                    {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+                  </label>
+                {% endfor %}
+              </div>
+              <div class="form-actions compact-actions">
+                <button class="button secondary" type="submit">Salvar ajustes</button>
+              </div>
+            </form>
+          </details>
+        </section>
+
+        <section class="panel connection-card connection-card-feature">
+          <div class="connection-card-head">
+            <div>
+              <p class="eyebrow">WhatsApp</p>
+              <h3>{% if whatsapp.is_connected %}Numero conectado{% else %}Cadastrar numero da clinica{% endif %}</h3>
+              <p>Use o numero principal da clinica para lembretes, cobrancas e mensagens de aniversario.</p>
+            </div>
+            <span class="status-pill {% if whatsapp.is_connected %}is-success{% else %}is-muted{% endif %}">
+              {% if whatsapp.is_connected %}Conectado{% else %}Pendente{% endif %}
+            </span>
+          </div>
+
+          <form method="post" class="integration-body compact-integration-body">
             {% csrf_token %}
             <input type="hidden" name="action" value="save_whatsapp">
             <input type="hidden" name="tab" value="connections">
-            <div class="form-grid">
-              {% for field in whatsapp_form %}
-                <label class="form-field">
-                  <span>{{ field.label }}</span>
-                  {{ field }}
-                  {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
-                  {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-              {% endfor %}
+            <div class="friendly-form-grid">
+              <label class="form-field">
+                <span>{{ whatsapp_form.clinic_whatsapp_number.label }}</span>
+                {{ whatsapp_form.clinic_whatsapp_number }}
+                {% for error in whatsapp_form.clinic_whatsapp_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+              </label>
+              <label class="form-field">
+                <span>{{ whatsapp_form.default_country_code.label }}</span>
+                {{ whatsapp_form.default_country_code }}
+                {% for error in whatsapp_form.default_country_code.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+              </label>
+              <label class="form-field toggle-card">
+                {{ whatsapp_form.enabled }}
+                <span>Ativar WhatsApp</span>
+              </label>
+              <label class="form-field toggle-card">
+                {{ whatsapp_form.dry_run }}
+                <span>Modo teste</span>
+              </label>
             </div>
-            <dl class="integration-facts">
+
+            <details class="template-advanced connection-advanced">
+              <summary>Campos tecnicos da API</summary>
+              <div class="form-grid compact-form-grid">
+                <label class="form-field">
+                  <span>{{ whatsapp_form.provider.label }}</span>
+                  {{ whatsapp_form.provider }}
+                </label>
+                <label class="form-field">
+                  <span>{{ whatsapp_form.phone_number_id.label }}</span>
+                  {{ whatsapp_form.phone_number_id }}
+                </label>
+                <label class="form-field">
+                  <span>{{ whatsapp_form.business_account_id.label }}</span>
+                  {{ whatsapp_form.business_account_id }}
+                </label>
+              </div>
+            </details>
+
+            <dl class="integration-facts compact-facts">
               <div><dt>Conectado em</dt><dd>{{ whatsapp.connected_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
               <div><dt>Ultimo teste</dt><dd>{{ whatsapp.last_test_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
               <div><dt>Ultimo erro</dt><dd>{{ whatsapp.last_error|default:"-" }}</dd></div>
             </dl>
-            <div class="form-actions">
-              <button class="button primary" type="submit">Salvar conexao</button>
+            <div class="form-actions compact-actions">
+              <button class="button primary" type="submit">Salvar WhatsApp</button>
             </div>
           </form>
         </section>
 
-        <section class="panel connection-card">
-          <div class="panel-header">
+        <section class="panel connection-card test-card">
+          <div class="connection-card-head">
             <div>
-              <h3>Teste rapido</h3>
-              <p>Use um disparo simples para validar token, numero, formatacao e retorno da integracao.</p>
+              <p class="eyebrow">Teste rapido</p>
+              <h3>Enviar mensagem de teste</h3>
+              <p>Valide se o numero e a API estao respondendo antes de usar com pacientes.</p>
             </div>
           </div>
-          <form method="post" class="integration-body">
+          <form method="post" class="integration-body compact-integration-body">
             {% csrf_token %}
             <input type="hidden" name="action" value="test_whatsapp">
             <input type="hidden" name="tab" value="connections">
-            <label class="form-field">
-              <span>Numero para teste</span>
-              <input class="field-control" name="test_number" placeholder="11999990000">
-            </label>
-            <label class="form-field">
-              <span>Mensagem</span>
-              <textarea class="field-control" name="test_message" rows="5">Teste de mensagem do Lume Gestao.</textarea>
-            </label>
-            <div class="form-actions">
+            <div class="friendly-form-grid test-form-grid">
+              <label class="form-field">
+                <span>Numero para teste</span>
+                <input class="field-control" name="test_number" placeholder="11999990000">
+              </label>
+              <label class="form-field">
+                <span>Mensagem</span>
+                <textarea class="field-control" name="test_message" rows="3">Teste de mensagem do Lume Gestao.</textarea>
+              </label>
+            </div>
+            <div class="form-actions compact-actions">
               <button class="button secondary" type="submit">Testar WhatsApp</button>
             </div>
           </form>
@@ -215,269 +322,30 @@
         <section class="panel message-help-panel">
           <div class="panel-header">
             <div>
-              <h3>Disparos e automacoes</h3>
-              <p>Escolha um modelo, confira a previa e defina se a mensagem sai na hora ou em uma data especifica.</p>
+              <h3>Mensagens prontas</h3>
+              <p>Escolha o tipo de mensagem, selecione o paciente ou referencia e envie agora ou agende para depois.</p>
             </div>
           </div>
           <div class="message-help-grid">
-            <article><strong>Envio imediato</strong><p>Ideal para confirmar sessao, reforcar cobranca ou atender um pedido da recepcao.</p></article>
-            <article><strong>Agendamento</strong><p>Programe lembretes e avisos com antecedencia e deixe a fila do sistema processar depois.</p></article>
-            <article><strong>Numero manual</strong><p>Se precisar, envie para outro WhatsApp sem alterar o cadastro do paciente.</p></article>
+            <article><strong>Agendamento</strong><p>Lembretes e confirmacoes de sessoes futuras.</p></article>
+            <article><strong>Cobranca</strong><p>Avisos de mensalidades, vencimentos e cobrancas avulsas.</p></article>
+            <article><strong>Aniversario</strong><p>Mensagens especiais para pacientes ativos.</p></article>
           </div>
         </section>
 
-        {% with template=whatsapp_templates.appointment form=template_forms.appointment send_form=send_forms.appointment preview=preview_messages.appointment %}
-          <article class="message-template-card">
-            <div class="message-template-main">
-              <div class="message-template-head">
-                <div>
-                  <h3>{{ template.title }}</h3>
-                  <p>{{ template.description }}</p>
-                </div>
-                <span class="status-pill {% if template.active %}is-success{% else %}is-muted{% endif %}">
-                  {% if template.active %}Ativa{% else %}Pausada{% endif %}
-                </span>
-              </div>
-              <div class="token-row">
-                {% for token in template.variable_tokens %}
-                  <span class="token-chip">{{ token }}</span>
-                {% endfor %}
-              </div>
-              <form method="post" class="template-editor">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="save_template:appointment">
-                <input type="hidden" name="tab" value="messages">
-                <div class="form-grid">
-                  {% for field in form %}
-                    <label class="form-field">
-                      <span>{{ field.label }}</span>
-                      {{ field }}
-                      {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                    </label>
-                  {% endfor %}
-                </div>
-                <div class="form-actions">
-                  <button class="button secondary" type="submit">Salvar modelo</button>
-                </div>
-              </form>
-            </div>
-            <aside class="message-template-side">
-              <div class="message-preview">
-                <span class="message-preview-label">Previa</span>
-                <p>{{ preview|linebreaksbr }}</p>
-              </div>
-              <form method="post" class="template-send-form">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="send_template:appointment">
-                <input type="hidden" name="tab" value="messages">
-                <label class="form-field">
-                  <span>{{ send_form.appointment.label }}</span>
-                  {{ send_form.appointment }}
-                  {% for error in send_form.appointment.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <label class="form-field">
-                  <span>{{ send_form.custom_number.label }}</span>
-                  {{ send_form.custom_number }}
-                  {% for error in send_form.custom_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <label class="form-field">
-                  <span>{{ send_form.send_mode.label }}</span>
-                  {{ send_form.send_mode }}
-                  {% for error in send_form.send_mode.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <label class="form-field">
-                  <span>{{ send_form.scheduled_for.label }}</span>
-                  {{ send_form.scheduled_for }}
-                  {% for error in send_form.scheduled_for.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <button class="button primary" type="submit">Salvar disparo</button>
-              </form>
-            </aside>
-          </article>
+        {% with template=whatsapp_templates.appointment form=template_forms.appointment send_form=send_forms.appointment preview=preview_messages.appointment send_kind="appointment" %}
+          {% include "core/partials/whatsapp_template_card.html" %}
         {% endwith %}
 
-        {% with template=whatsapp_templates.charge form=template_forms.charge send_form=send_forms.charge preview=preview_messages.charge %}
-          <article class="message-template-card">
-            <div class="message-template-main">
-              <div class="message-template-head">
-                <div>
-                  <h3>{{ template.title }}</h3>
-                  <p>{{ template.description }}</p>
-                </div>
-                <span class="status-pill {% if template.active %}is-success{% else %}is-muted{% endif %}">
-                  {% if template.active %}Ativa{% else %}Pausada{% endif %}
-                </span>
-              </div>
-              <div class="token-row">
-                {% for token in template.variable_tokens %}
-                  <span class="token-chip">{{ token }}</span>
-                {% endfor %}
-              </div>
-              <form method="post" class="template-editor">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="save_template:charge">
-                <input type="hidden" name="tab" value="messages">
-                <div class="form-grid">
-                  {% for field in form %}
-                    <label class="form-field">
-                      <span>{{ field.label }}</span>
-                      {{ field }}
-                      {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                    </label>
-                  {% endfor %}
-                </div>
-                <div class="form-actions">
-                  <button class="button secondary" type="submit">Salvar modelo</button>
-                </div>
-              </form>
-            </div>
-            <aside class="message-template-side">
-              <div class="message-preview">
-                <span class="message-preview-label">Previa</span>
-                <p>{{ preview|linebreaksbr }}</p>
-              </div>
-              <form method="post" class="template-send-form">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="send_template:charge">
-                <input type="hidden" name="tab" value="messages">
-                <label class="form-field">
-                  <span>{{ send_form.reference.label }}</span>
-                  {{ send_form.reference }}
-                  {% for error in send_form.reference.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <label class="form-field">
-                  <span>{{ send_form.custom_number.label }}</span>
-                  {{ send_form.custom_number }}
-                  {% for error in send_form.custom_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <label class="form-field">
-                  <span>{{ send_form.send_mode.label }}</span>
-                  {{ send_form.send_mode }}
-                  {% for error in send_form.send_mode.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <label class="form-field">
-                  <span>{{ send_form.scheduled_for.label }}</span>
-                  {{ send_form.scheduled_for }}
-                  {% for error in send_form.scheduled_for.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <button class="button primary" type="submit">Salvar disparo</button>
-              </form>
-            </aside>
-          </article>
+        {% with template=whatsapp_templates.charge form=template_forms.charge send_form=send_forms.charge preview=preview_messages.charge send_kind="charge" %}
+          {% include "core/partials/whatsapp_template_card.html" %}
         {% endwith %}
 
-        {% with template=whatsapp_templates.birthday form=template_forms.birthday send_form=send_forms.birthday preview=preview_messages.birthday %}
-          <article class="message-template-card">
-            <div class="message-template-main">
-              <div class="message-template-head">
-                <div>
-                  <h3>{{ template.title }}</h3>
-                  <p>{{ template.description }}</p>
-                </div>
-                <span class="status-pill {% if template.active %}is-success{% else %}is-muted{% endif %}">
-                  {% if template.active %}Ativa{% else %}Pausada{% endif %}
-                </span>
-              </div>
-              <div class="token-row">
-                {% for token in template.variable_tokens %}
-                  <span class="token-chip">{{ token }}</span>
-                {% endfor %}
-              </div>
-              <form method="post" class="template-editor">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="save_template:birthday">
-                <input type="hidden" name="tab" value="messages">
-                <div class="form-grid">
-                  {% for field in form %}
-                    <label class="form-field">
-                      <span>{{ field.label }}</span>
-                      {{ field }}
-                      {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                    </label>
-                  {% endfor %}
-                </div>
-                <div class="form-actions">
-                  <button class="button secondary" type="submit">Salvar modelo</button>
-                </div>
-              </form>
-            </div>
-            <aside class="message-template-side">
-              <div class="message-preview">
-                <span class="message-preview-label">Previa</span>
-                <p>{{ preview|linebreaksbr }}</p>
-              </div>
-              <form method="post" class="template-send-form">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="send_template:birthday">
-                <input type="hidden" name="tab" value="messages">
-                <label class="form-field">
-                  <span>{{ send_form.patient.label }}</span>
-                  {{ send_form.patient }}
-                  {% for error in send_form.patient.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <label class="form-field">
-                  <span>{{ send_form.custom_number.label }}</span>
-                  {{ send_form.custom_number }}
-                  {% for error in send_form.custom_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <label class="form-field">
-                  <span>{{ send_form.send_mode.label }}</span>
-                  {{ send_form.send_mode }}
-                  {% for error in send_form.send_mode.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <label class="form-field">
-                  <span>{{ send_form.scheduled_for.label }}</span>
-                  {{ send_form.scheduled_for }}
-                  {% for error in send_form.scheduled_for.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                </label>
-                <button class="button primary" type="submit">Salvar disparo</button>
-              </form>
-            </aside>
-          </article>
+        {% with template=whatsapp_templates.birthday form=template_forms.birthday send_form=send_forms.birthday preview=preview_messages.birthday send_kind="birthday" %}
+          {% include "core/partials/whatsapp_template_card.html" %}
         {% endwith %}
       </div>
     {% endif %}
-  </article>
-
-  <article class="panel integration-panel google-panel">
-    <div class="panel-header">
-      <div>
-        <h2>Google Agenda</h2>
-        <p>{% if google.is_connected %}Conectado{% else %}Conecte uma conta Google para sincronizar atendimentos.{% endif %}</p>
-      </div>
-      {% if google_configured %}
-        <a class="button secondary" href="{% url 'integrations_google_connect' %}">Conectar</a>
-      {% endif %}
-    </div>
-    <form method="post" class="integration-body">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="save_google">
-      <input type="hidden" name="tab" value="connections">
-      {% if not google_configured %}
-        <div class="message warning">Configure GOOGLE_CALENDAR_CLIENT_ID e GOOGLE_CALENDAR_CLIENT_SECRET no .env.</div>
-      {% endif %}
-      <div class="form-grid">
-        {% for field in google_form %}
-          <label class="form-field">
-            <span>{{ field.label }}</span>
-            {{ field }}
-            {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-          </label>
-        {% endfor %}
-      </div>
-      <dl class="integration-facts">
-        <div><dt>Conta</dt><dd>{{ google.connected_email|default:"-" }}</dd></div>
-        <div><dt>Ultima sincronizacao</dt><dd>{{ google.last_sync_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
-        <div><dt>Ultimo erro</dt><dd>{{ google.last_error|default:"-" }}</dd></div>
-      </dl>
-      <div class="form-actions">
-        <button class="button secondary" type="submit">Salvar</button>
-      </div>
-    </form>
-    <form method="post" action="{% url 'integrations_google_sync' %}" class="integration-footer">
-      {% csrf_token %}
-      <button class="button primary" type="submit" {% if not google.is_connected %}disabled{% endif %}>Sincronizar agenda</button>
-    </form>
   </article>
 </section>
 {% endblock %}

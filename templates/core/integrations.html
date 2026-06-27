@@ -172,11 +172,10 @@
 
           {% if not google_configured %}
             <div class="google-setup-guide">
-              <strong>Antes de conectar, o administrador precisa liberar o acesso Google neste computador/servidor.</strong>
-              <span>1. Crie um app OAuth no Google Cloud Console.</span>
+              <strong>Configure uma vez para liberar o botao oficial do Google.</strong>
+              <span>1. Abra os ajustes avancados abaixo e preencha Google Client ID e Google Client Secret.</span>
               <span>2. Cadastre a URL de retorno: <code>{{ request.scheme }}://{{ request.get_host }}{% url 'integrations_google_callback' %}</code></span>
-              <span>3. Preencha no arquivo <code>.env</code>: <code>GOOGLE_CALENDAR_CLIENT_ID</code> e <code>GOOGLE_CALENDAR_CLIENT_SECRET</code>.</span>
-              <span>4. Reinicie o sistema. Depois disso o botao “Conectar conta Google” aparece para o usuario final.</span>
+              <span>3. Depois de salvar, clique em "Conectar com Google" e escolha a conta que vai receber a agenda.</span>
             </div>
           {% endif %}
 
@@ -190,8 +189,10 @@
           <div class="connection-actions">
             {% if google_configured %}
               <a class="button primary" href="{% url 'integrations_google_connect' %}">
-                {% if google.is_connected %}Conectar outra conta{% else %}Conectar conta Google{% endif %}
+                {% if google.is_connected %}Conectar outra conta Google{% else %}Conectar com Google{% endif %}
               </a>
+            {% else %}
+              <button class="button primary" type="button" disabled>Conectar com Google</button>
             {% endif %}
             <form method="post" action="{% url 'integrations_google_sync' %}">
               {% csrf_token %}
@@ -293,6 +294,28 @@
               <button class="button primary" type="submit">Salvar WhatsApp</button>
             </div>
           </form>
+        </section>
+
+        <section class="panel connection-card test-card whatsapp-qr-card">
+          <div class="connection-card-head">
+            <div>
+              <p class="eyebrow">QR do WhatsApp</p>
+              <h3>Conectar e testar pelo celular</h3>
+              <p>Escaneie para abrir uma conversa com o numero da clinica e validar rapidamente se o WhatsApp esta correto.</p>
+            </div>
+          </div>
+          {% if whatsapp_qr_data_uri %}
+            <div class="whatsapp-qr-content">
+              <img src="{{ whatsapp_qr_data_uri }}" alt="QR Code do WhatsApp da clinica">
+              <div>
+                <strong>Leitura pelo WhatsApp</strong>
+                <p>Esse QR abre uma conversa com a clinica. Para envio automatico pela API, mantenha o numero e os campos tecnicos salvos.</p>
+                <a class="button secondary" href="{{ whatsapp_qr_url }}" target="_blank" rel="noopener">Abrir conversa</a>
+              </div>
+            </div>
+          {% else %}
+            <div class="slot-empty">Salve o numero da clinica para gerar o QR Code do WhatsApp.</div>
+          {% endif %}
         </section>
 
         <section class="panel connection-card test-card">

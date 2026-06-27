@@ -1,4 +1,7 @@
+import base64
 from decimal import Decimal
+from io import BytesIO
+from urllib.parse import quote
 
 from django.conf import settings
 from django.utils import timezone
@@ -14,6 +17,25 @@ def normalize_whatsapp_number(number, default_country_code="55"):
     if len(digits) <= 11 and default_country_code:
         digits = f"{default_country_code}{digits}"
     return digits
+
+
+def whatsapp_click_to_chat_url(number, default_country_code="55", message="Ola! Estou conectando o WhatsApp da clinica ao Lume Gestao."):
+    target = normalize_whatsapp_number(number, default_country_code)
+    return f"https://wa.me/{target}?text={quote(message)}"
+
+
+def build_whatsapp_qr_data_uri(number, default_country_code="55"):
+    url = whatsapp_click_to_chat_url(number, default_country_code)
+    try:
+        import qrcode
+    except ImportError:
+        return "", url
+
+    image = qrcode.make(url)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{encoded}", url
 
 
 def send_whatsapp_text(to_number, message, integration=None):

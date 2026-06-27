@@ -403,6 +403,18 @@ class IntegrationsTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Integracoes")
 
+    def test_connections_tab_shows_whatsapp_qr_when_number_is_saved(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"enabled": True, "dry_run": True, "clinic_whatsapp_number": "11999990000"},
+        )
+
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertContains(response, "QR do WhatsApp")
+        self.assertContains(response, "data:image/png;base64")
+
     def test_messages_tab_filters_single_template(self):
         self.client.force_login(self.management)
 
@@ -652,6 +664,19 @@ class IntegrationsTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIn("accounts.google.com", response["Location"])
+
+    def test_google_connect_uses_saved_oauth_credentials(self):
+        self.client.force_login(self.management)
+        integration = GoogleCalendarIntegration.load()
+        integration.oauth_client_id = "saved-client-id"
+        integration.oauth_client_secret = "saved-client-secret"
+        integration.save()
+
+        response = self.client.get(reverse("integrations_google_connect"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("accounts.google.com", response["Location"])
+        self.assertIn("client_id=saved-client-id", response["Location"])
 
     def test_management_can_disconnect_google_calendar(self):
         self.client.force_login(self.management)

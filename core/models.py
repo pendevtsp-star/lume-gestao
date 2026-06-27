@@ -76,6 +76,8 @@ class GoogleCalendarIntegration(TimeStampedModel):
     calendar_id = models.CharField("agenda Google", max_length=180, default="primary")
     enabled = models.BooleanField("ativa", default=False)
     sync_on_save = models.BooleanField("sincronizar novos agendamentos", default=True)
+    oauth_client_id = models.CharField("Google Client ID", max_length=255, blank=True)
+    oauth_client_secret = models.CharField("Google Client Secret", max_length=255, blank=True)
     access_token = models.TextField("access token", blank=True)
     refresh_token = models.TextField("refresh token", blank=True)
     token_expires_at = models.DateTimeField("token expira em", null=True, blank=True)

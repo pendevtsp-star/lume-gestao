@@ -33,6 +33,7 @@ from core.integrations.google_calendar import (
 )
 from core.integrations.http import IntegrationError
 from core.integrations.whatsapp import (
+    build_whatsapp_qr_data_uri,
     format_whatsapp_currency,
     process_scheduled_whatsapp_messages,
     provider_reference_from_response,
@@ -485,12 +486,25 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             template_type: render_whatsapp_template(template.body, whatsapp_preview_context(template_type))
             for template_type, template in templates.items()
         }
+        whatsapp_qr_data_uri = ""
+        whatsapp_qr_url = ""
+        if whatsapp_integration.clinic_whatsapp_number:
+            try:
+                whatsapp_qr_data_uri, whatsapp_qr_url = build_whatsapp_qr_data_uri(
+                    whatsapp_integration.clinic_whatsapp_number,
+                    whatsapp_integration.default_country_code,
+                )
+            except IntegrationError:
+                whatsapp_qr_data_uri = ""
+                whatsapp_qr_url = ""
         return {
             "google_form": google_form or GoogleCalendarIntegrationForm(prefix="google", instance=google_integration),
             "whatsapp_form": whatsapp_form or WhatsAppIntegrationForm(prefix="whatsapp", instance=whatsapp_integration),
             "google": google_integration,
             "whatsapp": whatsapp_integration,
             "google_configured": google_calendar_configured(),
+            "whatsapp_qr_data_uri": whatsapp_qr_data_uri,
+            "whatsapp_qr_url": whatsapp_qr_url,
             "whatsapp_templates": templates,
             "template_forms": template_forms,
             "send_forms": send_forms,

@@ -66,7 +66,10 @@ class ClinicSettingsForm(StyledModelForm):
 class GoogleCalendarIntegrationForm(StyledModelForm):
     class Meta:
         model = GoogleCalendarIntegration
-        fields = ["enabled", "calendar_id", "sync_on_save"]
+        fields = ["enabled", "calendar_id", "sync_on_save", "oauth_client_id", "oauth_client_secret"]
+        widgets = {
+            "oauth_client_secret": forms.PasswordInput(render_value=True),
+        }
 
 
 class WhatsAppIntegrationForm(StyledModelForm):

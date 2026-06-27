@@ -21,7 +21,15 @@ GOOGLE_SCOPES = [
 
 
 def google_calendar_configured():
-    return bool(settings.GOOGLE_CALENDAR_CLIENT_ID and settings.GOOGLE_CALENDAR_CLIENT_SECRET)
+    client_id, client_secret = google_oauth_credentials()
+    return bool(client_id and client_secret)
+
+
+def google_oauth_credentials(integration=None):
+    integration = integration or GoogleCalendarIntegration.load()
+    client_id = integration.oauth_client_id or settings.GOOGLE_CALENDAR_CLIENT_ID
+    client_secret = integration.oauth_client_secret or settings.GOOGLE_CALENDAR_CLIENT_SECRET
+    return client_id, client_secret
 
 
 def google_redirect_uri(request):
@@ -29,12 +37,14 @@ def google_redirect_uri(request):
 
 
 def build_google_authorization_url(request):
-    if not google_calendar_configured():
-        raise IntegrationError("Configure GOOGLE_CALENDAR_CLIENT_ID e GOOGLE_CALENDAR_CLIENT_SECRET no .env.")
+    integration = GoogleCalendarIntegration.load()
+    client_id, client_secret = google_oauth_credentials(integration)
+    if not client_id or not client_secret:
+        raise IntegrationError("Configure o Google Client ID e o Google Client Secret nos ajustes avancados da integracao.")
     state = timezone.now().strftime("%Y%m%d%H%M%S")
     request.session["google_calendar_oauth_state"] = state
     params = {
-        "client_id": settings.GOOGLE_CALENDAR_CLIENT_ID,
+        "client_id": client_id,
         "redirect_uri": google_redirect_uri(request),
         "response_type": "code",
         "scope": " ".join(GOOGLE_SCOPES),
@@ -46,15 +56,18 @@ def build_google_authorization_url(request):
 
 
 def exchange_google_code(request, code):
+    integration = GoogleCalendarIntegration.load()
+    client_id, client_secret = google_oauth_credentials(integration)
+    if not client_id or not client_secret:
+        raise IntegrationError("Configure o Google Client ID e o Google Client Secret antes de conectar.")
     payload = {
         "code": code,
-        "client_id": settings.GOOGLE_CALENDAR_CLIENT_ID,
-        "client_secret": settings.GOOGLE_CALENDAR_CLIENT_SECRET,
+        "client_id": client_id,
+        "client_secret": client_secret,
         "redirect_uri": google_redirect_uri(request),
         "grant_type": "authorization_code",
     }
     token_data = post_form(GOOGLE_TOKEN_URL, payload, timeout=settings.GOOGLE_CALENDAR_TIMEOUT)
-    integration = GoogleCalendarIntegration.load()
     _update_tokens(integration, token_data)
     integration.enabled = True
     integration.last_error = ""
@@ -75,9 +88,12 @@ def fetch_google_email(integration):
 def refresh_google_token(integration):
     if not integration.refresh_token:
         raise IntegrationError("Conecte a conta Google Agenda novamente.")
+    client_id, client_secret = google_oauth_credentials(integration)
+    if not client_id or not client_secret:
+        raise IntegrationError("Configure o Google Client ID e o Google Client Secret nos ajustes da integracao.")
     payload = {
-        "client_id": settings.GOOGLE_CALENDAR_CLIENT_ID,
-        "client_secret": settings.GOOGLE_CALENDAR_CLIENT_SECRET,
+        "client_id": client_id,
+        "client_secret": client_secret,
         "refresh_token": integration.refresh_token,
         "grant_type": "refresh_token",
     }

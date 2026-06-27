@@ -10,5 +10,6 @@ staticfiles/
 media/
 backups/
 dist/
+tmp/
 desktop/node_modules/
 desktop/backend-bin/

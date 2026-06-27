@@ -393,7 +393,7 @@ class ProfessionalRecordExportView(ProfessionalRecordAccessMixin, View):
     def get_notes(self):
         professional = self.get_professional()
         if not professional:
-            return ProfessionalNote.objects.none()
+            return ProfessionalNote.objects.filter(patient=self.patient).order_by("created_at")
         return ProfessionalNote.objects.filter(patient=self.patient, professional=professional).order_by("created_at")
 
     def patient_rows(self):
@@ -412,6 +412,15 @@ class ProfessionalRecordExportView(ProfessionalRecordAccessMixin, View):
 
     def professional_rows(self):
         professional = self.get_professional()
+        if not professional:
+            return [
+                ("Nome", self.request.user.profile.display_name),
+                ("Especialidade", "Administracao"),
+                ("Registro", "-"),
+                ("Telefone", "-"),
+                ("E-mail", self.request.user.email or "-"),
+                ("Observacoes", "Exportacao administrativa com todas as evolucoes disponiveis para o paciente."),
+            ]
         return [
             ("Nome", professional.full_name),
             ("Especialidade", professional.get_specialty_display()),

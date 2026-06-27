@@ -49,6 +49,8 @@ class FiscalDashboardView(FinanceAccessMixin, TemplateView):
                 "issued_count": documents.filter(status=FiscalDocument.Status.ISSUED).count(),
                 "draft_count": documents.filter(status=FiscalDocument.Status.DRAFT).count(),
                 "provider_cards": _provider_cards(),
+                "integration_steps": _integration_steps(),
+                "receita_saude_steps": _receita_saude_steps(),
                 "q": q,
                 "selected_status": status,
                 "selected_type": document_type,
@@ -225,15 +227,34 @@ def _fill_customer_from_patient(document):
 def _provider_cards():
     return [
         {
+            "title": "Provedor fiscal",
+            "badge": "Recomendado para MVP",
+            "description": "Focus NFe, PlugNotas, NFE.io ou TecnoSpeed aceleram a emissao via API e reduzem a dependencia de cada prefeitura.",
+        },
+        {
             "title": "NFS-e Nacional / prefeitura",
-            "description": "Melhor caminho quando o municipio da clinica ja aceita o padrao nacional ou tem portal proprio estavel.",
+            "badge": "Oficial",
+            "description": "Caminho ideal quando o municipio aceita o padrao nacional ou possui portal/API propria estavel.",
         },
         {
-            "title": "Focus NFe, PlugNotas, NFE.io ou TecnoSpeed",
-            "description": "Boas opcoes quando a clinica quer API, sandbox, suporte a varios municipios e automacao.",
+            "title": "Receita Saude",
+            "badge": "Assistente",
+            "description": "Apoio para profissional pessoa fisica registrar recibos no gov.br/app. Nao e NFS-e da clinica/CNPJ.",
         },
-        {
-            "title": "Recibo interno",
-            "description": "Util para comprovante operacional, mas nao substitui NFS-e quando a prefeitura exigir nota de servico.",
-        },
+    ]
+
+
+def _integration_steps():
+    return [
+        "Escolher provedor fiscal com suporte ao municipio da clinica.",
+        "Configurar ambiente de teste, token/API key e dados fiscais da clinica.",
+        "Homologar emissao, consulta, cancelamento e PDF/XML antes de ativar producao.",
+    ]
+
+
+def _receita_saude_steps():
+    return [
+        "Confirmar se o atendimento foi prestado por profissional pessoa fisica.",
+        "Abrir Receita Saude pelo app/gov.br e emitir o recibo no ambiente oficial.",
+        "Registrar no Lume a referencia do recibo para controle interno e atendimento ao paciente.",
     ]

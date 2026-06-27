@@ -3,64 +3,109 @@
 {% block title %}Fiscal | Lume Gestao{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div>
-    <p class="eyebrow">Modulo fiscal</p>
-    <h1>NFS-e e comprovantes</h1>
-    <p class="page-subtitle">Emita registros fiscais, gere PDF e compartilhe documentos com pacientes.</p>
-  </div>
-  <a class="button" href="{% url 'fiscal:document_create' %}">Novo documento</a>
-</div>
-
-<section class="metric-grid">
-  <article class="metric">
-    <span>Documentos</span>
-    <strong>{{ total_documents }}</strong>
-  </article>
-  <article class="metric">
-    <span>Emitidos/registrados</span>
-    <strong>{{ issued_count }}</strong>
-  </article>
-  <article class="metric">
-    <span>Rascunhos</span>
-    <strong>{{ draft_count }}</strong>
-  </article>
-  <article class="metric">
-    <span>Total registrado</span>
-    <strong>R$ {{ total_amount|floatformat:2 }}</strong>
-  </article>
-</section>
-
-<section class="panel fiscal-guidance">
-  <div class="panel-header">
+<div class="fiscal-page">
+  <div class="page-header">
     <div>
-      <p class="eyebrow">Orientacao fiscal</p>
-      <h2>Servicos de fisioterapia e pilates</h2>
+      <p class="eyebrow">Modulo fiscal</p>
+      <h1>Fiscal</h1>
+      <p class="page-subtitle">NFS-e, recibos internos, PDF e compartilhamento com pacientes.</p>
     </div>
-    <span class="status-pill is-warning">Validar com contador</span>
+    <a class="button" href="{% url 'fiscal:document_create' %}">Novo documento</a>
   </div>
-  <p>
-    Para prestacao de servicos, a regra comum e emitir NFS-e do municipio/NFS-e Nacional e recolher ISS conforme
-    prefeitura, regime tributario e atividade da clinica. Cupom/NFC-e normalmente nao substitui nota de servico.
-  </p>
-  <p>
-    Este modulo registra documentos, gera PDF e prepara integracao. A autorizacao fiscal oficial depende do municipio,
-    certificado/token e provedor escolhido.
-  </p>
-</section>
 
-<section class="card-grid fiscal-provider-grid">
-  {% for card in provider_cards %}
-    <article class="panel report-card">
-      <div class="report-card-body">
-        <h2>{{ card.title }}</h2>
-        <p>{{ card.description }}</p>
+  <section class="metric-grid fiscal-metrics">
+    <article class="metric">
+      <span>Documentos</span>
+      <strong>{{ total_documents }}</strong>
+    </article>
+    <article class="metric">
+      <span>Emitidos/registrados</span>
+      <strong>{{ issued_count }}</strong>
+    </article>
+    <article class="metric">
+      <span>Rascunhos</span>
+      <strong>{{ draft_count }}</strong>
+    </article>
+    <article class="metric">
+      <span>Total registrado</span>
+      <strong>R$ {{ total_amount|floatformat:2 }}</strong>
+    </article>
+  </section>
+
+  <section class="panel fiscal-guidance">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Orientacao fiscal</p>
+        <h2>Servicos de fisioterapia e pilates</h2>
+      </div>
+      <span class="status-pill is-warning">Validar com contador</span>
+    </div>
+    <div class="fiscal-panel-body">
+      <p>
+        Para prestacao de servicos, a regra comum e emitir NFS-e do municipio/NFS-e Nacional e recolher ISS conforme
+        prefeitura, regime tributario e atividade da clinica. Cupom/NFC-e normalmente nao substitui nota de servico.
+      </p>
+      <p>
+        A melhor rota para o Lume agora e integrar com provedor fiscal via API. Receita Saude fica como assistente
+        para profissionais pessoa fisica, sem substituir NFS-e da clinica/CNPJ.
+      </p>
+    </div>
+  </section>
+
+  <section class="card-grid fiscal-provider-grid">
+    {% for card in provider_cards %}
+      <article class="panel report-card fiscal-option-card">
+        <div class="report-card-body">
+          <span class="status-pill is-muted">{{ card.badge }}</span>
+          <h2>{{ card.title }}</h2>
+          <p>{{ card.description }}</p>
+        </div>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="split-grid fiscal-integration-grid">
+    <article class="panel fiscal-roadmap-card">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Integracao recomendada</p>
+          <h2>Provedor fiscal via API</h2>
+        </div>
+        <span class="status-pill is-success">Melhor caminho</span>
+      </div>
+      <div class="fiscal-panel-body">
+        <p>Use Focus NFe, PlugNotas, TecnoSpeed ou NFE.io para acelerar NFS-e, sandbox, consulta e cancelamento.</p>
+        <ol class="fiscal-checklist">
+          {% for step in integration_steps %}
+            <li>{{ step }}</li>
+          {% endfor %}
+        </ol>
       </div>
     </article>
-  {% endfor %}
-</section>
 
-<section class="panel">
+    <article class="panel fiscal-roadmap-card">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Assistente</p>
+          <h2>Receita Saude</h2>
+        </div>
+        <span class="status-pill {% if settings_object.receita_saude_enabled %}is-success{% else %}is-muted{% endif %}">
+          {% if settings_object.receita_saude_enabled %}Ativo{% else %}Opcional{% endif %}
+        </span>
+      </div>
+      <div class="fiscal-panel-body">
+        <p>Fluxo de apoio para recibos de profissional pessoa fisica no ambiente oficial gov.br/app.</p>
+        <ol class="fiscal-checklist">
+          {% for step in receita_saude_steps %}
+            <li>{{ step }}</li>
+          {% endfor %}
+        </ol>
+        <a class="button secondary compact" href="https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/receita-saude" target="_blank" rel="noopener">Abrir orientacoes oficiais</a>
+      </div>
+    </article>
+  </section>
+
+<section class="panel fiscal-settings-card">
   <div class="panel-header">
     <div>
       <p class="eyebrow">Configuracao</p>
@@ -70,10 +115,10 @@
       {% if settings_object.nfse_enabled %}NFS-e ativa{% else %}NFS-e pendente{% endif %}
     </span>
   </div>
-  <form class="form-grid compact-form" method="post" action="{% url 'fiscal:settings' %}">
+  <form class="form-grid fiscal-settings-form" method="post" action="{% url 'fiscal:settings' %}">
     {% csrf_token %}
     {% for field in settings_form %}
-      <label class="form-field {% if field.field.widget.input_type == 'checkbox' %}toggle-card{% endif %}">
+      <label class="form-field {% if field.field.widget.input_type == 'checkbox' %}toggle-card{% endif %} {% if field.name == 'receita_saude_notes' %}full-span{% endif %}">
         {% if field.field.widget.input_type == 'checkbox' %}
           {{ field }}
           <span>{{ field.label }}</span>
@@ -91,7 +136,7 @@
   </form>
 </section>
 
-<section class="panel">
+<section class="panel fiscal-documents-card">
   <div class="panel-header">
     <div>
       <p class="eyebrow">Documentos</p>
@@ -171,4 +216,5 @@
     </table>
   </div>
 </section>
+</div>
 {% endblock %}

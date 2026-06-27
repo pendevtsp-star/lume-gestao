@@ -12,6 +12,7 @@
 - NFS-e Nacional ou portal da prefeitura: melhor quando o municipio ja oferece fluxo estavel e simples.
 - Provedores como Focus NFe, PlugNotas, NFE.io e TecnoSpeed: bons candidatos quando a clinica precisa de API, homologacao, suporte a multiplos municipios, webhooks e ambiente de teste.
 - Criterios para escolha: municipios atendidos, custo por nota, suporte a certificado/token, webhooks de autorizacao/cancelamento, sandbox, SLA e suporte ao regime tributario da clinica.
+- Receita Saude: deve ser tratado como assistente para profissionais pessoa fisica no gov.br/app. Nao ha promessa de emissao automatica por API publica oficial e nao substitui NFS-e da clinica/CNPJ.
 
 ## O que foi implementado
 
@@ -24,6 +25,7 @@
 - Envio por e-mail com PDF anexado.
 - Envio de resumo por WhatsApp usando a integracao ja existente.
 - Menu lateral com acesso ao modulo Fiscal.
+- Assistente Receita Saude para orientar fluxo oficial fora do Lume e manter controle interno.
 
 ## Proximo passo para emissao oficial
 

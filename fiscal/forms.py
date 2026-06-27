@@ -30,14 +30,19 @@ class FiscalSettingsForm(StyledFormMixin, forms.ModelForm):
             "default_iss_rate",
             "api_key",
             "nfse_enabled",
+            "receita_saude_enabled",
+            "receita_saude_notes",
         ]
         widgets = {
             "api_key": forms.PasswordInput(render_value=True),
+            "receita_saude_notes": forms.Textarea(attrs={"rows": 3}),
         }
         help_texts = {
             "api_key": "Use token/chave do provedor. Nao informe senha pessoal.",
             "default_service_code": "Ex.: codigo municipal ou item de servico informado pela prefeitura/provedor.",
             "nfse_enabled": "Ative apenas quando prefeitura/provedor estiverem configurados.",
+            "receita_saude_enabled": "Use como apoio para profissionais pessoa fisica. Nao substitui NFS-e da clinica/CNPJ.",
+            "receita_saude_notes": "Ex.: profissionais que usam Receita Saude, rotina de conferencia e orientacoes do contador.",
         }
 
     def __init__(self, *args, **kwargs):

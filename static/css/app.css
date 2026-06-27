@@ -558,6 +558,110 @@ h2 {
   line-height: 1;
 }
 
+.fiscal-page {
+  display: grid;
+  gap: 18px;
+}
+
+.fiscal-page .metric-grid {
+  margin-bottom: 0;
+}
+
+.fiscal-page .metric,
+.fiscal-page .panel {
+  border-radius: 18px;
+}
+
+.fiscal-metrics .metric {
+  min-height: 124px;
+  background: linear-gradient(145deg, #fffefa 0%, #fff8eb 100%);
+}
+
+.fiscal-guidance {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(118, 141, 94, 0.12), transparent 34%),
+    var(--panel);
+}
+
+.fiscal-panel-body {
+  display: grid;
+  gap: 14px;
+  padding: 20px 24px 24px;
+}
+
+.fiscal-panel-body p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.48;
+}
+
+.fiscal-option-card {
+  min-height: 190px;
+  background: linear-gradient(150deg, #fffefa 0%, #fff9ee 58%, #f3f7ea 100%);
+}
+
+.fiscal-option-card .report-card-body {
+  align-content: start;
+  gap: 14px;
+}
+
+.fiscal-option-card .status-pill {
+  justify-self: start;
+}
+
+.fiscal-integration-grid {
+  margin-bottom: 0;
+}
+
+.fiscal-roadmap-card .fiscal-panel-body {
+  align-content: start;
+}
+
+.fiscal-checklist {
+  display: grid;
+  gap: 10px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fiscal-checklist li {
+  position: relative;
+  padding-left: 30px;
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.fiscal-checklist li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--sage-soft);
+  box-shadow: inset 0 0 0 5px #fffaf0;
+}
+
+.fiscal-settings-form {
+  padding: 22px 24px 24px;
+}
+
+.fiscal-settings-form .toggle-card {
+  min-height: 56px;
+}
+
+.fiscal-documents-card .filters {
+  padding: 0 24px 18px;
+  margin: 0;
+}
+
+.fiscal-documents-card .table-wrap {
+  border-top: 1px solid var(--line);
+}
+
 .split-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

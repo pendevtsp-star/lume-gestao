@@ -26,7 +26,7 @@ class FiscalModuleTests(TestCase):
     def test_dashboard_loads_for_management(self):
         response = self.client.get(reverse("fiscal:dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "NFS-e e comprovantes")
+        self.assertContains(response, "NFS-e, recibos internos")
 
     def test_create_and_issue_fiscal_document(self):
         response = self.client.post(

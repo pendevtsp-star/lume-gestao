@@ -30,6 +30,8 @@ class FiscalSettings(TimeStampedModel):
     default_iss_rate = models.DecimalField("ISS padrao (%)", max_digits=5, decimal_places=2, default=Decimal("0.00"))
     api_key = models.CharField("token/chave da integracao", max_length=255, blank=True)
     nfse_enabled = models.BooleanField("habilitar emissao de NFS-e", default=False)
+    receita_saude_enabled = models.BooleanField("usar assistente Receita Saude", default=False)
+    receita_saude_notes = models.TextField("orientacoes internas Receita Saude", blank=True)
     last_status = models.CharField("ultimo status", max_length=180, blank=True)
     last_error = models.TextField("ultimo erro", blank=True)
 

@@ -5,6 +5,12 @@ Este roteiro cobre duas formas de levar o Lume para outra maquina Linux:
 - rodar o sistema web/local via Docker, recomendado para uma maquina da clinica ou servidor local;
 - gerar um pacote desktop Linux, quando a ideia for instalar como aplicativo grafico.
 
+Para uma VPS publica com Nginx, HTTPS e Cloudflare, use o roteiro dedicado:
+
+```text
+docs/DEPLOY_VPS.md
+```
+
 ## Opcao 1: Linux via Docker
 
 Use esta opcao se a maquina Linux vai hospedar o sistema e outras maquinas vao acessar pelo navegador.

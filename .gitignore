@@ -13,3 +13,5 @@ dist/
 tmp/
 desktop/node_modules/
 desktop/backend-bin/
+deploy/nginx/certs/*
+!deploy/nginx/certs/.gitkeep

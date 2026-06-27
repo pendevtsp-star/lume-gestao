@@ -13,6 +13,7 @@ jobs:
       SECRET_KEY: ci-secret-key-2026-long-random-value-for-security-checks-9f84a21b
       DEBUG: "False"
       ENVIRONMENT: production
+      LUME_STRICT_PRODUCTION: "False"
       ALLOWED_HOSTS: 127.0.0.1,localhost,testserver
       CSRF_TRUSTED_ORIGINS: http://127.0.0.1:8000,http://localhost:8000
       DB_ENGINE: sqlite

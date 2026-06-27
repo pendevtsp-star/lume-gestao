@@ -9,7 +9,7 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app/
-RUN chmod +x /app/scripts/start-web.sh
+RUN chmod +x /app/scripts/start-web.sh /app/scripts/start-worker.sh /app/scripts/deploy-migrate.sh
 
 EXPOSE 8000
 

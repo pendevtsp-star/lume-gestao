@@ -1,0 +1,96 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: .
+    command: ["sh", "/app/scripts/deploy-migrate.sh"]
+    env_file:
+      - ${LUME_ENV_FILE:-.env.production}
+    environment:
+      LUME_RUN_MIGRATIONS_ON_START: "False"
+    volumes:
+      - media_data:/app/media
+      - staticfiles_data:/app/staticfiles
+      - backup_data:/app/backups
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: .
+    restart: unless-stopped
+    expose:
+      - "8000"
+    env_file:
+      - ${LUME_ENV_FILE:-.env.production}
+    environment:
+      LUME_RUN_MIGRATIONS_ON_START: "False"
+    volumes:
+      - media_data:/app/media
+      - staticfiles_data:/app/staticfiles
+      - backup_data:/app/backups
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import http.client,sys; c=http.client.HTTPConnection('127.0.0.1',8000,timeout=5); c.request('GET','/login/',headers={'X-Forwarded-Proto':'https'}); r=c.getresponse(); sys.exit(0 if 200 <= r.status < 400 else 1)\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  worker:
+    build: .
+    command: ["sh", "/app/scripts/start-worker.sh"]
+    restart: unless-stopped
+    env_file:
+      - ${LUME_ENV_FILE:-.env.production}
+    environment:
+      LUME_RUN_MIGRATIONS_ON_START: "False"
+    volumes:
+      - media_data:/app/media
+      - backup_data:/app/backups
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/lume.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx/certs:/etc/nginx/certs:ro
+      - media_data:/app/media:ro
+      - staticfiles_data:/app/staticfiles:ro
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  media_data:
+  staticfiles_data:
+  backup_data:

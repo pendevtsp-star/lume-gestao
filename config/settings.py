@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -33,6 +34,7 @@ SECRET_KEY = config(
 DEBUG = config("DEBUG", default=True, cast=bool)
 ENVIRONMENT = config("ENVIRONMENT", default="development")
 IS_PRODUCTION = ENVIRONMENT.lower() == "production" or not DEBUG
+LUME_STRICT_PRODUCTION = config("LUME_STRICT_PRODUCTION", default=IS_PRODUCTION, cast=bool)
 
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
@@ -47,6 +49,29 @@ CSRF_TRUSTED_ORIGINS = config(
 )
 
 
+def _looks_like_placeholder(value):
+    lowered = (value or "").lower()
+    markers = (
+        "troque",
+        "change-before-production",
+        "lume_dev_password",
+        "dev-local",
+        "ip_da",
+        "seudominio",
+        "example",
+    )
+    return not lowered or any(marker in lowered for marker in markers)
+
+
+def _has_public_host(hosts):
+    local_hosts = {"127.0.0.1", "localhost", "testserver", "0.0.0.0"}
+    return any(host not in local_hosts and not host.startswith("127.") for host in hosts)
+
+
+def _has_public_https_origin(origins):
+    return any(origin.startswith("https://") and "localhost" not in origin and "127.0.0.1" not in origin for origin in origins)
+
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -57,6 +82,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'django_filters',
     'accounts',
     'core',
@@ -105,6 +131,24 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DB_ENGINE = config("DB_ENGINE", default="sqlite").lower()
+POSTGRES_PASSWORD = config("POSTGRES_PASSWORD", default="lume_dev_password")
+
+if LUME_STRICT_PRODUCTION and IS_PRODUCTION:
+    production_errors = []
+    if DEBUG:
+        production_errors.append("DEBUG precisa ser False em producao.")
+    if _looks_like_placeholder(SECRET_KEY) or len(SECRET_KEY) < 50:
+        production_errors.append("SECRET_KEY precisa ser unica, forte e ter pelo menos 50 caracteres.")
+    if not _has_public_host(ALLOWED_HOSTS):
+        production_errors.append("ALLOWED_HOSTS precisa incluir o dominio publico da aplicacao.")
+    if not _has_public_https_origin(CSRF_TRUSTED_ORIGINS):
+        production_errors.append("CSRF_TRUSTED_ORIGINS precisa incluir a origem HTTPS publica.")
+    if DB_ENGINE != "postgres":
+        production_errors.append("DB_ENGINE precisa ser postgres em producao VPS.")
+    if _looks_like_placeholder(POSTGRES_PASSWORD):
+        production_errors.append("POSTGRES_PASSWORD precisa ser forte e nao pode usar valor de exemplo.")
+    if production_errors:
+        raise ImproperlyConfigured("Configuracao de producao invalida: " + " ".join(production_errors))
 
 if DB_ENGINE == "postgres":
     DATABASES = {
@@ -112,7 +156,7 @@ if DB_ENGINE == "postgres":
             "ENGINE": "django.db.backends.postgresql",
             "NAME": config("POSTGRES_DB", default="lume"),
             "USER": config("POSTGRES_USER", default="lume"),
-            "PASSWORD": config("POSTGRES_PASSWORD", default="lume_dev_password"),
+            "PASSWORD": POSTGRES_PASSWORD,
             "HOST": config("POSTGRES_HOST", default="db"),
             "PORT": config("POSTGRES_PORT", default="5432"),
         }
@@ -196,6 +240,10 @@ WHATSAPP_META_ACCESS_TOKEN = config("WHATSAPP_META_ACCESS_TOKEN", default="")
 WHATSAPP_META_PHONE_NUMBER_ID = config("WHATSAPP_META_PHONE_NUMBER_ID", default="")
 WHATSAPP_TIMEOUT = config("WHATSAPP_TIMEOUT", default=15, cast=int)
 REST_ENABLE_BASIC_AUTH = config("REST_ENABLE_BASIC_AUTH", default=False, cast=bool)
+REST_ENABLE_TOKEN_AUTH = config("REST_ENABLE_TOKEN_AUTH", default=True, cast=bool)
+REST_ENABLE_THROTTLING = config("REST_ENABLE_THROTTLING", default=False, cast=bool)
+REST_ANON_THROTTLE_RATE = config("REST_ANON_THROTTLE_RATE", default="30/min")
+REST_USER_THROTTLE_RATE = config("REST_USER_THROTTLE_RATE", default="1000/hour")
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=IS_PRODUCTION, cast=bool)
 SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=IS_PRODUCTION, cast=bool)
 CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=IS_PRODUCTION, cast=bool)
@@ -211,12 +259,27 @@ SECURE_REFERRER_POLICY = config("SECURE_REFERRER_POLICY", default="same-origin")
 X_FRAME_OPTIONS = config("X_FRAME_OPTIONS", default="DENY")
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+if LUME_STRICT_PRODUCTION and IS_PRODUCTION:
+    security_errors = []
+    if not SECURE_SSL_REDIRECT:
+        security_errors.append("SECURE_SSL_REDIRECT precisa ser True.")
+    if not SESSION_COOKIE_SECURE:
+        security_errors.append("SESSION_COOKIE_SECURE precisa ser True.")
+    if not CSRF_COOKIE_SECURE:
+        security_errors.append("CSRF_COOKIE_SECURE precisa ser True.")
+    if SECURE_HSTS_SECONDS < 31536000:
+        security_errors.append("SECURE_HSTS_SECONDS precisa ser pelo menos 31536000.")
+    if security_errors:
+        raise ImproperlyConfigured("Configuracao HTTPS de producao invalida: " + " ".join(security_errors))
+
+_REST_AUTHENTICATION_CLASSES = ['rest_framework.authentication.SessionAuthentication']
+if REST_ENABLE_TOKEN_AUTH:
+    _REST_AUTHENTICATION_CLASSES.append('rest_framework.authentication.TokenAuthentication')
+if REST_ENABLE_BASIC_AUTH:
+    _REST_AUTHENTICATION_CLASSES.append('rest_framework.authentication.BasicAuthentication')
+
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        ['rest_framework.authentication.SessionAuthentication', 'rest_framework.authentication.BasicAuthentication']
-        if REST_ENABLE_BASIC_AUTH
-        else ['rest_framework.authentication.SessionAuthentication']
-    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': _REST_AUTHENTICATION_CLASSES,
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
@@ -226,6 +289,20 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ],
 }
+
+if REST_ENABLE_THROTTLING:
+    REST_FRAMEWORK.update(
+        {
+            'DEFAULT_THROTTLE_CLASSES': [
+                'rest_framework.throttling.AnonRateThrottle',
+                'rest_framework.throttling.UserRateThrottle',
+            ],
+            'DEFAULT_THROTTLE_RATES': {
+                'anon': REST_ANON_THROTTLE_RATE,
+                'user': REST_USER_THROTTLE_RATE,
+            },
+        }
+    )
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

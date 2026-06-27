@@ -20,6 +20,7 @@ from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+from rest_framework.authtoken.views import obtain_auth_token
 
 from accounts.views import PasswordRecoveryRequestView
 from accounts.api import UserProfileViewSet
@@ -67,6 +68,7 @@ urlpatterns = [
     path('agenda/', include('scheduling.urls')),
     path('relatorios/', include('reports.urls')),
     path('fiscal/', include('fiscal.urls')),
+    path('api/v1/mobile/auth/token/', obtain_auth_token, name='mobile_auth_token'),
     path('api/v1/mobile/', include('mobile.urls')),
     path('api/v1/', include(router.urls)),
     path('login/', auth_views.LoginView.as_view(), name='login'),

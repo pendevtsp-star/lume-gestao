@@ -223,3 +223,9 @@ Documentacao das integracoes:
 docs/GOOGLE_AGENDA.md
 docs/WHATSAPP.md
 ```
+
+Deploy em VPS Linux com Docker Compose, PostgreSQL, Nginx, HTTPS e Cloudflare:
+
+```text
+docs/DEPLOY_VPS.md
+```

@@ -16,6 +16,7 @@ jobs:
       ALLOWED_HOSTS: 127.0.0.1,localhost,testserver
       CSRF_TRUSTED_ORIGINS: http://127.0.0.1:8000,http://localhost:8000
       DB_ENGINE: sqlite
+      SECURE_SSL_REDIRECT: "False"
       GOOGLE_CALENDAR_SYNC_ENABLED: "True"
       WHATSAPP_DRY_RUN: "True"
     steps:

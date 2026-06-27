@@ -45,7 +45,12 @@
             <td>{{ employee.get_role_display }}</td>
             <td>{{ employee.phone|default:employee.email|default:"-" }}</td>
             <td><span class="badge {% if employee.active %}active{% else %}canceled{% endif %}">{% if employee.active %}Ativo{% else %}Inativo{% endif %}</span></td>
-            <td class="right"><a class="table-action" href="{% url 'team:employee_update' employee.pk %}">Editar</a></td>
+            <td class="right">
+              <a class="table-action" href="{% url 'team:employee_update' employee.pk %}">Editar</a>
+              {% if employee.active %}
+                <a class="table-action danger-link" href="{% url 'team:employee_delete' employee.pk %}">Excluir</a>
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
           <tr><td colspan="5" class="empty">Nenhum funcionario encontrado.</td></tr>

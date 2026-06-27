@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ section_label }}</p>
+    <h1>{{ page_title }}</h1>
+  </div>
+  <a class="button secondary" href="{{ back_url }}">Voltar</a>
+</section>
+
+<form method="post" class="panel form-panel">
+  {% csrf_token %}
+  <h2>{{ object_name }}</h2>
+  <p class="confirm-copy">
+    Tem certeza que deseja excluir este {{ entity_label }}?
+  </p>
+  <p class="confirm-copy">
+    {{ delete_explanation }}
+  </p>
+  <div class="form-actions">
+    <a class="button secondary" href="{{ back_url }}">Cancelar</a>
+    <button class="button danger" type="submit">{{ delete_button_label }}</button>
+  </div>
+</form>
+{% endblock %}

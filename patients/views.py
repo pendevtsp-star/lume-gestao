@@ -1,11 +1,11 @@
 from django import forms
 from django.contrib import messages
 from django.db.models import Count, Q
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.urls import reverse_lazy
 from django.views import View
-from django.views.generic import CreateView, ListView, UpdateView
+from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.permissions import RoleRequiredMixin, get_profile
@@ -93,6 +93,41 @@ class PatientUpdateView(FormContextMixin, PatientAccessMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Paciente atualizado com sucesso.")
         return super().form_valid(form)
+
+
+class PatientDeleteView(FormContextMixin, RoleRequiredMixin, DeleteView):
+    allowed_roles = [UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT]
+    model = Patient
+    template_name = "core/confirm_deactivate.html"
+    success_url = reverse_lazy("patients:list")
+    page_title = "Excluir paciente"
+    section_label = "Cadastro"
+    back_url_name = "patients:list"
+    entity_label = "paciente"
+    delete_button_label = "Excluir paciente"
+
+    def form_valid(self, form):
+        patient = self.object
+        patient.active = False
+        patient.full_clean()
+        patient.save(update_fields=["active", "updated_at"])
+        messages.success(self.request, "Paciente excluido da lista ativa com sucesso.")
+        return redirect(self.success_url)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "object_name": self.object.full_name,
+                "entity_label": self.entity_label,
+                "delete_button_label": self.delete_button_label,
+                "delete_explanation": (
+                    "O cadastro sera marcado como inativo para preservar historico financeiro, agenda, prontuario "
+                    "e auditoria. Ele pode ser reativado editando o cadastro depois."
+                ),
+            }
+        )
+        return context
 
 
 class AssignmentListView(RoleRequiredMixin, SearchableListView, ListView):

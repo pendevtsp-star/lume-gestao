@@ -1,6 +1,7 @@
 from django.contrib import messages
+from django.shortcuts import redirect
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, ListView, UpdateView
+from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.permissions import RoleRequiredMixin
@@ -57,6 +58,46 @@ class EmployeeUpdateView(FormContextMixin, TeamAdminMixin, UpdateView):
         return context
 
 
+class SoftDeleteTeamView(FormContextMixin, TeamAdminMixin, DeleteView):
+    template_name = "core/confirm_deactivate.html"
+    object_name_attribute = "full_name"
+    entity_label = "cadastro"
+    delete_button_label = "Excluir cadastro"
+
+    def form_valid(self, form):
+        item = self.object
+        item.active = False
+        item.full_clean()
+        item.save(update_fields=["active", "updated_at"])
+        messages.success(self.request, f"{self.entity_label.capitalize()} excluido da lista ativa com sucesso.")
+        return redirect(self.success_url)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "object_name": getattr(self.object, self.object_name_attribute),
+                "entity_label": self.entity_label,
+                "delete_button_label": self.delete_button_label,
+                "delete_explanation": (
+                    "O cadastro sera marcado como inativo para preservar agenda, relatorios, auditoria e "
+                    "historicos ja vinculados. Ele pode ser reativado editando o cadastro depois."
+                ),
+            }
+        )
+        return context
+
+
+class EmployeeDeleteView(SoftDeleteTeamView):
+    model = Employee
+    success_url = reverse_lazy("team:employees")
+    page_title = "Excluir funcionario"
+    section_label = "Equipe"
+    back_url_name = "team:employees"
+    entity_label = "funcionario"
+    delete_button_label = "Excluir funcionario"
+
+
 class ProfessionalListView(TeamAdminMixin, SearchableListView, ListView):
     model = Professional
     template_name = "team/professional_list.html"
@@ -99,5 +140,15 @@ class ProfessionalUpdateView(FormContextMixin, TeamAdminMixin, UpdateView):
         context["heading_avatar_url"] = professional.photo.url if professional.photo else ""
         context["heading_initials"] = professional.full_name[:1].upper()
         return context
+
+
+class ProfessionalDeleteView(SoftDeleteTeamView):
+    model = Professional
+    success_url = reverse_lazy("team:professionals")
+    page_title = "Excluir profissional"
+    section_label = "Equipe"
+    back_url_name = "team:professionals"
+    entity_label = "profissional"
+    delete_button_label = "Excluir profissional"
 
 # Create your views here.

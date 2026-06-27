@@ -48,7 +48,12 @@
             <td>{{ professional.get_specialty_display }}</td>
             <td>{{ professional.registration_number|default:"-" }}</td>
             <td><span class="badge {% if professional.active %}active{% else %}canceled{% endif %}">{% if professional.active %}Ativo{% else %}Inativo{% endif %}</span></td>
-            <td class="right"><a class="table-action" href="{% url 'team:professional_update' professional.pk %}">Editar</a></td>
+            <td class="right">
+              <a class="table-action" href="{% url 'team:professional_update' professional.pk %}">Editar</a>
+              {% if professional.active %}
+                <a class="table-action danger-link" href="{% url 'team:professional_delete' professional.pk %}">Excluir</a>
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
           <tr><td colspan="5" class="empty">Nenhum profissional encontrado.</td></tr>

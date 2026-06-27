@@ -820,7 +820,11 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
 class AppointmentCompleteView(AppointmentAccessMixin, View):
     def post(self, request, pk):
         with transaction.atomic():
-            appointment = get_object_or_404(appointments_for_user(request.user).select_for_update(), pk=pk)
+            allowed_appointment_ids = appointments_for_user(request.user).filter(pk=pk).values("pk")
+            appointment = get_object_or_404(
+                Appointment.objects.select_related("patient", "professional").select_for_update(),
+                pk__in=allowed_appointment_ids,
+            )
             if appointment.status in {Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED}:
                 messages.error(request, "Agendamentos cancelados ou reagendados nao consomem credito.")
                 return redirect("scheduling:appointments")

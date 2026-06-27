@@ -244,3 +244,27 @@ class PatientAccessTests(TestCase):
         self.assertContains(list_response, own.full_name)
         self.assertNotContains(list_response, other.full_name)
         self.assertEqual(detail_response.status_code, 404)
+
+    def test_management_can_soft_delete_patient_from_web(self):
+        patient = Patient.objects.create(full_name="Paciente Excluir")
+        user = get_user_model().objects.create_user(username="gerente-paciente", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("patients:delete", args=[patient.pk]))
+
+        patient.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(patient.active)
+
+    def test_patient_api_destroy_soft_deletes_patient(self):
+        patient = Patient.objects.create(full_name="Paciente API Excluir")
+        user = get_user_model().objects.create_user(username="admin-api-paciente", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        self.client.force_login(user)
+
+        response = self.client.delete(f"/api/v1/patients/{patient.pk}/")
+
+        patient.refresh_from_db()
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(patient.active)

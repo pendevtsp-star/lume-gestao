@@ -41,7 +41,9 @@ class PatientViewSet(ModelViewSet):
 
     def perform_destroy(self, instance):
         self.require_administration()
-        instance.delete()
+        instance.active = False
+        instance.full_clean()
+        instance.save(update_fields=["active", "updated_at"])
 
 
 class ProfessionalPatientAssignmentViewSet(ModelViewSet):

@@ -13,6 +13,11 @@ class EmployeeViewSet(ModelViewSet):
     search_fields = ["full_name", "email", "phone", "role"]
     ordering_fields = ["full_name", "created_at"]
 
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.full_clean()
+        instance.save(update_fields=["active", "updated_at"])
+
 
 class ProfessionalViewSet(ModelViewSet):
     queryset = Professional.objects.all()
@@ -21,3 +26,8 @@ class ProfessionalViewSet(ModelViewSet):
     filterset_fields = ["active", "specialty"]
     search_fields = ["full_name", "email", "phone", "specialty", "registration_number"]
     ordering_fields = ["full_name", "created_at"]
+
+    def perform_destroy(self, instance):
+        instance.active = False
+        instance.full_clean()
+        instance.save(update_fields=["active", "updated_at"])

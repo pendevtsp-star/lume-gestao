@@ -1,20 +1,22 @@
 :root {
-  --ink: #111615;
-  --ink-soft: #1d2421;
+  --ink: #2f3a2c;
+  --ink-soft: #526247;
   --panel: #ffffff;
-  --page: #eee9dc;
-  --muted-panel: #f7f3e9;
-  --line: #ddd4bf;
-  --text: #202624;
-  --muted: #6d746f;
-  --sage: #8f9568;
-  --sage-dark: #626947;
-  --sand: #ccb18d;
+  --page: #f1eadc;
+  --muted-panel: #f8f3e7;
+  --line: #ded4bd;
+  --text: #263028;
+  --muted: #6e7469;
+  --sage: #9aa57a;
+  --sage-dark: #60724f;
+  --sage-soft: #dfe7cf;
+  --sand: #cdb48d;
+  --sand-soft: #efe2c9;
   --rose: #b86d92;
   --danger: #9f3d38;
   --warning: #a76d1b;
   --success: #31705b;
-  --shadow: 0 18px 42px rgba(17, 22, 21, 0.10);
+  --shadow: 0 18px 42px rgba(58, 70, 50, 0.10);
 }
 
 * {
@@ -47,7 +49,7 @@ textarea {
   grid-template-columns: 260px minmax(0, 1fr);
   min-height: 100vh;
   background:
-    linear-gradient(90deg, rgba(17, 22, 21, 0.18) 0, rgba(143, 149, 104, 0.10) 38px, transparent 96px),
+    linear-gradient(90deg, rgba(117, 132, 88, 0.13) 0, rgba(184, 174, 145, 0.12) 42px, transparent 116px),
     var(--page);
 }
 
@@ -61,13 +63,14 @@ textarea {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 24px 18px;
-  color: #f8f4ea;
+  color: var(--ink);
   background:
-    radial-gradient(circle at 20% 0%, rgba(143, 149, 104, 0.28), transparent 34%),
-    linear-gradient(180deg, var(--ink) 0%, var(--ink-soft) 64%, #242719 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 24px 0 46px rgba(17, 22, 21, 0.10);
-  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+    radial-gradient(circle at 18% 0%, rgba(205, 180, 141, 0.40), transparent 34%),
+    radial-gradient(circle at 90% 40%, rgba(154, 165, 122, 0.26), transparent 30%),
+    linear-gradient(180deg, #fbf5e8 0%, #ece8d6 56%, #dce5ca 100%);
+  border-right: 1px solid rgba(96, 114, 79, 0.20);
+  box-shadow: 24px 0 46px rgba(58, 70, 50, 0.09);
+  scrollbar-color: rgba(96, 114, 79, 0.36) transparent;
 }
 
 .brand {
@@ -86,7 +89,7 @@ textarea {
 .brand small {
   display: block;
   margin-top: 2px;
-  color: #bfc3b8;
+  color: #6f7b63;
   font-size: 12px;
 }
 
@@ -95,9 +98,9 @@ textarea {
   place-items: center;
   width: 46px;
   height: 46px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(96, 114, 79, 0.25);
   border-radius: 50%;
-  background: var(--sage);
+  background: linear-gradient(145deg, var(--sage-dark), var(--sage));
   color: #fffef6;
   font-family: Georgia, serif;
   font-size: 28px;
@@ -114,7 +117,7 @@ textarea {
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #e9e4d8;
+  color: #43513a;
   cursor: pointer;
   font-weight: 700;
   text-align: left;
@@ -136,8 +139,8 @@ textarea {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.10);
-  color: #f6f0e3;
+  background: rgba(96, 114, 79, 0.12);
+  color: var(--sage-dark);
 }
 
 .nav-icon::before {
@@ -172,14 +175,14 @@ textarea {
 
 .nav a:hover .nav-icon,
 .nav a:focus-visible .nav-icon {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fffdf4;
+  background: rgba(96, 114, 79, 0.18);
+  color: #405235;
 }
 
 .nav a:hover,
 .nav a:focus-visible {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fffdf4;
+  background: rgba(255, 255, 255, 0.58);
+  color: #263528;
   transform: translateX(2px);
 }
 
@@ -196,7 +199,7 @@ textarea {
   gap: 10px;
   padding: 11px 12px;
   border-radius: 8px;
-  color: #e9e4d8;
+  color: #43513a;
   cursor: pointer;
   font-weight: 700;
   list-style: none;
@@ -227,16 +230,16 @@ textarea {
 
 .nav-menu summary:hover,
 .nav-menu summary:focus-visible {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fffdf4;
+  background: rgba(255, 255, 255, 0.58);
+  color: #263528;
   outline: none;
   transform: translateX(2px);
 }
 
 .nav-menu summary:hover .nav-icon,
 .nav-menu summary:focus-visible .nav-icon {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fffdf4;
+  background: rgba(96, 114, 79, 0.18);
+  color: #405235;
 }
 
 .nav-submenu {
@@ -244,14 +247,14 @@ textarea {
   gap: 4px;
   margin-left: 14px;
   padding: 4px 0 4px 12px;
-  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  border-left: 1px solid rgba(96, 114, 79, 0.20);
 }
 
 .nav-submenu a {
   grid-template-columns: 24px minmax(0, 1fr);
   min-height: 38px;
   padding: 8px 10px;
-  color: #ddd8cc;
+  color: #59664d;
   font-size: 14px;
 }
 
@@ -271,14 +274,14 @@ textarea {
   gap: 8px;
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  color: #cfd2c8;
+  border-top: 1px solid rgba(96, 114, 79, 0.18);
+  color: #65735a;
   font-size: 13px;
 }
 
 .link-button {
   padding: 0;
-  color: #f4d5b0;
+  color: #7b5f36;
 }
 
 .main {
@@ -500,6 +503,12 @@ h2 {
   width: 100%;
 }
 
+.button.compact {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -616,6 +625,80 @@ h2 {
 .patient-summary small {
   margin-top: 5px;
   font-weight: 600;
+}
+
+.birthday-panel {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(205, 180, 141, 0.22), transparent 32%),
+    var(--panel);
+}
+
+.birthday-list {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px 20px;
+}
+
+.birthday-card {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid rgba(96, 114, 79, 0.18);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fffdf6 0%, #f5f0e1 58%, #edf4df 100%);
+}
+
+.birthday-date {
+  display: grid;
+  place-items: center;
+  min-height: 58px;
+  border-radius: 10px;
+  background: var(--sage-soft);
+  color: var(--sage-dark);
+}
+
+.birthday-date strong {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.birthday-date span,
+.birthday-info span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.birthday-info {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.birthday-info strong {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-state {
+  display: grid;
+  gap: 4px;
+  padding: 18px;
+  border-radius: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.empty-state strong {
+  color: var(--text);
+}
+
+.empty-state.soft {
+  background: var(--muted-panel);
 }
 
 .toolbar {
@@ -2204,6 +2287,11 @@ td small {
 
   .button {
     width: 100%;
+  }
+
+  .birthday-card {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .card-grid,

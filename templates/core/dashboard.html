@@ -39,6 +39,46 @@
   {% endif %}
 </section>
 
+<section class="panel birthday-panel stacked-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Aniversariantes da semana</h2>
+      <p>{{ birthday_week_start|date:"d/m" }} a {{ birthday_week_end|date:"d/m" }} - datas de aniversario dos pacientes ativos.</p>
+    </div>
+    {% if birthday_whatsapp_visible %}
+      <a class="button secondary" href="{% url 'integrations' %}?tab=messages">Editar mensagem</a>
+    {% endif %}
+  </header>
+
+  <div class="birthday-list">
+    {% for birthday in birthday_patients %}
+      <article class="birthday-card">
+        <div class="birthday-date">
+          <strong>{{ birthday.display_date }}</strong>
+          <span>{{ birthday.weekday }}</span>
+        </div>
+        <div class="birthday-info">
+          <strong>{{ birthday.patient.full_name }}</strong>
+          <span>{% if birthday.has_phone %}WhatsApp cadastrado{% else %}Sem telefone cadastrado{% endif %}</span>
+        </div>
+        {% if birthday_whatsapp_visible %}
+          <form method="post" action="{% url 'birthday_whatsapp_send' birthday.patient.pk %}">
+            {% csrf_token %}
+            <button class="button secondary compact" type="submit" {% if not birthday.has_phone %}disabled{% endif %}>
+              Enviar parabens
+            </button>
+          </form>
+        {% endif %}
+      </article>
+    {% empty %}
+      <div class="empty-state soft">
+        <strong>Nenhum aniversario nesta semana.</strong>
+        <span>Quando houver pacientes aniversariando, eles aparecem aqui automaticamente.</span>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
 {% if patient_dashboard %}
 <section class="panel stacked-panel">
   <header class="panel-header">

@@ -4,7 +4,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.db.models import Q, Sum
 from django.urls import reverse
 from django.urls import reverse_lazy
@@ -50,6 +50,9 @@ from patients.models import Patient, ProfessionalPatientAssignment
 from patients.services import patient_ids_for_professional, professional_ids_for_patient
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
+
+
+WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"]
 
 
 class SearchableListView(LoginRequiredMixin):
@@ -105,6 +108,41 @@ class FormContextMixin:
         return context
 
 
+def birthday_date_for_year(birth_date, year):
+    try:
+        return birth_date.replace(year=year)
+    except ValueError:
+        return birth_date.replace(year=year, day=28)
+
+
+def birthday_in_period(birth_date, starts_on, ends_on):
+    for year in range(starts_on.year, ends_on.year + 1):
+        candidate = birthday_date_for_year(birth_date, year)
+        if starts_on <= candidate <= ends_on:
+            return candidate
+    return None
+
+
+def weekly_birthday_patients(queryset, starts_on=None, days=7):
+    starts_on = starts_on or timezone.localdate()
+    ends_on = starts_on + timedelta(days=days - 1)
+    birthdays = []
+    for patient in queryset.filter(birth_date__isnull=False).only("id", "full_name", "birth_date", "phone"):
+        birthday_date = birthday_in_period(patient.birth_date, starts_on, ends_on)
+        if not birthday_date:
+            continue
+        birthdays.append(
+            {
+                "patient": patient,
+                "date": birthday_date,
+                "display_date": birthday_date.strftime("%d/%m"),
+                "weekday": "Hoje" if birthday_date == starts_on else WEEKDAY_LABELS[birthday_date.weekday()],
+                "has_phone": bool(patient.phone),
+            }
+        )
+    return sorted(birthdays, key=lambda birthday: (birthday["date"], birthday["patient"].full_name))
+
+
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = "core/dashboard.html"
 
@@ -153,6 +191,10 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context.update(
             {
                 "finance_visible": finance_visible,
+                "birthday_patients": weekly_birthday_patients(Patient.objects.filter(active=True), today),
+                "birthday_week_start": today,
+                "birthday_week_end": today + timedelta(days=6),
+                "birthday_whatsapp_visible": finance_visible,
                 "active_patients": patient_queryset.count(),
                 "active_memberships": Membership.objects.filter(status=Membership.Status.ACTIVE).count() if finance_visible else 0,
                 "active_professionals": Professional.objects.filter(active=True).count() if finance_visible else 0,
@@ -682,6 +724,79 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
 
         messages.error(request, "Acao de integracao invalida.")
         return redirect(f"{reverse('integrations')}?tab={self.get_active_tab()}")
+
+
+class BirthdayWhatsAppSendView(FinanceAccessMixin, View):
+    def post(self, request, patient_pk):
+        WhatsAppMessageTemplate.ensure_defaults()
+        patient = get_object_or_404(Patient.objects.filter(active=True, birth_date__isnull=False), pk=patient_pk)
+        template = WhatsAppMessageTemplate.objects.get(template_type=WhatsAppMessageTemplate.TemplateType.BIRTHDAY)
+        integration = WhatsAppIntegration.load()
+        related = {"patient": patient, "appointment": None, "payment": None, "charge": None}
+        rendered_message = render_whatsapp_template(template.body, build_whatsapp_message_context(patient=patient))
+
+        if not template.active:
+            messages.error(request, "O modelo de mensagem de aniversario esta pausado.")
+            return redirect("dashboard")
+
+        target_number = ""
+        try:
+            target_number = whatsapp_target_number("", patient)
+        except IntegrationError as exc:
+            WhatsAppMessageLog.objects.create(
+                integration=integration,
+                template=template,
+                patient=related["patient"],
+                appointment=related["appointment"],
+                payment=related["payment"],
+                charge=related["charge"],
+                recipient_name=patient.full_name,
+                recipient_number=target_number,
+                rendered_message=rendered_message,
+                status=WhatsAppMessageLog.Status.FAILED,
+                error_message=str(exc),
+            )
+            messages.error(request, str(exc))
+            return redirect("dashboard")
+
+        try:
+            result = send_whatsapp_text(target_number, rendered_message, integration=integration)
+        except IntegrationError as exc:
+            WhatsAppMessageLog.objects.create(
+                integration=integration,
+                template=template,
+                patient=related["patient"],
+                appointment=related["appointment"],
+                payment=related["payment"],
+                charge=related["charge"],
+                recipient_name=patient.full_name,
+                recipient_number=target_number,
+                rendered_message=rendered_message,
+                status=WhatsAppMessageLog.Status.FAILED,
+                error_message=str(exc),
+            )
+            messages.error(request, str(exc))
+            return redirect("dashboard")
+
+        status = WhatsAppMessageLog.Status.DRY_RUN if result.get("dry_run") else WhatsAppMessageLog.Status.SENT
+        WhatsAppMessageLog.objects.create(
+            integration=integration,
+            template=template,
+            patient=related["patient"],
+            appointment=related["appointment"],
+            payment=related["payment"],
+            charge=related["charge"],
+            recipient_name=patient.full_name,
+            recipient_number=target_number,
+            rendered_message=rendered_message,
+            status=status,
+            sent_at=timezone.now(),
+            provider_reference=provider_reference_from_response(result),
+            response_payload=result if isinstance(result, dict) else {},
+        )
+        detail = "simulada" if status == WhatsAppMessageLog.Status.DRY_RUN else "enviada"
+        messages.success(request, f"Mensagem de aniversario {detail} para {patient.full_name}.")
+        return redirect("dashboard")
 
 
 class GoogleCalendarConnectView(FinanceAccessMixin, View):

@@ -41,6 +41,43 @@ class DashboardAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Dashboard")
 
+    def test_dashboard_shows_weekly_birthdays_to_all_roles(self):
+        today = timezone.localdate()
+        birthday_patient = Patient.objects.create(
+            full_name="Paciente Aniversariante",
+            phone="11999990000",
+            birth_date=date(1991, today.month, today.day),
+        )
+        linked_patient = Patient.objects.create(full_name="Paciente Usuario")
+        professional = Professional.objects.create(
+            full_name="Dra. Aniversario",
+            specialty=Professional.Specialty.PILATES,
+        )
+        ProfessionalPatientAssignment.objects.create(patient=birthday_patient, professional=professional)
+        roles = [
+            ("gestor-aniversario", UserProfile.Role.MANAGEMENT, {}),
+            ("admin-aniversario", UserProfile.Role.ADMINISTRATION, {}),
+            ("prof-aniversario", UserProfile.Role.PROFESSIONAL, {"professional": professional}),
+            ("paciente-aniversario", UserProfile.Role.PATIENT, {"patient": linked_patient}),
+        ]
+
+        for username, role, extra_profile_fields in roles:
+            with self.subTest(role=role):
+                user = get_user_model().objects.create_user(username=username, password="Lume@12345")
+                UserProfile.objects.update_or_create(
+                    user=user,
+                    defaults={"role": role, **extra_profile_fields},
+                )
+                self.client.force_login(user)
+
+                response = self.client.get(reverse("dashboard"))
+
+                self.assertContains(response, "Aniversariantes da semana")
+                self.assertContains(response, birthday_patient.full_name)
+                self.assertContains(response, today.strftime("%d/%m"))
+                self.assertNotContains(response, "1991")
+                self.client.logout()
+
     def test_healthcheck_returns_runtime_status(self):
         response = self.client.get(reverse("health"))
 
@@ -435,6 +472,26 @@ class IntegrationsTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
+        log = WhatsAppMessageLog.objects.get(template=template)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.DRY_RUN)
+        self.assertEqual(log.patient, self.patient)
+        self.assertIn(self.patient.full_name, log.rendered_message)
+
+    def test_management_can_send_birthday_message_from_dashboard(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"enabled": True, "dry_run": True, "phone_number_id": "123", "clinic_whatsapp_number": "5511999990000"},
+        )
+        WhatsAppMessageTemplate.ensure_defaults()
+        template = WhatsAppMessageTemplate.objects.get(
+            template_type=WhatsAppMessageTemplate.TemplateType.BIRTHDAY
+        )
+
+        response = self.client.post(reverse("birthday_whatsapp_send", args=[self.patient.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("dashboard"))
         log = WhatsAppMessageLog.objects.get(template=template)
         self.assertEqual(log.status, WhatsAppMessageLog.Status.DRY_RUN)
         self.assertEqual(log.patient, self.patient)

@@ -103,7 +103,7 @@
     </div>
   </section>
 
-  <section class="availability-form-section">
+  <section class="availability-form-section availability-form-section-compact availability-validity-section">
     <div class="availability-section-copy">
       <span class="step-marker">3</span>
       <div>
@@ -136,7 +136,7 @@
         </div>
         {% for error in form.valid_scope.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
       </fieldset>
-      <div class="custom-period-card full-span">
+      <div class="custom-period-card full-span" data-custom-period>
         <div>
           <strong>Periodo personalizado</strong>
           <small>Use estes campos apenas quando escolher validade personalizada.</small>
@@ -169,4 +169,24 @@
     <button class="button primary" type="submit">Salvar regra de disponibilidade</button>
   </div>
 </form>
+<script>
+  (function () {
+    const form = document.querySelector(".availability-form-panel");
+    if (!form) return;
+
+    const customPeriod = form.querySelector("[data-custom-period]");
+    const validityRadios = form.querySelectorAll("input[name='valid_scope']");
+    if (!customPeriod || validityRadios.length === 0) return;
+
+    function syncCustomPeriod() {
+      const selected = form.querySelector("input[name='valid_scope']:checked");
+      customPeriod.hidden = !selected || selected.value !== "custom";
+    }
+
+    validityRadios.forEach(function (radio) {
+      radio.addEventListener("change", syncCustomPeriod);
+    });
+    syncCustomPeriod();
+  })();
+</script>
 {% endblock %}

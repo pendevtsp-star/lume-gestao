@@ -2108,6 +2108,10 @@ td small {
   align-items: start;
 }
 
+.availability-validity-section .availability-form-grid {
+  gap: 16px;
+}
+
 .availability-section-copy {
   display: flex;
   align-items: flex-start;
@@ -2163,6 +2167,10 @@ td small {
   grid-template-columns: repeat(4, minmax(120px, 1fr));
 }
 
+.availability-validity-section .validity-card-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .availability-weekday-picker,
 .availability-validity-picker {
   display: grid;
@@ -2206,6 +2214,26 @@ td small {
   min-height: 44px;
 }
 
+.availability-validity-section .availability-validity-picker {
+  padding: 14px;
+  border: 1px solid rgba(118, 104, 78, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 253, 247, 0.78);
+}
+
+.availability-validity-section .validity-card {
+  min-height: 54px;
+  border-radius: 14px;
+  background: #fffaf0;
+}
+
+.weekday-card:has(input:checked),
+.validity-card:has(input:checked) {
+  border-color: rgba(92, 114, 72, 0.55);
+  background: rgba(222, 235, 215, 0.75);
+  box-shadow: 0 8px 18px rgba(43, 59, 44, 0.08);
+}
+
 .weekday-card input,
 .validity-card input {
   accent-color: var(--sage-dark);
@@ -2232,13 +2260,17 @@ td small {
 
 .custom-period-card {
   display: grid;
-  grid-template-columns: minmax(180px, 0.7fr) repeat(2, minmax(180px, 1fr));
+  grid-template-columns: minmax(180px, 0.7fr) repeat(2, minmax(0, 1fr));
   gap: 12px;
   align-items: end;
   padding: 14px;
   border: 1px dashed rgba(118, 104, 78, 0.30);
   border-radius: 16px;
   background: rgba(255, 250, 240, 0.72);
+}
+
+.custom-period-card[hidden] {
+  display: none;
 }
 
 .custom-period-card strong,
@@ -2253,7 +2285,16 @@ td small {
 }
 
 .availability-active-card {
-  min-height: 54px;
+  grid-column: 1 / -1;
+  width: min(260px, 100%);
+  min-height: 52px;
+  justify-content: flex-start;
+}
+
+.availability-active-card input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
 }
 
 .availability-form-actions {

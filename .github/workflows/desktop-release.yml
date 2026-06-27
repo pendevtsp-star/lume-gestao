@@ -125,7 +125,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: dist/desktop/**
+          path: |
+            dist/desktop/*.AppImage
+            dist/desktop/*.blockmap
+            dist/desktop/*.deb
+            dist/desktop/*.dmg
+            dist/desktop/*.exe
+            dist/desktop/*.yml
+            dist/desktop/*.zip
           if-no-files-found: error
 
   publish:
@@ -139,9 +146,13 @@ jobs:
           path: release-artifacts
 
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: ncipollo/release-action@v1
         with:
           name: Lume Gestao ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          tag: ${{ github.ref_name }}
           prerelease: true
-          files: release-artifacts/**/*
+          artifacts: release-artifacts/**/*
+          allowUpdates: true
+          artifactErrorsFailBuild: true
+          removeArtifacts: true
+          replacesArtifacts: true

@@ -1,139 +1,185 @@
-# Deploy em VPS Linux
+# Deploy VPS Linux
 
-Este roteiro prepara o Lume Gestao para uma VPS Linux barata rodando Docker Compose, PostgreSQL, Nginx, HTTPS e Cloudflare.
+Guia de producao do Lume Gestao para VPS Linux com Docker Compose, PostgreSQL em container, Nginx, HTTPS com Certbot/Let's Encrypt e DNS pela Cloudflare.
 
-## Visao geral
+Este guia considera desenvolvimento em Windows e producao em Ubuntu 24.04 LTS. Nao coloque senhas reais em arquivos versionados. O arquivo real `.env` deve existir apenas na VPS.
 
-Arquivos principais:
+## 1. Pre-requisitos
 
-- `docker-compose.prod.yml`: stack de producao com PostgreSQL, web/Django/Gunicorn e worker.
-- `.env.production.example`: modelo de variaveis sem segredos reais.
-- `deploy/nginx/lume.conf.example`: exemplo de proxy reverso da VPS com HTTPS, static e media.
-- `scripts/deploy-migrate.sh`: etapa unica de `check --deploy`, `collectstatic`, migracoes e usuario tecnico.
-- `scripts/backup-linux.sh`: backup do banco e da pasta `media`.
+- Repositorio no GitHub: `https://github.com/pendevtsp-star/lume-gestao.git`.
+- Dominio gerenciado pela Cloudflare, por exemplo `sistema.seudominio.com.br`.
+- VPS Ubuntu 24.04 LTS.
+- Acesso SSH como usuario com `sudo`.
+- Git instalado localmente no Windows para enviar atualizacoes.
 
-## 1. Preparar a VPS
+Arquivos relevantes:
 
-Em Ubuntu/Debian:
+- `docker-compose.prod.yml`
+- `.env.production.example`
+- `deploy/nginx/lume.conf.example`
+- `scripts/backup-production.sh`
+- `scripts/restore-production.sh`
+
+## 2. Compra/configuracao da VPS
+
+Opcoes recomendadas para inicio:
+
+- Hostinger KVM 2: simples para comecar, boa quando a prioridade e painel amigavel.
+- Hetzner Cloud CX23: excelente custo-beneficio, boa para quem aceita configurar mais coisas manualmente.
+
+Configure a VPS com:
+
+- Ubuntu 24.04 LTS.
+- Disco suficiente para banco, media e backups locais.
+- Acesso SSH por chave quando possivel.
+- Firewall liberando `22`, `80` e `443`.
+
+## 3. Configuracao DNS no Cloudflare
+
+No Cloudflare:
+
+1. Crie um registro `A`.
+2. Nome: `sistema`.
+3. Conteudo: IP publico da VPS.
+4. Proxy: pode iniciar cinza durante validacao e depois ativar laranja.
+
+Configuracao SSL/TLS recomendada:
+
+- Modo: `Full (strict)`.
+- Always Use HTTPS: ativo.
+- Automatic HTTPS Rewrites: ativo.
+
+Com `Full (strict)`, a VPS precisa ter certificado HTTPS valido. Use Certbot/Let's Encrypt ou Cloudflare Origin Certificate.
+
+## 4. Primeiro acesso SSH
+
+No Windows, use PowerShell ou Windows Terminal:
+
+```powershell
+ssh usuario@IP_DA_VPS
+```
+
+Atualize o sistema:
 
 ```bash
 sudo apt update
-sudo apt install -y git docker.io docker-compose-plugin
+sudo apt upgrade -y
+```
+
+Opcionalmente configure hostname:
+
+```bash
+sudo hostnamectl set-hostname lume-vps
+```
+
+## 5. Instalacao Docker
+
+Em Ubuntu 24.04:
+
+```bash
+sudo apt install -y ca-certificates curl git ufw
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo usermod -aG docker "$USER"
 ```
 
-Saia e entre novamente no SSH para aplicar o grupo `docker`.
-
-## 2. Baixar o projeto
+Saia e entre novamente no SSH. Teste:
 
 ```bash
-git clone https://github.com/pendevtsp-star/lume-gestao.git
-cd lume-gestao
-cp .env.production.example .env
+docker --version
+docker compose version
 ```
 
-Edite o arquivo:
+Firewall basico:
 
 ```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status
+```
+
+## 6. Clonagem do projeto
+
+Use um caminho previsivel para combinar com o Nginx:
+
+```bash
+sudo mkdir -p /srv
+sudo chown "$USER":"$USER" /srv
+cd /srv
+git clone https://github.com/pendevtsp-star/lume-gestao.git
+cd /srv/lume-gestao
+```
+
+Se estiver trabalhando na branch de deploy:
+
+```bash
+git checkout deploy/vps-production
+```
+
+## 7. Criacao do .env
+
+Crie o `.env` real a partir do exemplo:
+
+```bash
+cp .env.production.example .env
 nano .env
 ```
 
 Troque obrigatoriamente:
 
 - `SECRET_KEY`
-- `ALLOWED_HOSTS`
-- `CSRF_TRUSTED_ORIGINS`
+- `ALLOWED_HOSTS=sistema.seudominio.com.br`
+- `CSRF_TRUSTED_ORIGINS=https://sistema.seudominio.com.br`
 - `POSTGRES_PASSWORD`
 - `EMAIL_HOST_PASSWORD`
-- variaveis `EMAIL_*`, `GOOGLE_*` e `WHATSAPP_*` quando forem usadas de verdade
+- credenciais Google e WhatsApp quando forem usadas
 
-Mantenha para dados reais:
+Valores importantes para dados reais:
 
 ```text
+ENVIRONMENT=production
 DEBUG=False
 LUME_STRICT_PRODUCTION=True
 LUME_SEED_DEMO=False
 WHATSAPP_DRY_RUN=True
 ```
 
-So coloque `WHATSAPP_DRY_RUN=False` depois de validar templates e conta Meta.
+Mantenha `WHATSAPP_DRY_RUN=True` ate validar numero, templates e permissao da Meta.
 
-## 3. HTTPS e Cloudflare
+## 8. Subida dos containers
 
-Configure o DNS no Cloudflare apontando para o IP da VPS.
-
-Modo recomendado:
-
-- SSL/TLS no Cloudflare: `Full (strict)`.
-- Sempre usar HTTPS: ativo.
-- Proxy laranja: ativo depois que o servidor responder corretamente.
-
-Coloque os certificados no servidor:
-
-```text
-/etc/nginx/certs/fullchain.pem
-/etc/nginx/certs/privkey.pem
-```
-
-Pode ser certificado de origem do Cloudflare ou certificado emitido por Let's Encrypt. Nao versione esses arquivos.
-
-## 4. Subir producao
-
-Validar a configuracao renderizada:
+Valide a configuracao:
 
 ```bash
 docker compose -f docker-compose.prod.yml config
 ```
 
-Subir:
+Suba os containers:
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-Ver status:
+Veja status e logs:
 
 ```bash
 docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs -f web
+docker compose -f docker-compose.prod.yml logs -f worker
 ```
 
-O servico `web` roda `collectstatic`, `migrate` e `ensure_maintenance_user` antes de iniciar o Gunicorn. O `worker` espera o `web` ficar saudavel e nao roda migracoes por padrao, evitando corrida de migracoes. Se um dia for necessario permitir migracao pelo worker em ambiente controlado, use `LUME_WORKER_RUN_MIGRATIONS=True`.
+O Compose publica a aplicacao apenas em `127.0.0.1:8000`, para que apenas o Nginx do host acesse o Gunicorn.
 
-O `.env.production.example` tambem declara `STATIC_ROOT=/app/staticfiles` e `MEDIA_ROOT=/app/media`, que combinam com os volumes persistentes do Compose.
-
-## 5. Nginx na VPS
-
-O Compose publica o Django apenas em:
-
-```text
-127.0.0.1:8000
-```
-
-Assim, o app nao fica exposto diretamente na internet. Instale o Nginx no host e use `deploy/nginx/lume.conf.example` como base.
-
-Se o projeto estiver em outro caminho, ajuste:
-
-```text
-/srv/lume-gestao/data/staticfiles/
-/srv/lume-gestao/data/media/
-```
-
-Depois copie a configuracao para o Nginx e recarregue:
+Healthcheck local:
 
 ```bash
-sudo cp deploy/nginx/lume.conf.example /etc/nginx/sites-available/lume
-sudo ln -s /etc/nginx/sites-available/lume /etc/nginx/sites-enabled/lume
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-## 6. Healthcheck
-
-O endpoint publico de saude da aplicacao e:
-
-```text
-GET /healthz/
+curl http://127.0.0.1:8000/healthz/
 ```
 
 Resposta esperada:
@@ -142,49 +188,93 @@ Resposta esperada:
 {"status": "ok"}
 ```
 
-Ele nao exige login e nao expoe detalhes de banco, ambiente ou versao. O `docker-compose.prod.yml` usa esse endpoint no healthcheck do servico `web`. No Nginx, a rota tambem pode ser testada por:
+## 9. Configuracao Nginx
+
+Instale Nginx:
+
+```bash
+sudo apt install -y nginx
+```
+
+Copie o exemplo:
+
+```bash
+sudo cp deploy/nginx/lume.conf.example /etc/nginx/sites-available/lume
+sudo nano /etc/nginx/sites-available/lume
+```
+
+No arquivo, confirme:
+
+- `server_name sistema.seudominio.com.br;`
+- `proxy_pass http://127.0.0.1:8000;`
+- caminhos `/srv/lume-gestao/data/staticfiles/` e `/srv/lume-gestao/data/media/`
+
+Ative:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/lume /etc/nginx/sites-enabled/lume
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+## 10. HTTPS
+
+Instale Certbot:
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+```
+
+Emita o certificado:
+
+```bash
+sudo certbot --nginx -d sistema.seudominio.com.br
+```
+
+Teste renovacao:
+
+```bash
+sudo certbot renew --dry-run
+```
+
+Depois volte na Cloudflare e confirme SSL/TLS em `Full (strict)`.
+
+Teste:
 
 ```bash
 curl -I https://sistema.seudominio.com.br/healthz/
 ```
 
-## 7. Atualizar versao
+## 11. Criacao do superusuario
 
-Antes de atualizar:
-
-```bash
-sh scripts/backup-linux.sh
-```
-
-Depois:
+Crie o usuario administrador inicial:
 
 ```bash
-git pull
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec web python manage.py createsuperuser
 ```
 
-## 8. Backup
+Use senha forte e nao reutilize credenciais de teste. Se usar usuario tecnico via `.env`, mantenha `LUME_MAINTENANCE_USER_ENABLED=False` para uso normal e ative apenas quando necessario.
+
+## 12. Backup
 
 Backup manual:
 
 ```bash
-sh scripts/backup-linux.sh
+sh scripts/backup-production.sh
 ```
 
-Os arquivos ficam em:
-
-```text
-backups/
-```
-
-Copie os backups para fora da VPS. Exemplo:
+Variaveis opcionais:
 
 ```bash
-scp backups/lume_db_YYYYMMDD_HHMMSS.sql usuario@outro-servidor:/caminho/seguro/
-scp backups/lume_media_YYYYMMDD_HHMMSS.tar.gz usuario@outro-servidor:/caminho/seguro/
+BACKUP_DIR=/srv/lume-backups RETENTION_DAYS=30 sh scripts/backup-production.sh
 ```
 
-Para agendar backup diario as 03:00:
+O backup gera:
+
+- `lume_db_YYYYMMDD_HHMMSS.sql`
+- `lume_media_YYYYMMDD_HHMMSS.tar.gz`
+
+Agendamento diario as 03:00:
 
 ```bash
 crontab -e
@@ -193,68 +283,95 @@ crontab -e
 Adicionar:
 
 ```text
-0 3 * * * cd /caminho/lume-gestao && sh scripts/backup-linux.sh >> backups/backup.log 2>&1
+0 3 * * * cd /srv/lume-gestao && sh scripts/backup-production.sh >> backups/backup.log 2>&1
 ```
 
-## 9. Restauracao
-
-Em ambiente separado, com containers ligados:
+Envie copia para fora da VPS. Exemplos:
 
 ```bash
-cat backups/lume_db_YYYYMMDD_HHMMSS.sql | docker compose -f docker-compose.prod.yml exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+rclone copy backups/ remote:lume-gestao/backups/
+aws s3 sync backups/ s3://seu-bucket/lume-gestao/backups/
 ```
 
-Restaurar media:
+Nao considere backup confiavel antes de testar restauracao em ambiente separado.
+
+## 13. Atualizacao de versao sem perder dados
+
+Antes de atualizar:
 
 ```bash
-cat backups/lume_media_YYYYMMDD_HHMMSS.tar.gz | docker compose -f docker-compose.prod.yml exec -T web tar -xzf - -C /app
+sh scripts/backup-production.sh
 ```
 
-Teste restauracao antes de considerar o backup confiavel.
+Atualize:
 
-## 10. API mobile
-
-A API web continua protegida por sessao. Para o futuro app mobile, existe endpoint inicial de token:
-
-```text
-POST /api/v1/mobile/auth/token/
+```bash
+git pull
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml ps
 ```
 
-Payload:
+Valide:
 
-```json
-{
-  "username": "usuario",
-  "password": "senha"
-}
+```bash
+curl -I https://sistema.seudominio.com.br/healthz/
+docker compose -f docker-compose.prod.yml logs --tail=80 web
 ```
 
-Resposta:
+Dados persistem em:
 
-```json
-{
-  "token": "..."
-}
+- volume Docker `postgres_data`
+- diretorios `data/media`, `data/staticfiles`, `data/backups`
+
+## 14. Rollback
+
+Se uma atualizacao falhar:
+
+1. Pare os containers:
+
+```bash
+docker compose -f docker-compose.prod.yml down
 ```
 
-Chamadas mobile devem enviar:
+2. Volte para o commit/tag anterior:
 
-```text
-Authorization: Token ...
+```bash
+git log --oneline -5
+git checkout HASH_ANTERIOR
 ```
 
-Antes de liberar app mobile publico, revisar expiracao/rotacao de tokens, rate limit, logout remoto e testes de permissao por objeto.
+3. Suba novamente:
 
-## 11. Checklist antes de dados reais
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
 
-- `docker compose -f docker-compose.prod.yml config` sem erros.
+4. Se houver corrupcao de dados, restaure backup em ambiente controlado:
+
+```bash
+sh scripts/restore-production.sh backups/lume_db_YYYYMMDD_HHMMSS.sql backups/lume_media_YYYYMMDD_HHMMSS.tar.gz
+```
+
+A restauracao pede confirmacao digitando `RESTAURAR` para evitar sobrescrita acidental.
+
+## 15. Checklist final
+
+Antes de liberar usuarios reais:
+
+- `.env` real criado na VPS e nao versionado.
+- `DEBUG=False`.
 - `LUME_STRICT_PRODUCTION=True`.
 - `LUME_SEED_DEMO=False`.
-- HTTPS respondendo com certificado valido.
-- `/healthz/` respondendo HTTP 200.
+- `ALLOWED_HOSTS` e `CSRF_TRUSTED_ORIGINS` com dominio real.
 - Cloudflare em `Full (strict)`.
-- Backup criado e restaurado em ambiente separado.
-- Senhas padrao removidas.
+- HTTPS ativo com Certbot e `certbot renew --dry-run` aprovado.
+- `/healthz/` respondendo HTTP 200.
+- Nginx com `nginx -t` aprovado.
+- Containers `db`, `web` e `worker` saudaveis.
+- Superusuario criado com senha forte.
 - SMTP testado.
-- WhatsApp em dry-run ate validacao final.
-- Logs do `web`, `worker` e `nginx` sem erro recorrente.
+- WhatsApp em `dry-run` ate validacao final.
+- Backup manual gerado.
+- Restauracao testada em ambiente separado.
+- Rotina de backup automatico agendada.
+- Procedimento de rollback conhecido.

@@ -1108,6 +1108,10 @@ td small {
   grid-column: 1 / -1;
 }
 
+.availability-form-panel .full-span {
+  grid-column: 1 / -1;
+}
+
 .form-field span {
   font-size: 13px;
 }
@@ -2254,9 +2258,10 @@ td small {
 
 .availability-validity-section .validity-card {
   width: auto;
-  max-width: 174px;
-  min-height: 42px;
-  padding: 8px 12px;
+  min-width: 152px;
+  max-width: 190px;
+  min-height: 40px;
+  padding: 7px 11px;
   border-radius: 13px;
   background: #fffaf0;
 }
@@ -2268,8 +2273,14 @@ td small {
   box-shadow: 0 8px 18px rgba(43, 59, 44, 0.08);
 }
 
-.weekday-card input,
-.validity-card input {
+.weekday-card input.field-control,
+.validity-card input.field-control {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  padding: 0;
   accent-color: var(--sage-dark);
 }
 
@@ -2294,13 +2305,17 @@ td small {
 
 .custom-period-card {
   display: grid;
-  grid-template-columns: minmax(180px, 0.7fr) repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: minmax(210px, 0.7fr) repeat(2, minmax(160px, 1fr));
+  gap: 12px;
   align-items: end;
   padding: 12px;
   border: 1px dashed rgba(118, 104, 78, 0.30);
   border-radius: 16px;
   background: rgba(255, 250, 240, 0.72);
+}
+
+.custom-period-card .form-field {
+  min-width: 0;
 }
 
 .custom-period-card[hidden] {

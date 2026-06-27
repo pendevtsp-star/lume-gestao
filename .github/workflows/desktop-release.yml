@@ -63,8 +63,8 @@ jobs:
             --distpath desktop/backend-bin `
             --workpath dist/pyinstaller-work `
             --specpath dist/pyinstaller-spec `
-            --add-data "templates;templates" `
-            --add-data "static;static" `
+            --add-data "$env:GITHUB_WORKSPACE\templates;templates" `
+            --add-data "$env:GITHUB_WORKSPACE\static;static" `
             --collect-all django `
             --collect-all rest_framework `
             --collect-all django_filters `
@@ -91,8 +91,8 @@ jobs:
             --distpath desktop/backend-bin \
             --workpath dist/pyinstaller-work \
             --specpath dist/pyinstaller-spec \
-            --add-data "templates:templates" \
-            --add-data "static:static" \
+            --add-data "${GITHUB_WORKSPACE}/templates:templates" \
+            --add-data "${GITHUB_WORKSPACE}/static:static" \
             --collect-all django \
             --collect-all rest_framework \
             --collect-all django_filters \

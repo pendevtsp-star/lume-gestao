@@ -149,6 +149,7 @@ Troque obrigatoriamente:
 - `ALLOWED_HOSTS=sistema.clinicafisiolume.com.br`
 - `CSRF_TRUSTED_ORIGINS=https://sistema.clinicafisiolume.com.br`
 - `PUBLIC_BASE_URL=https://sistema.clinicafisiolume.com.br`
+- `LUME_HEALTHCHECK_HOST=sistema.clinicafisiolume.com.br`
 - `POSTGRES_PASSWORD`
 - `EMAIL_HOST_PASSWORD`
 - credenciais Google e WhatsApp quando forem usadas

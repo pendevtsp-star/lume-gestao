@@ -206,14 +206,15 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_ROOT = Path(config("STATIC_ROOT", default=str(BASE_DIR / 'staticfiles'))).resolve()
 STATICFILES_STORAGE = (
     "whitenoise.storage.CompressedManifestStaticFilesStorage"
     if IS_PRODUCTION
     else "django.contrib.staticfiles.storage.StaticFilesStorage"
 )
 MEDIA_URL = 'media/'
-MEDIA_ROOT = LUME_DATA_DIR / 'media' if LUME_DESKTOP else BASE_DIR / 'media'
+DEFAULT_MEDIA_ROOT = LUME_DATA_DIR / 'media' if LUME_DESKTOP else BASE_DIR / 'media'
+MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(DEFAULT_MEDIA_ROOT))).resolve()
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
@@ -258,6 +259,7 @@ SECURE_CONTENT_TYPE_NOSNIFF = config("SECURE_CONTENT_TYPE_NOSNIFF", default=True
 SECURE_REFERRER_POLICY = config("SECURE_REFERRER_POLICY", default="same-origin")
 X_FRAME_OPTIONS = config("X_FRAME_OPTIONS", default="DENY")
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = config("USE_X_FORWARDED_HOST", default=IS_PRODUCTION, cast=bool)
 
 if LUME_STRICT_PRODUCTION and IS_PRODUCTION:
     security_errors = []
@@ -303,6 +305,41 @@ if REST_ENABLE_THROTTLING:
             },
         }
     )
+
+LOG_LEVEL = config("LOG_LEVEL", default="INFO")
+DJANGO_LOG_LEVEL = config("DJANGO_LOG_LEVEL", default=LOG_LEVEL)
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "console": {
+            "format": "%(levelname)s %(asctime)s %(name)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "console",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": LOG_LEVEL,
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": DJANGO_LOG_LEVEL,
+            "propagate": False,
+        },
+        "django.server": {
+            "handlers": ["console"],
+            "level": DJANGO_LOG_LEVEL,
+            "propagate": False,
+        },
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

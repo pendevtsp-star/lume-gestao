@@ -6,9 +6,9 @@ Este roteiro prepara o Lume Gestao para uma VPS Linux barata rodando Docker Comp
 
 Arquivos principais:
 
-- `docker-compose.prod.yml`: stack de producao com PostgreSQL, migracao, web, worker e Nginx.
+- `docker-compose.prod.yml`: stack de producao com PostgreSQL, web/Django/Gunicorn e worker.
 - `.env.production.example`: modelo de variaveis sem segredos reais.
-- `deploy/nginx/lume.conf`: proxy reverso com HTTPS, static e media.
+- `deploy/nginx/lume.conf`: modelo de proxy reverso da VPS com HTTPS, static e media.
 - `scripts/deploy-migrate.sh`: etapa unica de `check --deploy`, `collectstatic`, migracoes e usuario tecnico.
 - `scripts/backup-linux.sh`: backup do banco e da pasta `media`.
 
@@ -29,13 +29,13 @@ Saia e entre novamente no SSH para aplicar o grupo `docker`.
 ```bash
 git clone https://github.com/pendevtsp-star/lume-gestao.git
 cd lume-gestao
-cp .env.production.example .env.production
+cp .env.production.example .env
 ```
 
 Edite o arquivo:
 
 ```bash
-nano .env.production
+nano .env
 ```
 
 Troque obrigatoriamente:
@@ -44,6 +44,7 @@ Troque obrigatoriamente:
 - `ALLOWED_HOSTS`
 - `CSRF_TRUSTED_ORIGINS`
 - `POSTGRES_PASSWORD`
+- `EMAIL_HOST_PASSWORD`
 - variaveis `EMAIL_*`, `GOOGLE_*` e `WHATSAPP_*` quando forem usadas de verdade
 
 Mantenha para dados reais:
@@ -70,8 +71,8 @@ Modo recomendado:
 Coloque os certificados no servidor:
 
 ```text
-deploy/nginx/certs/fullchain.pem
-deploy/nginx/certs/privkey.pem
+/etc/nginx/certs/fullchain.pem
+/etc/nginx/certs/privkey.pem
 ```
 
 Pode ser certificado de origem do Cloudflare ou certificado emitido por Let's Encrypt. Nao versione esses arquivos.
@@ -81,25 +82,53 @@ Pode ser certificado de origem do Cloudflare ou certificado emitido por Let's En
 Validar a configuracao renderizada:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml config
+docker compose -f docker-compose.prod.yml config
 ```
 
 Subir:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 Ver status:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml ps
-docker compose --env-file .env.production -f docker-compose.prod.yml logs -f web
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs -f web
 ```
 
-O servico `migrate` roda uma vez antes do `web` e do `worker`. Assim evitamos duas instancias tentando migrar o banco ao mesmo tempo.
+O servico `web` roda `collectstatic`, `migrate` e `ensure_maintenance_user` antes de iniciar o Gunicorn. O `worker` espera o `web` ficar saudavel e nao roda migracoes por padrao, evitando corrida de migracoes. Se um dia for necessario permitir migracao pelo worker em ambiente controlado, use `LUME_WORKER_RUN_MIGRATIONS=True`.
 
-## 5. Atualizar versao
+O `.env.production.example` tambem declara `STATIC_ROOT=/app/staticfiles` e `MEDIA_ROOT=/app/media`, que combinam com os volumes persistentes do Compose.
+
+## 5. Nginx na VPS
+
+O Compose publica o Django apenas em:
+
+```text
+127.0.0.1:8000
+```
+
+Assim, o app nao fica exposto diretamente na internet. Instale o Nginx no host e use `deploy/nginx/lume.conf` como base.
+
+Se o projeto estiver em outro caminho, ajuste:
+
+```text
+/srv/lume-gestao/data/staticfiles/
+/srv/lume-gestao/data/media/
+```
+
+Depois copie a configuracao para o Nginx e recarregue:
+
+```bash
+sudo cp deploy/nginx/lume.conf /etc/nginx/sites-available/lume
+sudo ln -s /etc/nginx/sites-available/lume /etc/nginx/sites-enabled/lume
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+## 6. Atualizar versao
 
 Antes de atualizar:
 
@@ -111,10 +140,10 @@ Depois:
 
 ```bash
 git pull
-docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-## 6. Backup
+## 7. Backup
 
 Backup manual:
 
@@ -147,23 +176,23 @@ Adicionar:
 0 3 * * * cd /caminho/lume-gestao && sh scripts/backup-linux.sh >> backups/backup.log 2>&1
 ```
 
-## 7. Restauracao
+## 8. Restauracao
 
 Em ambiente separado, com containers ligados:
 
 ```bash
-cat backups/lume_db_YYYYMMDD_HHMMSS.sql | docker compose --env-file .env.production -f docker-compose.prod.yml exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+cat backups/lume_db_YYYYMMDD_HHMMSS.sql | docker compose -f docker-compose.prod.yml exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
 Restaurar media:
 
 ```bash
-cat backups/lume_media_YYYYMMDD_HHMMSS.tar.gz | docker compose --env-file .env.production -f docker-compose.prod.yml exec -T web tar -xzf - -C /app
+cat backups/lume_media_YYYYMMDD_HHMMSS.tar.gz | docker compose -f docker-compose.prod.yml exec -T web tar -xzf - -C /app
 ```
 
 Teste restauracao antes de considerar o backup confiavel.
 
-## 8. API mobile
+## 9. API mobile
 
 A API web continua protegida por sessao. Para o futuro app mobile, existe endpoint inicial de token:
 
@@ -196,9 +225,9 @@ Authorization: Token ...
 
 Antes de liberar app mobile publico, revisar expiracao/rotacao de tokens, rate limit, logout remoto e testes de permissao por objeto.
 
-## 9. Checklist antes de dados reais
+## 10. Checklist antes de dados reais
 
-- `docker compose --env-file .env.production -f docker-compose.prod.yml config` sem erros.
+- `docker compose -f docker-compose.prod.yml config` sem erros.
 - `LUME_STRICT_PRODUCTION=True`.
 - `LUME_SEED_DEMO=False`.
 - HTTPS respondendo com certificado valido.

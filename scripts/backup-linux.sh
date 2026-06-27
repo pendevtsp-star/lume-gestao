@@ -2,7 +2,7 @@
 set -eu
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
-ENV_FILE="${ENV_FILE:-.env.production}"
+ENV_FILE="${ENV_FILE:-.env}"
 BACKUP_DIR="${BACKUP_DIR:-backups}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 DB_BACKUP="${BACKUP_DIR}/lume_db_${TIMESTAMP}.sql"

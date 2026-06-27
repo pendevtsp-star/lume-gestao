@@ -19,6 +19,8 @@ Arquivos relevantes:
 - `deploy/nginx/lume.conf.example`
 - `scripts/backup-production.sh`
 - `scripts/restore-production.sh`
+- `docs/UPDATE_PRODUCTION.md`
+- `docs/SECURITY_PRODUCTION_CHECKLIST.md`
 
 ## 2. Compra/configuracao da VPS
 
@@ -297,6 +299,8 @@ Nao considere backup confiavel antes de testar restauracao em ambiente separado.
 
 ## 13. Atualizacao de versao sem perder dados
 
+O roteiro detalhado fica em `docs/UPDATE_PRODUCTION.md`.
+
 Antes de atualizar:
 
 ```bash
@@ -355,6 +359,8 @@ sh scripts/restore-production.sh backups/lume_db_YYYYMMDD_HHMMSS.sql backups/lum
 A restauracao pede confirmacao digitando `RESTAURAR` para evitar sobrescrita acidental.
 
 ## 15. Checklist final
+
+Use tambem o checklist dedicado em `docs/SECURITY_PRODUCTION_CHECKLIST.md`.
 
 Antes de liberar usuarios reais:
 

@@ -228,4 +228,6 @@ Deploy em VPS Linux com Docker Compose, PostgreSQL, Nginx, HTTPS e Cloudflare:
 
 ```text
 docs/DEPLOY_VPS.md
+docs/UPDATE_PRODUCTION.md
+docs/SECURITY_PRODUCTION_CHECKLIST.md
 ```

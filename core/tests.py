@@ -83,7 +83,15 @@ class DashboardAccessTests(TestCase):
         response = self.client.get(reverse("health"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["status"], "ok")
+        self.assertEqual(response.json(), {"status": "ok"})
+
+    def test_healthz_is_public_and_does_not_expose_runtime_details(self):
+        response = self.client.get("/healthz/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+        self.assertNotIn("database_engine", response.json())
+        self.assertNotIn("environment", response.json())
 
 
 class AuditLogTests(TestCase):

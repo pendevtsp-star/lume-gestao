@@ -1,7 +1,24 @@
+# Lume Gestao - exemplo de Nginx para VPS Linux
+#
+# Dominio de exemplo:
+# sistema.seudominio.com.br
+#
+# Cloudflare:
+# - Use SSL/TLS em "Full (strict)".
+# - O servidor de origem precisa ter certificado valido.
+# - Este arquivo nao inclui certificados reais.
+#
+# Ativacao sugerida:
+# sudo cp deploy/nginx/lume.conf.example /etc/nginx/sites-available/lume
+# sudo ln -s /etc/nginx/sites-available/lume /etc/nginx/sites-enabled/lume
+# sudo nginx -t
+# sudo systemctl reload nginx
+
 server {
     listen 80;
-    server_name _;
+    server_name sistema.seudominio.com.br;
 
+    # Usado pelo Certbot/Let's Encrypt antes do HTTPS estar ativo.
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
@@ -14,14 +31,17 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name _;
+    server_name sistema.seudominio.com.br;
 
-    ssl_certificate /etc/nginx/certs/fullchain.pem;
-    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    # Substitua pelos caminhos reais do certificado do servidor.
+    # Com Cloudflare Full (strict), pode ser Let's Encrypt ou Cloudflare Origin Certificate.
+    ssl_certificate /etc/letsencrypt/live/sistema.seudominio.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/sistema.seudominio.com.br/privkey.pem;
+
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;
 
-    client_max_body_size 20m;
+    client_max_body_size 20M;
 
     add_header X-Content-Type-Options nosniff always;
     add_header X-Frame-Options DENY always;
@@ -42,6 +62,9 @@ server {
         add_header Cache-Control "public, max-age=2592000, immutable";
     }
 
+    # Diretorio persistente definido no docker-compose.prod.yml:
+    # ./data/media:/app/media
+    # Ajuste o caminho abaixo se o projeto estiver em outro diretorio.
     location /media/ {
         alias /srv/lume-gestao/data/media/;
         expires 1h;
@@ -55,7 +78,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
         proxy_redirect off;
     }
 }

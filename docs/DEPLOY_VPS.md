@@ -8,7 +8,7 @@ Arquivos principais:
 
 - `docker-compose.prod.yml`: stack de producao com PostgreSQL, web/Django/Gunicorn e worker.
 - `.env.production.example`: modelo de variaveis sem segredos reais.
-- `deploy/nginx/lume.conf`: modelo de proxy reverso da VPS com HTTPS, static e media.
+- `deploy/nginx/lume.conf.example`: exemplo de proxy reverso da VPS com HTTPS, static e media.
 - `scripts/deploy-migrate.sh`: etapa unica de `check --deploy`, `collectstatic`, migracoes e usuario tecnico.
 - `scripts/backup-linux.sh`: backup do banco e da pasta `media`.
 
@@ -110,7 +110,7 @@ O Compose publica o Django apenas em:
 127.0.0.1:8000
 ```
 
-Assim, o app nao fica exposto diretamente na internet. Instale o Nginx no host e use `deploy/nginx/lume.conf` como base.
+Assim, o app nao fica exposto diretamente na internet. Instale o Nginx no host e use `deploy/nginx/lume.conf.example` como base.
 
 Se o projeto estiver em outro caminho, ajuste:
 
@@ -122,13 +122,33 @@ Se o projeto estiver em outro caminho, ajuste:
 Depois copie a configuracao para o Nginx e recarregue:
 
 ```bash
-sudo cp deploy/nginx/lume.conf /etc/nginx/sites-available/lume
+sudo cp deploy/nginx/lume.conf.example /etc/nginx/sites-available/lume
 sudo ln -s /etc/nginx/sites-available/lume /etc/nginx/sites-enabled/lume
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-## 6. Atualizar versao
+## 6. Healthcheck
+
+O endpoint publico de saude da aplicacao e:
+
+```text
+GET /healthz/
+```
+
+Resposta esperada:
+
+```json
+{"status": "ok"}
+```
+
+Ele nao exige login e nao expoe detalhes de banco, ambiente ou versao. O `docker-compose.prod.yml` usa esse endpoint no healthcheck do servico `web`. No Nginx, a rota tambem pode ser testada por:
+
+```bash
+curl -I https://sistema.seudominio.com.br/healthz/
+```
+
+## 7. Atualizar versao
 
 Antes de atualizar:
 
@@ -143,7 +163,7 @@ git pull
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-## 7. Backup
+## 8. Backup
 
 Backup manual:
 
@@ -176,7 +196,7 @@ Adicionar:
 0 3 * * * cd /caminho/lume-gestao && sh scripts/backup-linux.sh >> backups/backup.log 2>&1
 ```
 
-## 8. Restauracao
+## 9. Restauracao
 
 Em ambiente separado, com containers ligados:
 
@@ -192,7 +212,7 @@ cat backups/lume_media_YYYYMMDD_HHMMSS.tar.gz | docker compose -f docker-compose
 
 Teste restauracao antes de considerar o backup confiavel.
 
-## 9. API mobile
+## 10. API mobile
 
 A API web continua protegida por sessao. Para o futuro app mobile, existe endpoint inicial de token:
 
@@ -225,12 +245,13 @@ Authorization: Token ...
 
 Antes de liberar app mobile publico, revisar expiracao/rotacao de tokens, rate limit, logout remoto e testes de permissao por objeto.
 
-## 10. Checklist antes de dados reais
+## 11. Checklist antes de dados reais
 
 - `docker compose -f docker-compose.prod.yml config` sem erros.
 - `LUME_STRICT_PRODUCTION=True`.
 - `LUME_SEED_DEMO=False`.
 - HTTPS respondendo com certificado valido.
+- `/healthz/` respondendo HTTP 200.
 - Cloudflare em `Full (strict)`.
 - Backup criado e restaurado em ambiente separado.
 - Senhas padrao removidas.

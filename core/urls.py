@@ -15,6 +15,7 @@ from reports.views import AuditReportView
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
     path("health/", HealthCheckView.as_view(), name="health"),
+    path("healthz/", HealthCheckView.as_view(), name="healthz"),
     path("auditoria/", AuditReportView.as_view(), name="audit"),
     path("configuracoes/", ClinicSettingsUpdateView.as_view(), name="settings"),
     path("aniversariantes/<int:patient_pk>/whatsapp/", BirthdayWhatsAppSendView.as_view(), name="birthday_whatsapp_send"),

@@ -1,6 +1,5 @@
 from datetime import datetime, time, timedelta
 
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
@@ -13,7 +12,7 @@ from django.views import View
 from django.views.generic import ListView, TemplateView, UpdateView
 
 from accounts.models import UserProfile
-from accounts.permissions import FinanceAccessMixin, ManagementAccessMixin, has_role, get_profile
+from accounts.permissions import FinanceAccessMixin, ManagementAccessMixin, get_profile
 from billing.models import Charge, Membership, Payment, ServicePlan
 from core.forms import (
     ClinicSettingsForm,
@@ -85,19 +84,7 @@ class SearchableListView(LoginRequiredMixin):
 
 class HealthCheckView(View):
     def get(self, request):
-        payload = {"status": "ok"}
-        if settings.LUME_DESKTOP or (
-            request.user.is_authenticated
-            and (request.user.is_superuser or has_role(request.user, {UserProfile.Role.MANAGEMENT}))
-        ):
-            payload.update(
-                {
-                    "desktop_mode": settings.LUME_DESKTOP,
-                    "database_engine": settings.DATABASES["default"]["ENGINE"],
-                    "environment": settings.ENVIRONMENT,
-                }
-            )
-        return JsonResponse(payload)
+        return JsonResponse({"status": "ok"})
 
 
 class FormContextMixin:

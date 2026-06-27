@@ -64,6 +64,13 @@ class ClinicSettingsForm(StyledModelForm):
 
 
 class GoogleCalendarIntegrationForm(StyledModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["oauth_client_id"].label = "Google Client ID (nao e e-mail)"
+        self.fields["oauth_client_secret"].label = "Google Client Secret (nao e senha)"
+        self.fields["oauth_client_id"].help_text = "Cole aqui o Client ID criado no Google Cloud."
+        self.fields["oauth_client_secret"].help_text = "Cole aqui o Client Secret criado no Google Cloud. Nunca use a senha da conta Google."
+
     class Meta:
         model = GoogleCalendarIntegration
         fields = ["enabled", "calendar_id", "sync_on_save", "oauth_client_id", "oauth_client_secret"]
@@ -83,7 +90,13 @@ class WhatsAppIntegrationForm(StyledModelForm):
             "clinic_whatsapp_number",
             "phone_number_id",
             "business_account_id",
+            "embedded_app_id",
+            "embedded_config_id",
+            "embedded_app_secret",
         ]
+        widgets = {
+            "embedded_app_secret": forms.PasswordInput(render_value=True),
+        }
 
 
 class WhatsAppMessageTemplateForm(StyledModelForm):

@@ -403,17 +403,47 @@ class IntegrationsTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Integracoes")
 
-    def test_connections_tab_shows_whatsapp_qr_when_number_is_saved(self):
+    def test_connections_tab_shows_meta_embedded_signup_when_configured(self):
         self.client.force_login(self.management)
         WhatsAppIntegration.objects.update_or_create(
             pk=1,
-            defaults={"enabled": True, "dry_run": True, "clinic_whatsapp_number": "11999990000"},
+            defaults={
+                "enabled": True,
+                "dry_run": True,
+                "clinic_whatsapp_number": "11999990000",
+                "embedded_app_id": "123456",
+                "embedded_config_id": "config-123",
+                "embedded_app_secret": "secret-123",
+            },
         )
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "QR do WhatsApp")
-        self.assertContains(response, "data:image/png;base64")
+        self.assertContains(response, "Meta Embedded Signup")
+        self.assertContains(response, "Conectar pela Meta")
+
+    @patch("core.views.exchange_whatsapp_embedded_signup_code")
+    def test_management_can_finish_whatsapp_embedded_signup(self, exchange_mock):
+        self.client.force_login(self.management)
+        exchange_mock.return_value = {"access_token": "token"}
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "finish_whatsapp_embedded",
+                "embedded_code": "oauth-code",
+                "embedded_phone_number_id": "phone-123",
+                "embedded_business_account_id": "waba-123",
+                "embedded_clinic_number": "5511999990000",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        integration = WhatsAppIntegration.load()
+        self.assertEqual(integration.phone_number_id, "phone-123")
+        self.assertEqual(integration.business_account_id, "waba-123")
+        self.assertEqual(integration.clinic_whatsapp_number, "5511999990000")
+        exchange_mock.assert_called_once()
 
     def test_messages_tab_filters_single_template(self):
         self.client.force_login(self.management)

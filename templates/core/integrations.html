@@ -219,6 +219,7 @@
                   <label class="form-field">
                     <span>{{ field.label }}</span>
                     {{ field }}
+                    {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
                     {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
                   </label>
                 {% endfor %}
@@ -282,6 +283,18 @@
                   <span>{{ whatsapp_form.business_account_id.label }}</span>
                   {{ whatsapp_form.business_account_id }}
                 </label>
+                <label class="form-field">
+                  <span>{{ whatsapp_form.embedded_app_id.label }}</span>
+                  {{ whatsapp_form.embedded_app_id }}
+                </label>
+                <label class="form-field">
+                  <span>{{ whatsapp_form.embedded_config_id.label }}</span>
+                  {{ whatsapp_form.embedded_config_id }}
+                </label>
+                <label class="form-field">
+                  <span>{{ whatsapp_form.embedded_app_secret.label }}</span>
+                  {{ whatsapp_form.embedded_app_secret }}
+                </label>
               </div>
             </details>
 
@@ -296,25 +309,38 @@
           </form>
         </section>
 
-        <section class="panel connection-card test-card whatsapp-qr-card">
+        <section class="panel connection-card test-card embedded-signup-card">
           <div class="connection-card-head">
             <div>
-              <p class="eyebrow">QR do WhatsApp</p>
-              <h3>Conectar e testar pelo celular</h3>
-              <p>Escaneie para abrir uma conversa com o numero da clinica e validar rapidamente se o WhatsApp esta correto.</p>
+              <p class="eyebrow">Meta Embedded Signup</p>
+              <h3>Conectar WhatsApp pela Meta</h3>
+              <p>Use o fluxo oficial da Meta para escolher a conta Business e autorizar o numero de WhatsApp da clinica.</p>
             </div>
           </div>
-          {% if whatsapp_qr_data_uri %}
-            <div class="whatsapp-qr-content">
-              <img src="{{ whatsapp_qr_data_uri }}" alt="QR Code do WhatsApp da clinica">
+          {% if whatsapp_embedded_configured %}
+            <div class="embedded-signup-content">
               <div>
-                <strong>Leitura pelo WhatsApp</strong>
-                <p>Esse QR abre uma conversa com a clinica. Para envio automatico pela API, mantenha o numero e os campos tecnicos salvos.</p>
-                <a class="button secondary" href="{{ whatsapp_qr_url }}" target="_blank" rel="noopener">Abrir conversa</a>
+                <strong>Pronto para conectar</strong>
+                <p>Clique no botao abaixo, entre na sua conta Meta e autorize o WhatsApp Business. O sistema salva token, WABA ID e Phone Number ID quando a Meta retornar os dados.</p>
               </div>
+              <button class="button primary" type="button" onclick="launchWhatsAppSignup()">Conectar pela Meta</button>
             </div>
+            <form id="whatsapp-embedded-form" method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="finish_whatsapp_embedded">
+              <input type="hidden" name="tab" value="connections">
+              <input type="hidden" name="embedded_code" id="embedded-code">
+              <input type="hidden" name="embedded_phone_number_id" id="embedded-phone-number-id">
+              <input type="hidden" name="embedded_business_account_id" id="embedded-business-account-id">
+              <input type="hidden" name="embedded_clinic_number" id="embedded-clinic-number">
+            </form>
           {% else %}
-            <div class="slot-empty">Salve o numero da clinica para gerar o QR Code do WhatsApp.</div>
+            <div class="google-setup-guide">
+              <strong>Configure uma vez para liberar o botao oficial da Meta.</strong>
+              <span>1. Na Meta for Developers, crie/configure o app WhatsApp Business.</span>
+              <span>2. Cole nos campos tecnicos: Meta App ID, Meta Configuration ID e Meta App Secret.</span>
+              <span>3. Salve o WhatsApp. Depois o botao "Conectar pela Meta" ficara disponivel.</span>
+            </div>
           {% endif %}
         </section>
 
@@ -420,4 +446,54 @@
     {% endif %}
   </article>
 </section>
+{% if active_tab == "connections" and whatsapp_embedded_configured %}
+  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/pt_BR/sdk.js"></script>
+  <script>
+    window.fbAsyncInit = function() {
+      FB.init({
+        appId: "{{ whatsapp.embedded_app_id|escapejs }}",
+        autoLogAppEvents: true,
+        xfbml: true,
+        version: "v23.0"
+      });
+    };
+
+    window.addEventListener("message", function(event) {
+      if (!event.origin.endsWith("facebook.com")) {
+        return;
+      }
+      try {
+        var data = JSON.parse(event.data);
+        if (data.type !== "WA_EMBEDDED_SIGNUP") {
+          return;
+        }
+        if (data.event === "FINISH" || data.event === "FINISH_ONLY_WABA") {
+          var payload = data.data || {};
+          document.getElementById("embedded-phone-number-id").value = payload.phone_number_id || "";
+          document.getElementById("embedded-business-account-id").value = payload.waba_id || "";
+          document.getElementById("embedded-clinic-number").value = payload.phone_number || "";
+        }
+      } catch (error) {
+        return;
+      }
+    });
+
+    function launchWhatsAppSignup() {
+      FB.login(function(response) {
+        if (!response.authResponse || !response.authResponse.code) {
+          return;
+        }
+        document.getElementById("embedded-code").value = response.authResponse.code;
+        document.getElementById("whatsapp-embedded-form").submit();
+      }, {
+        config_id: "{{ whatsapp.embedded_config_id|escapejs }}",
+        response_type: "code",
+        override_default_response_type: true,
+        extras: {
+          sessionInfoVersion: 3
+        }
+      });
+    }
+  </script>
+{% endif %}
 {% endblock %}

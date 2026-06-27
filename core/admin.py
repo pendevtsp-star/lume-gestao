@@ -33,7 +33,7 @@ class GoogleCalendarIntegrationAdmin(admin.ModelAdmin):
 @admin.register(WhatsAppIntegration)
 class WhatsAppIntegrationAdmin(admin.ModelAdmin):
     list_display = ("provider", "enabled", "dry_run", "clinic_whatsapp_number", "phone_number_id", "last_test_at", "updated_at")
-    readonly_fields = ("connected_at", "last_test_at", "last_error")
+    readonly_fields = ("access_token", "connected_at", "last_test_at", "last_error")
 
 
 @admin.register(WhatsAppMessageTemplate)

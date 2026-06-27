@@ -1978,35 +1978,26 @@ td small {
   grid-column: 1 / -1;
 }
 
-.whatsapp-qr-card {
+.embedded-signup-card {
   background:
     radial-gradient(circle at 6% 20%, rgba(49, 112, 91, 0.10), transparent 26%),
     linear-gradient(180deg, #fffdf8, #f7f3e9);
 }
 
-.whatsapp-qr-content {
+.embedded-signup-content {
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   align-items: center;
 }
 
-.whatsapp-qr-content img {
-  width: 170px;
-  height: 170px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: #fff;
-}
-
-.whatsapp-qr-content strong {
+.embedded-signup-content strong {
   display: block;
   margin-bottom: 6px;
   font-size: 18px;
 }
 
-.whatsapp-qr-content p {
+.embedded-signup-content p {
   max-width: 660px;
   color: var(--muted);
   font-weight: 700;
@@ -2496,7 +2487,7 @@ td small {
     grid-template-columns: 1fr;
   }
 
-  .whatsapp-qr-content {
+  .embedded-signup-content {
     grid-template-columns: 1fr;
   }
 }

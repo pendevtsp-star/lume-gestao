@@ -33,12 +33,13 @@ from core.integrations.google_calendar import (
 )
 from core.integrations.http import IntegrationError
 from core.integrations.whatsapp import (
-    build_whatsapp_qr_data_uri,
+    exchange_whatsapp_embedded_signup_code,
     format_whatsapp_currency,
     process_scheduled_whatsapp_messages,
     provider_reference_from_response,
     render_whatsapp_template,
     send_whatsapp_text,
+    whatsapp_embedded_signup_configured,
 )
 from core.models import (
     AuditLog,
@@ -486,25 +487,13 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             template_type: render_whatsapp_template(template.body, whatsapp_preview_context(template_type))
             for template_type, template in templates.items()
         }
-        whatsapp_qr_data_uri = ""
-        whatsapp_qr_url = ""
-        if whatsapp_integration.clinic_whatsapp_number:
-            try:
-                whatsapp_qr_data_uri, whatsapp_qr_url = build_whatsapp_qr_data_uri(
-                    whatsapp_integration.clinic_whatsapp_number,
-                    whatsapp_integration.default_country_code,
-                )
-            except IntegrationError:
-                whatsapp_qr_data_uri = ""
-                whatsapp_qr_url = ""
         return {
             "google_form": google_form or GoogleCalendarIntegrationForm(prefix="google", instance=google_integration),
             "whatsapp_form": whatsapp_form or WhatsAppIntegrationForm(prefix="whatsapp", instance=whatsapp_integration),
             "google": google_integration,
             "whatsapp": whatsapp_integration,
             "google_configured": google_calendar_configured(),
-            "whatsapp_qr_data_uri": whatsapp_qr_data_uri,
-            "whatsapp_qr_url": whatsapp_qr_url,
+            "whatsapp_embedded_configured": whatsapp_embedded_signup_configured(whatsapp_integration),
             "whatsapp_templates": templates,
             "template_forms": template_forms,
             "send_forms": send_forms,
@@ -744,6 +733,28 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 messages.success(request, "Configuracao do WhatsApp salva.")
                 return redirect(f"{reverse('integrations')}?tab=connections")
             return self.render_with_forms(whatsapp_form=form, active_tab="connections")
+        elif action == "finish_whatsapp_embedded":
+            integration = WhatsAppIntegration.load()
+            code = request.POST.get("embedded_code", "")
+            phone_number_id = request.POST.get("embedded_phone_number_id", "").strip()
+            business_account_id = request.POST.get("embedded_business_account_id", "").strip()
+            clinic_number = request.POST.get("embedded_clinic_number", "").strip()
+            if phone_number_id:
+                integration.phone_number_id = phone_number_id
+            if business_account_id:
+                integration.business_account_id = business_account_id
+            if clinic_number:
+                integration.clinic_whatsapp_number = clinic_number
+            try:
+                exchange_whatsapp_embedded_signup_code(code, integration=integration)
+            except IntegrationError as exc:
+                integration.last_error = str(exc)
+                integration.save(update_fields=["phone_number_id", "business_account_id", "clinic_whatsapp_number", "last_error", "updated_at"])
+                messages.error(request, str(exc))
+            else:
+                integration.save(update_fields=["phone_number_id", "business_account_id", "clinic_whatsapp_number", "updated_at"])
+                messages.success(request, "WhatsApp conectado pela Meta com sucesso.")
+            return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "test_whatsapp":
             number = request.POST.get("test_number", "")
             message = request.POST.get("test_message", "Teste de mensagem do Lume Gestao.")

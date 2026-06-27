@@ -1,12 +1,9 @@
-import base64
 from decimal import Decimal
-from io import BytesIO
-from urllib.parse import quote
 
 from django.conf import settings
 from django.utils import timezone
 
-from core.integrations.http import IntegrationError, post_json
+from core.integrations.http import IntegrationError, post_form, post_json
 from core.models import WhatsAppIntegration, WhatsAppMessageLog
 
 
@@ -19,23 +16,36 @@ def normalize_whatsapp_number(number, default_country_code="55"):
     return digits
 
 
-def whatsapp_click_to_chat_url(number, default_country_code="55", message="Ola! Estou conectando o WhatsApp da clinica ao Lume Gestao."):
-    target = normalize_whatsapp_number(number, default_country_code)
-    return f"https://wa.me/{target}?text={quote(message)}"
+def whatsapp_embedded_signup_configured(integration=None):
+    integration = integration or WhatsAppIntegration.load()
+    return bool(integration.embedded_app_id and integration.embedded_config_id and integration.embedded_app_secret)
 
 
-def build_whatsapp_qr_data_uri(number, default_country_code="55"):
-    url = whatsapp_click_to_chat_url(number, default_country_code)
-    try:
-        import qrcode
-    except ImportError:
-        return "", url
+def exchange_whatsapp_embedded_signup_code(code, integration=None):
+    integration = integration or WhatsAppIntegration.load()
+    if not whatsapp_embedded_signup_configured(integration):
+        raise IntegrationError("Configure Meta App ID, Configuration ID e App Secret antes de conectar.")
+    if not code:
+        raise IntegrationError("A Meta nao retornou o codigo de autorizacao.")
 
-    image = qrcode.make(url)
-    buffer = BytesIO()
-    image.save(buffer, format="PNG")
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-    return f"data:image/png;base64,{encoded}", url
+    token_data = post_form(
+        f"https://graph.facebook.com/{settings.WHATSAPP_META_API_VERSION}/oauth/access_token",
+        {
+            "client_id": integration.embedded_app_id,
+            "client_secret": integration.embedded_app_secret,
+            "code": code,
+        },
+        timeout=settings.WHATSAPP_TIMEOUT,
+    )
+    access_token = token_data.get("access_token")
+    if not access_token:
+        raise IntegrationError("A Meta nao retornou token de acesso para o WhatsApp.")
+    integration.access_token = access_token
+    integration.enabled = True
+    integration.connected_at = timezone.now()
+    integration.last_error = ""
+    integration.save(update_fields=["access_token", "enabled", "connected_at", "last_error", "updated_at"])
+    return token_data
 
 
 def send_whatsapp_text(to_number, message, integration=None):
@@ -50,8 +60,9 @@ def send_whatsapp_text(to_number, message, integration=None):
         integration.last_error = ""
         integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
         return {"dry_run": True, "to": target, "message": message}
-    if not settings.WHATSAPP_META_ACCESS_TOKEN:
-        raise IntegrationError("Configure WHATSAPP_META_ACCESS_TOKEN no .env.")
+    access_token = integration.access_token or settings.WHATSAPP_META_ACCESS_TOKEN
+    if not access_token:
+        raise IntegrationError("Conecte o WhatsApp pela Meta ou configure WHATSAPP_META_ACCESS_TOKEN no .env.")
     phone_number_id = integration.phone_number_id or settings.WHATSAPP_META_PHONE_NUMBER_ID
     if not phone_number_id:
         raise IntegrationError("Configure WHATSAPP_META_PHONE_NUMBER_ID ou o ID do numero na tela de integracoes.")
@@ -66,7 +77,7 @@ def send_whatsapp_text(to_number, message, integration=None):
     response = post_json(
         url,
         payload,
-        headers={"Authorization": f"Bearer {settings.WHATSAPP_META_ACCESS_TOKEN}"},
+        headers={"Authorization": f"Bearer {access_token}"},
         timeout=settings.WHATSAPP_TIMEOUT,
     )
     integration.last_test_at = timezone.now()

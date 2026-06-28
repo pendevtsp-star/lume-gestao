@@ -455,6 +455,24 @@ class IntegrationsTests(TestCase):
             "https://sistema.clinicafisiolume.com.br/integracoes/google/callback/",
         )
 
+    @override_settings(
+        GOOGLE_CALENDAR_CLIENT_ID="cole-o-client-id-google",
+        GOOGLE_CALENDAR_CLIENT_SECRET="cole-o-client-secret-google",
+        WHATSAPP_EMBEDDED_APP_ID="cole-o-meta-app-id",
+        WHATSAPP_EMBEDDED_CONFIG_ID="cole-o-meta-configuration-id",
+        WHATSAPP_EMBEDDED_APP_SECRET="cole-o-meta-app-secret",
+    )
+    def test_placeholder_credentials_do_not_enable_connection_buttons(self):
+        self.client.force_login(self.management)
+
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertContains(response, "Configurar credenciais")
+        self.assertContains(response, "Configurar Meta")
+        self.assertContains(response, "Conectar com Google")
+        self.assertContains(response, "Conectar WhatsApp oficial")
+        self.assertContains(response, "disabled")
+
     @patch("core.views.exchange_whatsapp_embedded_signup_code")
     def test_management_can_finish_whatsapp_embedded_signup(self, exchange_mock):
         self.client.force_login(self.management)

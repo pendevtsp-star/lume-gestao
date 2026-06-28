@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone
 
+from core.integrations.credentials import first_configured_value
 from core.integrations.http import IntegrationError, post_form, post_json
 from core.models import WhatsAppIntegration, WhatsAppMessageLog
 
@@ -19,9 +20,9 @@ def normalize_whatsapp_number(number, default_country_code="55"):
 def whatsapp_embedded_signup_credentials(integration=None):
     integration = integration or WhatsAppIntegration.load()
     return (
-        integration.embedded_app_id or settings.WHATSAPP_EMBEDDED_APP_ID,
-        integration.embedded_config_id or settings.WHATSAPP_EMBEDDED_CONFIG_ID,
-        integration.embedded_app_secret or settings.WHATSAPP_EMBEDDED_APP_SECRET,
+        first_configured_value(integration.embedded_app_id, settings.WHATSAPP_EMBEDDED_APP_ID),
+        first_configured_value(integration.embedded_config_id, settings.WHATSAPP_EMBEDDED_CONFIG_ID),
+        first_configured_value(integration.embedded_app_secret, settings.WHATSAPP_EMBEDDED_APP_SECRET),
     )
 
 
@@ -69,10 +70,10 @@ def send_whatsapp_text(to_number, message, integration=None):
         integration.last_error = ""
         integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
         return {"dry_run": True, "to": target, "message": message}
-    access_token = integration.access_token or settings.WHATSAPP_META_ACCESS_TOKEN
+    access_token = first_configured_value(integration.access_token, settings.WHATSAPP_META_ACCESS_TOKEN)
     if not access_token:
         raise IntegrationError("Conecte o WhatsApp pela Meta ou configure WHATSAPP_META_ACCESS_TOKEN no .env.")
-    phone_number_id = integration.phone_number_id or settings.WHATSAPP_META_PHONE_NUMBER_ID
+    phone_number_id = first_configured_value(integration.phone_number_id, settings.WHATSAPP_META_PHONE_NUMBER_ID)
     if not phone_number_id:
         raise IntegrationError("Configure WHATSAPP_META_PHONE_NUMBER_ID ou o ID do numero na tela de integracoes.")
 

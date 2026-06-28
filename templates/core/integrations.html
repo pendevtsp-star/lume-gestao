@@ -157,38 +157,34 @@
         </section>
       </div>
     {% elif active_tab == "connections" %}
-      <div class="zap-connections connection-grid connection-grid-flow">
-        <section class="panel connection-card connection-card-feature integration-wizard-card">
-          <div class="connection-card-head">
+      <div class="zap-connections connection-grid connection-grid-flow connection-redesign-grid">
+        <section class="panel connection-card connection-card-feature integration-wizard-card connection-hero-card google-connection-card">
+          <div class="connection-hero-top">
             <div>
               <p class="eyebrow">Google Agenda</p>
-              <h3>{% if google.is_connected %}Agenda sincronizada{% else %}Conectar conta Google{% endif %}</h3>
-              <p>Use uma conta Google da clinica para espelhar os atendimentos criados no Lume.</p>
+              <h3>{% if google.is_connected %}Agenda conectada e pronta para sincronizar{% elif google_configured %}Pronto para conectar com Google{% else %}Configurar credenciais do Google{% endif %}</h3>
+              <p>Na VPS online, o caminho ideal e conectar a conta Google da clinica por autorizacao. Depois disso, o Lume sincroniza os atendimentos com a agenda escolhida.</p>
             </div>
             <span class="status-pill {% if google.is_connected %}is-success{% elif google_configured %}is-warning{% else %}is-muted{% endif %}">
               {% if google.is_connected %}Conectado{% elif google_configured %}Pronto para conectar{% else %}Configurar credenciais{% endif %}
             </span>
           </div>
 
-          <div class="integration-readiness">
-            <article class="{% if google_configured %}is-done{% endif %}">
-              <span>1</span>
-              <strong>Credenciais OAuth</strong>
-              <small>{% if google_configured %}{% if google_uses_env_credentials %}Configuradas no .env da VPS{% else %}Configuradas na tela{% endif %}{% else %}Preencha em configuracao tecnica{% endif %}</small>
-            </article>
-            <article class="{% if google_configured %}is-done{% endif %}">
-              <span>2</span>
-              <strong>URL de retorno</strong>
-              <small><code>{{ google_callback_url }}</code></small>
-            </article>
-            <article class="{% if google.is_connected %}is-done{% endif %}">
-              <span>3</span>
-              <strong>Conta autorizada</strong>
-              <small>{{ google.connected_email|default:"Clique em conectar para escolher a conta" }}</small>
-            </article>
+          <div class="connection-next-step">
+            <span>Proximo passo</span>
+            {% if google.is_connected %}
+              <strong>Sincronize agora ou troque a conta se necessario.</strong>
+              <p>Conta conectada: {{ google.connected_email|default:"conta Google autorizada" }}.</p>
+            {% elif google_configured %}
+              <strong>Clique em conectar e escolha a conta Google da clinica.</strong>
+              <p>A tela do Google vai pedir permissao para criar e atualizar eventos da agenda.</p>
+            {% else %}
+              <strong>Adicione Client ID e Client Secret no `.env` da VPS.</strong>
+              <p>Esses dados nao sao e-mail e senha. Eles vem do Google Cloud Console.</p>
+            {% endif %}
           </div>
 
-          <div class="connection-actions">
+          <div class="connection-main-actions">
             {% if google_configured %}
               <a class="button primary" href="{% url 'integrations_google_connect' %}">
                 {% if google.is_connected %}Trocar conta Google{% else %}Conectar com Google{% endif %}
@@ -205,18 +201,42 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="disconnect_google">
                 <input type="hidden" name="tab" value="connections">
-                <button class="button ghost" type="submit">Desconectar</button>
+                <button class="button ghost" type="submit">Desconectar Google</button>
               </form>
             {% endif %}
           </div>
 
-          <dl class="integration-facts compact-facts">
-            <div><dt>Agenda</dt><dd>{{ google.calendar_id|default:"primary" }}</dd></div>
-            <div><dt>Ultima sincronizacao</dt><dd>{{ google.last_sync_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
-            <div><dt>Ultimo erro</dt><dd>{{ google.last_error|default:"-" }}</dd></div>
-          </dl>
+          <div class="connection-summary-strip">
+            <div>
+              <span>Agenda</span>
+              <strong>{{ google.calendar_id|default:"primary" }}</strong>
+            </div>
+            <div>
+              <span>Sincronizacao</span>
+              <strong>{{ google.last_sync_at|date:"d/m/Y H:i"|default:"Ainda nao sincronizou" }}</strong>
+            </div>
+            <div>
+              <span>Conta</span>
+              <strong>{{ google.connected_email|default:"Nao conectada" }}</strong>
+            </div>
+          </div>
 
-          <details class="template-advanced connection-advanced">
+          <div class="callback-box">
+            <div>
+              <strong>URL autorizada para Google Cloud</strong>
+              <span>Use exatamente esta URL na credencial OAuth do Google.</span>
+            </div>
+            <code>{{ google_callback_url }}</code>
+          </div>
+
+          {% if google.last_error %}
+            <div class="connection-alert">
+              <strong>Ultimo erro Google</strong>
+              <span>{{ google.last_error }}</span>
+            </div>
+          {% endif %}
+
+          <details class="template-advanced connection-advanced slim-advanced">
             <summary>Configuracao tecnica do Google</summary>
             <div class="setup-note">
               Cadastre no Google Cloud a URL de retorno <code>{{ google_callback_url }}</code>. Se as credenciais estiverem no `.env`, deixe os campos Client ID e Secret vazios aqui.
@@ -242,37 +262,33 @@
           </details>
         </section>
 
-        <section class="panel connection-card connection-card-feature integration-wizard-card embedded-signup-card">
-          <div class="connection-card-head">
+        <section class="panel connection-card connection-card-feature integration-wizard-card embedded-signup-card connection-hero-card">
+          <div class="connection-hero-top">
             <div>
               <p class="eyebrow">WhatsApp oficial</p>
-              <h3>{% if whatsapp.is_connected %}Numero conectado{% else %}Conectar pela Meta{% endif %}</h3>
-              <p>Conecte o WhatsApp Business oficial para lembretes, aniversarios, cobrancas e fila automatica.</p>
+              <h3>{% if whatsapp.is_connected %}WhatsApp conectado{% elif whatsapp_embedded_configured %}Pronto para conectar pela Meta{% else %}Configurar Meta Embedded Signup{% endif %}</h3>
+              <p>O WhatsApp usa a conta oficial da Meta para lembretes, aniversarios, cobrancas e fila automatica.</p>
             </div>
             <span class="status-pill {% if whatsapp.is_connected %}is-success{% elif whatsapp_embedded_configured %}is-warning{% else %}is-muted{% endif %}">
               {% if whatsapp.is_connected %}Conectado{% elif whatsapp_embedded_configured %}Pronto para conectar{% else %}Configurar Meta{% endif %}
             </span>
           </div>
 
-          <div class="integration-readiness">
-            <article class="{% if whatsapp_embedded_configured %}is-done{% endif %}">
-              <span>1</span>
-              <strong>Meta Embedded Signup</strong>
-              <small>{% if whatsapp_embedded_configured %}{% if whatsapp_uses_env_credentials %}Credenciais no .env da VPS{% else %}Credenciais salvas na tela{% endif %}{% else %}Preencha App ID, Config ID e App Secret{% endif %}</small>
-            </article>
-            <article class="{% if whatsapp.phone_number_id %}is-done{% endif %}">
-              <span>2</span>
-              <strong>Numero autorizado</strong>
-              <small>{{ whatsapp.clinic_whatsapp_number|default:"A Meta retorna o numero autorizado" }}</small>
-            </article>
-            <article class="{% if not whatsapp.dry_run and whatsapp.is_connected %}is-done{% endif %}">
-              <span>3</span>
-              <strong>Modo de envio</strong>
-              <small>{% if whatsapp.dry_run %}Modo teste ativo, sem disparos reais{% else %}Envio real ativo{% endif %}</small>
-            </article>
+          <div class="connection-next-step">
+            <span>Proximo passo</span>
+            {% if whatsapp.is_connected %}
+              <strong>Envie uma mensagem de teste antes de usar com pacientes.</strong>
+              <p>{% if whatsapp.dry_run %}O modo teste esta ativo, entao os disparos sao simulados.{% else %}Envio real ativo pela API Meta.{% endif %}</p>
+            {% elif whatsapp_embedded_configured %}
+              <strong>Clique em conectar WhatsApp oficial e siga a tela da Meta.</strong>
+              <p>{% if whatsapp_uses_env_credentials %}Credenciais no .env da VPS.{% else %}Credenciais salvas na tela.{% endif %} Meta Embedded Signup pronto.</p>
+            {% else %}
+              <strong>Configure App ID, Configuration ID e App Secret da Meta.</strong>
+              <p>Preferencialmente coloque esses dados no `.env` da VPS para o usuario final ver apenas o botao de conexao.</p>
+            {% endif %}
           </div>
 
-          <div class="connection-actions">
+          <div class="connection-main-actions">
             {% if whatsapp_embedded_configured %}
               <button class="button primary" type="button" onclick="launchWhatsAppSignup()">
                 {% if whatsapp.is_connected %}Trocar WhatsApp Meta{% else %}Conectar WhatsApp oficial{% endif %}
@@ -288,6 +304,21 @@
                 <button class="button ghost" type="submit">Desconectar WhatsApp</button>
               </form>
             {% endif %}
+          </div>
+
+          <div class="connection-summary-strip">
+            <div>
+              <span>Numero</span>
+              <strong>{{ whatsapp.clinic_whatsapp_number|default:"Nao informado" }}</strong>
+            </div>
+            <div>
+              <span>Meta Embedded Signup</span>
+              <strong>{% if whatsapp_embedded_configured %}Configurado{% else %}Pendente{% endif %}</strong>
+            </div>
+            <div>
+              <span>Modo</span>
+              <strong>{% if whatsapp.dry_run %}Teste{% else %}Envio real{% endif %}</strong>
+            </div>
           </div>
 
           {% if whatsapp_embedded_configured %}
@@ -308,7 +339,7 @@
             </div>
           {% endif %}
 
-          <form method="post" class="integration-body compact-integration-body">
+          <form method="post" class="integration-body compact-integration-body quick-settings-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="save_whatsapp">
             <input type="hidden" name="tab" value="connections">
@@ -333,14 +364,14 @@
               </label>
             </div>
 
-            <dl class="integration-facts compact-facts">
+            <dl class="integration-facts compact-facts compact-facts-soft">
               <div><dt>Conectado em</dt><dd>{{ whatsapp.connected_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
               <div><dt>Phone Number ID</dt><dd>{{ whatsapp.phone_number_id|default:"-" }}</dd></div>
               <div><dt>Ultimo teste</dt><dd>{{ whatsapp.last_test_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
               <div><dt>Ultimo erro</dt><dd>{{ whatsapp.last_error|default:"-" }}</dd></div>
             </dl>
 
-            <details class="template-advanced connection-advanced">
+            <details class="template-advanced connection-advanced slim-advanced">
               <summary>Configuracao tecnica da Meta</summary>
               <div class="setup-note">
                 Use estes campos apenas se nao for configurar a Meta pelo `.env` da VPS. Tokens e segredos reais nao devem ir para o Git.

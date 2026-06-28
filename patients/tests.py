@@ -59,6 +59,7 @@ class PatientAccessTests(TestCase):
                 "clinical_notes": "",
                 "active": "on",
             },
+            secure=True,
         )
 
         self.assertEqual(response.status_code, 302)

@@ -150,19 +150,21 @@ class UserProfileTests(TestCase):
         UserProfile.objects.update_or_create(user=user, defaults={"must_change_password": True})
         self.client.force_login(user)
 
-        dashboard_response = self.client.get(reverse("dashboard"))
+        dashboard_response = self.client.get(reverse("dashboard"), secure=True)
         self.assertEqual(dashboard_response.status_code, 302)
         self.assertEqual(dashboard_response["Location"], reverse("accounts:force_password_change"))
 
         short_response = self.client.post(
             reverse("accounts:force_password_change"),
             {"new_password1": "1234567", "new_password2": "1234567"},
+            secure=True,
         )
         self.assertContains(short_response, "Use pelo menos 8 caracteres.", status_code=200)
 
         response = self.client.post(
             reverse("accounts:force_password_change"),
             {"new_password1": "NovaSenha@123", "new_password2": "NovaSenha@123"},
+            secure=True,
         )
 
         self.assertEqual(response.status_code, 302)

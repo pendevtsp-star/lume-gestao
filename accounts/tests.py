@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
@@ -143,6 +144,48 @@ class UserProfileTests(TestCase):
 
         integration = WhatsAppIntegration.load()
         self.assertIsNotNone(integration.last_test_at)
+
+    def test_must_change_password_redirects_until_new_password_is_defined(self):
+        user = get_user_model().objects.create_user(username="primeiroacesso", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"must_change_password": True})
+        self.client.force_login(user)
+
+        dashboard_response = self.client.get(reverse("dashboard"))
+        self.assertEqual(dashboard_response.status_code, 302)
+        self.assertEqual(dashboard_response["Location"], reverse("accounts:force_password_change"))
+
+        short_response = self.client.post(
+            reverse("accounts:force_password_change"),
+            {"new_password1": "1234567", "new_password2": "1234567"},
+        )
+        self.assertContains(short_response, "Use pelo menos 8 caracteres.", status_code=200)
+
+        response = self.client.post(
+            reverse("accounts:force_password_change"),
+            {"new_password1": "NovaSenha@123", "new_password2": "NovaSenha@123"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        user.refresh_from_db()
+        user.profile.refresh_from_db()
+        self.assertTrue(user.check_password("NovaSenha@123"))
+        self.assertFalse(user.profile.must_change_password)
+
+    def test_create_patient_users_requires_delivery_option(self):
+        Patient.objects.create(full_name="Paciente Sem Login")
+
+        with self.assertRaises(CommandError):
+            call_command("create_patient_users")
+
+    def test_create_patient_users_can_show_temporary_password(self):
+        patient = Patient.objects.create(full_name="Maria Existente")
+
+        call_command("create_patient_users", "--show-passwords")
+
+        patient.refresh_from_db()
+        self.assertTrue(hasattr(patient, "user_profile"))
+        self.assertEqual(patient.user_profile.role, UserProfile.Role.PATIENT)
+        self.assertTrue(patient.user_profile.must_change_password)
 
 
 class ReadOnlyViewerAccessTests(TestCase):

@@ -32,6 +32,7 @@ class UserProfile(TimeStampedModel):
     whatsapp_number = models.CharField("WhatsApp administrativo", max_length=30, blank=True)
     whatsapp_notifications_enabled = models.BooleanField("habilitar avisos por WhatsApp", default=False)
     photo = models.ImageField("foto", upload_to="users/photos/", blank=True)
+    must_change_password = models.BooleanField("trocar senha no proximo acesso", default=False)
 
     class Meta:
         ordering = ["user__username"]

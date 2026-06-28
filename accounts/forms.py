@@ -184,6 +184,42 @@ class UserSelfSettingsForm(forms.Form):
         return self.user
 
 
+class ForcePasswordChangeForm(forms.Form):
+    new_password1 = forms.CharField(label="Nova senha", widget=forms.PasswordInput)
+    new_password2 = forms.CharField(label="Repetir nova senha", widget=forms.PasswordInput)
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "field-control")
+            field.widget.attrs.setdefault("autocomplete", "new-password")
+
+    def clean(self):
+        cleaned = super().clean()
+        new_password1 = cleaned.get("new_password1")
+        new_password2 = cleaned.get("new_password2")
+
+        if new_password1 and len(new_password1) < 8:
+            self.add_error("new_password1", "Use pelo menos 8 caracteres.")
+        if new_password1 and new_password2 and new_password1 != new_password2:
+            self.add_error("new_password2", "As senhas nao conferem.")
+        if new_password1:
+            try:
+                validate_password(new_password1, self.user)
+            except forms.ValidationError as error:
+                self.add_error("new_password1", error)
+        return cleaned
+
+    def save(self):
+        self.user.set_password(self.cleaned_data["new_password1"])
+        self.user.save(update_fields=["password"])
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        profile.must_change_password = False
+        profile.save(update_fields=["must_change_password", "updated_at"])
+        return self.user
+
+
 class PasswordRecoveryRequestForm(forms.Form):
     identifier = forms.CharField(label="e-mail ou login", max_length=254)
 

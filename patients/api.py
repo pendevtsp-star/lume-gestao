@@ -2,6 +2,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.viewsets import ModelViewSet
 
 from accounts.models import UserProfile
+from accounts.onboarding import ensure_patient_user
 from accounts.permissions import get_profile
 from core.api_permissions import ClinicApiPermission, FinanceApiPermission, ProfessionalApiPermission
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
@@ -34,7 +35,8 @@ class PatientViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         self.require_administration()
-        serializer.save()
+        patient = serializer.save()
+        ensure_patient_user(patient, request=self.request, send_notifications=True)
 
     def perform_update(self, serializer):
         self.require_administration()

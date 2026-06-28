@@ -1,8 +1,10 @@
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
+from django.core import mail
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -38,6 +40,36 @@ class PatientModelTests(TestCase):
 
 
 class PatientAccessTests(TestCase):
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_patient_creation_creates_first_access_user_and_sends_email(self):
+        user = get_user_model().objects.create_user(username="gestao", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("patients:create"),
+            {
+                "full_name": "Maria Clara",
+                "cpf": "",
+                "birth_date": "",
+                "phone": "11999990000",
+                "email": "maria@lume.local",
+                "emergency_contact": "",
+                "address": "",
+                "clinical_notes": "",
+                "active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        patient = Patient.objects.get(full_name="Maria Clara")
+        self.assertEqual(patient.user_profile.role, UserProfile.Role.PATIENT)
+        self.assertTrue(patient.user_profile.must_change_password)
+        self.assertTrue(patient.user_profile.user.username.startswith("maria123"))
+        self.assertEqual(patient.user_profile.user.email, "maria@lume.local")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(patient.user_profile.user.username, mail.outbox[0].body)
+
     def test_professional_only_sees_assigned_patients(self):
         professional = Professional.objects.create(full_name="Dra. Teste", specialty=Professional.Specialty.PILATES)
         assigned = Patient.objects.create(full_name="Paciente Vinculado")

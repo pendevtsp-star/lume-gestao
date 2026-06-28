@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.http import HttpResponseForbidden
+from django.shortcuts import redirect
 
 from accounts.models import UserProfile
 from core.audit import set_current_user
@@ -7,6 +8,13 @@ from core.audit import set_current_user
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 READ_ONLY_ALLOWED_PATHS = ("/logout/",)
+FORCE_PASSWORD_ALLOWED_PATHS = (
+    "/usuarios/primeiro-acesso/",
+    "/logout/",
+    "/static/",
+    "/media/",
+    "/healthz/",
+)
 
 
 class HostRoutingMiddleware:
@@ -31,6 +39,14 @@ class CurrentUserMiddleware:
             profile = getattr(user, "profile", None)
             if profile and profile.role == UserProfile.Role.VIEWER:
                 return HttpResponseForbidden("Usuario de visualizacao nao pode alterar dados.")
+        if user:
+            profile = getattr(user, "profile", None)
+            if (
+                profile
+                and profile.must_change_password
+                and not request.path_info.startswith(FORCE_PASSWORD_ALLOWED_PATHS)
+            ):
+                return redirect("accounts:force_password_change")
         set_current_user(user)
         try:
             return self.get_response(request)

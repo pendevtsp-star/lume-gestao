@@ -1,0 +1,14 @@
+Ola, {{ patient.full_name }}!
+
+Seja bem-vindo(a) ao Lume Gestao, o espaco digital da Lume Studio de Fisioterapia e Pilates.
+
+Criamos seu acesso para acompanhar sua experiencia na clinica com mais organizacao, cuidado e seguranca.
+
+Login: {{ username }}
+Senha temporaria: {{ temporary_password }}
+Acesso: {{ login_url }}
+
+No primeiro acesso, o sistema vai pedir para voce trocar essa senha. Use uma senha com pelo menos 8 caracteres e nao compartilhe com terceiros.
+
+Com carinho,
+Equipe Lume

@@ -9,6 +9,7 @@ from django.views import View
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from accounts.models import UserProfile
+from accounts.onboarding import ensure_patient_user
 from accounts.permissions import RoleRequiredMixin, get_profile
 from billing.models import Membership
 from core.exports import pdf_response, xlsx_response
@@ -131,8 +132,22 @@ class PatientCreateView(FormContextMixin, RoleRequiredMixin, CreateView):
     back_url_name = "patients:list"
 
     def form_valid(self, form):
-        messages.success(self.request, "Paciente cadastrado com sucesso.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        result = ensure_patient_user(self.object, request=self.request, send_notifications=True)
+        if result.delivered:
+            channel = "e-mail" if result.delivery_channel == "email" else "WhatsApp"
+            messages.success(
+                self.request,
+                f"Paciente cadastrado. Acesso criado e enviado por {channel}. Login: {result.username}.",
+            )
+        else:
+            detail = f" Motivo: {result.delivery_error}" if result.delivery_error else ""
+            messages.warning(
+                self.request,
+                "Paciente cadastrado. Acesso criado, mas a senha temporaria precisa ser informada manualmente. "
+                f"Login: {result.username} | Senha temporaria: {result.temporary_password}.{detail}",
+            )
+        return response
 
 
 class PatientUpdateView(FormContextMixin, PatientAccessMixin, UpdateView):

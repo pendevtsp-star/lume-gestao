@@ -4,13 +4,14 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import send_mail
+from django.shortcuts import redirect
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.views.generic import CreateView, FormView, ListView, UpdateView
 
-from accounts.forms import PasswordRecoveryRequestForm, UserAccountForm, UserSelfSettingsForm
+from accounts.forms import ForcePasswordChangeForm, PasswordRecoveryRequestForm, UserAccountForm, UserSelfSettingsForm
 from accounts.permissions import ManagementAccessMixin
 from core.views import SearchableListView
 
@@ -90,6 +91,29 @@ class UserSelfSettingsView(LoginRequiredMixin, FormView):
         user = form.save()
         update_session_auth_hash(self.request, user)
         messages.success(self.request, "Conta atualizada com sucesso.")
+        return super().form_valid(form)
+
+
+class ForcePasswordChangeView(LoginRequiredMixin, FormView):
+    form_class = ForcePasswordChangeForm
+    template_name = "accounts/force_password_change.html"
+    success_url = reverse_lazy("dashboard")
+
+    def dispatch(self, request, *args, **kwargs):
+        profile = getattr(request.user, "profile", None)
+        if not profile or not profile.must_change_password:
+            return redirect("dashboard")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        user = form.save()
+        update_session_auth_hash(self.request, user)
+        messages.success(self.request, "Senha definida com sucesso. Bem-vindo(a) ao Lume Gestao.")
         return super().form_valid(form)
 
 

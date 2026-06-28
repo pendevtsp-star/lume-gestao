@@ -354,6 +354,7 @@ class FunctionalRoleFlowTests(TestCase):
         self.assertContains(response, "Pacote atual")
 
 
+@override_settings(SECURE_SSL_REDIRECT=False)
 class IntegrationsTests(TestCase):
     def setUp(self):
         self.management = get_user_model().objects.create_user(username="gestor-integracoes", password="Senha@123")

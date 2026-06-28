@@ -4,31 +4,10 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("accounts", "0003_userprofile_whatsapp"),
+        ("accounts", "0005_userprofile_must_change_password"),
     ]
 
     operations = [
-        migrations.AlterField(
-            model_name="userprofile",
-            name="role",
-            field=models.CharField(
-                choices=[
-                    ("patient", "Paciente"),
-                    ("professional", "Profissional"),
-                    ("administration", "Administracao"),
-                    ("management", "Gerencia"),
-                    ("viewer", "Visualizacao"),
-                ],
-                default="administration",
-                max_length=30,
-                verbose_name="perfil",
-            ),
-        ),
-        migrations.AddField(
-            model_name="userprofile",
-            name="must_change_password",
-            field=models.BooleanField(default=False, verbose_name="deve trocar senha no primeiro acesso"),
-        ),
         migrations.AddField(
             model_name="userprofile",
             name="terms_accepted_at",

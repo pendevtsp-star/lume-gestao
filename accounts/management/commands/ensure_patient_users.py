@@ -1,7 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from accounts.models import UserProfile
-from accounts.onboarding import create_patient_user
+from accounts.onboarding import ensure_patient_user
 from patients.models import Patient
 
 
@@ -25,22 +24,23 @@ class Command(BaseCommand):
             if not commit:
                 self.stdout.write(f"[simulacao] criaria usuario para {patient.full_name}")
                 continue
-            onboarding = create_patient_user(patient)
-            if not onboarding:
+            result = ensure_patient_user(patient, send_notifications=True)
+            if not result.created:
                 self.stdout.write(f"[ignorado] {patient.full_name} ja possui usuario vinculado")
                 continue
-            user = onboarding["user"]
-            delivery = onboarding["delivery"]
-            if delivery["sent"]:
-                self.stdout.write(self.style.SUCCESS(f"[ok] {patient.full_name}: {user.username} enviado por {delivery['method']}"))
+            if result.delivered:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"[ok] {patient.full_name}: {result.username} enviado por {result.delivery_channel}"
+                    )
+                )
             else:
-                profile = UserProfile.objects.get(user=user)
                 self.stdout.write(
                     self.style.WARNING(
                         (
-                            f"[manual] {patient.full_name}: login {user.username}; "
-                            f"senha temporaria {onboarding['temporary_password']}; "
-                            f"erro: {profile.onboarding_delivery_error}"
+                            f"[manual] {patient.full_name}: login {result.username}; "
+                            f"senha temporaria {result.temporary_password}; "
+                            f"erro: {result.delivery_error or 'sem canal de envio'}"
                         )
                     )
                 )

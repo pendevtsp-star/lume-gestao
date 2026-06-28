@@ -300,7 +300,13 @@ class UserProfileTests(TestCase):
 
         response = self.client.post(
             reverse("accounts:force_password_change"),
-            {"new_password1": "NovaSenha@123", "new_password2": "NovaSenha@123"},
+            {
+                "new_password1": "NovaSenha@123",
+                "new_password2": "NovaSenha@123",
+                "accept_terms": "on",
+                "accept_privacy": "on",
+                "accept_sensitive_data": "on",
+            },
             secure=True,
         )
 

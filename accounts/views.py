@@ -15,6 +15,7 @@ from django.utils.http import urlsafe_base64_encode
 from django.views.generic import CreateView, FormView, ListView, UpdateView
 
 from accounts.forms import ForcePasswordChangeForm, PasswordRecoveryRequestForm, UserAccountForm, UserSelfSettingsForm
+from accounts.onboarding import generate_temporary_password, send_welcome_credentials
 from accounts.permissions import ManagementAccessMixin
 from core.views import SearchableListView
 
@@ -109,29 +110,6 @@ class UserSelfSettingsView(LoginRequiredMixin, FormView):
         return super().form_valid(form)
 
 
-class ForcePasswordChangeView(LoginRequiredMixin, FormView):
-    form_class = ForcePasswordChangeForm
-    template_name = "accounts/force_password_change.html"
-    success_url = reverse_lazy("dashboard")
-
-    def dispatch(self, request, *args, **kwargs):
-        profile = getattr(request.user, "profile", None)
-        if not profile or not profile.must_change_password:
-            return redirect("dashboard")
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["user"] = self.request.user
-        return kwargs
-
-    def form_valid(self, form):
-        user = form.save()
-        update_session_auth_hash(self.request, user)
-        messages.success(self.request, "Senha definida com sucesso. Bem-vindo(a) ao Lume Gestao.")
-        return super().form_valid(form)
-
-
 class PasswordRecoveryRequestView(FormView):
     form_class = PasswordRecoveryRequestForm
     template_name = "registration/password_reset_form.html"
@@ -212,6 +190,12 @@ class ForcePasswordChangeView(LoginRequiredMixin, FormView):
     template_name = "accounts/force_password_change.html"
     success_url = reverse_lazy("dashboard")
 
+    def dispatch(self, request, *args, **kwargs):
+        profile = getattr(request.user, "profile", None)
+        if not profile or not profile.must_change_password:
+            return redirect("dashboard")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
@@ -220,7 +204,7 @@ class ForcePasswordChangeView(LoginRequiredMixin, FormView):
     def form_valid(self, form):
         user = form.save()
         update_session_auth_hash(self.request, user)
-        messages.success(self.request, "Senha criada com sucesso. Seu acesso esta pronto.")
+        messages.success(self.request, "Senha definida com sucesso. Bem-vindo(a) ao Lume Gestao.")
         return super().form_valid(form)
 
 # Create your views here.

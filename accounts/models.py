@@ -36,6 +36,13 @@ class UserProfile(TimeStampedModel):
     whatsapp_notifications_enabled = models.BooleanField("habilitar avisos por WhatsApp", default=False)
     photo = models.ImageField("foto", upload_to="users/photos/", blank=True)
     must_change_password = models.BooleanField("trocar senha no proximo acesso", default=False)
+    terms_accepted_at = models.DateTimeField("aceitou termos de uso em", null=True, blank=True)
+    privacy_policy_accepted_at = models.DateTimeField("aceitou politica de privacidade em", null=True, blank=True)
+    sensitive_data_consent_at = models.DateTimeField("consentiu dados sensiveis em", null=True, blank=True)
+    lgpd_consent_version = models.CharField("versao do consentimento LGPD", max_length=20, blank=True)
+    onboarding_message_sent_at = models.DateTimeField("credenciais enviadas em", null=True, blank=True)
+    onboarding_delivery_method = models.CharField("canal de envio das credenciais", max_length=20, blank=True)
+    onboarding_delivery_error = models.TextField("erro no envio das credenciais", blank=True)
 
     class Meta:
         ordering = ["user__username"]

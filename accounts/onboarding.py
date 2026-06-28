@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import UserProfile
 from core.integrations.http import IntegrationError
@@ -175,3 +176,55 @@ def ensure_patient_user(patient, request=None, send_notifications=True):
         delivery_channel=delivery_channel,
         delivery_error=delivery_error,
     )
+
+
+def send_welcome_credentials(user, temporary_password, request=None, phone_number="", prefer_email=True):
+    profile = user.profile
+    patient = profile.patient
+    if not patient:
+        return {"sent": False, "method": "", "error": "Usuario sem paciente vinculado."}
+
+    original_email = patient.email
+    original_phone = patient.phone
+    if not prefer_email:
+        patient.email = ""
+    if phone_number:
+        patient.phone = phone_number
+
+    try:
+        channel, error = deliver_patient_credentials(patient, user.username, temporary_password, request=request)
+    finally:
+        patient.email = original_email
+        patient.phone = original_phone
+
+    if channel == "email":
+        profile.onboarding_message_sent_at = timezone.now()
+        profile.onboarding_delivery_method = "email"
+        profile.onboarding_delivery_error = ""
+        profile.save(
+            update_fields=[
+                "onboarding_message_sent_at",
+                "onboarding_delivery_method",
+                "onboarding_delivery_error",
+                "updated_at",
+            ]
+        )
+        return {"sent": True, "method": "email", "error": ""}
+    if channel == "whatsapp":
+        profile.onboarding_message_sent_at = timezone.now()
+        profile.onboarding_delivery_method = "whatsapp"
+        profile.onboarding_delivery_error = ""
+        profile.save(
+            update_fields=[
+                "onboarding_message_sent_at",
+                "onboarding_delivery_method",
+                "onboarding_delivery_error",
+                "updated_at",
+            ]
+        )
+        return {"sent": True, "method": "whatsapp", "error": ""}
+
+    profile.onboarding_delivery_method = ""
+    profile.onboarding_delivery_error = error or "Nao foi possivel entregar as credenciais."
+    profile.save(update_fields=["onboarding_delivery_method", "onboarding_delivery_error", "updated_at"])
+    return {"sent": False, "method": "", "error": profile.onboarding_delivery_error}

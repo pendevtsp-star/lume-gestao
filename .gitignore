@@ -27,5 +27,14 @@ tmp/
 *.temp
 desktop/node_modules/
 desktop/backend-bin/
+apps/**/.dart_tool/
+apps/**/build/
+apps/**/.flutter-plugins
+apps/**/.flutter-plugins-dependencies
+apps/**/android/.gradle/
+apps/**/android/hs_err_pid*.log
+apps/**/ios/Pods/
+apps/**/ios/.symlinks/
+.codex-tmp/
 deploy/nginx/certs/*
 !deploy/nginx/certs/.gitkeep

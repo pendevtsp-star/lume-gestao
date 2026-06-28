@@ -15,6 +15,8 @@ class RoleApiPermission(BasePermission):
         if is_read_only_viewer_request(request.user, request.method):
             return True
         profile = get_profile(request.user)
+        if profile and profile.role == UserProfile.Role.VIEWER:
+            return request.method in SAFE_METHODS
         return bool(profile and profile.role in self.allowed_roles)
 
 

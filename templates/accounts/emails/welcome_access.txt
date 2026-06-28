@@ -1,0 +1,15 @@
+Ola, {{ user.get_full_name|default:user.username }}!
+
+Seja bem-vindo(a) ao Lume Gestao, o ambiente digital da Lume para acompanhar seus atendimentos com mais cuidado e organizacao.
+
+Seu acesso inicial:
+Login: {{ user.username }}
+Senha temporaria: {{ temporary_password }}
+Link de acesso: {{ login_url }}
+
+No primeiro acesso, voce devera criar uma nova senha com pelo menos 8 caracteres e confirmar os termos de uso, a politica de privacidade e o consentimento para tratamento de dados de saude.
+
+Se voce nao solicitou este acesso, avise a equipe da clinica.
+
+Com carinho,
+Equipe Lume

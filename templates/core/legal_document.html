@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ document.title }} | Lume Gestao</title>
+  <link rel="stylesheet" href="/static/css/app.css?v=20260628-lgpd-onboarding">
+</head>
+<body class="legal-page">
+  <main class="legal-shell">
+    <header class="legal-hero">
+      <div class="login-brand">
+        <span class="brand-mark">L</span>
+        <div>
+          <strong>Lume Gestao</strong>
+          <small>Privacidade e protecao de dados</small>
+        </div>
+      </div>
+      <p class="eyebrow">LGPD</p>
+      <h1>{{ document.title }}</h1>
+      <p>{{ document.subtitle }}</p>
+    </header>
+
+    <section class="legal-card">
+      {% for title, body in document.sections %}
+        <article>
+          <h2>{{ title }}</h2>
+          <p>{{ body }}</p>
+        </article>
+      {% endfor %}
+      <div class="legal-note">
+        <strong>Observacao importante</strong>
+        <p>
+          Este documento e uma base operacional para testes e uso inicial. A clinica deve validar o conteudo com assessoria juridica e ajustar canais de contato, prazos de retencao e regras internas antes de uso definitivo com dados reais.
+        </p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

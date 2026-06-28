@@ -1,0 +1,13 @@
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.idea/
+build/
+coverage/
+*.iml
+android/.gradle/
+android/app/build/
+macos/Flutter/ephemeral/
+macos/Pods/
+macos/Podfile.lock

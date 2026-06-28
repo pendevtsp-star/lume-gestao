@@ -9,6 +9,7 @@ from core.views import (
     GoogleCalendarSyncView,
     HealthCheckView,
     IntegrationsView,
+    LegalDocumentView,
 )
 from reports.views import AuditReportView
 
@@ -16,6 +17,9 @@ urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
     path("health/", HealthCheckView.as_view(), name="health"),
     path("healthz/", HealthCheckView.as_view(), name="healthz"),
+    path("termos-de-uso/", LegalDocumentView.as_view(document_key="terms"), name="terms_of_use"),
+    path("privacidade/", LegalDocumentView.as_view(document_key="privacy"), name="privacy_policy"),
+    path("consentimento-lgpd/", LegalDocumentView.as_view(document_key="sensitive"), name="sensitive_data_consent"),
     path("auditoria/", AuditReportView.as_view(), name="audit"),
     path("configuracoes/", ClinicSettingsUpdateView.as_view(), name="settings"),
     path("aniversariantes/<int:patient_pk>/whatsapp/", BirthdayWhatsAppSendView.as_view(), name="birthday_whatsapp_send"),

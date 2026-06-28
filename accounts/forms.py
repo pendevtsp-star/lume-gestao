@@ -2,8 +2,9 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.db.models import Q
+from django.utils import timezone
 
-from accounts.models import UserProfile
+from accounts.models import LGPD_CONSENT_VERSION, UserProfile
 from core.forms import StyledModelForm
 from patients.models import Patient
 from team.models import Professional
@@ -226,8 +227,24 @@ class PasswordRecoveryRequestForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.users = []
+        self.email_users = []
+        self.whatsapp_users = []
+        self.recovery_phones = {}
         self.fields["identifier"].widget.attrs.setdefault("class", "field-control")
         self.fields["identifier"].widget.attrs.setdefault("autocomplete", "username")
+
+    @staticmethod
+    def recovery_phone_for_user(user):
+        profile = getattr(user, "profile", None)
+        if not profile:
+            return ""
+        if profile.phone:
+            return profile.phone
+        if profile.patient_id and profile.patient.phone:
+            return profile.patient.phone
+        if profile.whatsapp_number:
+            return profile.whatsapp_number
+        return ""
 
     def clean_identifier(self):
         identifier = self.cleaned_data["identifier"].strip()
@@ -238,8 +255,69 @@ class PasswordRecoveryRequestForm(forms.Form):
             users = user_model.objects.filter(Q(username__iexact=identifier) | Q(email__iexact=identifier), is_active=True)
 
         self.users = [user for user in users if user.has_usable_password()]
-        if not self.users:
-            raise forms.ValidationError("Usuario inexistente.")
-        if not any(user.email for user in self.users):
-            raise forms.ValidationError("Este usuario nao possui e-mail cadastrado para recuperacao.")
+        self.email_users = [user for user in self.users if user.email]
+        self.whatsapp_users = []
+        self.recovery_phones = {}
+        for user in self.users:
+            phone = self.recovery_phone_for_user(user)
+            if phone:
+                self.whatsapp_users.append(user)
+                self.recovery_phones[user.pk] = phone
         return identifier
+
+
+class ForcePasswordChangeForm(forms.Form):
+    new_password1 = forms.CharField(label="Nova senha", widget=forms.PasswordInput)
+    new_password2 = forms.CharField(label="Repetir nova senha", widget=forms.PasswordInput)
+    accept_terms = forms.BooleanField(label="Li e aceito os Termos de Uso")
+    accept_privacy = forms.BooleanField(label="Li e aceito a Politica de Privacidade")
+    accept_sensitive_data = forms.BooleanField(
+        label="Autorizo o tratamento dos meus dados de saude para execucao dos atendimentos e gestao da clinica"
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs.setdefault("class", "checkbox")
+            else:
+                field.widget.attrs.setdefault("class", "field-control")
+                field.widget.attrs.setdefault("autocomplete", "new-password")
+
+    def clean(self):
+        cleaned = super().clean()
+        new_password1 = cleaned.get("new_password1")
+        new_password2 = cleaned.get("new_password2")
+        if new_password1 and len(new_password1) < 8:
+            self.add_error("new_password1", "Use pelo menos 8 caracteres.")
+        if new_password1 and new_password2 and new_password1 != new_password2:
+            self.add_error("new_password2", "As senhas nao conferem.")
+        if new_password1:
+            try:
+                validate_password(new_password1, self.user)
+            except forms.ValidationError as error:
+                self.add_error("new_password1", error)
+        return cleaned
+
+    def save(self):
+        self.user.set_password(self.cleaned_data["new_password1"])
+        self.user.save(update_fields=["password"])
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        now = timezone.now()
+        profile.must_change_password = False
+        profile.terms_accepted_at = now
+        profile.privacy_policy_accepted_at = now
+        profile.sensitive_data_consent_at = now
+        profile.lgpd_consent_version = LGPD_CONSENT_VERSION
+        profile.save(
+            update_fields=[
+                "must_change_password",
+                "terms_accepted_at",
+                "privacy_policy_accepted_at",
+                "sensitive_data_consent_at",
+                "lgpd_consent_version",
+                "updated_at",
+            ]
+        )
+        return self.user

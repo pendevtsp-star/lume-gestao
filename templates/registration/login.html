@@ -24,6 +24,7 @@
       {% if form.non_field_errors %}
         <div class="form-errors">{{ form.non_field_errors }}</div>
       {% endif %}
+      <p class="login-copy">Primeiro acesso? Use o login e a senha temporaria recebidos pela clinica. Depois voce criara sua senha definitiva.</p>
       <label class="form-field">
         <span>Login</span>
         {{ form.username }}
@@ -42,6 +43,11 @@
       </label>
       <button class="button primary full" type="submit">Entrar</button>
       <a class="login-help-link" href="{% url 'password_reset' %}">Esqueci minha senha</a>
+      <div class="login-legal-links">
+        <a href="{% url 'terms_of_use' %}" target="_blank" rel="noopener">Termos</a>
+        <a href="{% url 'privacy_policy' %}" target="_blank" rel="noopener">Privacidade</a>
+        <a href="{% url 'sensitive_data_consent' %}" target="_blank" rel="noopener">Dados de saude</a>
+      </div>
     </form>
   </main>
   <script>

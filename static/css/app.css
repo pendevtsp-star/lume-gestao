@@ -3495,6 +3495,146 @@ td small {
   text-align: center;
 }
 
+.login-legal-links {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.first-access-panel {
+  width: min(560px, 100%);
+}
+
+.consent-box {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid rgba(96, 114, 79, 0.20);
+  border-radius: 14px;
+  background: #f8f3e7;
+}
+
+.consent-box > strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.consent-box p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.consent-check {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.consent-check input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin-top: 1px;
+  accent-color: var(--sage-dark);
+}
+
+.consent-check a {
+  color: var(--sage-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.legal-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(154, 165, 122, 0.24), transparent 30%),
+    linear-gradient(180deg, #f7f1e5 0%, #eee4d1 100%);
+}
+
+.legal-shell {
+  width: min(900px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 34px 0;
+}
+
+.legal-hero {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 253, 246, 0.86);
+  box-shadow: var(--shadow);
+}
+
+.legal-hero .login-brand {
+  margin-bottom: 12px;
+}
+
+.legal-hero p:last-child {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.legal-card {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #fffdf6;
+  box-shadow: var(--shadow);
+}
+
+.legal-card article {
+  padding: 16px;
+  border-radius: 16px;
+  background: #fbf7ee;
+}
+
+.legal-card article h2 {
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+
+.legal-card article p,
+.legal-note p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.legal-note {
+  padding: 16px;
+  border: 1px dashed rgba(167, 109, 27, 0.35);
+  border-radius: 16px;
+  background: #fff4dd;
+}
+
+.legal-note strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #7b5f36;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;

@@ -90,6 +90,89 @@ class HealthCheckView(View):
         return JsonResponse({"status": "ok"})
 
 
+class LegalDocumentView(TemplateView):
+    template_name = "core/legal_document.html"
+    document_key = ""
+
+    DOCUMENTS = {
+        "terms": {
+            "title": "Termos de Uso",
+            "subtitle": "Regras basicas para uso seguro do Lume Gestao.",
+            "sections": [
+                (
+                    "Finalidade do sistema",
+                    "O Lume Gestao organiza cadastros, agenda, prontuario, financeiro, comunicacoes e documentos da clinica. O uso deve estar ligado ao atendimento, gestao operacional e relacionamento com pacientes.",
+                ),
+                (
+                    "Responsabilidade do usuario",
+                    "Cada usuario deve usar sua propria conta, proteger a senha, sair do sistema em computadores compartilhados e comunicar qualquer acesso indevido.",
+                ),
+                (
+                    "Uso adequado",
+                    "E proibido compartilhar login, inserir informacoes falsas, consultar dados sem necessidade profissional ou tentar burlar permissoes do sistema.",
+                ),
+                (
+                    "Disponibilidade",
+                    "A clinica pode realizar manutencoes, atualizacoes, backups e ajustes de seguranca para manter o sistema funcionando de forma confiavel.",
+                ),
+            ],
+        },
+        "privacy": {
+            "title": "Politica de Privacidade",
+            "subtitle": "Como os dados pessoais sao tratados no Lume Gestao.",
+            "sections": [
+                (
+                    "Dados tratados",
+                    "O sistema pode armazenar nome, CPF, nascimento, telefone, e-mail, endereco, agenda, pagamentos, registros de atendimento, prontuario e historico de comunicacoes.",
+                ),
+                (
+                    "Finalidades",
+                    "Os dados sao usados para identificar pacientes, organizar atendimentos, registrar evolucao clinica, cumprir obrigacoes administrativas/fiscais, enviar comunicacoes e proteger a seguranca da operacao.",
+                ),
+                (
+                    "Compartilhamento",
+                    "Dados podem ser compartilhados apenas quando necessario para prestadores tecnicos, servicos de e-mail, WhatsApp, Google Agenda, emissao fiscal, cumprimento legal ou mediante solicitacao autorizada.",
+                ),
+                (
+                    "Direitos do titular",
+                    "O paciente pode solicitar informacao, correcao, revisao de dados e orientacoes sobre o tratamento dos seus dados diretamente com a clinica.",
+                ),
+                (
+                    "Seguranca",
+                    "O acesso e controlado por perfil de usuario, senha individual, registros de auditoria, backups e verificacoes realizadas no backend.",
+                ),
+            ],
+        },
+        "sensitive": {
+            "title": "Consentimento para Dados Sensiveis",
+            "subtitle": "Autorizacao para tratamento de dados de saude.",
+            "sections": [
+                (
+                    "Dados de saude",
+                    "Registros de avaliacao, diagnostico, exame fisico, evolucao, observacoes clinicas, exercicios, dor, conduta e informacoes relacionadas ao atendimento podem ser considerados dados pessoais sensiveis.",
+                ),
+                (
+                    "Uso autorizado",
+                    "Ao consentir, o paciente autoriza o uso desses dados para prestacao de servicos de fisioterapia/pilates, continuidade do cuidado, organizacao da agenda, comunicacoes e gestao da clinica.",
+                ),
+                (
+                    "Acesso restrito",
+                    "A visualizacao desses dados deve ser limitada a profissionais e pessoas autorizadas conforme funcao, necessidade operacional e regras internas da clinica.",
+                ),
+                (
+                    "Revogacao e limites",
+                    "O consentimento pode ser revogado mediante contato com a clinica, observadas obrigacoes legais, regulatórias, defesa de direitos e preservacao de historico clinico quando aplicavel.",
+                ),
+            ],
+        },
+    }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["document"] = self.DOCUMENTS[self.document_key]
+        return context
+
+
 class FormContextMixin:
     page_title = ""
     section_label = ""

@@ -1,16 +1,125 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.db.models import Sum
+from django.contrib.auth import authenticate
+from django.utils.dateparse import parse_date
 from django.utils import timezone
+from rest_framework import status
+from rest_framework.authtoken.models import Token
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
 from billing.models import Membership, Payment
-from patients.models import Patient, ProfessionalPatientAssignment
+from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
+from patients.views import patients_for_user
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
+
+
+def profile_payload(profile):
+    return {
+        "username": profile.user.username,
+        "display_name": profile.display_name,
+        "role": profile.role,
+        "role_label": profile.get_role_display(),
+        "patient_id": profile.patient_id,
+        "professional_id": profile.professional_id,
+        "avatar_url": profile.avatar_url,
+        "initials": profile.initials,
+        "whatsapp_number": profile.whatsapp_number,
+        "whatsapp_notifications_enabled": profile.whatsapp_notifications_enabled,
+    }
+
+
+def features_for(profile, is_superuser):
+    features = ["dashboard", "agenda", "minha_conta"]
+    if profile.is_patient:
+        features.extend(["meu_plano", "meus_creditos", "meus_pagamentos"])
+    if profile.is_professional:
+        features.extend(["pacientes", "prontuario", "disponibilidade"])
+    if is_superuser or profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+        features.extend(["financeiro", "relatorios", "pacientes", "equipe"])
+    if is_superuser or profile.role == UserProfile.Role.MANAGEMENT:
+        features.extend(["usuarios", "auditoria", "configuracoes"])
+    return features
+
+
+def _local_datetime(value, fallback):
+    parsed = parse_date(value or "")
+    date_value = parsed or fallback
+    return timezone.make_aware(datetime.combine(date_value, time.min))
+
+
+def _date_range_from_request(request):
+    today = timezone.localdate()
+    start_at = _local_datetime(request.query_params.get("from"), today)
+    end_date = parse_date(request.query_params.get("to") or "") or (today + timedelta(days=30))
+    end_at = timezone.make_aware(datetime.combine(end_date + timedelta(days=1), time.min))
+    return start_at, end_at
+
+
+def appointments_for_user(user, profile):
+    queryset = Appointment.objects.select_related("patient", "professional")
+    if user.is_superuser:
+        return queryset
+    if not profile:
+        return queryset.none()
+    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+        return queryset
+    if profile.is_patient and profile.patient_id:
+        return queryset.filter(patient=profile.patient)
+    if profile.is_professional and profile.professional_id:
+        return queryset.filter(professional=profile.professional)
+    return queryset.none()
+
+
+def appointment_payload(appointment):
+    return {
+        "id": appointment.id,
+        "starts_at": appointment.starts_at.isoformat(),
+        "ends_at": appointment.ends_at.isoformat(),
+        "status": appointment.status,
+        "status_label": appointment.get_status_display(),
+        "booking_source": appointment.booking_source,
+        "patient": {
+            "id": appointment.patient_id,
+            "name": appointment.patient.full_name,
+        },
+        "professional": {
+            "id": appointment.professional_id,
+            "name": appointment.professional.full_name,
+        },
+        "service_units": appointment.service_units,
+        "displayed_credit_units": appointment.displayed_credit_units,
+        "is_group_session": appointment.is_group_session,
+        "needs_confirmation": appointment.needs_confirmation,
+    }
+
+
+def payment_payload(payment):
+    return {
+        "id": payment.id,
+        "plan": payment.membership.plan.name,
+        "due_date": payment.due_date.isoformat(),
+        "reference_month": payment.reference_month.isoformat(),
+        "amount": str(payment.amount),
+        "status": payment.status,
+        "status_label": payment.get_status_display(),
+        "method": payment.method,
+        "paid_at": payment.paid_at.isoformat() if payment.paid_at else None,
+    }
+
+
+def patient_card_payload(patient):
+    return {
+        "id": patient.id,
+        "full_name": patient.full_name,
+        "photo_url": patient.photo.url if patient.photo else "",
+        "active": patient.active,
+    }
 
 
 class MobileBootstrapView(APIView):
@@ -20,8 +129,8 @@ class MobileBootstrapView(APIView):
             return Response({"profile": None, "dashboard": {}, "features": []})
 
         payload = {
-            "profile": self.profile_payload(profile),
-            "features": self.features_for(profile, request.user.is_superuser),
+            "profile": profile_payload(profile),
+            "features": features_for(profile, request.user.is_superuser),
             "dashboard": self.dashboard_payload(profile, request.user.is_superuser),
         }
         return Response(payload)
@@ -135,12 +244,7 @@ class MobileBootstrapView(APIView):
     def payment_payload(self, payment):
         if not payment:
             return None
-        return {
-            "plan": payment.membership.plan.name,
-            "due_date": payment.due_date.isoformat(),
-            "amount": str(payment.amount),
-            "status": payment.status,
-        }
+        return payment_payload(payment)
 
     def professional_dashboard(self, profile):
         today = timezone.localdate()
@@ -178,3 +282,146 @@ class MobileBootstrapView(APIView):
                 status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE]
             ).count(),
         }
+
+
+class MobileLoginView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        username = (request.data.get("username") or "").strip()
+        password = request.data.get("password") or ""
+        user = authenticate(request, username=username, password=password)
+        if not user:
+            return Response({"detail": "Credenciais invalidas."}, status=status.HTTP_400_BAD_REQUEST)
+        if not user.is_active:
+            return Response({"detail": "Usuario inativo."}, status=status.HTTP_403_FORBIDDEN)
+
+        token, _created = Token.objects.get_or_create(user=user)
+        profile = get_profile(user)
+        return Response(
+            {
+                "token": token.key,
+                "profile": profile_payload(profile),
+                "features": features_for(profile, user.is_superuser),
+            }
+        )
+
+
+class MobileLogoutView(APIView):
+    def post(self, request):
+        if isinstance(request.auth, Token):
+            request.auth.delete()
+        else:
+            Token.objects.filter(user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MobileProfileView(APIView):
+    def get(self, request):
+        profile = get_profile(request.user)
+        if not profile:
+            return Response({"profile": None, "features": []})
+        return Response(
+            {
+                "profile": profile_payload(profile),
+                "features": features_for(profile, request.user.is_superuser),
+            }
+        )
+
+
+class MobileAgendaView(APIView):
+    def get(self, request):
+        profile = get_profile(request.user)
+        start_at, end_at = _date_range_from_request(request)
+        appointments = (
+            appointments_for_user(request.user, profile)
+            .filter(starts_at__gte=start_at, starts_at__lt=end_at)
+            .exclude(status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED])
+            .order_by("starts_at")[:100]
+        )
+        return Response(
+            {
+                "from": start_at.date().isoformat(),
+                "to": (end_at.date() - timedelta(days=1)).isoformat(),
+                "appointments": [appointment_payload(appointment) for appointment in appointments],
+            }
+        )
+
+
+class MobileCreditsView(APIView):
+    def get(self, request):
+        profile = get_profile(request.user)
+        if not profile or not profile.is_patient or not profile.patient_id:
+            return Response({"memberships": [], "weekly_credits": None, "package_credits": None, "packages": []})
+
+        bootstrap = MobileBootstrapView()
+        dashboard = bootstrap.patient_dashboard(profile)
+        packages = ServicePackage.objects.select_related("membership__plan").filter(
+            membership__patient=profile.patient,
+            status=ServicePackage.Status.ACTIVE,
+        )
+        dashboard["packages"] = [
+            {
+                "id": package.id,
+                "plan": package.membership.plan.name,
+                "total_sessions": package.total_sessions,
+                "used_sessions": package.used_sessions,
+                "remaining_sessions": package.remaining_sessions,
+                "starts_on": package.starts_on.isoformat(),
+                "expires_on": package.expires_on.isoformat() if package.expires_on else None,
+                "status": package.status,
+                "status_label": package.get_status_display(),
+            }
+            for package in packages.order_by("-starts_on")
+        ]
+        return Response(dashboard)
+
+
+class MobilePaymentsView(APIView):
+    def get(self, request):
+        profile = get_profile(request.user)
+        if not profile or not profile.is_patient or not profile.patient_id:
+            return Response({"payments": []})
+
+        payments = (
+            Payment.objects.select_related("membership__plan")
+            .filter(membership__patient=profile.patient)
+            .order_by("-due_date")[:50]
+        )
+        return Response({"payments": [payment_payload(payment) for payment in payments]})
+
+
+class MobilePatientsView(APIView):
+    def get(self, request):
+        query = (request.query_params.get("q") or "").strip()
+        patients = patients_for_user(request.user).filter(active=True)
+        if query:
+            patients = patients.filter(full_name__icontains=query)
+        return Response({"patients": [patient_card_payload(patient) for patient in patients.order_by("full_name")[:100]]})
+
+
+class MobileProfessionalNotesView(APIView):
+    def get(self, request):
+        profile = get_profile(request.user)
+        if not profile or not profile.is_professional or not profile.professional_id:
+            return Response({"notes": []})
+
+        patient_id = request.query_params.get("patient")
+        notes = ProfessionalNote.objects.select_related("patient", "professional").filter(professional=profile.professional)
+        if patient_id:
+            notes = notes.filter(patient_id=patient_id)
+        return Response(
+            {
+                "notes": [
+                    {
+                        "id": note.id,
+                        "patient": {"id": note.patient_id, "name": note.patient.full_name},
+                        "title": note.title,
+                        "created_at": note.created_at.isoformat(),
+                        "updated_at": note.updated_at.isoformat(),
+                    }
+                    for note in notes.order_by("-created_at")[:50]
+                ]
+            }
+        )

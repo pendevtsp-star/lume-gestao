@@ -1,18 +1,23 @@
 from io import StringIO
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core import mail
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
+from unittest.mock import patch
 
 from accounts.models import UserProfile
 from patients.models import Patient
 
 
 class UserProfileTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
     def test_profile_is_created_for_new_user(self):
         user = get_user_model().objects.create_user(username="teste", password="Senha@123")
 
@@ -127,7 +132,119 @@ class UserProfileTests(TestCase):
     def test_password_recovery_reports_missing_user(self):
         response = self.client.post(reverse("password_reset"), {"identifier": "nao-existe"})
 
-        self.assertContains(response, "Usuario inexistente.", status_code=200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @patch("accounts.onboarding.send_whatsapp_text")
+    def test_password_recovery_can_send_temporary_password_by_whatsapp(self, whatsapp_mock):
+        whatsapp_mock.return_value = {"messages": [{"id": "wa-1"}]}
+        patient = Patient.objects.create(full_name="Paciente Sem Email", phone="11999990000")
+        user = get_user_model().objects.create_user(username="paciente-whatsapp", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": patient, "phone": patient.phone},
+        )
+
+        response = self.client.post(reverse("password_reset"), {"identifier": "paciente-whatsapp"})
+
+        self.assertEqual(response.status_code, 302)
+        whatsapp_mock.assert_called_once()
+        user.refresh_from_db()
+        self.assertFalse(user.check_password("Senha@123"))
+        self.assertTrue(user.profile.must_change_password)
+
+    @patch("accounts.onboarding.send_whatsapp_text")
+    def test_password_recovery_dry_run_does_not_change_password(self, whatsapp_mock):
+        whatsapp_mock.return_value = {"dry_run": True}
+        patient = Patient.objects.create(full_name="Paciente Teste", phone="11999990000")
+        user = get_user_model().objects.create_user(username="paciente-dry", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": patient, "phone": patient.phone},
+        )
+
+        response = self.client.post(reverse("password_reset"), {"identifier": "paciente-dry"})
+
+        self.assertEqual(response.status_code, 302)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("Senha@123"))
+        self.assertFalse(user.profile.must_change_password)
+
+    @patch("accounts.onboarding.send_whatsapp_text")
+    @patch("accounts.views.send_mail")
+    def test_password_recovery_falls_back_to_whatsapp_when_email_fails(self, send_mail_mock, whatsapp_mock):
+        send_mail_mock.side_effect = RuntimeError("SMTP indisponivel")
+        whatsapp_mock.return_value = {"messages": [{"id": "wa-2"}]}
+        patient = Patient.objects.create(full_name="Paciente Fallback", phone="11999990000")
+        user = get_user_model().objects.create_user(
+            username="paciente-fallback",
+            email="fallback@lume.local",
+            password="Senha@123",
+        )
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": patient, "phone": patient.phone},
+        )
+
+        response = self.client.post(reverse("password_reset"), {"identifier": "paciente-fallback"})
+
+        self.assertEqual(response.status_code, 302)
+        send_mail_mock.assert_called_once()
+        whatsapp_mock.assert_called_once()
+        user.refresh_from_db()
+        self.assertFalse(user.check_password("Senha@123"))
+        self.assertTrue(user.profile.must_change_password)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_password_recovery_limits_repeated_attempts(self):
+        get_user_model().objects.create_user(
+            username="recuperar-limite",
+            email="recuperar-limite@lume.local",
+            password="Senha@123",
+        )
+
+        for _ in range(6):
+            response = self.client.post(reverse("password_reset"), {"identifier": "recuperar-limite"})
+            self.assertEqual(response.status_code, 302)
+
+        self.assertEqual(len(mail.outbox), 5)
+
+    def test_first_access_requires_password_change_and_records_lgpd_consent(self):
+        user = get_user_model().objects.create_user(username="primeiro-acesso", password="TempSenha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"must_change_password": True})
+        self.client.login(username="primeiro-acesso", password="TempSenha@123")
+
+        blocked_response = self.client.get(reverse("dashboard"))
+        self.assertRedirects(blocked_response, reverse("accounts:force_password_change"))
+
+        response = self.client.post(
+            reverse("accounts:force_password_change"),
+            {
+                "new_password1": "SenhaFinal@123",
+                "new_password2": "SenhaFinal@123",
+                "accept_terms": "on",
+                "accept_privacy": "on",
+                "accept_sensitive_data": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        user.refresh_from_db()
+        user.profile.refresh_from_db()
+        self.assertTrue(user.check_password("SenhaFinal@123"))
+        self.assertFalse(user.profile.must_change_password)
+        self.assertIsNotNone(user.profile.terms_accepted_at)
+        self.assertIsNotNone(user.profile.privacy_policy_accepted_at)
+        self.assertIsNotNone(user.profile.sensitive_data_consent_at)
+
+    def test_legal_pages_are_public(self):
+        for url_name, expected_text in [
+            ("terms_of_use", "Termos de Uso"),
+            ("privacy_policy", "Politica de Privacidade"),
+            ("sensitive_data_consent", "Consentimento para Dados Sensiveis"),
+        ]:
+            response = self.client.get(reverse(url_name))
+            self.assertContains(response, expected_text, status_code=200)
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_test_email_command_uses_configured_backend(self):

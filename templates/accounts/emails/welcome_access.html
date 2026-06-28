@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-br">
+<body style="margin:0;padding:0;background:#f1eadc;color:#263028;font-family:Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1eadc;padding:28px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#fffdf6;border:1px solid #ded4bd;border-radius:18px;overflow:hidden;">
+          <tr>
+            <td style="padding:30px;background:linear-gradient(135deg,#60724f,#9aa57a);color:#fffdf4;">
+              <div style="font-family:Georgia,serif;font-size:42px;line-height:1;">Lume</div>
+              <div style="margin-top:8px;font-size:14px;letter-spacing:.08em;text-transform:uppercase;">primeiro acesso</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:30px;">
+              <h1 style="margin:0 0 12px;font-size:26px;color:#2f3a2c;">Boas-vindas ao Lume Gestao</h1>
+              <p style="margin:0 0 18px;line-height:1.6;color:#526247;">
+                Ola, {{ user.get_full_name|default:user.username }}. Seu acesso ao ambiente digital da Lume foi criado para acompanhar seus atendimentos com mais cuidado e organizacao.
+              </p>
+
+              <div style="padding:18px;border-radius:14px;background:#f8f3e7;border:1px solid #ded4bd;">
+                <p style="margin:0 0 8px;color:#526247;font-weight:bold;">Seus dados de acesso inicial</p>
+                <p style="margin:0 0 6px;"><strong>Login:</strong> {{ user.username }}</p>
+                <p style="margin:0;"><strong>Senha temporaria:</strong> {{ temporary_password }}</p>
+              </div>
+
+              <p style="margin:22px 0;line-height:1.6;color:#526247;">
+                No primeiro acesso, o sistema vai pedir uma nova senha com pelo menos 8 caracteres e a confirmacao dos termos de uso, privacidade e consentimento para dados de saude.
+              </p>
+
+              <p style="margin:0 0 24px;">
+                <a href="{{ login_url }}" style="display:inline-block;padding:14px 20px;border-radius:10px;background:#60724f;color:#fffdf4;text-decoration:none;font-weight:bold;">Acessar o Lume Gestao</a>
+              </p>
+
+              <p style="margin:0;color:#6e7469;font-size:13px;line-height:1.5;">
+                Se voce nao reconhece este acesso, fale com a equipe da clinica antes de entrar.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 30px;background:#efe2c9;color:#526247;font-size:13px;">
+              Com carinho, equipe Lume
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

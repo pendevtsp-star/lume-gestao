@@ -4,6 +4,9 @@ from django.db import models
 from core.models import TimeStampedModel
 
 
+LGPD_CONSENT_VERSION = "2026-06-28"
+
+
 class UserProfile(TimeStampedModel):
     class Role(models.TextChoices):
         PATIENT = "patient", "Paciente"

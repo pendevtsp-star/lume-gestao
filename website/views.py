@@ -22,40 +22,30 @@ class WebsitePublicContextMixin:
     service_cards = [
         {
             "title": "Pilates",
-            "description": "Aulas focadas em postura, fortalecimento, respiracao e consciencia corporal.",
+            "description": "Aulas com foco em postura, fortalecimento, respiração e consciência corporal.",
         },
         {
             "title": "Fisioterapia",
-            "description": "Reabilitacao individualizada para dor, lesoes, limitacoes funcionais e prevencao.",
+            "description": "Reabilitação individualizada para dor, lesões, limitações funcionais e prevenção.",
         },
         {
             "title": "Massagem",
-            "description": "Momentos de alivio e recuperacao muscular para renovar energia e bem-estar.",
+            "description": "Alívio muscular e relaxamento para renovar energia e bem-estar.",
         },
         {
             "title": "Reiki",
-            "description": "Um cuidado complementar para equilibrio, relaxamento e reconexao.",
+            "description": "Um cuidado complementar para equilíbrio, relaxamento e reconexão.",
         },
     ]
-    benefit_items = [
-        "Atendimento acolhedor e proximo da realidade de cada paciente.",
-        "Planos e acompanhamentos pensados para evolucao continua.",
-        "Espaco voltado para prevencao, reabilitacao e qualidade de vida.",
-    ]
     journey_steps = [
-        "Voce entra em contato pelo WhatsApp e conta seu objetivo ou necessidade.",
-        "Nossa equipe orienta o melhor atendimento, plano ou combinacao de servicos.",
-        "Voce agenda com rapidez e inicia um cuidado continuo com acompanhamento humano.",
-    ]
-    proof_points = [
-        "Atendimento acolhedor, com foco em movimento consciente e acompanhamento proximo.",
-        "Espaco claro, elegante e funcional para receber bem desde a primeira visita.",
-        "Agendamento simples pelo WhatsApp, com orientacao humana e resposta rapida.",
+        "Você entra em contato pelo WhatsApp e conta seu objetivo ou necessidade.",
+        "Nossa equipe orienta o melhor atendimento, plano ou combinação de serviços.",
+        "Você agenda com rapidez e inicia um cuidado contínuo com acompanhamento humano.",
     ]
     quick_benefits = [
-        "Pilates com acompanhamento humano",
-        "Fisioterapia e reabilitacao com escuta",
-        "Massagem e Reiki como extensoes do cuidado",
+        "Atendimento acolhedor",
+        "Agendamento pelo WhatsApp",
+        "Studio em Penedo/AL",
     ]
 
     def build_canonical_url(self, path):
@@ -112,12 +102,16 @@ class WebsiteHomeView(WebsitePublicContextMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         website_settings = WebsiteSettings.load()
-        plans = ServicePlan.objects.filter(active=True, show_on_website=True).order_by("display_order", "monthly_price", "name")
+        plans = list(
+            ServicePlan.objects.filter(active=True, show_on_website=True).order_by(
+                "display_order", "monthly_price", "name"
+            )[:4]
+        )
         faqs = list(WebsiteFAQ.objects.filter(active=True)[:6])
-        testimonials = list(WebsiteTestimonial.objects.filter(active=True)[:6])
+        testimonials = list(WebsiteTestimonial.objects.filter(active=True)[:3])
         assistant_questions = [faq.question for faq in faqs[:3]] or [
-            "Quais atendimentos voces oferecem?",
-            "Como faco para agendar?",
+            "Quais atendimentos vocês oferecem?",
+            "Como faço para agendar?",
             "Como funcionam os planos?",
         ]
         assistant_answers = {faq.question: faq.answer for faq in faqs}
@@ -125,13 +119,12 @@ class WebsiteHomeView(WebsitePublicContextMixin, TemplateView):
             {
                 "website_settings": website_settings,
                 "page_title": website_settings.seo_title,
+                "browser_title": f"{website_settings.resolved_clinic_name} | Lume Gestao",
                 "meta_description": website_settings.seo_description,
                 "canonical_url": self.build_canonical_url(self.request.path),
-                "plans": plans[:6],
+                "plans": plans,
                 "service_cards": self.service_cards,
-                "benefit_items": self.benefit_items,
                 "journey_steps": self.journey_steps,
-                "proof_points": self.proof_points,
                 "quick_benefits": self.quick_benefits,
                 "faqs": faqs,
                 "testimonials": testimonials,

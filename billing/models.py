@@ -22,6 +22,10 @@ class ServicePlan(TimeStampedModel):
     monthly_price = models.DecimalField("valor mensal", max_digits=10, decimal_places=2)
     sessions_per_week = models.PositiveSmallIntegerField("sessoes por semana", default=2)
     description = models.TextField("descricao", blank=True)
+    public_description = models.TextField("descricao publica", blank=True)
+    show_on_website = models.BooleanField("exibir no site", default=False)
+    display_order = models.PositiveSmallIntegerField("ordem no site", default=0, blank=True)
+    highlight_badge = models.CharField("selo de destaque", max_length=40, blank=True)
     active = models.BooleanField("ativo", default=True)
 
     class Meta:

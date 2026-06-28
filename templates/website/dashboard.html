@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Site | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ section_label }}</p>
+    <h1>{{ page_title }}</h1>
+  </div>
+  <a class="button secondary" href="{{ preview_url }}" target="_blank" rel="noopener noreferrer">Abrir site</a>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card">
+    <span>Planos publicos</span>
+    <strong>{{ public_plan_count }}</strong>
+    <small>Planos ativos e visiveis no site.</small>
+  </article>
+  <article class="stat-card">
+    <span>FAQs ativos</span>
+    <strong>{{ faq_count }}</strong>
+    <small>Perguntas usadas no FAQ e no assistente.</small>
+  </article>
+  <article class="stat-card">
+    <span>Depoimentos ativos</span>
+    <strong>{{ testimonial_count }}</strong>
+    <small>Conteudo social para prova e confianca.</small>
+  </article>
+  <article class="stat-card">
+    <span>Cliques em CTA</span>
+    <strong>{{ website_settings.whatsapp_clicks|add:website_settings.system_clicks }}</strong>
+    <small>{{ website_settings.whatsapp_clicks }} no WhatsApp e {{ website_settings.system_clicks }} no sistema.</small>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="toolbar toolbar-spread">
+    <div>
+      <h2>Pontos principais</h2>
+      <p class="muted-copy">Ajuste o conteudo comercial, FAQs e depoimentos sem mexer no codigo do site.</p>
+    </div>
+    <div class="table-actions">
+      <a class="button secondary" href="{% url 'website:settings' %}">Editar conteudo</a>
+      <a class="button secondary" href="{% url 'billing:plans' %}">Gerenciar planos</a>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>Status atual</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Conteudo institucional</strong></td>
+          <td>{{ website_settings.hero_title }}</td>
+          <td class="right"><a class="table-action" href="{% url 'website:settings' %}">Editar</a></td>
+        </tr>
+        <tr>
+          <td><strong>FAQs</strong></td>
+          <td>{{ faq_count }} ativo{{ faq_count|pluralize }}</td>
+          <td class="right"><a class="table-action" href="{% url 'website:faqs' %}">Abrir</a></td>
+        </tr>
+        <tr>
+          <td><strong>Depoimentos</strong></td>
+          <td>{{ testimonial_count }} ativo{{ testimonial_count|pluralize }}</td>
+          <td class="right"><a class="table-action" href="{% url 'website:testimonials' %}">Abrir</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="toolbar toolbar-spread">
+    <div>
+      <h2>Planos em destaque</h2>
+      <p class="muted-copy">Use os campos do cadastro de planos para escolher o que aparece no site.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Plano</th>
+          <th>Categoria</th>
+          <th>Ordem</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for plan in public_plans %}
+          <tr>
+            <td><strong>{{ plan.name }}</strong></td>
+            <td>{{ plan.get_category_display }}</td>
+            <td>{{ plan.display_order }}</td>
+            <td>{% if plan.highlight_badge %}{{ plan.highlight_badge }}{% else %}Sem selo{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty">Nenhum plano publico configurado ainda.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+

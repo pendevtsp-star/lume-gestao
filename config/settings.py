@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 from django.core.exceptions import ImproperlyConfigured
 from decouple import config
@@ -48,6 +49,27 @@ CSRF_TRUSTED_ORIGINS = config(
     cast=lambda value: [origin.strip() for origin in value.split(",") if origin.strip()],
 )
 PUBLIC_BASE_URL = config("PUBLIC_BASE_URL", default="")
+SYSTEM_BASE_URL = config("SYSTEM_BASE_URL", default=PUBLIC_BASE_URL)
+WEBSITE_BASE_URL = config("WEBSITE_BASE_URL", default="")
+
+
+def _parse_csv(value):
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _host_from_url(value):
+    if not value:
+        return ""
+    parsed = urlparse(value)
+    return (parsed.hostname or "").strip()
+
+
+DEFAULT_SYSTEM_HOST = _host_from_url(SYSTEM_BASE_URL) or "sistema.clinicafisiolume.com.br"
+DEFAULT_WEBSITE_HOSTS = ",".join(
+    host for host in [_host_from_url(WEBSITE_BASE_URL), "clinicafisiolume.com.br", "www.clinicafisiolume.com.br"] if host
+)
+SYSTEM_HOSTS = config("SYSTEM_HOSTS", default=DEFAULT_SYSTEM_HOST, cast=_parse_csv)
+WEBSITE_HOSTS = config("WEBSITE_HOSTS", default=DEFAULT_WEBSITE_HOSTS, cast=_parse_csv)
 
 
 def _looks_like_placeholder(value):
@@ -94,12 +116,14 @@ INSTALLED_APPS = [
     'reports',
     'fiscal',
     'mobile',
+    'website',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'core.middleware.HostRoutingMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -108,7 +132,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'config.urls'
+ROOT_URLCONF = 'config.system_urls'
 
 TEMPLATES = [
     {
@@ -120,6 +144,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'website.context_processors.website_urls',
             ],
         },
     },
@@ -240,9 +265,6 @@ WHATSAPP_DRY_RUN = config("WHATSAPP_DRY_RUN", default=True, cast=bool)
 WHATSAPP_META_API_VERSION = config("WHATSAPP_META_API_VERSION", default="v23.0")
 WHATSAPP_META_ACCESS_TOKEN = config("WHATSAPP_META_ACCESS_TOKEN", default="")
 WHATSAPP_META_PHONE_NUMBER_ID = config("WHATSAPP_META_PHONE_NUMBER_ID", default="")
-WHATSAPP_EMBEDDED_APP_ID = config("WHATSAPP_EMBEDDED_APP_ID", default="")
-WHATSAPP_EMBEDDED_CONFIG_ID = config("WHATSAPP_EMBEDDED_CONFIG_ID", default="")
-WHATSAPP_EMBEDDED_APP_SECRET = config("WHATSAPP_EMBEDDED_APP_SECRET", default="")
 WHATSAPP_TIMEOUT = config("WHATSAPP_TIMEOUT", default=15, cast=int)
 REST_ENABLE_BASIC_AUTH = config("REST_ENABLE_BASIC_AUTH", default=False, cast=bool)
 REST_ENABLE_TOKEN_AUTH = config("REST_ENABLE_TOKEN_AUTH", default=True, cast=bool)

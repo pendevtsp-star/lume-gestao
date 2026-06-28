@@ -1,0 +1,205 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title }}</title>
+  <meta name="description" content="{{ meta_description }}">
+  <link rel="canonical" href="{{ canonical_url }}">
+  <meta property="og:title" content="{{ page_title }}">
+  <meta property="og:description" content="{{ meta_description }}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ canonical_url }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260628-refined">
+  <script type="application/ld+json">{{ structured_data_json|safe }}</script>
+</head>
+<body>
+  <div class="site-atmosphere" aria-hidden="true">
+    <span class="ambient ambient-one"></span>
+    <span class="ambient ambient-two"></span>
+    <span class="ambient ambient-three"></span>
+  </div>
+
+  <header class="site-header shell-panel">
+    <a class="brand-lockup" href="/">
+      <span class="brand-mark">
+        <img src="{% static 'images/website/lume-logo.jpg' %}" alt="Logo da Lume Studio Fisio">
+      </span>
+      <span class="brand-copy">
+        <strong>{{ website_settings.resolved_clinic_name }}</strong>
+        <small>Pilates, fisioterapia, massagem e Reiki</small>
+      </span>
+    </a>
+
+    <nav class="site-nav">
+      <a href="#servicos">Servicos</a>
+      <a href="#movimento">Movimento</a>
+      <a href="#planos">Planos</a>
+      <a class="nav-action" href="{% url 'website_system_redirect' %}">{{ website_settings.system_cta_text }}</a>
+    </nav>
+  </header>
+
+  <main class="site-main">
+    <section class="hero shell-panel">
+      <div class="hero-copy">
+        <p class="eyebrow">Movimento consciente em {{ website_settings.city_name }}</p>
+        <h1>{{ website_settings.hero_title }}</h1>
+        <p class="hero-text">{{ website_settings.hero_subtitle }}</p>
+
+        <div class="hero-actions">
+          <a class="button-primary" href="{% url 'website_whatsapp_redirect' %}">{{ website_settings.primary_cta_text }}</a>
+          <a class="button-secondary" href="{{ website_settings.resolved_instagram_url }}" target="_blank" rel="noopener noreferrer">Ver Instagram</a>
+        </div>
+
+        <div class="hero-chips">
+          {% for item in quick_benefits %}
+            <span>{{ item }}</span>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <img src="{% static 'images/website/hero-generated.png' %}" alt="Ambiente de pilates e bem-estar inspirado na Lume Studio Fisio">
+        <aside class="hero-note">
+          <span class="eyebrow">Endereco</span>
+          <strong>{{ website_settings.resolved_address }}</strong>
+          <p>{{ website_settings.city_name }}<br>{{ website_settings.resolved_business_hours }}</p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="service-section" id="servicos">
+      <div class="section-head">
+        <p class="eyebrow">Atendimentos</p>
+        <h2>Cuidado individual, constancia e um espaco pensado para voce se sentir bem.</h2>
+      </div>
+
+      <div class="service-grid">
+        {% for service in service_cards %}
+          <article class="service-card shell-panel">
+            <span class="service-index">0{{ forloop.counter }}</span>
+            <h3>{{ service.title }}</h3>
+            <p>{{ service.description }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="studio-section" id="movimento">
+      <article class="studio-story shell-panel">
+        <p class="eyebrow">A experiencia Lume</p>
+        <h2>{{ website_settings.institutional_title }}</h2>
+        <p class="studio-text">{{ website_settings.institutional_text }}</p>
+
+        <div class="story-points">
+          {% for item in proof_points %}
+            <span>{{ item }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="highlight-links">
+          {% for item in instagram_highlights %}
+            <a href="{{ item.href }}" target="_blank" rel="noopener noreferrer">
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.summary }}</small>
+            </a>
+          {% endfor %}
+        </div>
+      </article>
+
+      <div class="reel-rail">
+        {% for reel in reel_features %}
+          <a class="reel-card shell-panel" href="{{ reel.href }}" target="_blank" rel="noopener noreferrer">
+            <div class="reel-media">
+              <img src="{% static reel.image_path %}" alt="{{ reel.title }}">
+              <span class="play-badge">Ver reel</span>
+            </div>
+            <div class="reel-copy">
+              <span>{{ reel.tag }}</span>
+              <strong>{{ reel.title }}</strong>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="plans-section" id="planos">
+      <div class="section-head">
+        <p class="eyebrow">Planos</p>
+        <h2>Opcoes simples para quem busca continuidade no cuidado.</h2>
+      </div>
+
+      <div class="plan-grid">
+        {% for plan in plans %}
+          <article class="plan-card shell-panel">
+            {% if plan.highlight_badge %}<span class="plan-badge">{{ plan.highlight_badge }}</span>{% endif %}
+            <h3>{{ plan.name }}</h3>
+            <p class="plan-category">{{ plan.get_category_display }}</p>
+            <p class="plan-description">{{ plan.public_description|default:plan.description|default:"Plano personalizado para acompanhar seu cuidado." }}</p>
+            <div class="plan-footer">
+              <strong>R$ {{ plan.monthly_price|floatformat:2 }}</strong>
+              <span>{{ plan.sessions_per_week }} sessoes por semana</span>
+            </div>
+          </article>
+        {% empty %}
+          <article class="plan-card shell-panel plan-card-empty">
+            <h3>Planos personalizados</h3>
+            <p class="plan-description">A equipe orienta a melhor combinacao entre pilates, fisioterapia e demais cuidados da Lume.</p>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="contact-band shell-panel">
+      <div class="contact-copy">
+        <p class="eyebrow">Agendamento rapido</p>
+        <h2>Fale com a equipe e receba a melhor orientacao para o seu momento.</h2>
+        <p>WhatsApp como acao principal, sem etapas desnecessarias e com acesso facil ao sistema quando preciso.</p>
+      </div>
+
+      <div class="contact-actions">
+        <a class="button-primary" href="{% url 'website_whatsapp_redirect' %}">Falar no WhatsApp</a>
+        <a class="button-secondary" href="{% url 'website_system_redirect' %}">{{ website_settings.system_cta_text }}</a>
+        <div class="contact-meta">
+          <span>{{ website_settings.resolved_address }}</span>
+          <span>{{ website_settings.city_name }}</span>
+        </div>
+      </div>
+    </section>
+
+    {% if website_settings.assistant_enabled %}
+      <section class="assistant-section shell-panel" data-assistant>
+        <div class="section-head section-head-compact">
+          <p class="eyebrow">Duvidas rapidas</p>
+          <h2>Um apoio leve para quem chegou agora.</h2>
+        </div>
+
+        <div class="assistant-questions">
+          {% for question in assistant_questions %}
+            <button type="button" data-assistant-question="{{ question|escape }}">{{ question }}</button>
+          {% endfor %}
+        </div>
+
+        <div class="assistant-answer" data-assistant-answer>
+          Escolha uma pergunta acima ou siga direto para o WhatsApp.
+        </div>
+      </section>
+    {% endif %}
+  </main>
+
+  <a class="floating-whatsapp" href="{% url 'website_whatsapp_redirect' %}">WhatsApp</a>
+
+  <footer class="site-footer">
+    <div class="footer-copy">
+      <strong>{{ website_settings.resolved_clinic_name }}</strong>
+      <span>{{ website_settings.city_name }} | {{ current_year }}</span>
+    </div>
+    <a href="{{ website_settings.resolved_instagram_url }}" target="_blank" rel="noopener noreferrer">@lumestudiofisio</a>
+  </footer>
+
+  {{ assistant_faq_map_json|json_script:"website-faq-data" }}
+  <script src="{% static 'js/website.js' %}?v=20260628-refined"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Depoimentos do site | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Site</p>
+    <h1>Depoimentos do site</h1>
+  </div>
+  <a class="button primary" href="{% url 'website:testimonial_create' %}">Novo depoimento</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar depoimentos">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <p class="muted-copy">Depoimentos ativos: {{ active_total }}</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Identificacao</th>
+          <th>Ordem</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for testimonial in testimonials %}
+          <tr>
+            <td>
+              <strong>{{ testimonial.author_name }}</strong>
+              <div class="table-meta">{{ testimonial.body|truncatechars:120 }}</div>
+            </td>
+            <td>{{ testimonial.author_role|default:"-" }}</td>
+            <td>{{ testimonial.display_order }}</td>
+            <td class="right table-actions">
+              <a class="table-action" href="{% url 'website:testimonial_update' testimonial.pk %}">Editar</a>
+              <a class="table-action danger-link" href="{% url 'website:testimonial_delete' testimonial.pk %}">Excluir</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty">Nenhum depoimento encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.http import HttpResponseForbidden
 
 from accounts.models import UserProfile
@@ -6,6 +7,18 @@ from core.audit import set_current_user
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 READ_ONLY_ALLOWED_PATHS = ("/logout/",)
+
+
+class HostRoutingMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        host = request.get_host().split(":")[0].lower()
+        request.lume_public_site = host in set(settings.WEBSITE_HOSTS)
+        if request.lume_public_site:
+            request.urlconf = "config.website_urls"
+        return self.get_response(request)
 
 
 class CurrentUserMiddleware:

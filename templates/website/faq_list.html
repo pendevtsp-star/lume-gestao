@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}FAQs do site | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Site</p>
+    <h1>FAQs do site</h1>
+  </div>
+  <a class="button primary" href="{% url 'website:faq_create' %}">Novo FAQ</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar perguntas">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <p class="muted-copy">FAQs ativos: {{ active_total }}</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Pergunta</th>
+          <th>Ordem</th>
+          <th>Status</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for faq in faqs %}
+          <tr>
+            <td>
+              <strong>{{ faq.question }}</strong>
+              <div class="table-meta">{{ faq.answer|truncatechars:120 }}</div>
+            </td>
+            <td>{{ faq.display_order }}</td>
+            <td>{% if faq.active %}Ativa{% else %}Inativa{% endif %}</td>
+            <td class="right table-actions">
+              <a class="table-action" href="{% url 'website:faq_update' faq.pk %}">Editar</a>
+              <a class="table-action danger-link" href="{% url 'website:faq_delete' faq.pk %}">Excluir</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty">Nenhum FAQ encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}
+

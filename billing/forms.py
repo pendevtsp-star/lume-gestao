@@ -7,8 +7,22 @@ from core.forms import StyledModelForm
 class ServicePlanForm(StyledModelForm):
     class Meta:
         model = ServicePlan
-        fields = ["name", "category", "monthly_price", "sessions_per_week", "description", "active"]
-        widgets = {"description": forms.Textarea(attrs={"rows": 4})}
+        fields = [
+            "name",
+            "category",
+            "monthly_price",
+            "sessions_per_week",
+            "description",
+            "public_description",
+            "show_on_website",
+            "display_order",
+            "highlight_badge",
+            "active",
+        ]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 4}),
+            "public_description": forms.Textarea(attrs={"rows": 4}),
+        }
 
 
 class MembershipForm(StyledModelForm):

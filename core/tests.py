@@ -429,7 +429,25 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Meta Embedded Signup")
-        self.assertContains(response, "Trocar WhatsApp Meta")
+        self.assertContains(response, "Conectar WhatsApp oficial")
+
+    @override_settings(WHATSAPP_META_PHONE_NUMBER_ID="cole-o-phone-number-id", WHATSAPP_META_ACCESS_TOKEN="cole-o-token")
+    def test_whatsapp_number_only_does_not_count_as_connected(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "enabled": True,
+                "dry_run": True,
+                "clinic_whatsapp_number": "11999990000",
+            },
+        )
+
+        integration = WhatsAppIntegration.load()
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertFalse(integration.is_connected)
+        self.assertContains(response, "Configurar Meta")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",

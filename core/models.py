@@ -4,6 +4,8 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from core.integrations.credentials import configured_value
+
 
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField("criado em", auto_now_add=True)
@@ -133,7 +135,13 @@ class WhatsAppIntegration(TimeStampedModel):
 
     @property
     def is_connected(self):
-        return bool(self.enabled and (self.clinic_whatsapp_number or self.phone_number_id))
+        if not self.enabled:
+            return False
+        if self.provider != self.Provider.META:
+            return False
+        phone_number_id = configured_value(self.phone_number_id) or configured_value(settings.WHATSAPP_META_PHONE_NUMBER_ID)
+        access_token = configured_value(self.access_token) or configured_value(settings.WHATSAPP_META_ACCESS_TOKEN)
+        return bool(phone_number_id and (self.dry_run or access_token))
 
     @classmethod
     def load(cls):

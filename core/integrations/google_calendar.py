@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.integrations.http import IntegrationError, delete_json, get_json, patch_json, post_form, post_json
+from core.integrations.credentials import first_configured_value
 from core.models import GoogleCalendarIntegration
 from scheduling.models import Appointment
 
@@ -27,8 +28,8 @@ def google_calendar_configured():
 
 def google_oauth_credentials(integration=None):
     integration = integration or GoogleCalendarIntegration.load()
-    client_id = integration.oauth_client_id or settings.GOOGLE_CALENDAR_CLIENT_ID
-    client_secret = integration.oauth_client_secret or settings.GOOGLE_CALENDAR_CLIENT_SECRET
+    client_id = first_configured_value(integration.oauth_client_id, settings.GOOGLE_CALENDAR_CLIENT_ID)
+    client_secret = first_configured_value(integration.oauth_client_secret, settings.GOOGLE_CALENDAR_CLIENT_SECRET)
     return client_id, client_secret
 
 

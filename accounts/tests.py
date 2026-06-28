@@ -143,3 +143,52 @@ class UserProfileTests(TestCase):
 
         integration = WhatsAppIntegration.load()
         self.assertIsNotNone(integration.last_test_at)
+
+
+class ReadOnlyViewerAccessTests(TestCase):
+    def setUp(self):
+        self.viewer = get_user_model().objects.create_user(username="adminvisual", password="Visualizacao@123")
+        UserProfile.objects.update_or_create(user=self.viewer, defaults={"role": UserProfile.Role.VIEWER})
+        self.patient = Patient.objects.create(full_name="Paciente Visualizacao")
+        self.client.force_login(self.viewer)
+
+    def test_viewer_can_open_main_read_only_pages(self):
+        urls = [
+            reverse("dashboard"),
+            reverse("patients:list"),
+            reverse("scheduling:appointments"),
+            reverse("scheduling:availabilities"),
+            reverse("billing:payments"),
+            reverse("reports:dashboard"),
+            reverse("fiscal:dashboard"),
+            reverse("accounts:list"),
+            reverse("integrations"),
+        ]
+
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_viewer_cannot_create_patient_from_web(self):
+        response = self.client.post(
+            reverse("patients:create"),
+            {
+                "full_name": "Paciente Criado Indevidamente",
+                "active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Patient.objects.filter(full_name="Paciente Criado Indevidamente").exists())
+
+    def test_viewer_can_read_api_but_cannot_write(self):
+        get_response = self.client.get("/api/v1/patients/")
+        post_response = self.client.post(
+            "/api/v1/patients/",
+            {"full_name": "Paciente API Indevido", "active": True},
+            content_type="application/json",
+        )
+
+        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(post_response.status_code, 403)
+        self.assertFalse(Patient.objects.filter(full_name="Paciente API Indevido").exists())

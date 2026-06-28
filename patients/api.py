@@ -74,6 +74,8 @@ class ProfessionalNoteViewSet(ModelViewSet):
         profile = get_profile(self.request.user)
         if profile and profile.is_professional and profile.professional_id:
             return queryset.filter(professional=profile.professional)
+        if profile and profile.is_viewer:
+            return queryset
         return queryset.none()
 
     def perform_create(self, serializer):

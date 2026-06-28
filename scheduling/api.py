@@ -31,7 +31,7 @@ class AppointmentViewSet(ModelViewSet):
         profile = get_profile(self.request.user)
         if not profile:
             return queryset.none()
-        if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+        if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
             return queryset
         if profile.is_patient and profile.patient_id:
             return queryset.filter(patient=profile.patient)
@@ -120,7 +120,7 @@ class ProfessionalAvailabilityViewSet(ModelViewSet):
         profile = get_profile(self.request.user)
         if not profile:
             return queryset.none()
-        if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+        if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
             return queryset
         if profile.is_professional and profile.professional_id:
             return queryset.filter(professional=profile.professional)
@@ -158,7 +158,7 @@ class ServicePackageViewSet(ModelViewSet):
         profile = get_profile(self.request.user)
         if not profile:
             return queryset.none()
-        if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+        if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
             return queryset
         if profile.is_patient and profile.patient_id:
             return queryset.filter(membership__patient=profile.patient)
@@ -203,7 +203,7 @@ class ServiceUsageViewSet(ModelViewSet):
         profile = get_profile(self.request.user)
         if not profile:
             return queryset.none()
-        if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+        if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
             return queryset
         if profile.is_patient and profile.patient_id:
             return queryset.filter(appointment__patient=profile.patient)

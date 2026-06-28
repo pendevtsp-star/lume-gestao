@@ -10,6 +10,7 @@ class UserProfile(TimeStampedModel):
         PROFESSIONAL = "professional", "Profissional"
         ADMINISTRATION = "administration", "Administracao"
         MANAGEMENT = "management", "Gerencia"
+        VIEWER = "viewer", "Visualizacao"
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     role = models.CharField("perfil", max_length=30, choices=Role.choices, default=Role.ADMINISTRATION)
@@ -83,6 +84,10 @@ class UserProfile(TimeStampedModel):
     @property
     def is_patient(self):
         return self.role == self.Role.PATIENT
+
+    @property
+    def is_viewer(self):
+        return self.role == self.Role.VIEWER
 
     @property
     def can_manage_finance(self):

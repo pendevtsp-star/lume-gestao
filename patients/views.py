@@ -35,7 +35,7 @@ def patients_for_user(user):
     profile = get_profile(user)
     if not profile:
         return queryset.none()
-    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
         return queryset
     if profile.is_patient and profile.patient_id:
         return queryset.filter(pk=profile.patient_id)
@@ -261,6 +261,17 @@ class ProfessionalRecordPatientListView(ProfessionalRecordAccessMixin, Searchabl
     search_fields = ["full_name", "cpf", "phone", "email"]
 
     def get_queryset(self):
+        profile = get_profile(self.request.user)
+        if profile and profile.is_viewer:
+            queryset = Patient.objects.all().annotate(record_count=Count("professional_notes"))
+            query = self.request.GET.get("q", "").strip()
+            if query:
+                filters = Q()
+                for field in self.search_fields:
+                    filters |= Q(**{f"{field}__icontains": query})
+                queryset = queryset.filter(filters)
+            return queryset.order_by("full_name")
+
         professional = self.get_professional()
         if not professional:
             return Patient.objects.none()
@@ -288,6 +299,22 @@ class ProfessionalNoteListView(ProfessionalRecordAccessMixin, SearchableListView
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
+        profile = get_profile(self.request.user)
+        if profile and profile.is_viewer:
+            queryset = (
+                super()
+                .get_queryset()
+                .select_related("patient", "professional")
+                .filter(patient=self.patient)
+            )
+            query = self.request.GET.get("q", "").strip()
+            if query:
+                filters = Q()
+                for field in self.search_fields:
+                    filters |= Q(**{f"{field}__icontains": query})
+                queryset = queryset.filter(filters)
+            return queryset
+
         professional = self.get_professional()
         if not professional:
             return ProfessionalNote.objects.none()

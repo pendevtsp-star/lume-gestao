@@ -72,7 +72,7 @@ def appointments_for_user(user):
     profile = get_profile(user)
     if not profile:
         return queryset.none()
-    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
         return queryset
     if profile.is_patient and profile.patient_id:
         return queryset.filter(patient=profile.patient)
@@ -939,7 +939,7 @@ def availabilities_for_user(user):
     profile = get_profile(user)
     if not profile:
         return queryset.none()
-    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
         return queryset
     if profile.is_professional and profile.professional_id:
         return queryset.filter(professional=profile.professional)

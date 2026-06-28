@@ -146,7 +146,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         reminder_limit = today + timedelta(days=settings.membership_due_reminder_days)
         profile = get_profile(self.request.user)
         finance_visible = self.request.user.is_superuser or (
-            profile and profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}
+            profile and profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}
         )
 
         patient_queryset = Patient.objects.filter(active=True)

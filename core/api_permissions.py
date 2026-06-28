@@ -1,4 +1,4 @@
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
@@ -13,6 +13,8 @@ class RoleApiPermission(BasePermission):
         if request.user.is_superuser:
             return True
         profile = get_profile(request.user)
+        if profile and profile.role == UserProfile.Role.VIEWER:
+            return request.method in SAFE_METHODS
         return bool(profile and profile.role in self.allowed_roles)
 
 
@@ -34,4 +36,5 @@ class ClinicApiPermission(RoleApiPermission):
         UserProfile.Role.PROFESSIONAL,
         UserProfile.Role.ADMINISTRATION,
         UserProfile.Role.MANAGEMENT,
+        UserProfile.Role.VIEWER,
     }

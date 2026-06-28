@@ -24,13 +24,13 @@
           <a href="{% url 'patients:list' %}"><span class="nav-icon icon-patients" aria-hidden="true"></span><span>Pacientes</span></a>
         {% endif %}
         <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Agenda</span></a>
-        {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
+        {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.profile.role == "viewer" or request.user.is_superuser %}
           <a href="{% url 'scheduling:availabilities' %}"><span class="nav-icon icon-clock" aria-hidden="true"></span><span>Disponibilidade</span></a>
         {% endif %}
-        {% if request.user.profile.role == "professional" %}
+        {% if request.user.profile.role == "professional" or request.user.profile.role == "viewer" %}
           <a href="{% url 'patients:notes' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Prontuario</span></a>
         {% endif %}
-        {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+        {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.profile.role == "viewer" %}
           <details class="nav-menu" {% if request.resolver_match.app_name == "reports" or request.resolver_match.url_name == "audit" %}open{% endif %}>
             <summary>
               <span class="nav-icon icon-reports" aria-hidden="true"></span>
@@ -40,7 +40,7 @@
               <a href="{% url 'reports:dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Visao geral</span></a>
               <a href="{% url 'reports:financial' %}"><span class="nav-icon icon-finance" aria-hidden="true"></span><span>Financeiro</span></a>
               <a href="{% url 'reports:clinic' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Gestao de adesao</span></a>
-              {% if request.user.is_superuser or request.user.profile.role == "management" %}
+              {% if request.user.is_superuser or request.user.profile.role == "management" or request.user.profile.role == "viewer" %}
                 <a href="{% url 'reports:audit' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Auditoria</span></a>
               {% endif %}
             </div>
@@ -63,7 +63,7 @@
           <a href="{% url 'team:professionals' %}"><span class="nav-icon icon-professionals" aria-hidden="true"></span><span>Profissionais</span></a>
           <a href="{% url 'team:employees' %}"><span class="nav-icon icon-employees" aria-hidden="true"></span><span>Funcionarios</span></a>
         {% endif %}
-        {% if request.user.is_superuser or request.user.profile.role == "management" %}
+        {% if request.user.is_superuser or request.user.profile.role == "management" or request.user.profile.role == "viewer" %}
           <a href="{% url 'accounts:list' %}"><span class="nav-icon icon-users" aria-hidden="true"></span><span>Usuarios</span></a>
           <a href="{% url 'settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Configuracoes</span></a>
           <a href="{% url 'integrations' %}"><span class="nav-icon icon-integrations" aria-hidden="true"></span><span>Integracoes</span></a>

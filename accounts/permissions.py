@@ -4,6 +4,8 @@ from django.shortcuts import redirect
 
 from accounts.models import UserProfile
 
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
 
 def get_profile(user):
     if not user.is_authenticated:
@@ -25,6 +27,9 @@ class RoleRequiredMixin(AccessMixin):
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
+        profile = get_profile(request.user)
+        if profile and profile.role == UserProfile.Role.VIEWER and request.method in SAFE_METHODS:
+            return super().dispatch(request, *args, **kwargs)
         if not has_role(request.user, set(self.allowed_roles)):
             messages.error(request, "Seu perfil nao tem permissao para acessar esta area.")
             return redirect("dashboard")

@@ -44,9 +44,13 @@ class MobileBootstrapView(APIView):
             features.extend(["meu_plano", "meus_creditos"])
         if profile.is_professional:
             features.extend(["pacientes", "prontuario", "disponibilidade"])
-        if is_superuser or profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+        if is_superuser or profile.role in {
+            UserProfile.Role.ADMINISTRATION,
+            UserProfile.Role.MANAGEMENT,
+            UserProfile.Role.VIEWER,
+        }:
             features.extend(["financeiro", "relatorios", "pacientes", "equipe"])
-        if is_superuser or profile.role == UserProfile.Role.MANAGEMENT:
+        if is_superuser or profile.role in {UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
             features.extend(["usuarios", "auditoria", "configuracoes"])
         return features
 
@@ -55,7 +59,11 @@ class MobileBootstrapView(APIView):
             return self.patient_dashboard(profile)
         if profile.is_professional and profile.professional_id:
             return self.professional_dashboard(profile)
-        if is_superuser or profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
+        if is_superuser or profile.role in {
+            UserProfile.Role.ADMINISTRATION,
+            UserProfile.Role.MANAGEMENT,
+            UserProfile.Role.VIEWER,
+        }:
             return self.backoffice_dashboard()
         return {}
 

@@ -55,6 +55,18 @@ https://sistema.clinicafisiolume.com.br/integracoes/
 
 Clique em `Conectar com Google`, escolha a conta Google da clinica, autorize o acesso e depois use `Sincronizar agora`.
 
+Pelo terminal da VPS, valide sem expor segredos:
+
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py check_google_calendar_setup
+```
+
+Depois de conectar a conta pela tela, voce tambem pode testar uma sincronizacao:
+
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py check_google_calendar_setup --sync
+```
+
 Com a integracao conectada e a opcao de sincronizacao habilitada:
 
 - novos agendamentos podem ser enviados automaticamente para o Google Calendar;

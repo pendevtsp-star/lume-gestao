@@ -32,13 +32,15 @@ Use este checklist antes de cadastrar pacientes reais, prontuarios, pagamentos o
 - [ ] Senhas padrao e usuarios de teste foram removidos ou tiveram senha trocada.
 - [ ] Perfis de paciente, profissional, administracao e gerencia revisados.
 - [ ] Permissoes por perfil revisadas no backend, nao apenas no menu visual.
+- [ ] Usuario de visualizacao testado em paginas criticas para confirmar bloqueio de `POST`, `PUT`, `PATCH` e `DELETE`.
 - [ ] Paciente acessa apenas dados proprios.
 - [ ] Profissional acessa apenas pacientes e prontuarios permitidos.
 - [ ] Financeiro, fiscal, relatorios, auditoria e integracoes restritos a perfis autorizados.
 
 ## Integracoes
 
-- [ ] SMTP real configurado e testado.
+- [ ] SMTP real configurado e testado com `python manage.py check_email_setup --to seu-email@dominio.com`.
+- [ ] SPF, DKIM e DMARC configurados no DNS do dominio.
 - [ ] Recuperacao de senha envia e-mail real.
 - [ ] Google Calendar configurado apenas com credenciais reais da clinica.
 - [ ] Callback Google autorizado: `https://sistema.clinicafisiolume.com.br/integracoes/google/callback/`.
@@ -57,7 +59,7 @@ Use este checklist antes de cadastrar pacientes reais, prontuarios, pagamentos o
 
 - [ ] Backups diarios configurados com `scripts/backup-production.sh`.
 - [ ] Retencao configurada com `RETENTION_DAYS`.
-- [ ] Copia externa configurada, por exemplo rclone, S3, Backblaze B2 ou storage equivalente.
+- [ ] Copia externa configurada conforme `docs/BACKUP_EXTERNO.md`.
 - [ ] Teste de restauracao feito em ambiente separado com `scripts/restore-production.sh`.
 - [ ] Plano de atualizacao documentado em `docs/UPDATE_PRODUCTION.md`.
 - [ ] Plano de rollback testado para voltar a commit anterior.

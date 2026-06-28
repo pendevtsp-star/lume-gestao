@@ -1,9 +1,11 @@
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from io import StringIO
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.test import override_settings
@@ -431,6 +433,44 @@ class IntegrationsTests(TestCase):
         self.assertContains(response, "Meta Embedded Signup")
         self.assertContains(response, "Conectar WhatsApp oficial")
 
+    def test_connections_tab_shows_disconnect_whatsapp_when_connected(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "enabled": True,
+                "dry_run": True,
+                "clinic_whatsapp_number": "11999990000",
+                "phone_number_id": "123456",
+            },
+        )
+
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertContains(response, "Desconectar WhatsApp")
+
+    def test_management_can_disconnect_whatsapp(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "enabled": True,
+                "dry_run": True,
+                "clinic_whatsapp_number": "11999990000",
+                "phone_number_id": "123456",
+                "access_token": "token-real-falso",
+                "connected_at": timezone.now(),
+            },
+        )
+
+        response = self.client.post(reverse("integrations"), {"action": "disconnect_whatsapp", "tab": "connections"})
+
+        self.assertEqual(response.status_code, 302)
+        integration = WhatsAppIntegration.load()
+        self.assertFalse(integration.enabled)
+        self.assertFalse(integration.access_token)
+        self.assertIsNone(integration.connected_at)
+
     @override_settings(WHATSAPP_META_PHONE_NUMBER_ID="cole-o-phone-number-id", WHATSAPP_META_ACCESS_TOKEN="cole-o-token")
     def test_whatsapp_number_only_does_not_count_as_connected(self):
         self.client.force_login(self.management)
@@ -490,6 +530,38 @@ class IntegrationsTests(TestCase):
         self.assertContains(response, "Conectar com Google")
         self.assertContains(response, "Conectar WhatsApp oficial")
         self.assertContains(response, "disabled")
+
+    @override_settings(
+        GOOGLE_CALENDAR_CLIENT_ID="cole-o-client-id-google",
+        GOOGLE_CALENDAR_CLIENT_SECRET="cole-o-client-secret-google",
+    )
+    def test_check_google_calendar_setup_rejects_placeholder_credentials(self):
+        with self.assertRaises(CommandError):
+            call_command("check_google_calendar_setup")
+
+    @override_settings(
+        GOOGLE_CALENDAR_CLIENT_ID="google-client-id-real-fake",
+        GOOGLE_CALENDAR_CLIENT_SECRET="google-client-secret-real-fake",
+        PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br",
+    )
+    def test_check_google_calendar_setup_reports_ready_credentials(self):
+        output = StringIO()
+
+        call_command("check_google_calendar_setup", stdout=output)
+
+        self.assertIn("Credenciais prontas", output.getvalue())
+
+    @override_settings(
+        WHATSAPP_EMBEDDED_APP_ID="meta-app-id-real-fake",
+        WHATSAPP_EMBEDDED_CONFIG_ID="meta-config-real-fake",
+        WHATSAPP_EMBEDDED_APP_SECRET="meta-app-secret-real-fake",
+    )
+    def test_check_whatsapp_setup_reports_embedded_signup(self):
+        output = StringIO()
+
+        call_command("check_whatsapp_setup", stdout=output)
+
+        self.assertIn("Embedded Signup: sim", output.getvalue())
 
     @patch("core.views.exchange_whatsapp_embedded_signup_code")
     def test_management_can_finish_whatsapp_embedded_signup(self, exchange_mock):

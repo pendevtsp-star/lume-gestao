@@ -83,6 +83,18 @@ Pelo terminal:
 docker compose exec web python manage.py send_test_whatsapp 11999990000 --message "Teste Lume"
 ```
 
+Na VPS, valide a configuracao sem expor token:
+
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py check_whatsapp_setup
+```
+
+Para validar envio ou simulacao:
+
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py check_whatsapp_setup --to 11999990000 --message "Teste Lume"
+```
+
 Para processar manualmente a fila de mensagens agendadas:
 
 ```powershell

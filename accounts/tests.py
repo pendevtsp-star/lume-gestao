@@ -1,3 +1,5 @@
+from io import StringIO
+
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.management import call_command
@@ -135,6 +137,24 @@ class UserProfileTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["teste@lume.local"])
         self.assertIn("configuracao de envio", mail.outbox[0].body)
 
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_check_email_setup_validates_current_backend(self):
+        output = StringIO()
+
+        call_command("check_email_setup", stdout=output)
+
+        self.assertIn("Conexao validada", output.getvalue())
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
+        EMAIL_HOST="",
+        EMAIL_HOST_USER="",
+        EMAIL_HOST_PASSWORD="",
+    )
+    def test_check_email_setup_reports_incomplete_smtp(self):
+        with self.assertRaises(CommandError):
+            call_command("check_email_setup")
+
     def test_send_test_whatsapp_command_runs_in_dry_mode(self):
         from core.models import WhatsAppIntegration
 
@@ -226,6 +246,18 @@ class ReadOnlyViewerAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Patient.objects.filter(full_name="Paciente Criado Indevidamente").exists())
+
+    def test_viewer_cannot_post_to_critical_management_pages(self):
+        urls = [
+            reverse("billing:expense_create"),
+            reverse("scheduling:agenda_settings"),
+            reverse("accounts:create"),
+            reverse("settings"),
+        ]
+
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.post(url, {}, secure=True).status_code, 403)
 
     def test_viewer_can_read_api_but_cannot_write(self):
         get_response = self.client.get("/api/v1/patients/", secure=True)

@@ -2,13 +2,15 @@
 set -eu
 
 # Backup de producao do Lume Gestao.
-# Nao inclui segredos. Copie os arquivos gerados para storage externo seguro.
-# Sugestoes: rclone, S3/Backblaze B2, snapshot criptografado ou outro storage fora da VPS.
+# Nao inclui segredos. Mantenha uma copia fora da VPS usando rclone ou storage equivalente.
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-.env}"
 BACKUP_DIR="${BACKUP_DIR:-backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
+BACKUP_UPLOAD_ENABLED="${BACKUP_UPLOAD_ENABLED:-False}"
+BACKUP_RCLONE_REMOTE="${BACKUP_RCLONE_REMOTE:-}"
+BACKUP_RCLONE_FLAGS="${BACKUP_RCLONE_FLAGS:-}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
 DB_BACKUP="${BACKUP_DIR}/lume_db_${TIMESTAMP}.sql"
@@ -28,5 +30,25 @@ find "${BACKUP_DIR}" -type f \( -name 'lume_db_*.sql' -o -name 'lume_media_*.tar
 
 echo "[backup] Banco: ${DB_BACKUP}"
 echo "[backup] Media: ${MEDIA_BACKUP}"
-echo "[backup] Envie uma copia para fora da VPS. Exemplo:"
-echo "[backup] rclone copy ${BACKUP_DIR}/ remote:lume-gestao/backups/"
+
+case "$(printf '%s' "${BACKUP_UPLOAD_ENABLED}" | tr '[:upper:]' '[:lower:]')" in
+  true|1|yes|sim)
+    if [ -z "${BACKUP_RCLONE_REMOTE}" ]; then
+      echo "[backup] BACKUP_UPLOAD_ENABLED esta ativo, mas BACKUP_RCLONE_REMOTE nao foi configurado."
+      exit 2
+    fi
+    if ! command -v rclone >/dev/null 2>&1; then
+      echo "[backup] rclone nao encontrado. Instale e configure um remote antes de ativar upload externo."
+      exit 2
+    fi
+    echo "[backup] Enviando backup para storage externo: ${BACKUP_RCLONE_REMOTE}"
+    # shellcheck disable=SC2086
+    rclone copy ${BACKUP_RCLONE_FLAGS} "${DB_BACKUP}" "${BACKUP_RCLONE_REMOTE}"
+    # shellcheck disable=SC2086
+    rclone copy ${BACKUP_RCLONE_FLAGS} "${MEDIA_BACKUP}" "${BACKUP_RCLONE_REMOTE}"
+    echo "[backup] Upload externo concluido."
+    ;;
+  *)
+    echo "[backup] Upload externo desativado. Configure BACKUP_UPLOAD_ENABLED=True e BACKUP_RCLONE_REMOTE para ativar."
+    ;;
+esac

@@ -14,6 +14,8 @@ class Command(BaseCommand):
         if not recipient or "@" not in recipient:
             raise CommandError("Informe um e-mail de destino valido.")
 
+        self.stdout.write(f"Backend: {settings.EMAIL_BACKEND}")
+        self.stdout.write(f"Remetente: {settings.DEFAULT_FROM_EMAIL}")
         sent = send_mail(
             subject="Teste de e-mail | Lume Gestao",
             message=(

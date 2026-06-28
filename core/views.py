@@ -744,6 +744,15 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 messages.success(request, "Configuracao do WhatsApp salva.")
                 return redirect(f"{reverse('integrations')}?tab=connections")
             return self.render_with_forms(whatsapp_form=form, active_tab="connections")
+        elif action == "disconnect_whatsapp":
+            integration = WhatsAppIntegration.load()
+            integration.enabled = False
+            integration.access_token = ""
+            integration.connected_at = None
+            integration.last_error = ""
+            integration.save(update_fields=["enabled", "access_token", "connected_at", "last_error", "updated_at"])
+            messages.success(request, "WhatsApp desconectado com sucesso.")
+            return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "finish_whatsapp_embedded":
             integration = WhatsAppIntegration.load()
             code = request.POST.get("embedded_code", "")

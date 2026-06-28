@@ -280,6 +280,14 @@
             {% else %}
               <button class="button primary" type="button" disabled>Conectar WhatsApp oficial</button>
             {% endif %}
+            {% if whatsapp.is_connected %}
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="disconnect_whatsapp">
+                <input type="hidden" name="tab" value="connections">
+                <button class="button ghost" type="submit">Desconectar WhatsApp</button>
+              </form>
+            {% endif %}
           </div>
 
           {% if whatsapp_embedded_configured %}

@@ -31,6 +31,18 @@ Envie um e-mail de teste:
 docker compose exec web python manage.py send_test_email destino@exemplo.com
 ```
 
+Valide a configuracao sem expor senha:
+
+```powershell
+docker compose exec web python manage.py check_email_setup
+```
+
+Valide conexao e entrega real:
+
+```powershell
+docker compose exec web python manage.py check_email_setup --to destino@exemplo.com
+```
+
 Se o envio falhar, confira:
 
 - `EMAIL_HOST`
@@ -39,6 +51,17 @@ Se o envio falhar, confira:
 - `EMAIL_HOST_PASSWORD`
 - `EMAIL_USE_TLS`
 - bloqueio de SMTP pelo provedor
+
+## Entregabilidade
+
+Para reduzir chance de cair em spam, configure no DNS do dominio:
+
+- SPF autorizando o provedor SMTP.
+- DKIM gerado pelo painel do provedor de e-mail.
+- DMARC pelo menos em modo monitoramento no inicio.
+- Remetente do mesmo dominio do sistema, por exemplo `nao-responda@clinicafisiolume.com.br`.
+
+Esses registros sao configurados no painel DNS/Cloudflare e nao devem carregar senhas ou tokens.
 
 ## Recuperacao de senha
 

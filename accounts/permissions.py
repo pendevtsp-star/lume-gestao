@@ -21,14 +21,18 @@ def has_role(user, roles):
     return bool(profile and profile.role in roles)
 
 
+def is_read_only_viewer_request(user, method):
+    profile = get_profile(user)
+    return bool(profile and profile.role == UserProfile.Role.VIEWER and method in SAFE_METHODS)
+
+
 class RoleRequiredMixin(AccessMixin):
     allowed_roles = []
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
-        profile = get_profile(request.user)
-        if profile and profile.role == UserProfile.Role.VIEWER and request.method in SAFE_METHODS:
+        if is_read_only_viewer_request(request.user, request.method):
             return super().dispatch(request, *args, **kwargs)
         if not has_role(request.user, set(self.allowed_roles)):
             messages.error(request, "Seu perfil nao tem permissao para acessar esta area.")

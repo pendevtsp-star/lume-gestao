@@ -309,12 +309,14 @@ Adicionar:
 0 3 * * * cd /srv/lume-gestao && sh scripts/backup-production.sh >> backups/backup.log 2>&1
 ```
 
-Envie copia para fora da VPS. Exemplos:
+Envie copia para fora da VPS. A forma recomendada e configurar `rclone` e ativar o upload pelo `.env` real:
 
 ```bash
-rclone copy backups/ remote:lume-gestao/backups/
-aws s3 sync backups/ s3://seu-bucket/lume-gestao/backups/
+BACKUP_UPLOAD_ENABLED=True
+BACKUP_RCLONE_REMOTE=gdrive:lume-gestao/backups
 ```
+
+Veja o passo a passo em `docs/BACKUP_EXTERNO.md`.
 
 Nao considere backup confiavel antes de testar restauracao em ambiente separado.
 

@@ -429,7 +429,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Meta Embedded Signup")
-        self.assertContains(response, "Conectar WhatsApp oficial")
+        self.assertContains(response, "Trocar WhatsApp Meta")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",

@@ -16,14 +16,23 @@ def normalize_whatsapp_number(number, default_country_code="55"):
     return digits
 
 
-def whatsapp_embedded_signup_configured(integration=None):
+def whatsapp_embedded_signup_credentials(integration=None):
     integration = integration or WhatsAppIntegration.load()
-    return bool(integration.embedded_app_id and integration.embedded_config_id and integration.embedded_app_secret)
+    return (
+        integration.embedded_app_id or settings.WHATSAPP_EMBEDDED_APP_ID,
+        integration.embedded_config_id or settings.WHATSAPP_EMBEDDED_CONFIG_ID,
+        integration.embedded_app_secret or settings.WHATSAPP_EMBEDDED_APP_SECRET,
+    )
+
+
+def whatsapp_embedded_signup_configured(integration=None):
+    return all(whatsapp_embedded_signup_credentials(integration))
 
 
 def exchange_whatsapp_embedded_signup_code(code, integration=None):
     integration = integration or WhatsAppIntegration.load()
-    if not whatsapp_embedded_signup_configured(integration):
+    app_id, _config_id, app_secret = whatsapp_embedded_signup_credentials(integration)
+    if not all([app_id, app_secret]):
         raise IntegrationError("Configure Meta App ID, Configuration ID e App Secret antes de conectar.")
     if not code:
         raise IntegrationError("A Meta nao retornou o codigo de autorizacao.")
@@ -31,8 +40,8 @@ def exchange_whatsapp_embedded_signup_code(code, integration=None):
     token_data = post_form(
         f"https://graph.facebook.com/{settings.WHATSAPP_META_API_VERSION}/oauth/access_token",
         {
-            "client_id": integration.embedded_app_id,
-            "client_secret": integration.embedded_app_secret,
+            "client_id": app_id,
+            "client_secret": app_secret,
             "code": code,
         },
         timeout=settings.WHATSAPP_TIMEOUT,

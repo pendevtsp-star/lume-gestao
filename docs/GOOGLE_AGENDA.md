@@ -37,6 +37,8 @@ Depois reinicie:
 docker compose up -d --build
 ```
 
+Em producao na VPS, prefira manter `GOOGLE_CALENDAR_CLIENT_ID` e `GOOGLE_CALENDAR_CLIENT_SECRET` no arquivo `.env` do servidor. A tela de integracoes mostra apenas o botao `Conectar com Google`; os campos tecnicos ficam recolhidos em `Configuracao tecnica do Google`.
+
 ## Uso no sistema
 
 Entre como gerencia e acesse:
@@ -51,7 +53,7 @@ Em producao:
 https://sistema.clinicafisiolume.com.br/integracoes/
 ```
 
-Clique em `Conectar`, autorize a conta Google e depois use `Sincronizar agenda`.
+Clique em `Conectar com Google`, escolha a conta Google da clinica, autorize o acesso e depois use `Sincronizar agora`.
 
 Com a integracao conectada e a opcao de sincronizacao habilitada:
 

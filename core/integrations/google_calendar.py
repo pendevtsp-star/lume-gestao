@@ -33,6 +33,8 @@ def google_oauth_credentials(integration=None):
 
 
 def google_redirect_uri(request):
+    if settings.PUBLIC_BASE_URL:
+        return f"{settings.PUBLIC_BASE_URL.rstrip('/')}{reverse('integrations_google_callback')}"
     return request.build_absolute_uri(reverse("integrations_google_callback"))
 
 

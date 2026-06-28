@@ -80,6 +80,16 @@ class GoogleCalendarIntegrationForm(StyledModelForm):
 
 
 class WhatsAppIntegrationForm(StyledModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["clinic_whatsapp_number"].label = "Numero oficial da clinica"
+        self.fields["default_country_code"].label = "DDI"
+        self.fields["enabled"].label = "Ativar automacoes"
+        self.fields["dry_run"].label = "Manter em modo teste"
+        self.fields["embedded_app_id"].help_text = "Opcional se estiver configurado no .env da VPS."
+        self.fields["embedded_config_id"].help_text = "Opcional se estiver configurado no .env da VPS."
+        self.fields["embedded_app_secret"].help_text = "Opcional se estiver configurado no .env da VPS."
+
     class Meta:
         model = WhatsAppIntegration
         fields = [

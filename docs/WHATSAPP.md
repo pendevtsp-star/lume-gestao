@@ -2,14 +2,15 @@
 
 ## Recomendacao
 
-Para este projeto, a melhor escolha inicial e a Meta Cloud API.
+Para este projeto, a melhor escolha inicial e a Meta Cloud API com Embedded Signup.
 
 Motivos:
 
 - e a plataforma oficial da Meta;
 - evita um intermediario extra no longo prazo;
 - combina melhor com um sistema proprio que vai evoluir para notificacoes, webhooks e app;
-- os custos seguem diretamente as regras da WhatsApp Business Platform.
+- os custos seguem diretamente as regras da WhatsApp Business Platform;
+- o usuario final conecta a conta Meta por botao, sem copiar token manualmente.
 
 Quando usar Twilio:
 
@@ -25,8 +26,8 @@ Minha recomendacao pratica: comecar a integracao real pela Meta Cloud API e mant
 2. Um app em Meta for Developers.
 3. Um WhatsApp Business Account, tambem chamado WABA.
 4. Um numero de telefone aprovado para WhatsApp Business.
-5. O `Phone Number ID`.
-6. Um token de acesso permanente ou token de sistema com permissao para WhatsApp.
+5. Uma configuracao de Embedded Signup.
+6. O `Meta App ID`, `Meta Configuration ID` e `Meta App Secret`.
 7. Templates de mensagem aprovados para avisos enviados fora da janela de 24 horas.
 
 ## Variaveis no .env
@@ -37,8 +38,13 @@ WHATSAPP_DRY_RUN=True
 WHATSAPP_META_API_VERSION=v23.0
 WHATSAPP_META_ACCESS_TOKEN=cole-o-token-da-meta
 WHATSAPP_META_PHONE_NUMBER_ID=cole-o-phone-number-id
+WHATSAPP_EMBEDDED_APP_ID=cole-o-meta-app-id
+WHATSAPP_EMBEDDED_CONFIG_ID=cole-o-meta-configuration-id
+WHATSAPP_EMBEDDED_APP_SECRET=cole-o-meta-app-secret
 WHATSAPP_TIMEOUT=15
 ```
+
+Para a experiencia mais simples do usuario final, preencha `WHATSAPP_EMBEDDED_APP_ID`, `WHATSAPP_EMBEDDED_CONFIG_ID` e `WHATSAPP_EMBEDDED_APP_SECRET` no `.env` da VPS. Assim a tela do sistema mostra o botao `Conectar WhatsApp oficial` e mantem a parte tecnica escondida.
 
 Mantenha `WHATSAPP_DRY_RUN=True` enquanto estiver testando. Assim o sistema simula o envio sem disparar mensagem real.
 
@@ -65,6 +71,7 @@ https://sistema.clinicafisiolume.com.br/integracoes/
 Recursos principais da tela:
 
 - configuracao do numero principal da clinica;
+- conexao oficial via Meta Embedded Signup;
 - mensagens de agendamento, cobranca e aniversario com variaveis prontas;
 - envio imediato ou agendado para data e hora especificas;
 - fila de proximos disparos com opcao de cancelamento;

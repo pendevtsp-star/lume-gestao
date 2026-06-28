@@ -428,7 +428,31 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Meta Embedded Signup")
-        self.assertContains(response, "Conectar pela Meta")
+        self.assertContains(response, "Conectar WhatsApp oficial")
+
+    @override_settings(
+        WHATSAPP_EMBEDDED_APP_ID="env-app-id",
+        WHATSAPP_EMBEDDED_CONFIG_ID="env-config-id",
+        WHATSAPP_EMBEDDED_APP_SECRET="env-secret",
+    )
+    def test_connections_tab_uses_meta_embedded_signup_from_env(self):
+        self.client.force_login(self.management)
+
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertContains(response, "Credenciais no .env da VPS")
+        self.assertContains(response, "Conectar WhatsApp oficial")
+
+    @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
+    def test_connections_tab_shows_public_google_callback(self):
+        self.client.force_login(self.management)
+
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertContains(
+            response,
+            "https://sistema.clinicafisiolume.com.br/integracoes/google/callback/",
+        )
 
     @patch("core.views.exchange_whatsapp_embedded_signup_code")
     def test_management_can_finish_whatsapp_embedded_signup(self, exchange_mock):

@@ -28,6 +28,8 @@ from core.integrations.google_calendar import (
     build_google_authorization_url,
     exchange_google_code,
     google_calendar_configured,
+    google_oauth_credentials,
+    google_redirect_uri,
     sync_upcoming_appointments,
 )
 from core.integrations.http import IntegrationError
@@ -38,6 +40,7 @@ from core.integrations.whatsapp import (
     provider_reference_from_response,
     render_whatsapp_template,
     send_whatsapp_text,
+    whatsapp_embedded_signup_credentials,
     whatsapp_embedded_signup_configured,
 )
 from core.models import (
@@ -458,6 +461,10 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
     ):
         google_integration = GoogleCalendarIntegration.load()
         whatsapp_integration = WhatsAppIntegration.load()
+        google_client_id, google_client_secret = google_oauth_credentials(google_integration)
+        whatsapp_app_id, whatsapp_config_id, whatsapp_app_secret = whatsapp_embedded_signup_credentials(
+            whatsapp_integration
+        )
         templates = self.get_whatsapp_templates()
         template_forms = template_forms or self.default_template_forms(templates)
         send_forms = send_forms or self.default_send_forms()
@@ -480,7 +487,24 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             "google": google_integration,
             "whatsapp": whatsapp_integration,
             "google_configured": google_calendar_configured(),
+            "google_callback_url": google_redirect_uri(self.request),
+            "google_uses_env_credentials": bool(
+                google_client_id
+                and google_client_secret
+                and not google_integration.oauth_client_id
+                and not google_integration.oauth_client_secret
+            ),
             "whatsapp_embedded_configured": whatsapp_embedded_signup_configured(whatsapp_integration),
+            "whatsapp_embedded_app_id": whatsapp_app_id,
+            "whatsapp_embedded_config_id": whatsapp_config_id,
+            "whatsapp_uses_env_credentials": bool(
+                whatsapp_app_id
+                and whatsapp_config_id
+                and whatsapp_app_secret
+                and not whatsapp_integration.embedded_app_id
+                and not whatsapp_integration.embedded_config_id
+                and not whatsapp_integration.embedded_app_secret
+            ),
             "whatsapp_templates": templates,
             "template_forms": template_forms,
             "send_forms": send_forms,

@@ -72,8 +72,11 @@ class AuthController extends ChangeNotifier {
     } on ApiException catch (error) {
       errorMessage = error.message;
       status = AuthStatus.signedOut;
+    } on TokenStoreException catch (error) {
+      errorMessage = error.message;
+      status = AuthStatus.signedOut;
     } catch (_) {
-      errorMessage = 'Nao foi possivel salvar a sessao neste dispositivo.';
+      errorMessage = 'Nao foi possivel iniciar a sessao neste dispositivo.';
       status = AuthStatus.signedOut;
     }
     notifyListeners();

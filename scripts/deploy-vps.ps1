@@ -97,13 +97,18 @@ docker compose -f docker-compose.prod.yml ps
 
 echo '[deploy] Validando healthcheck local'
 sleep 5
-curl -fsS -H 'Host: clinicafisiolume.com.br' -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/healthz/
+health_host="`$(grep -E '^LUME_HEALTHCHECK_HOST=' .env | tail -n1 | cut -d= -f2-)"
+if [ -z "`$health_host" ]; then
+  health_host='sistema.clinicafisiolume.com.br'
+fi
+curl -fsS -H "Host: `$health_host" -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/healthz/
 
 echo '[deploy] Recarregando Nginx, se existir'
 $nginxCommand
 
 echo '[deploy] Deploy concluido'
 "@
+$remoteScript = $remoteScript -replace "`r`n", "`n"
 
 Write-Host "[deploy] Executando comandos remotos..."
 & ssh @sshArgs $SshTarget $remoteScript

@@ -30,11 +30,7 @@ class AuthController extends ChangeNotifier {
         return;
       }
 
-      final payload = await _apiClient.getJson('/api/v1/mobile/profile/');
-      profile = UserProfile.fromJson(payload['profile'] as Map<String, dynamic>? ?? {});
-      features = (payload['features'] as List<dynamic>? ?? const [])
-          .whereType<String>()
-          .toList(growable: false);
+      await _loadBootstrapSession();
       status = AuthStatus.signedIn;
       errorMessage = null;
     } on ApiException catch (error) {
@@ -60,22 +56,24 @@ class AuthController extends ChangeNotifier {
 
     try {
       final payload = await _apiClient.postJson(
-        '/api/v1/mobile/auth/login/',
+        '/api/v1/mobile/auth/token/',
         body: {'username': username, 'password': password},
         authenticated: false,
       );
-      final session = MobileSession.fromJson(payload);
-      await _tokenStore.saveToken(session.token);
-      profile = session.profile;
-      features = session.features;
+      final token = payload['token'] as String? ?? '';
+      await _tokenStore.saveToken(token);
+      await _loadBootstrapSession();
       status = AuthStatus.signedIn;
     } on ApiException catch (error) {
+      await _clearLocalToken();
       errorMessage = error.message;
       status = AuthStatus.signedOut;
     } on TokenStoreException catch (error) {
+      await _clearLocalToken();
       errorMessage = error.message;
       status = AuthStatus.signedOut;
     } catch (_) {
+      await _clearLocalToken();
       errorMessage = 'Nao foi possivel iniciar a sessao neste dispositivo.';
       status = AuthStatus.signedOut;
     }
@@ -101,5 +99,17 @@ class AuthController extends ChangeNotifier {
     } catch (_) {
       // A failed local cleanup must not leave the app stuck in the loading state.
     }
+  }
+
+  Future<void> _loadBootstrapSession() async {
+    final payload = await _apiClient.getJson('/api/v1/mobile/bootstrap/');
+    final summary = DashboardSummary.fromJson(payload);
+    if (summary.profile.username.isEmpty || summary.profile.role.isEmpty) {
+      throw const TokenStoreException(
+        'Seu usuario entrou, mas ainda nao possui perfil liberado para o aplicativo.',
+      );
+    }
+    profile = summary.profile;
+    features = summary.features;
   }
 }

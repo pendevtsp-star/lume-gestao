@@ -11,6 +11,7 @@ from mobile.views import (
     MobileConnectLikeView,
     MobilePatientsView,
     MobilePaymentsView,
+    MobileHealthView,
     MobileProfessionalNotesView,
     MobileProfileView,
 )
@@ -18,6 +19,7 @@ from mobile.views import (
 app_name = "mobile"
 
 urlpatterns = [
+    path("health/", MobileHealthView.as_view(), name="health"),
     path("auth/login/", MobileLoginView.as_view(), name="login"),
     path("auth/logout/", MobileLogoutView.as_view(), name="logout"),
     path("bootstrap/", MobileBootstrapView.as_view(), name="bootstrap"),

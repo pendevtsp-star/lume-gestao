@@ -1,5 +1,6 @@
 class AppConfig {
-  static const appVersion = '0.2.1';
+  static const appVersion = '0.2.2';
+  static const productionApiBaseUrl = 'https://clinicafisiolume.com.br';
 
   static const apiBaseUrl = String.fromEnvironment(
     'LUME_API_BASE_URL',

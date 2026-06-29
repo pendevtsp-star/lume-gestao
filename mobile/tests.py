@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
@@ -14,6 +14,11 @@ from scheduling.models import Appointment, ServicePackage
 from team.models import Professional
 
 
+@override_settings(
+    ALLOWED_HOSTS=["testserver", "clinicafisiolume.com.br", "sistema.clinicafisiolume.com.br"],
+    WEBSITE_HOSTS=["clinicafisiolume.com.br"],
+    SYSTEM_HOSTS=["sistema.clinicafisiolume.com.br"],
+)
 class MobileBootstrapTests(TestCase):
     def create_patient_user(self, username="paciente-mobile", password="Senha@123"):
         patient = Patient.objects.create(full_name=f"Paciente {username}")
@@ -67,6 +72,28 @@ class MobileBootstrapTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("token", response.json())
+
+    def test_public_host_exposes_mobile_token_health_and_bootstrap(self):
+        user, _patient = self.create_patient_user(username="public-mobile", password="Senha@123")
+
+        health = self.client.get("/api/v1/mobile/health/", HTTP_HOST="clinicafisiolume.com.br")
+        token_response = self.client.post(
+            "/api/v1/mobile/auth/token/",
+            {"username": "public-mobile", "password": "Senha@123"},
+            HTTP_HOST="clinicafisiolume.com.br",
+        )
+        token = token_response.json()["token"]
+        bootstrap = self.client.get(
+            "/api/v1/mobile/bootstrap/",
+            HTTP_HOST="clinicafisiolume.com.br",
+            HTTP_AUTHORIZATION=f"Token {token}",
+        )
+
+        self.assertEqual(health.status_code, 200)
+        self.assertEqual(health.json()["status"], "ok")
+        self.assertEqual(token_response.status_code, 200)
+        self.assertEqual(bootstrap.status_code, 200)
+        self.assertEqual(bootstrap.json()["profile"]["username"], user.username)
 
     def test_mobile_login_endpoint_returns_profile_and_features(self):
         self.create_patient_user(username="login-mobile", password="Senha@123")

@@ -94,7 +94,7 @@ class ApiClient {
     }
 
     if (response.statusCode >= 400) {
-      final message = _errorMessage(response);
+      final message = _errorMessage(response, path: path);
       throw ApiException(message, statusCode: response.statusCode);
     }
     return response;
@@ -108,13 +108,30 @@ class ApiClient {
     throw const ApiException('Resposta inesperada do servidor.');
   }
 
-  String _errorMessage(http.Response response) {
+  String _errorMessage(http.Response response, {required String path}) {
+    if (response.statusCode == 400 && path.contains('/auth/token/')) {
+      return 'Usuario ou senha invalidos.';
+    }
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      return 'Sessao expirada ou sem permissao. Entre novamente.';
+    }
+    if (response.statusCode == 404) {
+      return 'Servidor encontrado, mas a API mobile nao esta disponivel nesta URL.';
+    }
+    if (response.statusCode >= 500) {
+      return 'Servidor indisponivel no momento. Tente novamente em instantes.';
+    }
+
     try {
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
       if (decoded is Map<String, dynamic>) {
         final detail = decoded['detail'];
         if (detail is String && detail.isNotEmpty) {
           return detail;
+        }
+        final nonFieldErrors = decoded['non_field_errors'];
+        if (nonFieldErrors is List && nonFieldErrors.isNotEmpty) {
+          return nonFieldErrors.first.toString();
         }
       }
     } on FormatException {

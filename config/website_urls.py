@@ -1,5 +1,6 @@
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from rest_framework.authtoken.views import obtain_auth_token
 
 from accounts.views import PasswordRecoveryRequestView
 from core.views import LegalDocumentView
@@ -7,6 +8,8 @@ from core.views import LegalDocumentView
 urlpatterns = [
     path("", include("website.public_urls")),
     path("checkout/", include("checkout.urls")),
+    path("api/v1/mobile/auth/token/", obtain_auth_token, name="mobile_auth_token"),
+    path("api/v1/mobile/", include("mobile.urls")),
     path(
         "login/",
         auth_views.LoginView.as_view(next_page="/"),

@@ -332,6 +332,14 @@ class MobileBootstrapView(APIView):
         }
 
 
+class MobileHealthView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({"status": "ok", "service": "lume-mobile"})
+
+
 class MobileLoginView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]

@@ -53,6 +53,8 @@ urlpatterns = [
     path("relatorios/", include("reports.urls")),
     path("fiscal/", include("fiscal.urls")),
     path("site/", include("website.urls")),
+    path("conteudos/", include("homecare.urls")),
+    path("pilates-em-casa/", include("homecare.public_urls")),
     path("checkout/", include("checkout.urls")),
     path("lume-connect/", include("lume_connect.urls")),
     path("api/v1/mobile/auth/token/", obtain_auth_token, name="mobile_auth_token"),

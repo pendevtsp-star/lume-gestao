@@ -277,3 +277,159 @@ class ConnectComment {
   final String authorInitials;
   final DateTime? createdAt;
 }
+
+class HomecareLibrary {
+  const HomecareLibrary({
+    required this.enabled,
+    required this.hasAccess,
+    required this.plans,
+    required this.categories,
+    required this.videos,
+    required this.continueWatching,
+    this.subscription,
+  });
+
+  factory HomecareLibrary.fromJson(Map<String, dynamic> json) {
+    return HomecareLibrary(
+      enabled: json['enabled'] as bool? ?? false,
+      hasAccess: json['has_access'] as bool? ?? false,
+      subscription: json['subscription'] is Map<String, dynamic>
+          ? HomecareSubscription.fromJson(json['subscription'] as Map<String, dynamic>)
+          : null,
+      plans: (json['plans'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(HomecarePlan.fromJson)
+          .toList(growable: false),
+      categories: (json['categories'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(HomecareCategory.fromJson)
+          .toList(growable: false),
+      videos: (json['videos'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(HomecareVideo.fromJson)
+          .toList(growable: false),
+      continueWatching: (json['continue_watching'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(HomecareVideo.fromJson)
+          .toList(growable: false),
+    );
+  }
+
+  final bool enabled;
+  final bool hasAccess;
+  final HomecareSubscription? subscription;
+  final List<HomecarePlan> plans;
+  final List<HomecareCategory> categories;
+  final List<HomecareVideo> videos;
+  final List<HomecareVideo> continueWatching;
+}
+
+class HomecareSubscription {
+  const HomecareSubscription({
+    required this.plan,
+    required this.statusLabel,
+    this.currentPeriodEnd,
+  });
+
+  factory HomecareSubscription.fromJson(Map<String, dynamic> json) {
+    return HomecareSubscription(
+      plan: json['plan'] as String? ?? '',
+      statusLabel: json['status_label'] as String? ?? '',
+      currentPeriodEnd: DateTime.tryParse(json['current_period_end'] as String? ?? ''),
+    );
+  }
+
+  final String plan;
+  final String statusLabel;
+  final DateTime? currentPeriodEnd;
+}
+
+class HomecarePlan {
+  const HomecarePlan({
+    required this.name,
+    required this.description,
+    required this.monthlyPrice,
+    required this.billingCycleLabel,
+  });
+
+  factory HomecarePlan.fromJson(Map<String, dynamic> json) {
+    return HomecarePlan(
+      name: json['name'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      monthlyPrice: json['monthly_price'] as String? ?? '',
+      billingCycleLabel: json['billing_cycle_label'] as String? ?? '',
+    );
+  }
+
+  final String name;
+  final String description;
+  final String monthlyPrice;
+  final String billingCycleLabel;
+}
+
+class HomecareCategory {
+  const HomecareCategory({
+    required this.name,
+    required this.slug,
+    required this.description,
+  });
+
+  factory HomecareCategory.fromJson(Map<String, dynamic> json) {
+    return HomecareCategory(
+      name: json['name'] as String? ?? '',
+      slug: json['slug'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+    );
+  }
+
+  final String name;
+  final String slug;
+  final String description;
+}
+
+class HomecareVideo {
+  const HomecareVideo({
+    required this.id,
+    required this.title,
+    required this.slug,
+    required this.description,
+    required this.category,
+    required this.author,
+    required this.difficultyLabel,
+    required this.durationLabel,
+    required this.progressPercent,
+    required this.completed,
+    this.thumbnailUrl = '',
+    this.embedUrl = '',
+  });
+
+  factory HomecareVideo.fromJson(Map<String, dynamic> json) {
+    return HomecareVideo(
+      id: json['id'] as int? ?? 0,
+      title: json['title'] as String? ?? '',
+      slug: json['slug'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      category: json['category'] as String? ?? '',
+      author: json['author'] as String? ?? '',
+      difficultyLabel: json['difficulty_label'] as String? ?? '',
+      durationLabel: json['duration_label'] as String? ?? '',
+      progressPercent: json['progress_percent'] as int? ?? 0,
+      completed: json['completed'] as bool? ?? false,
+      thumbnailUrl: json['thumbnail_url'] as String? ?? '',
+      embedUrl: json['embed_url'] as String? ?? '',
+    );
+  }
+
+  final int id;
+  final String title;
+  final String slug;
+  final String description;
+  final String category;
+  final String author;
+  final String difficultyLabel;
+  final String durationLabel;
+  final int progressPercent;
+  final bool completed;
+  final String thumbnailUrl;
+  final String embedUrl;
+}

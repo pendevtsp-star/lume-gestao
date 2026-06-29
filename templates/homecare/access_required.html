@@ -1,0 +1,27 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acesso necessario | Fisioterapia em Casa</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="homecare-public">
+  <main class="homecare-shell compact">
+    <section class="homecare-hero">
+      <div>
+        <p class="eyebrow">Fisioterapia em Casa</p>
+        <h1>Acesso necessario</h1>
+        <p>Sua conta ainda nao possui uma assinatura ativa para a biblioteca de videos.</p>
+        <div class="homecare-actions">
+          {% if homecare_checkout_enabled %}
+            <a class="button secondary" href="{% url 'homecare_public:landing' %}#planos">Ver planos</a>
+          {% endif %}
+          <a class="button primary" href="/login/?next={% url 'homecare_public:library' %}">Entrar com outra conta</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Planos do canal | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Conteudos</p>
+    <h1>Planos do canal</h1>
+  </div>
+  <a class="button primary" href="{% url 'homecare:plan_create' %}">Novo plano</a>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar planos">
+    <button class="button secondary" type="submit">Buscar</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Plano</th><th>Ciclo</th><th>Checkout</th><th>Status</th><th class="right">Valor</th><th class="right">Acao</th></tr></thead>
+      <tbody>
+        {% for plan in plans %}
+          <tr>
+            <td><strong>{{ plan.name }}</strong><div class="table-meta">{{ plan.description|default:"Sem descricao" }}</div></td>
+            <td>{{ plan.get_billing_cycle_display }}</td>
+            <td><span class="badge {% if plan.public_checkout_enabled %}active{% else %}canceled{% endif %}">{% if plan.public_checkout_enabled %}Ativo{% else %}Oculto{% endif %}</span></td>
+            <td><span class="badge {% if plan.active %}active{% else %}canceled{% endif %}">{% if plan.active %}Ativo{% else %}Inativo{% endif %}</span></td>
+            <td class="right">R$ {{ plan.monthly_price|floatformat:2 }}</td>
+            <td class="right"><a class="table-action" href="{% url 'homecare:plan_update' plan.pk %}">Editar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">Nenhum plano encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

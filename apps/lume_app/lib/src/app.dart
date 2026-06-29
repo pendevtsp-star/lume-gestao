@@ -41,7 +41,7 @@ class _LumeAppState extends State<LumeApp> {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0F766E),
+          seedColor: const Color(0xFF60724F),
           brightness: Brightness.light,
         ),
         scaffoldBackgroundColor: const Color(0xFFF7F9F8),

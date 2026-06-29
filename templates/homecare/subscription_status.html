@@ -1,0 +1,25 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Assinatura | Fisioterapia em Casa</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="homecare-public">
+  <main class="homecare-shell compact">
+    <section class="homecare-hero">
+      <div>
+        <p class="eyebrow">Assinatura</p>
+        <h1>{{ subscription.get_status_display }}</h1>
+        <p>{{ subscription.plan.name }} para {{ subscription.patient.full_name }}.</p>
+        {% if subscription.checkout_url %}
+          <a class="button primary" href="{{ subscription.checkout_url }}">Abrir pagamento</a>
+        {% endif %}
+        <a class="button secondary" href="{% url 'homecare_public:library' %}">Ir para biblioteca</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

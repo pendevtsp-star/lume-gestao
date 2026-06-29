@@ -1,0 +1,107 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Biblioteca | Fisioterapia em Casa</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="homecare-public">
+  <main class="homecare-shell">
+    <header class="homecare-library-head">
+      <div>
+        <p class="eyebrow">Fisioterapia em Casa</p>
+        <h1>Biblioteca</h1>
+      </div>
+      <a class="button secondary" href="{% url 'homecare_public:landing' %}">Inicio</a>
+    </header>
+
+    <nav class="homecare-category-tabs">
+      <a {% if not selected_category %}class="is-active"{% endif %} href="{% url 'homecare_public:library' %}">Todos</a>
+      {% for category in categories %}
+        <a {% if selected_category == category.slug %}class="is-active"{% endif %} href="{% url 'homecare_public:category' category.slug %}">{{ category.name }}</a>
+      {% endfor %}
+    </nav>
+
+    <form class="homecare-filter-bar" method="get">
+      <label>
+        <span>Buscar</span>
+        <input class="field-control" type="search" name="q" value="{{ selected_query }}" placeholder="Titulo, foco ou profissional">
+      </label>
+      <label>
+        <span>Nivel</span>
+        <select class="field-control" name="nivel">
+          <option value="">Todos</option>
+          {% for value,label in difficulty_choices %}
+            <option value="{{ value }}" {% if selected_difficulty == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Duracao</span>
+        <select class="field-control" name="duracao">
+          <option value="">Todas</option>
+          {% for value,label in duration_choices %}
+            <option value="{{ value }}" {% if selected_duration == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="homecare-filter-actions">
+        <button class="button secondary" type="submit">Filtrar</button>
+        <a class="button ghost" href="{{ clear_filters_url }}">Limpar</a>
+      </div>
+    </form>
+
+    {% if continue_watching %}
+      <section class="homecare-continue">
+        <div class="homecare-section-head">
+          <p class="eyebrow">Progresso</p>
+          <h2>Continuar assistindo</h2>
+        </div>
+        <div class="homecare-continue-strip">
+          {% for item in continue_watching %}
+            <a class="homecare-continue-card" href="{% url 'homecare_public:video_detail' item.video.slug %}">
+              <span>{{ item.video.category.name }}</span>
+              <strong>{{ item.video.title }}</strong>
+              <div class="homecare-progress" aria-hidden="true"><i style="width: {{ item.progress_percent }}%"></i></div>
+              <small>{{ item.video.duration_label }}</small>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="homecare-video-grid">
+      {% for video in videos %}
+        <a class="homecare-video-card" href="{% url 'homecare_public:video_detail' video.slug %}">
+          <div class="homecare-thumb{% if not video.thumbnail %} is-generated{% endif %}">
+            {% if video.thumbnail %}
+              <img src="{{ video.thumbnail.url }}" alt="">
+            {% else %}
+              <div class="homecare-thumb-fallback">
+                <span class="homecare-play-mark" aria-hidden="true"></span>
+                <strong>{{ video.category.name }}</strong>
+              </div>
+            {% endif %}
+          </div>
+          <span>{{ video.category.name }} - {{ video.get_difficulty_display }}</span>
+          <strong>{{ video.title }}</strong>
+          <p>{{ video.description|truncatechars:120 }}</p>
+          {% if video.viewer_progress %}
+            <div class="homecare-progress" aria-label="Progresso de visualizacao">
+              <i style="width: {{ video.viewer_progress_percent }}%"></i>
+            </div>
+          {% endif %}
+          <small>{{ video.author.full_name }} - {{ video.duration_label }}</small>
+        </a>
+      {% empty %}
+        <article class="homecare-card">
+          <strong>Nenhum video encontrado</strong>
+          <p>Ajuste os filtros ou volte para todos os conteudos da biblioteca.</p>
+        </article>
+      {% endfor %}
+    </section>
+  </main>
+</body>
+</html>

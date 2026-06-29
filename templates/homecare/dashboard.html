@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Fisioterapia em Casa | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Conteudos</p>
+    <h1>Fisioterapia em Casa</h1>
+    <p class="page-subtitle">Gerencie videos, planos e acessos do canal de exercicios em casa.</p>
+  </div>
+  <a class="button primary" href="{% url 'homecare:video_create' %}">Novo video</a>
+</section>
+
+<section class="metric-grid">
+  <article class="metric"><span>Videos</span><strong>{{ video_count }}</strong></article>
+  <article class="metric"><span>Disponiveis</span><strong>{{ published_count }}</strong></article>
+  <article class="metric"><span>Programados</span><strong>{{ scheduled_count }}</strong></article>
+  <article class="metric"><span>Uploads na fila</span><strong>{{ queued_count }}</strong></article>
+  <article class="metric"><span>Assinaturas ativas</span><strong>{{ active_subscriptions }}</strong></article>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Videos recentes</h2>
+        <p>Ultimos conteudos criados ou atualizados.</p>
+      </div>
+      <a class="button secondary compact" href="{% url 'homecare:videos' %}">Ver videos</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Video</th><th>Status</th><th>Publicacao</th><th>Autor</th></tr></thead>
+        <tbody>
+          {% for video in recent_videos %}
+            <tr>
+              <td><strong>{{ video.title }}</strong><div class="table-meta">{{ video.category.name }}</div></td>
+              <td><span class="badge {{ video.status }}">{{ video.get_status_display }}</span></td>
+              <td><span class="badge {{ video.publish_state }}">{{ video.publish_state_label }}</span></td>
+              <td>{{ video.author.full_name }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="empty">Nenhum video cadastrado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Assinaturas recentes</h2>
+        <p>Acessos manuais e assinaturas vindas do checkout.</p>
+      </div>
+      <a class="button secondary compact" href="{% url 'homecare:subscriptions' %}">Ver assinaturas</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Paciente</th><th>Plano</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for subscription in recent_subscriptions %}
+            <tr>
+              <td><strong>{{ subscription.patient.full_name }}</strong></td>
+              <td>{{ subscription.plan.name }}</td>
+              <td><span class="badge {{ subscription.status }}">{{ subscription.get_status_display }}</span></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="empty">Nenhuma assinatura cadastrada.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+{% endblock %}

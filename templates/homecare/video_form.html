@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ section_label }}</p>
+    <h1>{{ page_title }}</h1>
+    <p class="page-subtitle">O arquivo fica temporariamente na VPS apenas ate o envio seguro para o provedor de video.</p>
+  </div>
+  <a class="button secondary" href="{{ back_url }}">Voltar</a>
+</section>
+
+<form method="post" class="video-form-panel" {% if form.is_multipart %}enctype="multipart/form-data"{% endif %}>
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="form-errors">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <div class="video-form-layout">
+    <section class="video-form-section">
+      <div class="video-form-section-head">
+        <span>1</span>
+        <div>
+          <p class="eyebrow">Conteudo</p>
+          <h2>Identificacao do video</h2>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label class="form-field span-2">
+          <span>{{ form.title.label }}</span>
+          {{ form.title }}
+          {% if form.title.help_text %}<small>{{ form.title.help_text }}</small>{% endif %}
+          {% for error in form.title.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ form.slug.label }}</span>
+          {{ form.slug }}
+          {% if form.slug.help_text %}<small>{{ form.slug.help_text }}</small>{% endif %}
+          {% for error in form.slug.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field span-2">
+          <span>{{ form.description.label }}</span>
+          {{ form.description }}
+          {% if form.description.help_text %}<small>{{ form.description.help_text }}</small>{% endif %}
+          {% for error in form.description.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      </div>
+    </section>
+
+    <section class="video-form-section">
+      <div class="video-form-section-head">
+        <span>2</span>
+        <div>
+          <p class="eyebrow">Biblioteca</p>
+          <h2>Classificacao</h2>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label class="form-field">
+          <span>{{ form.category.label }}</span>
+          {{ form.category }}
+          {% for error in form.category.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ form.author.label }}</span>
+          {{ form.author }}
+          {% for error in form.author.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ form.specialty.label }}</span>
+          {{ form.specialty }}
+          {% for error in form.specialty.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ form.difficulty.label }}</span>
+          {{ form.difficulty }}
+          {% for error in form.difficulty.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+        <label class="form-field">
+          <span>{{ form.duration_seconds.label }}</span>
+          {{ form.duration_seconds }}
+          {% if form.duration_seconds.help_text %}<small>{{ form.duration_seconds.help_text }}</small>{% endif %}
+          {% for error in form.duration_seconds.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      </div>
+    </section>
+
+    <section class="video-form-section">
+      <div class="video-form-section-head">
+        <span>3</span>
+        <div>
+          <p class="eyebrow">Midia</p>
+          <h2>Arquivo e publicacao</h2>
+        </div>
+      </div>
+      <div class="video-media-grid">
+        <label class="form-field file-field">
+          <span>{{ form.thumbnail.label }}</span>
+          <div class="file-dropzone">
+            {{ form.thumbnail }}
+            <strong data-file-name-for="{{ form.thumbnail.id_for_label }}">Selecionar capa</strong>
+            <small>{{ form.thumbnail.help_text }}</small>
+          </div>
+          {% if object.thumbnail %}
+            <img class="video-thumb-preview" src="{{ object.thumbnail.url }}" alt="">
+          {% endif %}
+          {% for error in form.thumbnail.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+
+        <label class="form-field file-field">
+          <span>{{ form.upload_file.label }}</span>
+          <div class="file-dropzone file-dropzone-strong">
+            {{ form.upload_file }}
+            <strong data-file-name-for="{{ form.upload_file.id_for_label }}">Selecionar video</strong>
+            <small>{{ form.upload_file.help_text }}</small>
+          </div>
+          {% for error in form.upload_file.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+
+        <label class="form-field video-schedule-field">
+          <span>{{ form.scheduled_publish_at.label }}</span>
+          {{ form.scheduled_publish_at }}
+          {% if form.scheduled_publish_at.help_text %}<small>{{ form.scheduled_publish_at.help_text }}</small>{% endif %}
+          {% for error in form.scheduled_publish_at.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      </div>
+
+      <label class="publish-toggle">
+        {{ form.is_published }}
+        <span>
+          <strong>{{ form.is_published.label }}</strong>
+          <small>Disponibiliza o video para assinantes quando o status estiver pronto. Com data programada, ele aparece apenas no horario definido.</small>
+        </span>
+      </label>
+      {% for error in form.is_published.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+
+      {% if object.pk %}
+        <div class="video-upload-status">
+          <span class="badge {{ object.status }}">{{ object.get_status_display }}</span>
+          {% if object.upload_error %}<p>{{ object.upload_error }}</p>{% endif %}
+        </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="form-actions">
+    <a class="button secondary" href="{{ back_url }}">Cancelar</a>
+    <button class="button primary" type="submit">Salvar video</button>
+  </div>
+</form>
+
+<script>
+  document.querySelectorAll(".file-input").forEach((input) => {
+    const label = document.querySelector(`[data-file-name-for="${input.id}"]`);
+    if (!label) {
+      return;
+    }
+    input.addEventListener("change", () => {
+      label.textContent = input.files && input.files.length ? input.files[0].name : label.textContent;
+    });
+  });
+</script>
+{% endblock %}

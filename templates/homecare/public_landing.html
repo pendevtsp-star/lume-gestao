@@ -1,0 +1,77 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fisioterapia em Casa</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="homecare-public">
+  <main class="homecare-shell">
+    <section class="homecare-hero">
+      <div>
+        <p class="eyebrow">Lume Studio Fisio</p>
+        <h1>Fisioterapia em Casa</h1>
+        <p>Videos orientados por profissionais da clinica para manter movimento, consciencia corporal e rotina de cuidado fora do studio.</p>
+        <div class="homecare-actions">
+          {% if subscription %}
+            <a class="button primary" href="{% url 'homecare_public:library' %}">Entrar na biblioteca</a>
+          {% else %}
+            {% if homecare_checkout_enabled %}
+              <a class="button primary" href="#planos">Ver planos</a>
+            {% endif %}
+            <a class="button secondary" href="/login/?next={% url 'homecare_public:library' %}">Ja sou assinante</a>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="homecare-public-grid">
+      {% for category in categories %}
+        <article class="homecare-card">
+          <span>{{ category.video_total }} video(s)</span>
+          <strong>{{ category.name }}</strong>
+          <p>{{ category.description|default:"Conteudos organizados por foco de atendimento." }}</p>
+        </article>
+      {% empty %}
+        <article class="homecare-card">
+          <span>Em breve</span>
+          <strong>Biblioteca em preparacao</strong>
+          <p>A equipe ainda esta organizando as primeiras aulas.</p>
+        </article>
+      {% endfor %}
+    </section>
+
+    <section id="planos" class="homecare-plans">
+      <div class="homecare-section-head">
+        <p class="eyebrow">Assinatura</p>
+        <h2>Escolha seu acesso</h2>
+      </div>
+      <div class="homecare-public-grid">
+        {% for plan in plans %}
+          <article class="homecare-card">
+            <span>{{ plan.get_billing_cycle_display }}</span>
+            <strong>{{ plan.name }}</strong>
+            <p>{{ plan.description|default:"Acesso aos videos publicados da plataforma." }}</p>
+            <div class="homecare-price">R$ {{ plan.monthly_price|floatformat:2 }}</div>
+            {% if homecare_checkout_enabled %}
+              <form method="post" action="{% url 'homecare_public:subscribe' plan.slug %}">
+                {% csrf_token %}
+                <button class="button primary full" type="submit">Assinar</button>
+              </form>
+            {% else %}
+              <p>Acesso liberado manualmente pela clinica durante a homologacao.</p>
+            {% endif %}
+          </article>
+        {% empty %}
+          <article class="homecare-card">
+            <strong>Planos indisponiveis</strong>
+            <p>Fale com a clinica para liberar seu acesso.</p>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

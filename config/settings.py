@@ -119,6 +119,7 @@ INSTALLED_APPS = [
     'mobile',
     'website',
     'checkout',
+    'homecare',
     'lume_connect',
 ]
 
@@ -288,6 +289,24 @@ CHECKOUT_PUBLIC_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_PUBLIC_ENABLED",
 CHECKOUT_PATIENT_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_PATIENT_ENABLED", default=False, cast=bool)
 CHECKOUT_WEBHOOK_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_WEBHOOK_ENABLED", default=CHECKOUT_ENABLED, cast=bool)
 CHECKOUT_PAYMENT_PROVIDER = config("CHECKOUT_PAYMENT_PROVIDER", default="asaas")
+HOMECARE_ENABLED = config("HOMECARE_ENABLED", default=False, cast=bool)
+HOMECARE_INTERNAL_ENABLED = HOMECARE_ENABLED and config("HOMECARE_INTERNAL_ENABLED", default=HOMECARE_ENABLED, cast=bool)
+HOMECARE_PUBLIC_ENABLED = HOMECARE_ENABLED and config("HOMECARE_PUBLIC_ENABLED", default=False, cast=bool)
+HOMECARE_CHECKOUT_ENABLED = HOMECARE_PUBLIC_ENABLED and config("HOMECARE_CHECKOUT_ENABLED", default=False, cast=bool)
+HOMECARE_WEBHOOK_ENABLED = HOMECARE_ENABLED and config("HOMECARE_WEBHOOK_ENABLED", default=HOMECARE_INTERNAL_ENABLED, cast=bool)
+HOMECARE_UPLOAD_WORKER_ENABLED = HOMECARE_INTERNAL_ENABLED and config(
+    "HOMECARE_UPLOAD_WORKER_ENABLED",
+    default=HOMECARE_INTERNAL_ENABLED,
+    cast=bool,
+)
+HOMECARE_PAYMENT_PROVIDER = config("HOMECARE_PAYMENT_PROVIDER", default="asaas")
+HOMECARE_VIDEO_PROVIDER = config("HOMECARE_VIDEO_PROVIDER", default="bunny")
+HOMECARE_MAX_UPLOAD_MB = config("HOMECARE_MAX_UPLOAD_MB", default=1024, cast=int)
+HOMECARE_UPLOAD_BATCH_SIZE = config("HOMECARE_UPLOAD_BATCH_SIZE", default=3, cast=int)
+BUNNY_STREAM_DRY_RUN = config("BUNNY_STREAM_DRY_RUN", default=True, cast=bool)
+BUNNY_STREAM_API_KEY = config("BUNNY_STREAM_API_KEY", default="")
+BUNNY_STREAM_LIBRARY_ID = config("BUNNY_STREAM_LIBRARY_ID", default="")
+BUNNY_STREAM_TIMEOUT = config("BUNNY_STREAM_TIMEOUT", default=30, cast=int)
 if LUME_STRICT_PRODUCTION and IS_PRODUCTION and CHECKOUT_ENABLED:
     checkout_errors = []
     if ASAAS_DRY_RUN:
@@ -298,6 +317,20 @@ if LUME_STRICT_PRODUCTION and IS_PRODUCTION and CHECKOUT_ENABLED:
         checkout_errors.append("ASAAS_WEBHOOK_TOKEN precisa estar configurado para checkout em producao.")
     if checkout_errors:
         raise ImproperlyConfigured("Configuracao Checkout invalida: " + " ".join(checkout_errors))
+if LUME_STRICT_PRODUCTION and IS_PRODUCTION and HOMECARE_ENABLED:
+    homecare_errors = []
+    if HOMECARE_CHECKOUT_ENABLED and ASAAS_DRY_RUN:
+        homecare_errors.append("HOMECARE_CHECKOUT_ENABLED nao deve ficar ativo com ASAAS_DRY_RUN=True em producao.")
+    if not BUNNY_STREAM_DRY_RUN and _looks_like_placeholder(BUNNY_STREAM_API_KEY):
+        homecare_errors.append("BUNNY_STREAM_API_KEY precisa estar configurado quando Bunny sair do dry-run.")
+    if not BUNNY_STREAM_DRY_RUN and _looks_like_placeholder(BUNNY_STREAM_LIBRARY_ID):
+        homecare_errors.append("BUNNY_STREAM_LIBRARY_ID precisa estar configurado quando Bunny sair do dry-run.")
+    if HOMECARE_CHECKOUT_ENABLED and _looks_like_placeholder(ASAAS_API_KEY):
+        homecare_errors.append("ASAAS_API_KEY precisa estar configurado para o checkout do Homecare.")
+    if HOMECARE_WEBHOOK_ENABLED and _looks_like_placeholder(ASAAS_WEBHOOK_TOKEN):
+        homecare_errors.append("ASAAS_WEBHOOK_TOKEN precisa estar configurado para webhooks do Homecare.")
+    if homecare_errors:
+        raise ImproperlyConfigured("Configuracao Fisioterapia em Casa invalida: " + " ".join(homecare_errors))
 REST_ENABLE_BASIC_AUTH = config("REST_ENABLE_BASIC_AUTH", default=False, cast=bool)
 REST_ENABLE_TOKEN_AUTH = config("REST_ENABLE_TOKEN_AUTH", default=True, cast=bool)
 REST_ENABLE_THROTTLING = config("REST_ENABLE_THROTTLING", default=False, cast=bool)

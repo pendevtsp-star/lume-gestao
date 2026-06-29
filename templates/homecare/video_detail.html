@@ -1,0 +1,48 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ video.title }} | Fisioterapia em Casa</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="homecare-public">
+  <main class="homecare-shell">
+    <header class="homecare-library-head">
+      <div>
+        <p class="eyebrow">{{ video.category.name }}</p>
+        <h1>{{ video.title }}</h1>
+      </div>
+      <a class="button secondary" href="{% url 'homecare_public:library' %}">Biblioteca</a>
+    </header>
+
+    <section class="homecare-player-panel">
+      {% if is_demo_player %}
+        <div class="homecare-player-placeholder">
+          <span class="homecare-player-button" aria-hidden="true"></span>
+          <div>
+            <p class="eyebrow">Preview seguro</p>
+            <strong>{{ video.title }}</strong>
+            <small>O player real sera exibido quando o video estiver no Bunny Stream.</small>
+          </div>
+        </div>
+      {% elif embed_url %}
+        <iframe src="{{ embed_url }}" loading="lazy" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen></iframe>
+      {% else %}
+        <div class="empty">Video indisponivel no provedor.</div>
+      {% endif %}
+    </section>
+
+    <section class="homecare-video-copy">
+      <p>{{ video.description }}</p>
+      <div class="homecare-facts">
+        <span>{{ video.author.full_name }}</span>
+        <span>{{ video.get_difficulty_display }}</span>
+        <span>{{ video.duration_label }}</span>
+        {% if progress and progress.completed %}<span>Concluido</span>{% endif %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

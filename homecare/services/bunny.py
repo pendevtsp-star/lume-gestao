@@ -85,7 +85,7 @@ def upload_provider():
 def local_video_target_name(video, source_path):
     extension = source_path.suffix.lower() or ".mp4"
     slug = slugify(video.slug or video.title) or f"video-{video.pk}"
-    return f"homecare/private/videos/{video.pk}/{slug}-{uuid4().hex[:10]}{extension}"
+    return f"{video.pk}/{slug}-{uuid4().hex[:10]}{extension}"
 
 
 def process_local_video_file(video):

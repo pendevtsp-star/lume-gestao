@@ -358,6 +358,7 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response["X-Accel-Redirect"].startswith("/protected-homecare-media/"))
+        self.assertNotIn("homecare/private", response["X-Accel-Redirect"])
         self.assertEqual(response["Cache-Control"], "private, no-store")
         default_storage.delete(video.local_video_file.name)
 
@@ -479,6 +480,7 @@ class HomecareUploadTests(HomecareTestMixin, TestCase):
         self.assertEqual(video.provider, HomecareVideo.Provider.LOCAL)
         self.assertTrue(video.provider_video_id.startswith("local-"))
         self.assertTrue(video.local_video_file.name.startswith("homecare/private/videos/"))
+        self.assertNotIn("homecare/private/videos/homecare/private", video.local_video_file.name)
         self.assertTrue(default_storage.exists(video.local_video_file.name))
         self.assertFalse(video.temporary_file)
         default_storage.delete(video.local_video_file.name)

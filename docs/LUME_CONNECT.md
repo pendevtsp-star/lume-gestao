@@ -8,12 +8,12 @@ Na tela do feed, use o formulario de publicacao e selecione o campo **Video curt
 
 Limites atuais:
 
-- Formatos aceitos: MP4 e MOV.
+- Formatos aceitos: MP4, MOV e WEBM.
 - Duracao maxima: 60 segundos por padrao (`LUME_CONNECT_MAX_SHORT_VIDEO_SECONDS`).
 - Tamanho maximo: 80 MB por padrao (`LUME_CONNECT_MAX_VIDEO_MB`).
-- Capa/thumbnail opcional: JPG, JPEG, PNG ou WEBP.
+- Capa/thumbnail opcional: JPG, JPEG, PNG ou WEBP. Se nenhuma capa for enviada, o sistema gera uma automaticamente.
 
-A validacao de duracao desta versao le os metadados do arquivo no backend. Se a duracao nao puder ser confirmada, o upload e bloqueado com mensagem amigavel.
+A validacao de duracao usa `ffprobe`. Apos validar, o backend usa `ffmpeg` para otimizar o arquivo e salvar o resultado em MP4 com `faststart`, codec H.264 e audio AAC. Se a duracao nao puder ser confirmada ou o processamento falhar, o upload e bloqueado com mensagem amigavel.
 
 ## Comportamento no feed
 
@@ -49,7 +49,16 @@ LUME_CONNECT_ENABLED=True
 LUME_CONNECT_MAX_IMAGE_MB=8
 LUME_CONNECT_MAX_VIDEO_MB=80
 LUME_CONNECT_MAX_SHORT_VIDEO_SECONDS=60
+LUME_CONNECT_FFMPEG_PATH=ffmpeg
+LUME_CONNECT_FFPROBE_PATH=ffprobe
+LUME_CONNECT_FFMPEG_TIMEOUT_SECONDS=120
+LUME_CONNECT_TRANSCODE_MAX_WIDTH=720
+LUME_CONNECT_TRANSCODE_CRF=28
+LUME_CONNECT_TRANSCODE_PRESET=veryfast
+LUME_CONNECT_TRANSCODE_AUDIO_BITRATE=96k
 ```
+
+O Dockerfile de producao instala `ffmpeg`. Em instalacoes sem Docker, instale `ffmpeg` e `ffprobe` no sistema operacional e confirme que ambos estao no `PATH`, ou ajuste `LUME_CONNECT_FFMPEG_PATH` e `LUME_CONNECT_FFPROBE_PATH`.
 
 ## Deploy
 
@@ -67,6 +76,7 @@ Em VPS com Nginx/Cloudflare, confira tambem:
 
 - limite de upload do Nginx (`client_max_body_size`) maior que `LUME_CONNECT_MAX_VIDEO_MB`;
 - limite de upload/proxy do Cloudflare para o plano usado;
+- CPU e memoria disponiveis para processar videos curtos durante o upload;
 - persistencia do volume de media;
 - backup do banco e da pasta de media antes de atualizacoes de producao.
 
@@ -74,8 +84,5 @@ Em VPS com Nginx/Cloudflare, confira tambem:
 
 Pontos planejados para outra versao:
 
-- Suporte WEBM validado com ferramenta externa.
-- Geracao automatica de thumbnail.
-- Transcodificacao e otimizacao por FFmpeg/ffprobe.
 - HLS/adaptative streaming para videos maiores.
 - Integracao oficial Meta/Instagram para contas profissionais, com OAuth e permissoes oficiais.

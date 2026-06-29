@@ -7,7 +7,7 @@ from core.models import TimeStampedModel
 
 
 ALLOWED_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp"]
-ALLOWED_VIDEO_EXTENSIONS = ["mp4", "mov"]
+ALLOWED_VIDEO_EXTENSIONS = ["mp4", "mov", "webm"]
 
 
 def validate_connect_image_size(image):

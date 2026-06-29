@@ -1,4 +1,5 @@
 from io import BytesIO
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -8,7 +9,7 @@ from PIL import Image
 
 from accounts.models import UserProfile
 from lume_connect.models import ConnectComment, ConnectLike, ConnectPost, ConnectShareLog
-from lume_connect.services.video_metadata import build_test_mp4
+from lume_connect.services.video_metadata import ProcessedVideo, VideoMetadata, VideoProcessingError, build_test_mp4
 
 
 def tiny_png():
@@ -19,6 +20,18 @@ def tiny_png():
 
 def tiny_mp4(duration_seconds=30):
     return build_test_mp4(duration_seconds)
+
+
+def processed_video(duration_seconds=30):
+    video_bytes = tiny_mp4(duration_seconds)
+    return ProcessedVideo(
+        video_bytes=video_bytes,
+        video_name="video-otimizado.mp4",
+        video_size_bytes=len(video_bytes),
+        duration_seconds=duration_seconds,
+        thumbnail_bytes=tiny_png(),
+        thumbnail_name="video-capa.jpg",
+    )
 
 
 @override_settings(MEDIA_ROOT=".codex-tmp/test-media")
@@ -63,31 +76,61 @@ class LumeConnectTests(TestCase):
         self.client.force_login(self.user)
         video = SimpleUploadedFile("alongamento.mp4", tiny_mp4(30), content_type="video/mp4")
 
-        response = self.client.post(
-            reverse("lume_connect:create_post"),
-            {"content": "Sequencia curta", "video": video},
-        )
+        with (
+            patch("lume_connect.forms.probe_video", return_value=VideoMetadata(duration_seconds=30)),
+            patch("lume_connect.forms.process_short_video_upload", return_value=processed_video(30)),
+        ):
+            response = self.client.post(
+                reverse("lume_connect:create_post"),
+                {"content": "Sequencia curta", "video": video},
+            )
 
         self.assertRedirects(response, reverse("lume_connect:feed"))
         post = ConnectPost.objects.get(author=self.user)
         self.assertTrue(post.video.name.startswith("lume_connect/videos/"))
+        self.assertTrue(post.video.name.endswith(".mp4"))
+        self.assertTrue(post.video_thumbnail.name.startswith("lume_connect/video_thumbnails/"))
         self.assertEqual(post.media_type, ConnectPost.MediaType.SHORT_VIDEO)
         self.assertTrue(post.is_short_video)
         self.assertEqual(float(post.video_duration_seconds), 30.0)
         self.assertGreater(post.video_size_bytes, 0)
 
+    def test_user_creates_valid_webm_short_video_post(self):
+        self.client.force_login(self.user)
+        video = SimpleUploadedFile("alongamento.webm", b"webm", content_type="video/webm")
+
+        with (
+            patch("lume_connect.forms.probe_video", return_value=VideoMetadata(duration_seconds=18)),
+            patch("lume_connect.forms.process_short_video_upload", return_value=processed_video(18)),
+        ):
+            response = self.client.post(
+                reverse("lume_connect:create_post"),
+                {"content": "Video webm", "video": video},
+            )
+
+        self.assertRedirects(response, reverse("lume_connect:feed"))
+        post = ConnectPost.objects.get(author=self.user)
+        self.assertTrue(post.video.name.endswith(".mp4"))
+        self.assertTrue(post.video_thumbnail)
+        self.assertEqual(float(post.video_duration_seconds), 18.0)
+
     def test_upload_rejects_short_video_above_sixty_seconds(self):
         self.client.force_login(self.user)
         video = SimpleUploadedFile("longo.mp4", tiny_mp4(61), content_type="video/mp4")
 
-        response = self.client.post(
-            reverse("lume_connect:create_post"),
-            {"content": "Video longo", "video": video},
-        )
+        with (
+            patch("lume_connect.forms.probe_video", return_value=VideoMetadata(duration_seconds=61)),
+            patch("lume_connect.forms.process_short_video_upload") as process_mock,
+        ):
+            response = self.client.post(
+                reverse("lume_connect:create_post"),
+                {"content": "Video longo", "video": video},
+            )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Videos curtos devem ter no maximo")
         self.assertFalse(ConnectPost.objects.exists())
+        process_mock.assert_not_called()
 
     def test_upload_rejects_invalid_video_format(self):
         self.client.force_login(self.user)
@@ -99,7 +142,24 @@ class LumeConnectTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Use um video MP4 ou MOV.")
+        self.assertContains(response, "Use um video MP4, MOV ou WEBM.")
+        self.assertFalse(ConnectPost.objects.exists())
+
+    def test_upload_reports_video_processing_failure(self):
+        self.client.force_login(self.user)
+        video = SimpleUploadedFile("falha.webm", b"webm", content_type="video/webm")
+
+        with (
+            patch("lume_connect.forms.probe_video", return_value=VideoMetadata(duration_seconds=20)),
+            patch("lume_connect.forms.process_short_video_upload", side_effect=VideoProcessingError("Falha no ffmpeg")),
+        ):
+            response = self.client.post(
+                reverse("lume_connect:create_post"),
+                {"content": "Falha", "video": video},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Falha no ffmpeg")
         self.assertFalse(ConnectPost.objects.exists())
 
     def test_feed_renders_short_video_player(self):

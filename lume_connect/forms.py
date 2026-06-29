@@ -1,11 +1,12 @@
 from django import forms
 from django.conf import settings
+from django.core.files.base import ContentFile
 
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
 from core.forms import StyledModelForm
 from lume_connect.models import ALLOWED_IMAGE_EXTENSIONS, ALLOWED_VIDEO_EXTENSIONS, ConnectComment, ConnectPost
-from lume_connect.services.video_metadata import get_mp4_duration_seconds
+from lume_connect.services.video_metadata import VideoProcessingError, probe_video, process_short_video_upload
 
 
 class ConnectPostForm(StyledModelForm):
@@ -19,7 +20,7 @@ class ConnectPostForm(StyledModelForm):
                     "placeholder": "Compartilhe uma novidade, foto, video curto ou recado com a comunidade.",
                 }
             ),
-            "video": forms.FileInput(attrs={"accept": ".mp4,.mov,video/mp4,video/quicktime"}),
+            "video": forms.FileInput(attrs={"accept": ".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"}),
             "video_thumbnail": forms.FileInput(attrs={"accept": ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"}),
         }
 
@@ -27,6 +28,8 @@ class ConnectPostForm(StyledModelForm):
         self.user = user
         self._video_duration_seconds = None
         self._video_size_bytes = None
+        self._video_metadata = None
+        self._processed_video = None
         super().__init__(*args, **kwargs)
         profile = get_profile(self.user) if self.user and self.user.is_authenticated else None
         can_moderate = bool(
@@ -41,7 +44,7 @@ class ConnectPostForm(StyledModelForm):
             "LUME_CONNECT_MAX_IMAGE_MB",
             8,
         )
-        self.fields["video"].help_text = "MP4 ou MOV, ate %s MB e ate %s segundos." % (
+        self.fields["video"].help_text = "MP4, MOV ou WEBM, ate %s MB e ate %s segundos. O sistema otimiza para MP4 automaticamente." % (
             getattr(settings, "LUME_CONNECT_MAX_VIDEO_MB", 80),
             getattr(settings, "LUME_CONNECT_MAX_SHORT_VIDEO_SECONDS", 60),
         )
@@ -82,19 +85,28 @@ class ConnectPostForm(StyledModelForm):
 
         extension = video.name.rsplit(".", 1)[-1].lower() if "." in video.name else ""
         if extension not in ALLOWED_VIDEO_EXTENSIONS:
-            raise forms.ValidationError("Use um video MP4 ou MOV.")
+            raise forms.ValidationError("Use um video MP4, MOV ou WEBM.")
 
         content_type = getattr(video, "content_type", "")
-        allowed_content_types = {"video/mp4", "video/quicktime", "application/mp4", "application/octet-stream"}
+        allowed_content_types = {
+            "video/mp4",
+            "video/quicktime",
+            "video/webm",
+            "application/mp4",
+            "application/octet-stream",
+        }
         if content_type and content_type not in allowed_content_types:
-            raise forms.ValidationError("O arquivo enviado nao parece ser um video MP4 ou MOV permitido.")
+            raise forms.ValidationError("O arquivo enviado nao parece ser um video MP4, MOV ou WEBM permitido.")
 
-        duration = get_mp4_duration_seconds(video)
+        try:
+            metadata = probe_video(video)
+        except VideoProcessingError as exc:
+            raise forms.ValidationError(str(exc)) from exc
+        duration = metadata.duration_seconds
         max_seconds = getattr(settings, "LUME_CONNECT_MAX_SHORT_VIDEO_SECONDS", 60)
-        if duration is None:
-            raise forms.ValidationError("Nao foi possivel confirmar a duracao do video. Envie um MP4 ou MOV valido.")
         if duration > max_seconds:
             raise forms.ValidationError(f"Videos curtos devem ter no maximo {max_seconds} segundos.")
+        self._video_metadata = metadata
         self._video_duration_seconds = duration
         self._video_size_bytes = video.size
         return video
@@ -126,6 +138,17 @@ class ConnectPostForm(StyledModelForm):
             raise forms.ValidationError("Escolha imagem ou video, nao os dois no mesmo post.")
         if not content and not image and not video and not has_existing_image and not has_existing_video:
             raise forms.ValidationError("Escreva um texto, adicione uma imagem ou envie um video curto para publicar.")
+        if video and not image:
+            try:
+                self._processed_video = process_short_video_upload(
+                    video,
+                    metadata=self._video_metadata,
+                    generate_thumbnail=not bool(cleaned_data.get("video_thumbnail")),
+                )
+            except VideoProcessingError as exc:
+                raise forms.ValidationError(str(exc)) from exc
+            self._video_duration_seconds = self._processed_video.duration_seconds
+            self._video_size_bytes = self._processed_video.video_size_bytes
         profile = get_profile(self.user) if self.user and self.user.is_authenticated else None
         can_moderate = bool(
             self.user
@@ -142,6 +165,13 @@ class ConnectPostForm(StyledModelForm):
     def save(self, commit=True):
         instance = super().save(commit=False)
         if self.cleaned_data.get("video"):
+            if self._processed_video:
+                instance.video = ContentFile(self._processed_video.video_bytes, name=self._processed_video.video_name)
+                if self._processed_video.thumbnail_bytes and not self.cleaned_data.get("video_thumbnail"):
+                    instance.video_thumbnail = ContentFile(
+                        self._processed_video.thumbnail_bytes,
+                        name=self._processed_video.thumbnail_name,
+                    )
             instance.video_duration_seconds = self._video_duration_seconds
             instance.video_size_bytes = self._video_size_bytes
             instance.is_short_video = True

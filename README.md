@@ -49,8 +49,8 @@ docs/CHECKOUT_ONLINE.md
 - Posts com texto e imagem, curtidas, comentarios, busca, filtros por avisos/fotos e pagina simples de perfil.
 - Moderacao por administracao, gerencia ou superusuario; exclusoes removem itens do feed sem apagar os registros fisicos.
 - Uploads usam `MEDIA_ROOT`/`MEDIA_URL` existentes e aceitam JPG, JPEG, PNG e WEBP. O limite padrao e `LUME_CONNECT_MAX_IMAGE_MB=8`.
-- Videos curtos ficam em `MEDIA_ROOT/lume_connect/videos/`, aceitam MP4/MOV, usam autoplay controlado no feed e respeitam `LUME_CONNECT_MAX_SHORT_VIDEO_SECONDS=60` e `LUME_CONNECT_MAX_VIDEO_MB=80`.
-- A validacao de duracao desta versao le metadados MP4/MOV no backend, sem dependencia externa. Suporte a WEBM/transcodificacao fica para evolucao futura com `ffprobe`/FFmpeg.
+- Videos curtos ficam em `MEDIA_ROOT/lume_connect/videos/`, aceitam MP4/MOV/WEBM, usam autoplay controlado no feed e respeitam `LUME_CONNECT_MAX_SHORT_VIDEO_SECONDS=60` e `LUME_CONNECT_MAX_VIDEO_MB=80`.
+- A validacao de duracao usa `ffprobe`; o upload e otimizado para MP4/H.264 com `ffmpeg` e gera capa automaticamente quando o usuario nao envia uma capa.
 - Submodulo "Compartilhar nas redes" para posts com imagem do proprio autor: gerar legenda, editar, copiar, baixar imagem e usar compartilhamento nativo do celular.
 - Instagram nesta versao e manual: baixe a imagem, copie a legenda e publique pelo app. Publicacao direta via API Meta/Instagram fica para uma etapa futura com OAuth, conta profissional e permissoes oficiais.
 - A legenda funciona sem IA externa. Para preparar uma integracao futura, configure `AI_CAPTION_ENABLED`, `AI_PROVIDER`, `AI_API_KEY` e `AI_CAPTION_MODEL`; chaves reais devem ficar apenas no `.env`.

@@ -1,5 +1,8 @@
-from django.conf import settings
 from urllib.parse import urlparse
+
+from django.conf import settings
+
+from homecare.features import homecare_checkout_enabled, homecare_internal_enabled, homecare_public_enabled
 
 
 def website_urls(_request):
@@ -12,4 +15,7 @@ def website_urls(_request):
         "checkout_enabled": settings.CHECKOUT_ENABLED,
         "checkout_public_enabled": settings.CHECKOUT_ENABLED and settings.CHECKOUT_PUBLIC_ENABLED,
         "checkout_patient_enabled": settings.CHECKOUT_ENABLED and settings.CHECKOUT_PATIENT_ENABLED,
+        "homecare_internal_enabled": homecare_internal_enabled(),
+        "homecare_public_enabled": homecare_public_enabled(),
+        "homecare_checkout_enabled": homecare_checkout_enabled(),
     }

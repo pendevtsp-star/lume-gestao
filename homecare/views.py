@@ -30,9 +30,29 @@ from homecare.services.bunny import build_bunny_embed_url
 from homecare.services.payments import get_payment_provider, record_asaas_webhook, start_checkout_subscription
 
 
+def included_homecare_access_for_user(user):
+    if not user.is_authenticated or not user.is_active:
+        return False
+    if user.is_superuser:
+        return True
+    profile = get_profile(user)
+    if not profile:
+        return False
+    if profile.is_patient:
+        return bool(profile.patient_id and profile.patient.active)
+    return profile.role in {
+        UserProfile.Role.PROFESSIONAL,
+        UserProfile.Role.ADMINISTRATION,
+        UserProfile.Role.MANAGEMENT,
+        UserProfile.Role.VIEWER,
+    }
+
+
 def active_subscription_for_user(user):
     profile = get_profile(user)
     if not profile or not profile.is_patient or not profile.patient_id:
+        return None
+    if not profile.patient.active:
         return None
     now = timezone.now()
     return (
@@ -354,6 +374,7 @@ class HomecarePortalLandingView(HomecarePublicEnabledMixin, TemplateView):
                 "subscription": active_subscription_for_user(self.request.user)
                 if self.request.user.is_authenticated
                 else None,
+                "has_included_access": included_homecare_access_for_user(self.request.user),
             }
         )
         return context
@@ -363,8 +384,11 @@ class HomecarePortalAccessMixin(HomecarePublicEnabledMixin, LoginRequiredMixin):
     login_url = "/login/"
 
     def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
         self.subscription = active_subscription_for_user(request.user)
-        if not self.subscription:
+        self.has_included_access = included_homecare_access_for_user(request.user)
+        if not (self.subscription or self.has_included_access):
             return redirect("homecare_public:access_required")
         return super().dispatch(request, *args, **kwargs)
 
@@ -376,6 +400,7 @@ class HomecareAccessRequiredView(HomecarePublicEnabledMixin, LoginRequiredMixin,
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["plans"] = HomecarePlan.objects.filter(active=True, public_checkout_enabled=True)
+        context["has_included_access"] = included_homecare_access_for_user(self.request.user)
         return context
 
 
@@ -440,6 +465,7 @@ class HomecareLibraryView(HomecarePortalAccessMixin, ListView):
             {
                 "categories": HomecareCategory.objects.filter(active=True),
                 "subscription": self.subscription,
+                "has_included_access": self.has_included_access,
                 "selected_category": selected_category,
                 "selected_query": self.request.GET.get("q", "").strip(),
                 "selected_difficulty": self.request.GET.get("nivel", ""),
@@ -511,8 +537,8 @@ class HomecareSubscribeView(HomecarePublicEnabledMixin, LoginRequiredMixin, View
             return redirect("homecare_public:access_required")
         plan = get_object_or_404(HomecarePlan, slug=slug, active=True, public_checkout_enabled=True)
         profile = get_profile(request.user)
-        if not profile or not profile.is_patient or not profile.patient_id:
-            messages.error(request, "A assinatura precisa estar vinculada a um paciente cadastrado.")
+        if not profile or not profile.is_patient or not profile.patient_id or not profile.patient.active:
+            messages.error(request, "A assinatura precisa estar vinculada a um paciente ativo cadastrado.")
             return redirect("homecare_public:access_required")
         subscription = HomecareSubscription.objects.create(
             patient=profile.patient,

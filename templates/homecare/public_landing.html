@@ -15,13 +15,13 @@
         <h1>Fisioterapia em Casa</h1>
         <p>Videos orientados por profissionais da clinica para manter movimento, consciencia corporal e rotina de cuidado fora do studio.</p>
         <div class="homecare-actions">
-          {% if subscription %}
+          {% if subscription or has_included_access %}
             <a class="button primary" href="{% url 'homecare_public:library' %}">Entrar na biblioteca</a>
           {% else %}
             {% if homecare_checkout_enabled %}
               <a class="button primary" href="#planos">Ver planos</a>
             {% endif %}
-            <a class="button secondary" href="/login/?next={% url 'homecare_public:library' %}">Ja sou assinante</a>
+            <a class="button secondary" href="/login/?next={% url 'homecare_public:library' %}">Entrar com minha conta</a>
           {% endif %}
         </div>
       </div>

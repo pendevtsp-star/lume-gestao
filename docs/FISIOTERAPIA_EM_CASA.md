@@ -9,7 +9,7 @@ Modulo de videos sob assinatura para pacientes da clinica. O MVP usa a mesma ins
 - Biblioteca autenticada: `/pilates-em-casa/biblioteca/`
 - Webhook Asaas: `/conteudos/webhooks/asaas/`
 
-No host publico, `clinicafisiolume.com.br/pilates-em-casa/` so deve ser liberado quando `HOMECARE_PUBLIC_ENABLED=True`.
+No host publico, `clinicafisiolume.com.br/pilates-em-casa/` fica disponivel quando `HOMECARE_PUBLIC_ENABLED=True`.
 
 ## Flags de ativacao
 
@@ -18,7 +18,7 @@ Use essas flags para separar instalacao, homologacao e operacao real:
 ```text
 HOMECARE_ENABLED=True
 HOMECARE_INTERNAL_ENABLED=True
-HOMECARE_PUBLIC_ENABLED=False
+HOMECARE_PUBLIC_ENABLED=True
 HOMECARE_CHECKOUT_ENABLED=False
 HOMECARE_WEBHOOK_ENABLED=False
 HOMECARE_UPLOAD_WORKER_ENABLED=True
@@ -28,7 +28,7 @@ Modo recomendado agora:
 
 - `HOMECARE_ENABLED=True`: tabelas, codigo e rotas protegidas prontos.
 - `HOMECARE_INTERNAL_ENABLED=True`: equipe consegue preparar categorias, planos, videos e liberacoes manuais.
-- `HOMECARE_PUBLIC_ENABLED=False`: portal publico bloqueado ate aprovacao final.
+- `HOMECARE_PUBLIC_ENABLED=True`: portal publico disponivel para usuarios autenticados.
 - `HOMECARE_CHECKOUT_ENABLED=False`: nenhuma venda online aparece ou processa.
 - `HOMECARE_WEBHOOK_ENABLED=False`: webhook externo bloqueado ate fase de gateway.
 - `ASAAS_DRY_RUN=True` e `BUNNY_STREAM_DRY_RUN=True`: nenhuma cobranca real e nenhum envio real ao provedor de video.
@@ -37,7 +37,9 @@ Modo recomendado agora:
 
 - Profissional: cadastra e edita apenas os proprios videos.
 - Administracao/Gerencia: gerenciam videos, categorias, planos, assinaturas e eventos de pagamento.
-- Paciente: acessa a biblioteca apenas com assinatura ativa ou liberacao manual.
+- Paciente ativo: acessa a biblioteca sem assinatura durante a fase inicial da clinica.
+- Paciente inativo: nao acessa a biblioteca sem assinatura ativa.
+- Compras, assinaturas e liberacoes manuais do canal continuam no codigo para uso comercial futuro, mas o checkout permanece desligado nesta fase.
 
 ## Bunny Stream
 
@@ -97,7 +99,7 @@ Essa receita usa `Charge` porque o pagamento do canal nao depende de uma mensali
 
 ## Deploy
 
-Para homologacao fechada, sem liberar uso real:
+Para homologacao inicial, com portal disponivel apenas para usuarios autenticados:
 
 1. Fazer backup da VPS.
 2. Aplicar migracoes.
@@ -108,7 +110,7 @@ Para homologacao fechada, sem liberar uso real:
 python manage.py bootstrap_homecare_homologation
 ```
 
-5. Para liberar acesso manual a um paciente especifico:
+5. Para liberar acesso manual a um paciente especifico, caso seja necessario testar uma assinatura futura:
 
 ```bash
 python manage.py bootstrap_homecare_homologation --patient-id ID_DO_PACIENTE --access-days 30
@@ -124,7 +126,7 @@ Antes de liberar dados reais:
 4. Testar painel interno em `/conteudos/`.
 5. Testar upload com `BUNNY_STREAM_DRY_RUN=True`.
 6. Liberar manualmente um paciente de homologacao.
-7. Testar login no portal somente quando `HOMECARE_PUBLIC_ENABLED=True`.
+7. Testar login no portal com paciente ativo e com profissional/gestao.
 8. Testar webhook Asaas em sandbox somente quando `HOMECARE_WEBHOOK_ENABLED=True`.
 9. Fazer compra teste do canal apenas no fim da implementacao, evitando custo agora.
 10. Remover dry-run somente depois de confirmar upload, assinatura, financeiro e acesso.

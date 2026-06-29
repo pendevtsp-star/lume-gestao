@@ -23,6 +23,9 @@
       <nav class="nav">
         <a href="{% url 'dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Dashboard</span></a>
         <a href="{% url 'lume_connect:feed' %}"><span class="nav-icon icon-connect" aria-hidden="true"></span><span>Lume Connect</span></a>
+        {% if homecare_public_enabled %}
+          <a href="{% url 'homecare_public:library' %}"><span class="nav-icon icon-video" aria-hidden="true"></span><span>Lume em casa</span></a>
+        {% endif %}
         {% if request.user.profile.role != "patient" %}
           <a href="{% url 'patients:list' %}"><span class="nav-icon icon-patients" aria-hidden="true"></span><span>Pacientes</span></a>
         {% endif %}
@@ -35,6 +38,9 @@
         {% endif %}
         {% if request.user.profile.role == "professional" %}
           <a href="{% url 'patients:notes' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Prontuario</span></a>
+          {% if homecare_internal_enabled %}
+            <a href="{% url 'homecare:videos' %}"><span class="nav-icon icon-video" aria-hidden="true"></span><span>Videos Lume em casa</span></a>
+          {% endif %}
         {% endif %}
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
           <details class="nav-menu" {% if request.resolver_match.app_name == "reports" or request.resolver_match.url_name == "audit" %}open{% endif %}>
@@ -68,6 +74,22 @@
           </details>
           <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Pacotes</span></a>
           <a href="{% url 'billing:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos</span></a>
+          {% if homecare_internal_enabled %}
+            <details class="nav-menu" {% if request.resolver_match.app_name == "homecare" %}open{% endif %}>
+              <summary>
+                <span class="nav-icon icon-video" aria-hidden="true"></span>
+                <span>Gestao Lume em casa</span>
+              </summary>
+              <div class="nav-submenu">
+                <a href="{% url 'homecare:dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Visao geral</span></a>
+                <a href="{% url 'homecare:videos' %}"><span class="nav-icon icon-video" aria-hidden="true"></span><span>Videos</span></a>
+                <a href="{% url 'homecare:categories' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Categorias</span></a>
+                <a href="{% url 'homecare:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos do canal</span></a>
+                <a href="{% url 'homecare:subscriptions' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Assinaturas</span></a>
+                <a href="{% url 'homecare:payment_events' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Eventos</span></a>
+              </div>
+            </details>
+          {% endif %}
           <a href="{% url 'fiscal:dashboard' %}"><span class="nav-icon icon-finance" aria-hidden="true"></span><span>Fiscal</span></a>
           <a href="{% url 'team:professionals' %}"><span class="nav-icon icon-professionals" aria-hidden="true"></span><span>Profissionais</span></a>
           <a href="{% url 'team:employees' %}"><span class="nav-icon icon-employees" aria-hidden="true"></span><span>Funcionarios</span></a>

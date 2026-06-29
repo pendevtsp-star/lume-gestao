@@ -125,6 +125,16 @@ class HomecarePermissionTests(HomecareTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 302)
 
+    @override_settings(HOMECARE_PUBLIC_ENABLED=True)
+    def test_internal_menu_shows_homecare_entries(self):
+        user = self.create_user("gestao-menu-homecare", UserProfile.Role.MANAGEMENT)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare:videos"))
+
+        self.assertContains(response, "Lume em casa")
+        self.assertContains(response, "Gestao Lume em casa")
+
     def test_management_can_schedule_video_upload(self):
         user = self.create_user("gestao-agenda-video", UserProfile.Role.MANAGEMENT)
         scheduled_at = (timezone.now() + timedelta(days=3)).replace(second=0, microsecond=0)
@@ -180,13 +190,41 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
             current_period_end=timezone.now() + timedelta(days=30),
         )
 
-    def test_patient_without_subscription_is_redirected_to_access_required(self):
-        user = self.create_user("paciente-sem-acesso", UserProfile.Role.PATIENT, patient=self.patient)
+    def test_anonymous_user_is_redirected_to_login_before_library_access_check(self):
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/", response["Location"])
+
+    def test_active_patient_without_subscription_can_access_library(self):
+        user = self.create_user("paciente-sem-assinatura", UserProfile.Role.PATIENT, patient=self.patient)
+        video = self.create_ready_video()
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, video.title)
+
+    def test_inactive_patient_without_subscription_is_redirected_to_access_required(self):
+        self.patient.active = False
+        self.patient.save(update_fields=["active", "updated_at"])
+        user = self.create_user("paciente-inativo", UserProfile.Role.PATIENT, patient=self.patient)
         self.client.force_login(user)
 
         response = self.client.get(reverse("homecare_public:library"))
 
         self.assertRedirects(response, reverse("homecare_public:access_required"))
+
+    def test_professional_can_access_library_without_subscription(self):
+        user = self.create_user("prof-biblioteca", UserProfile.Role.PROFESSIONAL, professional=self.professional)
+        video = self.create_ready_video()
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, video.title)
 
     def test_patient_with_active_subscription_can_watch_video(self):
         user = self.create_user("paciente-com-acesso", UserProfile.Role.PATIENT, patient=self.patient)
@@ -423,6 +461,17 @@ class HomecareFeatureFlagTests(HomecareTestMixin, TestCase):
         response = self.client.get(reverse("homecare_public:landing"))
 
         self.assertEqual(response.status_code, 404)
+
+    @override_settings(
+        HOMECARE_ENABLED=True,
+        HOMECARE_PUBLIC_ENABLED=True,
+        WEBSITE_HOSTS=["clinicafisiolume.com.br"],
+        ALLOWED_HOSTS=["testserver", "clinicafisiolume.com.br"],
+    )
+    def test_public_portal_is_available_on_website_host(self):
+        response = self.client.get(reverse("homecare_public:landing"), HTTP_HOST="clinicafisiolume.com.br")
+
+        self.assertEqual(response.status_code, 200)
 
     @override_settings(HOMECARE_ENABLED=True, HOMECARE_PUBLIC_ENABLED=True, HOMECARE_CHECKOUT_ENABLED=False)
     def test_checkout_disabled_does_not_create_subscription(self):

@@ -179,6 +179,7 @@ img {
 .button-primary,
 .button-secondary,
 .floating-whatsapp,
+.floating-instagram,
 .assistant-questions button {
   display: inline-flex;
   align-items: center;
@@ -198,6 +199,13 @@ img {
   box-shadow: 0 14px 28px rgba(97, 113, 79, 0.18);
 }
 
+.floating-instagram {
+  background: linear-gradient(135deg, #515bd4 0%, #8134af 32%, #dd2a7b 68%, #f58529 100%);
+  color: #fffdf8;
+  font-weight: 700;
+  box-shadow: 0 14px 28px rgba(129, 52, 175, 0.26);
+}
+
 .button-secondary,
 .assistant-questions button {
   border: 1px solid var(--line);
@@ -208,6 +216,7 @@ img {
 .button-primary:hover,
 .button-secondary:hover,
 .floating-whatsapp:hover,
+.floating-instagram:hover,
 .assistant-questions button:hover,
 .reel-card:hover {
   transform: translateY(-2px);
@@ -618,11 +627,22 @@ img {
   justify-items: start;
 }
 
-.floating-whatsapp {
+.floating-social {
   position: fixed;
   right: 18px;
   bottom: 18px;
   z-index: 10;
+  display: grid;
+  gap: 10px;
+  justify-items: end;
+}
+
+.floating-whatsapp {
+  min-width: 136px;
+}
+
+.floating-instagram {
+  min-width: 136px;
 }
 
 .site-footer {
@@ -768,7 +788,7 @@ img {
     max-width: none;
   }
 
-  .floating-whatsapp {
+  .floating-social {
     display: none;
   }
 

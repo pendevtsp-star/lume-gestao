@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Lume Connect | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Comunidade interna</p>
+    <h1>Lume Connect</h1>
+  </div>
+  <a class="button primary" href="{% url 'lume_connect:create_post' %}">Novo post</a>
+</section>
+
+<section class="connect-layout">
+  <div class="connect-main">
+    <article class="panel connect-composer-panel">
+      <form class="connect-composer" method="post" enctype="multipart/form-data" action="{% url 'lume_connect:create_post' %}">
+        {% csrf_token %}
+        {{ post_form.non_field_errors }}
+        {{ post_form.content }}
+        <div class="connect-composer-row">
+          <label class="file-dropzone connect-file-field">
+            {{ post_form.image }}
+            <strong>Adicionar foto</strong>
+            <small>JPG, PNG ou WEBP</small>
+          </label>
+          <div class="connect-composer-actions">
+            {% if is_connect_moderator %}
+              <label class="connect-check">{{ post_form.is_pinned }} Fixar</label>
+              <label class="connect-check">{{ post_form.is_announcement }} Aviso</label>
+            {% endif %}
+            <button class="button primary" type="submit">Publicar</button>
+          </div>
+        </div>
+        {{ post_form.image.errors }}
+      </form>
+    </article>
+
+    <form class="connect-filter-bar" method="get">
+      <label>
+        <span>Buscar</span>
+        <input class="field-control" type="search" name="q" value="{{ q }}" placeholder="Texto ou autor">
+      </label>
+      <label>
+        <span>Tipo</span>
+        <select class="field-control" name="tipo">
+          <option value="todos" {% if selected_type == "todos" %}selected{% endif %}>Todos</option>
+          <option value="avisos" {% if selected_type == "avisos" %}selected{% endif %}>Avisos</option>
+          <option value="fotos" {% if selected_type == "fotos" %}selected{% endif %}>Fotos</option>
+        </select>
+      </label>
+      <button class="button secondary" type="submit">Filtrar</button>
+      <a class="button ghost" href="{% url 'lume_connect:feed' %}">Limpar</a>
+    </form>
+
+    <div class="connect-feed">
+      {% for post in posts %}
+        {% include "lume_connect/_post.html" %}
+      {% empty %}
+        <div class="empty-state soft connect-empty">
+          <strong>A comunidade ainda esta quietinha.</strong>
+          <span>Publique o primeiro recado, foto ou novidade do studio.</span>
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if is_paginated %}
+      <div class="pagination">
+        {% if page_obj.has_previous %}
+          <a class="button secondary compact" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_type %}&tipo={{ selected_type }}{% endif %}">Anterior</a>
+        {% endif %}
+        <span>Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+          <a class="button secondary compact" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_type %}&tipo={{ selected_type }}{% endif %}">Proxima</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  <aside class="connect-side">
+    <article class="panel">
+      <header class="panel-header">
+        <div>
+          <h2>Notificacoes</h2>
+          <p>{{ unread_notifications_total }} nova{{ unread_notifications_total|pluralize }}</p>
+        </div>
+        {% if unread_notifications_total %}
+          <form method="post" action="{% url 'lume_connect:mark_notifications_read' %}">
+            {% csrf_token %}
+            <button class="button secondary compact" type="submit">Marcar lidas</button>
+          </form>
+        {% endif %}
+      </header>
+      <div class="connect-notifications">
+        {% for notification in unread_notifications %}
+          <div>
+            <strong>{{ notification.actor_name }}</strong>
+            <span>
+              {% if notification.notification_type == "like" %}curtiu seu post{% else %}comentou no seu post{% endif %}
+            </span>
+          </div>
+        {% empty %}
+          <p>Sem notificacoes novas.</p>
+        {% endfor %}
+      </div>
+    </article>
+  </aside>
+</section>
+
+<script>
+  document.querySelectorAll(".connect-like-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector(".connect-like-button");
+      const counter = form.querySelector(".connect-like-count");
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: {"Accept": "application/json", "X-Requested-With": "XMLHttpRequest"},
+        credentials: "same-origin"
+      });
+      if (!response.ok) {
+        form.submit();
+        return;
+      }
+      const payload = await response.json();
+      button.classList.toggle("is-liked", payload.liked);
+      button.textContent = payload.liked ? button.dataset.likedLabel : button.dataset.unlikedLabel;
+      counter.textContent = payload.likes_count;
+    });
+  });
+</script>
+{% endblock %}

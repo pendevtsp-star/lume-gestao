@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Perfil no Lume Connect | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div class="heading-identity">
+    <span class="avatar avatar-lg">
+      {% if profile_avatar_url %}
+        <img src="{{ profile_avatar_url }}" alt="">
+      {% else %}
+        {{ profile_initials }}
+      {% endif %}
+    </span>
+    <div>
+      <p class="eyebrow">Perfil no Lume Connect</p>
+      <h1>{{ profile_name }}</h1>
+    </div>
+  </div>
+  <a class="button secondary" href="{% url 'lume_connect:feed' %}">Voltar ao feed</a>
+</section>
+
+<section class="connect-feed connect-profile-feed">
+  {% for post in posts %}
+    {% include "lume_connect/_post.html" %}
+  {% empty %}
+    <div class="empty-state soft connect-empty">
+      <strong>Nenhum post publicado ainda.</strong>
+      <span>Quando houver publicacoes deste perfil, elas aparecem aqui.</span>
+    </div>
+  {% endfor %}
+</section>
+{% endblock %}

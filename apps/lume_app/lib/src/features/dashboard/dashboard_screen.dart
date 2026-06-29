@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../models/mobile_models.dart';
 import '../../services/api_client.dart';
 import '../auth/auth_controller.dart';
+import '../connect/connect_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
@@ -21,6 +22,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late Future<DashboardSummary> _future;
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -41,60 +43,124 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Lume Gestao'),
-        actions: [
-          IconButton(
-            tooltip: 'Atualizar',
-            onPressed: _reload,
-            icon: const Icon(Icons.refresh),
+    return FutureBuilder<DashboardSummary>(
+      future: _future,
+      builder: (context, snapshot) {
+        final summary = snapshot.data;
+        final tabs = _tabsFor(summary);
+        final selectedIndex = _selectedIndex >= tabs.length ? 0 : _selectedIndex;
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Lume Gestao'),
+            actions: [
+              IconButton(
+                tooltip: 'Atualizar',
+                onPressed: _reload,
+                icon: const Icon(Icons.refresh),
+              ),
+              IconButton(
+                tooltip: 'Sair',
+                onPressed: widget.controller.signOut,
+                icon: const Icon(Icons.logout),
+              ),
+            ],
           ),
-          IconButton(
-            tooltip: 'Sair',
-            onPressed: widget.controller.signOut,
-            icon: const Icon(Icons.logout),
-          ),
-        ],
-      ),
-      body: FutureBuilder<DashboardSummary>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return _FailureState(
-              message: snapshot.error.toString(),
-              onRetry: _reload,
-            );
-          }
-          final summary = snapshot.requireData;
-          return RefreshIndicator(
-            onRefresh: () async => _reload(),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              children: [
-                _ProfileHeader(profile: summary.profile),
-                const SizedBox(height: 16),
-                if (summary.metrics.isNotEmpty) _MetricsGrid(metrics: summary.metrics),
-                if (summary.weeklyCredits != null || summary.packageCredits != null) ...[
-                  const SizedBox(height: 16),
-                  _CreditsSection(
-                    weekly: summary.weeklyCredits,
-                    packageCredits: summary.packageCredits,
-                  ),
-                ],
-                if (summary.nextPayment != null) ...[
-                  const SizedBox(height: 16),
-                  _PaymentCard(payment: summary.nextPayment!),
-                ],
-                const SizedBox(height: 16),
-                _AppointmentsSection(appointments: summary.nextAppointments),
-              ],
+          body: _bodyFor(snapshot, tabs, selectedIndex),
+          bottomNavigationBar: tabs.length <= 1
+              ? null
+              : NavigationBar(
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: (index) {
+                    setState(() {
+                      _selectedIndex = index;
+                    });
+                  },
+                  destinations: [
+                    for (final tab in tabs)
+                      NavigationDestination(
+                        icon: Icon(tab.icon),
+                        label: tab.label,
+                      ),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+
+  List<_AppTab> _tabsFor(DashboardSummary? summary) {
+    final features = summary?.features ?? widget.controller.features;
+    return [
+      const _AppTab(label: 'Inicio', icon: Icons.dashboard_outlined),
+      if (features.contains('lume_connect')) const _AppTab(label: 'Connect', icon: Icons.groups_outlined),
+    ];
+  }
+
+  Widget _bodyFor(
+    AsyncSnapshot<DashboardSummary> snapshot,
+    List<_AppTab> tabs,
+    int selectedIndex,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting && snapshot.data == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (snapshot.hasError && snapshot.data == null) {
+      return _FailureState(
+        message: snapshot.error.toString(),
+        onRetry: _reload,
+      );
+    }
+    final label = tabs[selectedIndex].label;
+    if (label == 'Connect') {
+      return ConnectScreen(apiClient: widget.apiClient);
+    }
+    return _DashboardTab(
+      summary: snapshot.requireData,
+      onRefresh: () async => _reload(),
+    );
+  }
+}
+
+class _AppTab {
+  const _AppTab({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+}
+
+class _DashboardTab extends StatelessWidget {
+  const _DashboardTab({
+    required this.summary,
+    required this.onRefresh,
+  });
+
+  final DashboardSummary summary;
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        children: [
+          _ProfileHeader(profile: summary.profile),
+          const SizedBox(height: 16),
+          if (summary.metrics.isNotEmpty) _MetricsGrid(metrics: summary.metrics),
+          if (summary.weeklyCredits != null || summary.packageCredits != null) ...[
+            const SizedBox(height: 16),
+            _CreditsSection(
+              weekly: summary.weeklyCredits,
+              packageCredits: summary.packageCredits,
             ),
-          );
-        },
+          ],
+          if (summary.nextPayment != null) ...[
+            const SizedBox(height: 16),
+            _PaymentCard(payment: summary.nextPayment!),
+          ],
+          const SizedBox(height: 16),
+          _AppointmentsSection(appointments: summary.nextAppointments),
+        ],
       ),
     );
   }

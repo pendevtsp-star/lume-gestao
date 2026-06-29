@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Eventos de checkout | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Checkout</p>
+    <h1>Eventos de pagamento</h1>
+    <p class="page-subtitle">Histórico bruto dos webhooks recebidos do provedor.</p>
+  </div>
+  <a class="button secondary" href="{% url 'checkout:orders' %}">Pedidos</a>
+</section>
+
+<form class="filters" method="get">
+  <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar evento, pagamento ou referencia">
+  <button class="button secondary" type="submit">Buscar</button>
+</form>
+
+<section class="panel">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Evento</th><th>Pedido</th><th>Pagamento</th><th>Token</th><th>Processado</th><th>Criado em</th></tr></thead>
+      <tbody>
+        {% for event in events %}
+          <tr>
+            <td><strong>{{ event.event_type }}</strong><div class="table-meta">{{ event.event_id }}</div></td>
+            <td>{% if event.order %}{{ event.order.customer_name }}{% else %}-{% endif %}</td>
+            <td>{{ event.provider_payment_id|default:"-" }}</td>
+            <td><span class="badge {% if event.access_token_valid %}active{% else %}canceled{% endif %}">{% if event.access_token_valid %}Valido{% else %}Nao validado{% endif %}</span></td>
+            <td>{% if event.processed_at %}{{ event.processed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+            <td>{{ event.created_at|date:"d/m/Y H:i" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">Nenhum evento encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

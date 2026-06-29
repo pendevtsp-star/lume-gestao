@@ -1,0 +1,34 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Status do pedido | Lume</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'images/website/favicon-lume.svg' %}?v=20260628-lume">
+  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260628-slim">
+</head>
+<body>
+  <main class="site-main">
+    <section class="contact-section shell-panel">
+      <div>
+        <p class="eyebrow">Pedido {{ order.get_status_display }}</p>
+        <h1>{{ order.customer_name }}</h1>
+        <p class="section-text">
+          {% if order.is_paid %}
+            Pagamento confirmado. Se este foi seu primeiro acesso, suas credenciais serao enviadas por e-mail ou WhatsApp.
+          {% else %}
+            Aguardando confirmacao do pagamento pelo provedor. Isso pode levar alguns instantes.
+          {% endif %}
+        </p>
+        <div class="hero-actions">
+          {% if order.checkout_url and not order.is_paid %}
+            <a class="button primary" href="{{ order.checkout_url }}">Abrir pagamento</a>
+          {% endif %}
+          <a class="button secondary" href="/">Voltar ao site</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -181,3 +181,99 @@ class CreditsPreview {
   final int used;
   final int remaining;
 }
+
+class ConnectFeed {
+  const ConnectFeed({
+    required this.unreadNotifications,
+    required this.posts,
+  });
+
+  factory ConnectFeed.fromJson(Map<String, dynamic> json) {
+    return ConnectFeed(
+      unreadNotifications: json['unread_notifications'] as int? ?? 0,
+      posts: (json['posts'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ConnectPost.fromJson)
+          .toList(growable: false),
+    );
+  }
+
+  final int unreadNotifications;
+  final List<ConnectPost> posts;
+}
+
+class ConnectPost {
+  const ConnectPost({
+    required this.id,
+    required this.content,
+    required this.authorName,
+    required this.authorInitials,
+    required this.createdAt,
+    required this.likesCount,
+    required this.commentsCount,
+    required this.likedByMe,
+    required this.recentComments,
+    this.imageUrl = '',
+    this.isPinned = false,
+    this.isAnnouncement = false,
+  });
+
+  factory ConnectPost.fromJson(Map<String, dynamic> json) {
+    return ConnectPost(
+      id: json['id'] as int? ?? 0,
+      content: json['content'] as String? ?? '',
+      imageUrl: json['image_url'] as String? ?? '',
+      authorName: json['author_name'] as String? ?? '',
+      authorInitials: json['author_initials'] as String? ?? 'U',
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
+      likesCount: json['likes_count'] as int? ?? 0,
+      commentsCount: json['comments_count'] as int? ?? 0,
+      likedByMe: json['liked_by_me'] as bool? ?? false,
+      isPinned: json['is_pinned'] as bool? ?? false,
+      isAnnouncement: json['is_announcement'] as bool? ?? false,
+      recentComments: (json['recent_comments'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ConnectComment.fromJson)
+          .toList(growable: false),
+    );
+  }
+
+  final int id;
+  final String content;
+  final String imageUrl;
+  final String authorName;
+  final String authorInitials;
+  final DateTime? createdAt;
+  final int likesCount;
+  final int commentsCount;
+  final bool likedByMe;
+  final bool isPinned;
+  final bool isAnnouncement;
+  final List<ConnectComment> recentComments;
+}
+
+class ConnectComment {
+  const ConnectComment({
+    required this.id,
+    required this.content,
+    required this.authorName,
+    required this.authorInitials,
+    required this.createdAt,
+  });
+
+  factory ConnectComment.fromJson(Map<String, dynamic> json) {
+    return ConnectComment(
+      id: json['id'] as int? ?? 0,
+      content: json['content'] as String? ?? '',
+      authorName: json['author_name'] as String? ?? '',
+      authorInitials: json['author_initials'] as String? ?? 'U',
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
+    );
+  }
+
+  final int id;
+  final String content;
+  final String authorName;
+  final String authorInitials;
+  final DateTime? createdAt;
+}

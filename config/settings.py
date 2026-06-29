@@ -20,6 +20,7 @@ from decouple import config
 BASE_DIR = Path(__file__).resolve().parent.parent
 LUME_DESKTOP = config("LUME_DESKTOP", default=False, cast=bool)
 LUME_DATA_DIR = Path(config("LUME_DATA_DIR", default=str(BASE_DIR))).resolve()
+APP_VERSION = config("APP_VERSION", default="0.2.0")
 
 
 # Quick-start development settings - unsuitable for production
@@ -117,6 +118,8 @@ INSTALLED_APPS = [
     'fiscal',
     'mobile',
     'website',
+    'checkout',
+    'lume_connect',
 ]
 
 MIDDLEWARE = [
@@ -241,6 +244,12 @@ STATICFILES_STORAGE = (
 MEDIA_URL = 'media/'
 DEFAULT_MEDIA_ROOT = LUME_DATA_DIR / 'media' if LUME_DESKTOP else BASE_DIR / 'media'
 MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(DEFAULT_MEDIA_ROOT))).resolve()
+LUME_CONNECT_ENABLED = config("LUME_CONNECT_ENABLED", default=True, cast=bool)
+LUME_CONNECT_MAX_IMAGE_MB = config("LUME_CONNECT_MAX_IMAGE_MB", default=8, cast=int)
+AI_CAPTION_ENABLED = config("AI_CAPTION_ENABLED", default=False, cast=bool)
+AI_PROVIDER = config("AI_PROVIDER", default="")
+AI_API_KEY = config("AI_API_KEY", default="")
+AI_CAPTION_MODEL = config("AI_CAPTION_MODEL", default="")
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
@@ -269,6 +278,26 @@ WHATSAPP_EMBEDDED_APP_ID = config("WHATSAPP_EMBEDDED_APP_ID", default="")
 WHATSAPP_EMBEDDED_CONFIG_ID = config("WHATSAPP_EMBEDDED_CONFIG_ID", default="")
 WHATSAPP_EMBEDDED_APP_SECRET = config("WHATSAPP_EMBEDDED_APP_SECRET", default="")
 WHATSAPP_TIMEOUT = config("WHATSAPP_TIMEOUT", default=15, cast=int)
+ASAAS_DRY_RUN = config("ASAAS_DRY_RUN", default=True, cast=bool)
+ASAAS_BASE_URL = config("ASAAS_BASE_URL", default="https://sandbox.asaas.com/api/v3")
+ASAAS_API_KEY = config("ASAAS_API_KEY", default="")
+ASAAS_WEBHOOK_TOKEN = config("ASAAS_WEBHOOK_TOKEN", default="")
+ASAAS_TIMEOUT = config("ASAAS_TIMEOUT", default=20, cast=int)
+CHECKOUT_ENABLED = config("CHECKOUT_ENABLED", default=False, cast=bool)
+CHECKOUT_PUBLIC_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_PUBLIC_ENABLED", default=False, cast=bool)
+CHECKOUT_PATIENT_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_PATIENT_ENABLED", default=False, cast=bool)
+CHECKOUT_WEBHOOK_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_WEBHOOK_ENABLED", default=CHECKOUT_ENABLED, cast=bool)
+CHECKOUT_PAYMENT_PROVIDER = config("CHECKOUT_PAYMENT_PROVIDER", default="asaas")
+if LUME_STRICT_PRODUCTION and IS_PRODUCTION and CHECKOUT_ENABLED:
+    checkout_errors = []
+    if ASAAS_DRY_RUN:
+        checkout_errors.append("CHECKOUT_ENABLED nao deve ficar ativo com ASAAS_DRY_RUN=True em producao.")
+    if _looks_like_placeholder(ASAAS_API_KEY):
+        checkout_errors.append("ASAAS_API_KEY precisa estar configurado para checkout em producao.")
+    if _looks_like_placeholder(ASAAS_WEBHOOK_TOKEN):
+        checkout_errors.append("ASAAS_WEBHOOK_TOKEN precisa estar configurado para checkout em producao.")
+    if checkout_errors:
+        raise ImproperlyConfigured("Configuracao Checkout invalida: " + " ".join(checkout_errors))
 REST_ENABLE_BASIC_AUTH = config("REST_ENABLE_BASIC_AUTH", default=False, cast=bool)
 REST_ENABLE_TOKEN_AUTH = config("REST_ENABLE_TOKEN_AUTH", default=True, cast=bool)
 REST_ENABLE_THROTTLING = config("REST_ENABLE_THROTTLING", default=False, cast=bool)

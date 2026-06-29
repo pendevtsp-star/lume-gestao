@@ -5,6 +5,12 @@ from website.models import WebsiteFAQ, WebsiteSettings, WebsiteTestimonial
 
 
 class WebsiteSettingsForm(StyledModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["whatsapp_url"].help_text = "Define o destino do botao flutuante e dos CTAs de WhatsApp no site."
+        self.fields["instagram_url"].help_text = "Define o destino do botao flutuante e dos links de Instagram no site."
+        self.fields["system_url"].help_text = "Define o acesso ao sistema pelo botao publico do site."
+
     class Meta:
         model = WebsiteSettings
         fields = [

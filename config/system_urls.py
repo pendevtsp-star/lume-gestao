@@ -53,6 +53,8 @@ urlpatterns = [
     path("relatorios/", include("reports.urls")),
     path("fiscal/", include("fiscal.urls")),
     path("site/", include("website.urls")),
+    path("checkout/", include("checkout.urls")),
+    path("lume-connect/", include("lume_connect.urls")),
     path("api/v1/mobile/auth/token/", obtain_auth_token, name="mobile_auth_token"),
     path("api/v1/mobile/", include("mobile.urls")),
     path("api/v1/", include(router.urls)),
@@ -71,4 +73,3 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-

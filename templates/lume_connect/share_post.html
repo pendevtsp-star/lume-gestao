@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Compartilhar nas redes | Lume Connect{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Lume Connect</p>
+    <h1>Compartilhar no Instagram ou outras redes</h1>
+  </div>
+  <a class="button secondary" href="{% url 'lume_connect:feed' %}">Voltar ao feed</a>
+</section>
+
+<section class="connect-share-layout">
+  <article class="panel connect-share-preview">
+    <header class="panel-header">
+      <div>
+        <h2>Previa do post</h2>
+        <p>Voce controla o que sera compartilhado. Nada sera publicado automaticamente.</p>
+      </div>
+    </header>
+    <div class="connect-share-image-wrap">
+      <img class="connect-share-image" src="{{ post.image.url }}" alt="Imagem do post para compartilhar">
+    </div>
+    {% if post.content %}
+      <div class="connect-share-original">
+        <strong>Texto original</strong>
+        <p>{{ post.content }}</p>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="panel connect-share-tools">
+    <header class="panel-header">
+      <div>
+        <h2>Legenda e acoes</h2>
+        <p>Criamos uma sugestao de legenda para voce. Edite como quiser antes de publicar.</p>
+      </div>
+    </header>
+    <div class="connect-share-body">
+      <div class="message warning connect-caption-message" data-caption-message>{{ caption_message }}</div>
+
+      <label class="form-field">
+        <span>Legenda editavel</span>
+        <textarea class="field-control" rows="9" data-share-caption>{{ suggested_caption }}</textarea>
+      </label>
+
+      <label class="connect-consent">
+        <input type="checkbox" data-share-consent>
+        <span>Confirmo que desejo compartilhar esta imagem fora do Lume Connect.</span>
+      </label>
+
+      <p class="connect-share-note">
+        Para postar no Instagram, baixe a imagem, copie a legenda e cole no aplicativo antes de publicar.
+      </p>
+
+      <div class="connect-share-actions">
+        <button class="button secondary" type="button" data-generate-caption>Gerar legenda com IA</button>
+        <button class="button secondary" type="button" data-copy-caption disabled>Copiar legenda</button>
+        <button class="button secondary" type="button" data-native-share disabled>Compartilhar pelo celular</button>
+      </div>
+
+      <form method="post" action="{% url 'lume_connect:download_post_image' post.pk %}" data-download-form>
+        {% csrf_token %}
+        <input type="hidden" name="generated_caption" value="{{ suggested_caption }}" data-generated-caption>
+        <input type="hidden" name="final_caption" value="{{ suggested_caption }}" data-final-caption>
+        <button class="button primary" type="submit" disabled data-download-button>Baixar imagem</button>
+      </form>
+
+      <div class="connect-platform-links">
+        <button class="button ghost" type="button" data-platform="instagram" disabled>Abrir Instagram</button>
+        <button class="button ghost" type="button" data-platform="whatsapp" disabled>WhatsApp</button>
+        <button class="button ghost" type="button" data-platform="facebook" disabled>Facebook</button>
+      </div>
+    </div>
+  </article>
+</section>
+
+<script>
+  const captionField = document.querySelector("[data-share-caption]");
+  const consent = document.querySelector("[data-share-consent]");
+  const generatedCaption = document.querySelector("[data-generated-caption]");
+  const finalCaption = document.querySelector("[data-final-caption]");
+  const messageBox = document.querySelector("[data-caption-message]");
+  const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]").value;
+  const gatedButtons = document.querySelectorAll("[data-copy-caption], [data-native-share], [data-download-button], [data-platform]");
+
+  function updateFinalCaption() {
+    finalCaption.value = captionField.value;
+  }
+
+  function updateConsentState() {
+    gatedButtons.forEach((button) => {
+      button.disabled = !consent.checked;
+    });
+  }
+
+  async function logShare(targetPlatform) {
+    const payload = new FormData();
+    payload.append("target_platform", targetPlatform);
+    payload.append("generated_caption", generatedCaption.value);
+    payload.append("final_caption", captionField.value);
+    await fetch("{% url 'lume_connect:log_share' post.pk %}", {
+      method: "POST",
+      headers: {"X-CSRFToken": csrfToken, "Accept": "application/json"},
+      body: payload,
+      credentials: "same-origin"
+    });
+  }
+
+  captionField.addEventListener("input", updateFinalCaption);
+  consent.addEventListener("change", updateConsentState);
+
+  document.querySelector("[data-generate-caption]").addEventListener("click", async () => {
+    const response = await fetch("{% url 'lume_connect:generate_caption' post.pk %}", {
+      method: "POST",
+      headers: {"X-CSRFToken": csrfToken, "Accept": "application/json"},
+      credentials: "same-origin"
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    captionField.value = payload.caption;
+    generatedCaption.value = payload.caption;
+    updateFinalCaption();
+    messageBox.textContent = payload.message;
+  });
+
+  document.querySelector("[data-copy-caption]").addEventListener("click", async () => {
+    updateFinalCaption();
+    await navigator.clipboard.writeText(captionField.value);
+    await logShare("copy_caption");
+    messageBox.textContent = "Legenda copiada. Agora voce pode colar no aplicativo antes de publicar.";
+  });
+
+  document.querySelector("[data-native-share]").addEventListener("click", async () => {
+    updateFinalCaption();
+    if (!navigator.share) {
+      messageBox.textContent = "Este navegador nao oferece compartilhamento nativo. Copie a legenda e baixe a imagem.";
+      return;
+    }
+    await logShare("native");
+    await navigator.share({
+      title: "Studio Lume",
+      text: captionField.value
+    });
+  });
+
+  document.querySelector("[data-download-form]").addEventListener("submit", () => {
+    updateFinalCaption();
+  });
+
+  document.querySelectorAll("[data-platform]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const platform = button.dataset.platform;
+      updateFinalCaption();
+      await logShare(platform);
+      if (platform === "instagram") {
+        window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+      } else if (platform === "whatsapp") {
+        window.open(`https://wa.me/?text=${encodeURIComponent(captionField.value)}`, "_blank", "noopener,noreferrer");
+      } else if (platform === "facebook") {
+        window.open("https://www.facebook.com/", "_blank", "noopener,noreferrer");
+      }
+    });
+  });
+
+  updateConsentState();
+</script>
+{% endblock %}

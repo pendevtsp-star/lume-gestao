@@ -1,0 +1,57 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ browser_title|default:page_title }}</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'images/website/favicon-lume.svg' %}?v=20260628-lume">
+  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260628-slim">
+</head>
+<body>
+  <main class="site-main">
+    <section class="contact-section shell-panel">
+      <div>
+        <p class="eyebrow">Checkout seguro</p>
+        <h1>{{ plan.name }}</h1>
+        <p class="section-text">{{ plan.public_description|default:plan.description|default:"Finalize sua adesao online. A liberacao acontece apenas apos confirmacao do pagamento." }}</p>
+      </div>
+    </section>
+
+    <section class="plans-section shell-panel">
+      <div class="section-head">
+        <p class="eyebrow">Dados essenciais</p>
+        <h2>Informe seus dados para iniciar o pagamento.</h2>
+      </div>
+      <div class="plan-grid">
+        <article class="plan-card">
+          {% if plan.highlight_badge %}<span class="plan-badge">{{ plan.highlight_badge }}</span>{% endif %}
+          <p class="plan-category">{{ plan.get_category_display }}</p>
+          <h3>{{ plan.name }}</h3>
+          <p class="plan-description">{{ plan.sessions_per_week }} sessoes por semana.</p>
+          <div class="plan-footer">
+            <strong>R$ {{ plan.monthly_price|floatformat:2 }}</strong>
+            <span>Pagamento processado pelo provedor configurado da Lume.</span>
+          </div>
+        </article>
+        <form method="post" class="plan-card">
+          {% csrf_token %}
+          {{ form.non_field_errors }}
+          {% for field in form %}
+            <label>
+              <span class="plan-category">{{ field.label }}</span>
+              {{ field }}
+              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+              {{ field.errors }}
+            </label>
+          {% endfor %}
+          <button class="button primary" type="submit">Ir para pagamento</button>
+          <p class="plan-description">
+            Nao guardamos dados de cartao no sistema. O cadastro do paciente so e ativado apos confirmacao do pagamento.
+          </p>
+        </form>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

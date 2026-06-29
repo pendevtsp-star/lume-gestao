@@ -1,0 +1,85 @@
+<article class="connect-post">
+  <header class="connect-post-head">
+    <a class="connect-author" href="{% url 'lume_connect:profile' post.author_id %}">
+      <span class="avatar">
+        {% if post.author_avatar_url %}
+          <img src="{{ post.author_avatar_url }}" alt="">
+        {% else %}
+          {{ post.author_initials }}
+        {% endif %}
+      </span>
+      <span>
+        <strong>{{ post.author_name }}</strong>
+        <small>{{ post.created_at|date:"d/m/Y H:i" }}</small>
+      </span>
+    </a>
+    <div class="connect-post-tags">
+      {% if post.is_pinned %}<span class="status-pill">Fixado</span>{% endif %}
+      {% if post.is_announcement %}<span class="status-pill warning">Aviso</span>{% endif %}
+    </div>
+  </header>
+
+  {% if post.content %}
+    <div class="connect-post-content">{{ post.content|linebreaks }}</div>
+  {% endif %}
+
+  {% if post.image %}
+    <img class="connect-post-image" src="{{ post.image.url }}" alt="Imagem publicada por {{ post.author_name }}">
+  {% endif %}
+
+  <footer class="connect-post-actions">
+    <form class="connect-like-form" method="post" action="{% url 'lume_connect:toggle_like' post.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button class="button secondary compact connect-like-button{% if post.user_has_liked %} is-liked{% endif %}" type="submit" data-liked-label="Curtido" data-unliked-label="Curtir">
+        {% if post.user_has_liked %}Curtido{% else %}Curtir{% endif %}
+      </button>
+      <span class="connect-like-count">{{ post.likes_total }}</span>
+    </form>
+    <span>{{ post.comments_total }} comentario{{ post.comments_total|pluralize }}</span>
+    <span class="connect-post-manage">
+      {% if post.user_can_edit %}
+        <a href="{% url 'lume_connect:edit_post' post.pk %}">Editar</a>
+      {% endif %}
+      {% if post.user_can_delete %}
+        <a href="{% url 'lume_connect:delete_post' post.pk %}">Excluir</a>
+      {% endif %}
+      {% if post.user_can_share %}
+        <a class="connect-share-link" href="{% url 'lume_connect:share_post' post.pk %}">Compartilhar</a>
+      {% endif %}
+    </span>
+  </footer>
+
+  <section class="connect-comments">
+    {% for comment in post.active_comments %}
+      <article class="connect-comment">
+        <span class="avatar avatar-sm">
+          {% if comment.author_avatar_url %}
+            <img src="{{ comment.author_avatar_url }}" alt="">
+          {% else %}
+            {{ comment.author_initials }}
+          {% endif %}
+        </span>
+        <div>
+          <p><strong>{{ comment.author_name }}</strong> <small>{{ comment.created_at|date:"d/m/Y H:i" }}</small></p>
+          <div>{{ comment.content|linebreaks }}</div>
+          {% if comment.user_can_edit or comment.user_can_delete %}
+            <div class="connect-comment-actions">
+              {% if comment.user_can_edit %}<a href="{% url 'lume_connect:edit_comment' comment.pk %}">Editar</a>{% endif %}
+              {% if comment.user_can_delete %}<a href="{% url 'lume_connect:delete_comment' comment.pk %}">Excluir</a>{% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </article>
+    {% empty %}
+      <p class="connect-comment-empty">Seja a primeira pessoa a comentar.</p>
+    {% endfor %}
+
+    <form class="connect-comment-form" method="post" action="{% url 'lume_connect:add_comment' post.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      {{ comment_form.content }}
+      <button class="button secondary compact" type="submit">Comentar</button>
+    </form>
+  </section>
+</article>

@@ -1,7 +1,9 @@
 from datetime import datetime, time, timedelta
 
-from django.db.models import Sum
+from django.conf import settings
+from django.db.models import Count, Sum
 from django.contrib.auth import authenticate
+from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from rest_framework import status
@@ -13,6 +15,7 @@ from rest_framework.views import APIView
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
 from billing.models import Membership, Payment
+from lume_connect.models import ConnectComment, ConnectLike, ConnectNotification, ConnectPost
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
 from patients.views import patients_for_user
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
@@ -36,6 +39,8 @@ def profile_payload(profile):
 
 def features_for(profile, is_superuser):
     features = ["dashboard", "agenda", "minha_conta"]
+    if getattr(settings, "LUME_CONNECT_ENABLED", True):
+        features.append("lume_connect")
     if profile.is_patient:
         features.extend(["meu_plano", "meus_creditos", "meus_pagamentos"])
     if profile.is_professional:
@@ -45,6 +50,47 @@ def features_for(profile, is_superuser):
     if is_superuser or profile.role == UserProfile.Role.MANAGEMENT:
         features.extend(["usuarios", "auditoria", "configuracoes"])
     return features
+
+
+def absolute_media_url(request, value):
+    if not value:
+        return ""
+    try:
+        url = value.url
+    except ValueError:
+        return ""
+    if url.startswith(("http://", "https://")):
+        return url
+    return request.build_absolute_uri(url)
+
+
+def connect_comment_payload(comment):
+    return {
+        "id": comment.id,
+        "content": comment.content,
+        "author_name": comment.author_name,
+        "author_initials": comment.author_initials,
+        "created_at": comment.created_at.isoformat(),
+    }
+
+
+def connect_post_payload(request, post, liked_post_ids=None):
+    liked_post_ids = liked_post_ids or set()
+    recent_comments = list(getattr(post, "recent_mobile_comments", []))
+    return {
+        "id": post.id,
+        "content": post.content,
+        "image_url": absolute_media_url(request, post.image),
+        "author_name": post.author_name,
+        "author_initials": post.author_initials,
+        "created_at": post.created_at.isoformat(),
+        "is_pinned": post.is_pinned,
+        "is_announcement": post.is_announcement,
+        "liked_by_me": post.id in liked_post_ids,
+        "likes_count": getattr(post, "likes_count", 0),
+        "comments_count": getattr(post, "comments_count", 0),
+        "recent_comments": [connect_comment_payload(comment) for comment in recent_comments],
+    }
 
 
 def _local_datetime(value, fallback):
@@ -149,6 +195,8 @@ class MobileBootstrapView(APIView):
 
     def features_for(self, profile, is_superuser):
         features = ["dashboard", "agenda", "minha_conta"]
+        if getattr(settings, "LUME_CONNECT_ENABLED", True):
+            features.append("lume_connect")
         if profile.is_patient:
             features.extend(["meu_plano", "meus_creditos"])
         if profile.is_professional:
@@ -425,3 +473,87 @@ class MobileProfessionalNotesView(APIView):
                 ]
             }
         )
+
+
+class MobileConnectFeedView(APIView):
+    def get(self, request):
+        posts = list(
+            ConnectPost.objects.select_related("author", "author__profile")
+            .filter(is_active=True)
+            .annotate(likes_count=Count("likes"), comments_count=Count("comments"))
+            .order_by("-is_pinned", "-created_at")[:30]
+        )
+        post_ids = [post.id for post in posts]
+        comments_by_post = {post_id: [] for post_id in post_ids}
+        if post_ids:
+            for comment in (
+                ConnectComment.objects.select_related("author", "author__profile")
+                .filter(is_active=True, post_id__in=post_ids)
+                .order_by("created_at")
+            ):
+                bucket = comments_by_post.get(comment.post_id)
+                if bucket is not None and len(bucket) < 3:
+                    bucket.append(comment)
+            liked_post_ids = set(
+                ConnectLike.objects.filter(post_id__in=post_ids, user=request.user).values_list("post_id", flat=True)
+            )
+        else:
+            liked_post_ids = set()
+        for post in posts:
+            post.recent_mobile_comments = comments_by_post.get(post.id, [])
+
+        unread = ConnectNotification.objects.filter(recipient=request.user, is_read=False).count()
+        return Response(
+            {
+                "unread_notifications": unread,
+                "posts": [connect_post_payload(request, post, liked_post_ids) for post in posts],
+            }
+        )
+
+    def post(self, request):
+        content = (request.data.get("content") or "").strip()
+        if not content:
+            return Response({"detail": "Informe um texto para publicar."}, status=status.HTTP_400_BAD_REQUEST)
+        post = ConnectPost.objects.create(author=request.user, content=content)
+        post.likes_count = 0
+        post.comments_count = 0
+        post.recent_mobile_comments = []
+        return Response(connect_post_payload(request, post), status=status.HTTP_201_CREATED)
+
+
+class MobileConnectLikeView(APIView):
+    def post(self, request, pk):
+        post = get_object_or_404(ConnectPost.objects.filter(is_active=True), pk=pk)
+        like = ConnectLike.objects.filter(post=post, user=request.user).first()
+        liked = False
+        if like:
+            like.delete()
+        else:
+            ConnectLike.objects.create(post=post, user=request.user)
+            liked = True
+            if post.author_id != request.user.id:
+                ConnectNotification.objects.create(
+                    recipient=post.author,
+                    actor=request.user,
+                    post=post,
+                    notification_type=ConnectNotification.NotificationType.LIKE,
+                )
+        return Response({"liked": liked, "likes_count": post.likes.count()})
+
+
+class MobileConnectCommentView(APIView):
+    def post(self, request, pk):
+        post = get_object_or_404(ConnectPost.objects.filter(is_active=True), pk=pk)
+        content = (request.data.get("content") or "").strip()
+        if not content:
+            return Response({"detail": "Informe um comentario."}, status=status.HTTP_400_BAD_REQUEST)
+        comment = ConnectComment.objects.create(post=post, author=request.user, content=content)
+        if post.author_id != request.user.id:
+            ConnectNotification.objects.create(
+                recipient=post.author,
+                actor=request.user,
+                post=post,
+                comment=comment,
+                notification_type=ConnectNotification.NotificationType.COMMENT,
+            )
+        return Response(connect_comment_payload(comment), status=status.HTTP_201_CREATED)

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Excluir {{ object_type }} | Lume Connect{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Lume Connect</p>
+    <h1>Excluir {{ object_type }}</h1>
+  </div>
+  <a class="button secondary" href="{{ cancel_url }}">Cancelar</a>
+</section>
+
+<section class="panel connect-confirm">
+  <header class="panel-header">
+    <div>
+      <h2>Confirmar exclusao</h2>
+      <p>Este item sera removido do feed, mas mantido no banco para auditoria operacional.</p>
+    </div>
+  </header>
+  <div class="connect-confirm-body">
+    <p>{{ object_label }}</p>
+    <form method="post">
+      {% csrf_token %}
+      <button class="button primary" type="submit">Excluir</button>
+      <a class="button ghost" href="{{ cancel_url }}">Voltar</a>
+    </form>
+  </div>
+</section>
+{% endblock %}

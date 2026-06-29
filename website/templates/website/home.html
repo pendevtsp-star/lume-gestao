@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ canonical_url }}">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260628-slim">
+  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260629-floating-social">
   <script type="application/ld+json">{{ structured_data_json|safe }}</script>
 </head>
 <body>
@@ -57,7 +57,7 @@
 
         <div class="hero-actions">
           <a class="button-primary" href="{% url 'website_whatsapp_redirect' %}">{{ website_settings.primary_cta_text }}</a>
-          <a class="button-secondary" href="{{ website_settings.resolved_instagram_url }}" target="_blank" rel="noopener noreferrer">Ver Instagram</a>
+          <a class="button-secondary" href="{% url 'website_instagram_redirect' %}">Ver Instagram</a>
         </div>
       </div>
 
@@ -140,6 +140,9 @@
               <p class="plan-category">{{ plan.get_category_display }}</p>
               <h3>{{ plan.name }}</h3>
               <p class="plan-description">{{ plan.public_description|default:plan.description|default:"Plano personalizado para acompanhar seu cuidado." }}</p>
+              {% if checkout_public_enabled %}
+                <a class="button primary" href="{% url 'checkout:plan' plan.pk %}">Comprar online</a>
+              {% endif %}
               <div class="plan-footer">
                 <strong>R$ {{ plan.monthly_price|floatformat:2 }}</strong>
                 <span>{{ plan.sessions_per_week }} sessões por semana</span>
@@ -207,14 +210,17 @@
     </section>
   </main>
 
-  <a class="floating-whatsapp" href="{% url 'website_whatsapp_redirect' %}">WhatsApp</a>
+  <div class="floating-social">
+    <a class="floating-instagram" href="{% url 'website_instagram_redirect' %}">Instagram</a>
+    <a class="floating-whatsapp" href="{% url 'website_whatsapp_redirect' %}">WhatsApp</a>
+  </div>
 
   <footer class="site-footer">
     <div class="footer-copy">
       <strong>{{ website_settings.resolved_clinic_name }}</strong>
       <span>{{ website_settings.city_name }} | {{ current_year }}</span>
     </div>
-    <a href="{{ website_settings.resolved_instagram_url }}" target="_blank" rel="noopener noreferrer">@lumestudiofisio</a>
+    <a href="{% url 'website_instagram_redirect' %}">@lumestudiofisio</a>
   </footer>
 
   {{ assistant_faq_map_json|json_script:"website-faq-data" }}

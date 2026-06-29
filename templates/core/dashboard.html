@@ -39,6 +39,38 @@
   {% endif %}
 </section>
 
+<section class="panel connect-dashboard-panel stacked-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Lume Connect</h2>
+      <p>Comunidade interna para avisos, fotos, curtidas e comentarios.</p>
+    </div>
+    <div class="panel-actions">
+      {% if connect_unread_notifications %}
+        <span class="status-pill">{{ connect_unread_notifications }} nova{{ connect_unread_notifications|pluralize }}</span>
+      {% endif %}
+      <a class="button secondary" href="{% url 'lume_connect:feed' %}">Acessar comunidade</a>
+    </div>
+  </header>
+  <div class="connect-dashboard-body">
+    <article>
+      <span>Posts ativos</span>
+      <strong>{{ connect_total_posts }}</strong>
+    </article>
+    <div class="connect-dashboard-posts">
+      {% for post in connect_recent_posts %}
+        <a href="{% url 'lume_connect:feed' %}">
+          <strong>{{ post.author_name }}</strong>
+          <span>{{ post.content|default:"Post com imagem"|truncatechars:90 }}</span>
+          <small>{{ post.likes_total }} curtida{{ post.likes_total|pluralize }} · {{ post.comments_total }} comentario{{ post.comments_total|pluralize }}</small>
+        </a>
+      {% empty %}
+        <p>Nenhum post ainda. Use o Lume Connect para iniciar a conversa da comunidade.</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
 <section class="panel birthday-panel stacked-panel">
   <header class="panel-header">
     <div>

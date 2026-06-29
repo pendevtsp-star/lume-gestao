@@ -76,6 +76,12 @@ class WebsitePublicTests(TestCase):
         self.assertEqual(response["Location"], website_settings.resolved_system_url)
         self.assertEqual(website_settings.system_clicks, 1)
 
+    def test_instagram_redirect_uses_configured_url(self):
+        response = self.client.get("/ir/instagram/", HTTP_HOST="clinicafisiolume.com.br")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], WebsiteSettings.load().resolved_instagram_url)
+
     def test_robots_and_sitemap_are_public(self):
         robots = self.client.get("/robots.txt", HTTP_HOST="clinicafisiolume.com.br")
         sitemap = self.client.get("/sitemap.xml", HTTP_HOST="clinicafisiolume.com.br")

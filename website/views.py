@@ -183,6 +183,13 @@ class WebsiteSystemRedirectView(WebsiteTrackedRedirectView):
     counter_field = "system_clicks"
 
 
+class WebsiteInstagramRedirectView(WebsiteTrackedRedirectView):
+    counter_field = ""
+
+    def get_target_url(self):
+        return WebsiteSettings.load().resolved_instagram_url
+
+
 class WebsiteDashboardView(ManagementAccessMixin, TemplateView):
     template_name = "website/dashboard.html"
 

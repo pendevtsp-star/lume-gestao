@@ -6,6 +6,9 @@ from mobile.views import (
     MobileCreditsView,
     MobileLoginView,
     MobileLogoutView,
+    MobileConnectCommentView,
+    MobileConnectFeedView,
+    MobileConnectLikeView,
     MobilePatientsView,
     MobilePaymentsView,
     MobileProfessionalNotesView,
@@ -24,4 +27,7 @@ urlpatterns = [
     path("payments/", MobilePaymentsView.as_view(), name="payments"),
     path("patients/", MobilePatientsView.as_view(), name="patients"),
     path("professional-notes/", MobileProfessionalNotesView.as_view(), name="professional_notes"),
+    path("connect/", MobileConnectFeedView.as_view(), name="connect"),
+    path("connect/<int:pk>/like/", MobileConnectLikeView.as_view(), name="connect_like"),
+    path("connect/<int:pk>/comments/", MobileConnectCommentView.as_view(), name="connect_comment"),
 ]

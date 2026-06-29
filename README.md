@@ -31,6 +31,40 @@ Sistema local de gestao para uma clinica de fisioterapia e pilates.
 - Auditoria automatica com filtros por periodo, acao, modelo e detalhamento de campos alterados.
 - API com filtragem por perfil e permissao por objeto para dados clinicos, agenda e financeiro.
 
+## Checkout online
+
+- Compra publica de planos exibidos no site e pagamento de mensalidades pelo paciente logado.
+- Provider inicial: Asaas, sempre atras de feature flags e webhook idempotente.
+- O sistema nao armazena dados de cartao; dados clinicos/cadastrais so sao efetivados apos confirmacao do pagamento.
+
+Detalhes de homologacao:
+
+```text
+docs/CHECKOUT_ONLINE.md
+```
+
+## Lume Connect
+
+- Rede social interna em `/lume-connect/`, disponivel para usuarios autenticados e ativos.
+- Posts com texto e imagem, curtidas, comentarios, busca, filtros por avisos/fotos e pagina simples de perfil.
+- Moderacao por administracao, gerencia ou superusuario; exclusoes removem itens do feed sem apagar os registros fisicos.
+- Uploads usam `MEDIA_ROOT`/`MEDIA_URL` existentes e aceitam JPG, JPEG, PNG e WEBP. O limite padrao e `LUME_CONNECT_MAX_IMAGE_MB=8`.
+- Submodulo "Compartilhar nas redes" para posts com imagem do proprio autor: gerar legenda, editar, copiar, baixar imagem e usar compartilhamento nativo do celular.
+- Instagram nesta versao e manual: baixe a imagem, copie a legenda e publique pelo app. Publicacao direta via API Meta/Instagram fica para uma etapa futura com OAuth, conta profissional e permissoes oficiais.
+- A legenda funciona sem IA externa. Para preparar uma integracao futura, configure `AI_CAPTION_ENABLED`, `AI_PROVIDER`, `AI_API_KEY` e `AI_CAPTION_MODEL`; chaves reais devem ficar apenas no `.env`.
+
+Para ativar em ambientes existentes, aplique apenas migrations incrementais:
+
+```bash
+python manage.py migrate
+```
+
+Com Docker, use o container atual sem apagar volumes:
+
+```bash
+docker compose exec web python manage.py migrate
+```
+
 ## Rodando localmente no Windows
 
 ```powershell

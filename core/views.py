@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.db.models import Q, Sum
+from django.db.models import Count, Q, Sum
 from django.urls import reverse
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -57,6 +57,7 @@ from patients.services import patient_ids_for_professional, professional_ids_for
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
 from core.services.whatsapp_automation import enqueue_automatic_whatsapp_messages
+from lume_connect.models import ConnectNotification, ConnectPost
 
 
 WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"]
@@ -285,6 +286,20 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 "overdue_payments": overdue_payments.select_related("membership__patient", "membership__plan")[:8],
                 "next_appointments": appointment_queryset[:8],
                 "reminder_days": settings.membership_due_reminder_days,
+                "connect_recent_posts": (
+                    ConnectPost.objects.filter(is_active=True)
+                    .select_related("author", "author__profile")
+                    .annotate(
+                        likes_total=Count("likes", distinct=True),
+                        comments_total=Count("comments", filter=Q(comments__is_active=True), distinct=True),
+                    )
+                    .order_by("-is_pinned", "-created_at")[:3]
+                ),
+                "connect_total_posts": ConnectPost.objects.filter(is_active=True).count(),
+                "connect_unread_notifications": ConnectNotification.objects.filter(
+                    recipient=self.request.user,
+                    is_read=False,
+                ).count(),
             }
         )
         if profile and profile.is_patient and profile.patient_id:

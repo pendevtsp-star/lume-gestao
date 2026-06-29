@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Lume Connect{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Lume Connect</p>
+    <h1>{{ page_title }}</h1>
+  </div>
+  <a class="button secondary" href="{% url 'lume_connect:feed' %}">Voltar</a>
+</section>
+
+<form class="form-panel connect-edit-panel" method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <label class="form-field">
+    <span>Texto</span>
+    {{ form.content }}
+    {{ form.content.errors }}
+  </label>
+  <label class="form-field">
+    <span>Imagem</span>
+    {{ form.image }}
+    <small>{{ form.image.help_text }}</small>
+    {{ form.image.errors }}
+  </label>
+  {% if form.is_pinned.is_hidden %}
+    {{ form.is_pinned }}{{ form.is_announcement }}
+  {% else %}
+    <div class="form-grid">
+      <label class="connect-check">{{ form.is_pinned }} Fixar post</label>
+      <label class="connect-check">{{ form.is_announcement }} Publicar como aviso</label>
+    </div>
+  {% endif %}
+  <div class="form-actions">
+    <button class="button primary" type="submit">{{ submit_label }}</button>
+    <a class="button ghost" href="{% url 'lume_connect:feed' %}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

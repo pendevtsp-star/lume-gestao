@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Editar comentario | Lume Connect{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Lume Connect</p>
+    <h1>Editar comentario</h1>
+  </div>
+  <a class="button secondary" href="{% url 'lume_connect:feed' %}">Voltar</a>
+</section>
+
+<form class="form-panel connect-edit-panel" method="post">
+  {% csrf_token %}
+  <label class="form-field">
+    <span>Comentario</span>
+    {{ form.content }}
+    {{ form.content.errors }}
+  </label>
+  <div class="form-actions">
+    <button class="button primary" type="submit">Salvar alteracoes</button>
+    <a class="button ghost" href="{% url 'lume_connect:feed' %}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

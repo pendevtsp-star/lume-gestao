@@ -8,6 +8,7 @@ from rest_framework.authtoken.models import Token
 
 from accounts.models import UserProfile
 from billing.models import Membership, Payment, ServicePlan
+from lume_connect.models import ConnectComment, ConnectLike, ConnectPost
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ServicePackage
 from team.models import Professional
@@ -222,3 +223,40 @@ class MobileBootstrapTests(TestCase):
         self.assertEqual(professional_response.status_code, 200)
         self.assertEqual(professional_response.json()["notes"][0]["id"], note.id)
         self.assertNotIn("body", professional_response.json()["notes"][0])
+
+    def test_mobile_connect_feed_create_like_and_comment(self):
+        user, _patient = self.create_patient_user(username="connect-mobile")
+        other_user, _other_patient = self.create_patient_user(username="connect-outro")
+        post = ConnectPost.objects.create(author=other_user, content="Bem-vindos ao Connect")
+        ConnectComment.objects.create(post=post, author=other_user, content="Primeiro comentario")
+        token = Token.objects.create(user=user)
+
+        feed_response = self.client.get(
+            "/api/v1/mobile/connect/",
+            HTTP_AUTHORIZATION=f"Token {token.key}",
+        )
+        create_response = self.client.post(
+            "/api/v1/mobile/connect/",
+            {"content": "Treino leve feito hoje"},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Token {token.key}",
+        )
+        like_response = self.client.post(
+            f"/api/v1/mobile/connect/{post.pk}/like/",
+            HTTP_AUTHORIZATION=f"Token {token.key}",
+        )
+        comment_response = self.client.post(
+            f"/api/v1/mobile/connect/{post.pk}/comments/",
+            {"content": "Gostei muito"},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Token {token.key}",
+        )
+
+        self.assertEqual(feed_response.status_code, 200)
+        self.assertEqual(feed_response.json()["posts"][0]["id"], post.id)
+        self.assertEqual(create_response.status_code, 201)
+        self.assertTrue(ConnectPost.objects.filter(author=user, content__icontains="Treino leve").exists())
+        self.assertEqual(like_response.status_code, 200)
+        self.assertTrue(ConnectLike.objects.filter(post=post, user=user).exists())
+        self.assertEqual(comment_response.status_code, 201)
+        self.assertTrue(ConnectComment.objects.filter(post=post, author=user, content="Gostei muito").exists())

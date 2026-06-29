@@ -45,6 +45,10 @@ Use este checklist antes de cadastrar pacientes reais, prontuarios, pagamentos o
 - [ ] Google Calendar configurado apenas com credenciais reais da clinica.
 - [ ] Callback Google autorizado: `https://sistema.clinicafisiolume.com.br/integracoes/google/callback/`.
 - [ ] WhatsApp permanece com `WHATSAPP_DRY_RUN=True` ate credenciais, numero e templates serem validados.
+- [ ] Asaas configurado com conta sandbox/producao correta, `ASAAS_WEBHOOK_TOKEN` forte e webhook apontando para `/checkout/webhooks/asaas/`.
+- [ ] Checkout geral mantido com `CHECKOUT_ENABLED=False` ate homologar compra publica, mensalidade do paciente e webhook em sandbox.
+- [ ] Webhook do checkout apontando para `/checkout/webhooks/asaas/` apenas depois de configurar token forte e testar idempotencia.
+- [ ] Compra teste de baixo valor feita antes de liberar planos publicos com `CHECKOUT_PUBLIC_ENABLED=True`.
 - [ ] URLs publicas de futuras integracoes, callbacks ou webhooks usam `https://sistema.clinicafisiolume.com.br`.
 - [ ] Tokens e secrets de Google, Meta e e-mail nao aparecem em logs, commits ou prints.
 

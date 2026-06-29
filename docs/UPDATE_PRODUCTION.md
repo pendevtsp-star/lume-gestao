@@ -62,6 +62,14 @@ Guarde o hash atual para rollback.
 git pull
 ```
 
+Se o GitHub ainda nao estiver autenticado ou se for necessario subir direto da maquina de desenvolvimento, use o script via SSH na raiz do projeto:
+
+```powershell
+.\scripts\deploy-vps.ps1 -SshTarget "usuario@IP_DA_VPS"
+```
+
+Ele cria `dist\lume-gestao-vps.tar.gz`, envia para `/tmp` na VPS, exige que o `.env` real ja exista em `/srv/lume-gestao`, faz backup, extrai o codigo, roda `docker compose -f docker-compose.prod.yml up -d --build` e valida `/healthz/`.
+
 Se estiver usando uma branch especifica:
 
 ```bash

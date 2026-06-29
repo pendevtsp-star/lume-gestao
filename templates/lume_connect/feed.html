@@ -24,6 +24,16 @@
             <strong>Adicionar foto</strong>
             <small>JPG, PNG ou WEBP</small>
           </label>
+          <label class="file-dropzone connect-file-field">
+            {{ post_form.video }}
+            <strong>Adicionar video curto</strong>
+            <small>MP4 ou MOV, ate 60 segundos</small>
+          </label>
+          <label class="file-dropzone connect-file-field">
+            {{ post_form.video_thumbnail }}
+            <strong>Capa opcional</strong>
+            <small>JPG, PNG ou WEBP</small>
+          </label>
           <div class="connect-composer-actions">
             {% if is_connect_moderator %}
               <label class="connect-check">{{ post_form.is_pinned }} Fixar</label>
@@ -33,6 +43,8 @@
           </div>
         </div>
         {{ post_form.image.errors }}
+        {{ post_form.video.errors }}
+        {{ post_form.video_thumbnail.errors }}
       </form>
     </article>
 
@@ -47,6 +59,8 @@
           <option value="todos" {% if selected_type == "todos" %}selected{% endif %}>Todos</option>
           <option value="avisos" {% if selected_type == "avisos" %}selected{% endif %}>Avisos</option>
           <option value="fotos" {% if selected_type == "fotos" %}selected{% endif %}>Fotos</option>
+          <option value="videos" {% if selected_type == "videos" %}selected{% endif %}>Videos</option>
+          <option value="reels" {% if selected_type == "reels" %}selected{% endif %}>Videos curtos</option>
         </select>
       </label>
       <button class="button secondary" type="submit">Filtrar</button>
@@ -129,5 +143,64 @@
       counter.textContent = payload.likes_count;
     });
   });
+
+  const shortVideos = Array.from(document.querySelectorAll("[data-connect-short-video]"));
+  let activeVideo = null;
+
+  function setVideoPlaying(video, shouldPlay) {
+    const wrapper = video.closest(".connect-video-frame");
+    if (!wrapper) return;
+    wrapper.classList.toggle("is-playing", shouldPlay);
+    const playButton = wrapper.querySelector("[data-video-toggle]");
+    if (playButton) playButton.textContent = shouldPlay ? "Pausar" : "Reproduzir";
+  }
+
+  function pauseVideo(video) {
+    video.pause();
+    setVideoPlaying(video, false);
+    if (activeVideo === video) activeVideo = null;
+  }
+
+  function playVideo(video) {
+    if (activeVideo && activeVideo !== video) pauseVideo(activeVideo);
+    video.play().then(() => {
+      activeVideo = video;
+      setVideoPlaying(video, true);
+    }).catch(() => {
+      setVideoPlaying(video, false);
+    });
+  }
+
+  shortVideos.forEach((video) => {
+    const wrapper = video.closest(".connect-video-frame");
+    const playButton = wrapper?.querySelector("[data-video-toggle]");
+    const soundButton = wrapper?.querySelector("[data-video-sound]");
+    video.muted = true;
+    video.addEventListener("pause", () => setVideoPlaying(video, false));
+    video.addEventListener("play", () => setVideoPlaying(video, true));
+    playButton?.addEventListener("click", () => {
+      if (video.paused) playVideo(video);
+      else pauseVideo(video);
+    });
+    soundButton?.addEventListener("click", () => {
+      video.muted = !video.muted;
+      soundButton.textContent = video.muted ? "Som" : "Mudo";
+      wrapper.classList.toggle("has-sound", !video.muted);
+    });
+  });
+
+  if ("IntersectionObserver" in window) {
+    const videoObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const video = entry.target;
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.68) {
+          playVideo(video);
+        } else {
+          pauseVideo(video);
+        }
+      });
+    }, {threshold: [0, 0.35, 0.68, 1]});
+    shortVideos.forEach((video) => videoObserver.observe(video));
+  }
 </script>
 {% endblock %}

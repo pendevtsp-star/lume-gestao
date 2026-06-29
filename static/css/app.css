@@ -3732,7 +3732,7 @@ td small {
 
 .connect-composer-row {
   display: grid;
-  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
   align-items: stretch;
 }
@@ -3846,6 +3846,92 @@ td small {
   object-fit: cover;
   border-radius: 8px;
   background: var(--muted-panel);
+}
+
+.connect-video-standard {
+  width: 100%;
+  max-height: 560px;
+  display: block;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #111;
+}
+
+.connect-reel-card {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+}
+
+.connect-video-frame {
+  position: relative;
+  width: min(390px, 100%);
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #111;
+  box-shadow: 0 18px 44px rgba(45, 40, 32, 0.18);
+}
+
+.connect-video-frame video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.connect-video-overlay,
+.connect-video-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+}
+
+.connect-video-overlay {
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  pointer-events: none;
+}
+
+.connect-video-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.58);
+  color: #fff;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.connect-video-caption {
+  bottom: 0;
+  display: grid;
+  gap: 4px;
+  padding: 52px 14px 14px;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.74));
+}
+
+.connect-video-caption strong,
+.connect-video-caption span,
+.connect-video-caption small {
+  overflow-wrap: anywhere;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.42);
+}
+
+.connect-video-caption span,
+.connect-video-caption small {
+  color: rgba(255, 255, 255, 0.84);
+  font-weight: 750;
 }
 
 .connect-post-actions {

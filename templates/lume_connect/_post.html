@@ -19,11 +19,40 @@
     </div>
   </header>
 
-  {% if post.content %}
+  {% if post.content and not post.has_short_video %}
     <div class="connect-post-content">{{ post.content|linebreaks }}</div>
   {% endif %}
 
-  {% if post.image %}
+  {% if post.has_short_video %}
+    <div class="connect-reel-card">
+      <div class="connect-video-frame">
+        <video
+          data-connect-short-video
+          src="{{ post.video.url }}"
+          {% if post.video_thumbnail %}poster="{{ post.video_thumbnail.url }}"{% endif %}
+          preload="metadata"
+          playsinline
+          muted
+          loop
+        ></video>
+        <div class="connect-video-overlay">
+          <button class="connect-video-control" type="button" data-video-toggle>Reproduzir</button>
+          <button class="connect-video-control" type="button" data-video-sound>Som</button>
+        </div>
+        <div class="connect-video-caption">
+          <strong>{{ post.author_name }}</strong>
+          {% if post.content %}<span>{{ post.content }}</span>{% endif %}
+          {% if post.video_duration_seconds %}
+            <small>{{ post.video_duration_seconds|floatformat:0 }}s</small>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% elif post.video %}
+    <div class="connect-video-standard">
+      <video src="{{ post.video.url }}" {% if post.video_thumbnail %}poster="{{ post.video_thumbnail.url }}"{% endif %} controls preload="metadata" playsinline></video>
+    </div>
+  {% elif post.image %}
     <img class="connect-post-image" src="{{ post.image.url }}" alt="Imagem publicada por {{ post.author_name }}">
   {% endif %}
 

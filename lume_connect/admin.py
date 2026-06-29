@@ -9,7 +9,10 @@ class ConnectPostAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "author",
+        "media_type",
         "short_content",
+        "is_short_video",
+        "video_duration_seconds",
         "is_pinned",
         "is_announcement",
         "is_active",
@@ -17,9 +20,9 @@ class ConnectPostAdmin(admin.ModelAdmin):
         "comments_total",
         "created_at",
     )
-    list_filter = ("is_pinned", "is_announcement", "is_active", "created_at")
+    list_filter = ("media_type", "is_short_video", "is_pinned", "is_announcement", "is_active", "created_at")
     search_fields = ("author__username", "author__first_name", "author__last_name", "content")
-    readonly_fields = ("created_at", "updated_at", "likes_total", "comments_total")
+    readonly_fields = ("created_at", "updated_at", "likes_total", "comments_total", "video_size_bytes")
     actions = ("activate_posts", "deactivate_posts")
 
     def get_queryset(self, request):

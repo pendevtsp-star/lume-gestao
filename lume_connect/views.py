@@ -67,6 +67,10 @@ class ConnectFeedMixin:
             queryset = queryset.filter(is_announcement=True)
         elif post_type == "fotos":
             queryset = queryset.exclude(image="")
+        elif post_type == "videos":
+            queryset = queryset.exclude(video="")
+        elif post_type == "reels":
+            queryset = queryset.exclude(video="").filter(is_short_video=True)
         return queryset
 
     def decorate_posts(self, context):
@@ -81,6 +85,7 @@ class ConnectFeedMixin:
             post.user_can_edit = post.author_id == self.request.user.id
             post.user_can_delete = post.user_can_edit or moderator
             post.user_can_share = post.user_can_edit and bool(post.image)
+            post.user_can_share_image = post.user_can_share
             for comment in getattr(post, "active_comments", []):
                 comment.user_can_edit = comment.author_id == self.request.user.id
                 comment.user_can_delete = comment.user_can_edit or moderator

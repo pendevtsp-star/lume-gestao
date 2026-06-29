@@ -7,6 +7,7 @@ from core.models import TimeStampedModel
 
 
 ALLOWED_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp"]
+ALLOWED_VIDEO_EXTENSIONS = ["mp4", "mov"]
 
 
 def validate_connect_image_size(image):
@@ -16,8 +17,22 @@ def validate_connect_image_size(image):
         raise ValidationError(f"A imagem deve ter no maximo {max_mb} MB.")
 
 
+def validate_connect_video_size(video):
+    max_mb = getattr(settings, "LUME_CONNECT_MAX_VIDEO_MB", 80)
+    max_bytes = max_mb * 1024 * 1024
+    if video and video.size > max_bytes:
+        raise ValidationError(f"O video deve ter no maximo {max_mb} MB.")
+
+
 class ConnectPost(TimeStampedModel):
+    class MediaType(models.TextChoices):
+        TEXT = "text", "Texto"
+        IMAGE = "image", "Imagem"
+        VIDEO = "video", "Video"
+        SHORT_VIDEO = "short_video", "Video curto"
+
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="connect_posts")
+    media_type = models.CharField("tipo de midia", max_length=20, choices=MediaType.choices, default=MediaType.TEXT)
     content = models.TextField("conteudo", blank=True)
     image = models.ImageField(
         "imagem",
@@ -25,6 +40,27 @@ class ConnectPost(TimeStampedModel):
         blank=True,
         validators=[FileExtensionValidator(ALLOWED_IMAGE_EXTENSIONS), validate_connect_image_size],
     )
+    video = models.FileField(
+        "video",
+        upload_to="lume_connect/videos/",
+        blank=True,
+        validators=[FileExtensionValidator(ALLOWED_VIDEO_EXTENSIONS), validate_connect_video_size],
+    )
+    video_thumbnail = models.ImageField(
+        "capa do video",
+        upload_to="lume_connect/video_thumbnails/",
+        blank=True,
+        validators=[FileExtensionValidator(ALLOWED_IMAGE_EXTENSIONS), validate_connect_image_size],
+    )
+    video_duration_seconds = models.DecimalField(
+        "duracao do video em segundos",
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    video_size_bytes = models.PositiveBigIntegerField("tamanho do video em bytes", null=True, blank=True)
+    is_short_video = models.BooleanField("video curto", default=False)
     is_pinned = models.BooleanField("fixado", default=False)
     is_announcement = models.BooleanField("comunicado", default=False)
     is_active = models.BooleanField("ativo", default=True)
@@ -43,8 +79,35 @@ class ConnectPost(TimeStampedModel):
 
     def clean(self):
         super().clean()
-        if not self.content.strip() and not self.image:
-            raise ValidationError("Informe um texto ou uma imagem para publicar.")
+        if self.image and self.video:
+            raise ValidationError("Publique imagem ou video, nao os dois no mesmo post.")
+        if not self.content.strip() and not self.image and not self.video:
+            raise ValidationError("Informe um texto, uma imagem ou um video para publicar.")
+        if self.is_short_video and self.video_duration_seconds and self.video_duration_seconds > 60:
+            raise ValidationError("Videos curtos devem ter no maximo 60 segundos.")
+
+    def save(self, *args, **kwargs):
+        if self.video:
+            self.media_type = self.MediaType.SHORT_VIDEO if self.is_short_video else self.MediaType.VIDEO
+        elif self.image:
+            self.media_type = self.MediaType.IMAGE
+            self.is_short_video = False
+        else:
+            self.media_type = self.MediaType.TEXT
+            self.is_short_video = False
+        super().save(*args, **kwargs)
+
+    @property
+    def effective_media_type(self):
+        if self.video:
+            return self.MediaType.SHORT_VIDEO if self.is_short_video else self.MediaType.VIDEO
+        if self.image:
+            return self.MediaType.IMAGE
+        return self.MediaType.TEXT
+
+    @property
+    def has_short_video(self):
+        return bool(self.video and self.is_short_video)
 
     @property
     def author_profile(self):

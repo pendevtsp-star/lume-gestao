@@ -247,6 +247,8 @@ DEFAULT_MEDIA_ROOT = LUME_DATA_DIR / 'media' if LUME_DESKTOP else BASE_DIR / 'me
 MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(DEFAULT_MEDIA_ROOT))).resolve()
 LUME_CONNECT_ENABLED = config("LUME_CONNECT_ENABLED", default=True, cast=bool)
 LUME_CONNECT_MAX_IMAGE_MB = config("LUME_CONNECT_MAX_IMAGE_MB", default=8, cast=int)
+LUME_CONNECT_MAX_VIDEO_MB = config("LUME_CONNECT_MAX_VIDEO_MB", default=80, cast=int)
+LUME_CONNECT_MAX_SHORT_VIDEO_SECONDS = config("LUME_CONNECT_MAX_SHORT_VIDEO_SECONDS", default=60, cast=int)
 AI_CAPTION_ENABLED = config("AI_CAPTION_ENABLED", default=False, cast=bool)
 AI_PROVIDER = config("AI_PROVIDER", default="")
 AI_API_KEY = config("AI_API_KEY", default="")

@@ -25,6 +25,18 @@
     <small>{{ form.image.help_text }}</small>
     {{ form.image.errors }}
   </label>
+  <label class="form-field">
+    <span>Video curto</span>
+    {{ form.video }}
+    <small>{{ form.video.help_text }}</small>
+    {{ form.video.errors }}
+  </label>
+  <label class="form-field">
+    <span>Capa do video</span>
+    {{ form.video_thumbnail }}
+    <small>{{ form.video_thumbnail.help_text }}</small>
+    {{ form.video_thumbnail.errors }}
+  </label>
   {% if form.is_pinned.is_hidden %}
     {{ form.is_pinned }}{{ form.is_announcement }}
   {% else %}

@@ -8,12 +8,17 @@ from PIL import Image
 
 from accounts.models import UserProfile
 from lume_connect.models import ConnectComment, ConnectLike, ConnectPost, ConnectShareLog
+from lume_connect.services.video_metadata import build_test_mp4
 
 
 def tiny_png():
     image_file = BytesIO()
     Image.new("RGB", (1, 1), color=(255, 255, 255)).save(image_file, format="PNG")
     return image_file.getvalue()
+
+
+def tiny_mp4(duration_seconds=30):
+    return build_test_mp4(duration_seconds)
 
 
 @override_settings(MEDIA_ROOT=".codex-tmp/test-media")
@@ -53,6 +58,85 @@ class LumeConnectTests(TestCase):
         self.assertRedirects(response, reverse("lume_connect:feed"))
         post = ConnectPost.objects.get(author=self.user)
         self.assertTrue(post.image.name.startswith("lume_connect/posts/"))
+
+    def test_user_creates_valid_short_video_post(self):
+        self.client.force_login(self.user)
+        video = SimpleUploadedFile("alongamento.mp4", tiny_mp4(30), content_type="video/mp4")
+
+        response = self.client.post(
+            reverse("lume_connect:create_post"),
+            {"content": "Sequencia curta", "video": video},
+        )
+
+        self.assertRedirects(response, reverse("lume_connect:feed"))
+        post = ConnectPost.objects.get(author=self.user)
+        self.assertTrue(post.video.name.startswith("lume_connect/videos/"))
+        self.assertEqual(post.media_type, ConnectPost.MediaType.SHORT_VIDEO)
+        self.assertTrue(post.is_short_video)
+        self.assertEqual(float(post.video_duration_seconds), 30.0)
+        self.assertGreater(post.video_size_bytes, 0)
+
+    def test_upload_rejects_short_video_above_sixty_seconds(self):
+        self.client.force_login(self.user)
+        video = SimpleUploadedFile("longo.mp4", tiny_mp4(61), content_type="video/mp4")
+
+        response = self.client.post(
+            reverse("lume_connect:create_post"),
+            {"content": "Video longo", "video": video},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Videos curtos devem ter no maximo")
+        self.assertFalse(ConnectPost.objects.exists())
+
+    def test_upload_rejects_invalid_video_format(self):
+        self.client.force_login(self.user)
+        video = SimpleUploadedFile("arquivo.exe", b"conteudo", content_type="application/x-msdownload")
+
+        response = self.client.post(
+            reverse("lume_connect:create_post"),
+            {"content": "Arquivo invalido", "video": video},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Use um video MP4 ou MOV.")
+        self.assertFalse(ConnectPost.objects.exists())
+
+    def test_feed_renders_short_video_player(self):
+        video = SimpleUploadedFile("feed.mp4", tiny_mp4(24), content_type="video/mp4")
+        ConnectPost.objects.create(
+            author=self.user,
+            content="Video no feed",
+            video=video,
+            video_duration_seconds=24,
+            video_size_bytes=len(tiny_mp4(24)),
+            is_short_video=True,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("lume_connect:feed"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-connect-short-video")
+        self.assertContains(response, 'preload="metadata"')
+        self.assertContains(response, "playsinline")
+        self.assertContains(response, "muted")
+        self.assertContains(response, "loop")
+
+    def test_legacy_text_post_still_renders(self):
+        ConnectPost.objects.create(author=self.user, content="Post antigo sem midia")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("lume_connect:feed"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Post antigo sem midia")
+
+    def test_unauthenticated_user_cannot_create_post(self):
+        response = self.client.post(reverse("lume_connect:create_post"), {"content": "Sem login"})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ConnectPost.objects.exists())
 
     def test_author_sees_share_button_only_on_own_image_post(self):
         image = SimpleUploadedFile("share.png", tiny_png(), content_type="image/png")

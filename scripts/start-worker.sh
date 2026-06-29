@@ -25,6 +25,17 @@ fi
 while true; do
   echo "[worker] Processando fila WhatsApp..."
   python manage.py process_whatsapp_queue --limit "${LUME_QUEUE_BATCH_SIZE:-50}"
+
+  case "$(printf '%s' "${HOMECARE_UPLOAD_WORKER_ENABLED:-False}" | tr '[:upper:]' '[:lower:]')" in
+    true|1|yes|sim)
+      echo "[worker] Processando uploads do Lume em casa..."
+      python manage.py process_homecare_uploads --limit "${HOMECARE_UPLOAD_BATCH_SIZE:-3}"
+      ;;
+    *)
+      echo "[worker] Uploads do Lume em casa desativados neste ambiente."
+      ;;
+  esac
+
   echo "[worker] Ciclo concluido. Aguardando ${LUME_JOB_INTERVAL_SECONDS:-60}s..."
   sleep "${LUME_JOB_INTERVAL_SECONDS:-60}"
 done

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -69,11 +70,28 @@ class ApiClient {
       request.body = jsonEncode(body);
     }
 
-    final streamed = await _client.send(request).timeout(
-          const Duration(seconds: 20),
-          onTimeout: () => throw const ApiException('Tempo de conexao esgotado.'),
-        );
-    final response = await http.Response.fromStream(streamed);
+    late final http.Response response;
+    try {
+      final streamed = await _client.send(request).timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => throw const ApiException('Tempo de conexao esgotado.'),
+          );
+      response = await http.Response.fromStream(streamed);
+    } on ApiException {
+      rethrow;
+    } on SocketException {
+      throw const ApiException(
+        'Nao foi possivel conectar ao servidor. Verifique sua internet e tente novamente.',
+      );
+    } on HandshakeException {
+      throw const ApiException(
+        'Nao foi possivel validar a conexao segura com o servidor.',
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        'Falha de comunicacao com o servidor. Tente novamente em instantes.',
+      );
+    }
 
     if (response.statusCode >= 400) {
       final message = _errorMessage(response);

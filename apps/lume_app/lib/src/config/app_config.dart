@@ -1,4 +1,6 @@
 class AppConfig {
+  static const appVersion = '0.2.1';
+
   static const apiBaseUrl = String.fromEnvironment(
     'LUME_API_BASE_URL',
     defaultValue: 'http://127.0.0.1:8000',

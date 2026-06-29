@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../config/app_config.dart';
 import 'auth_controller.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -152,6 +153,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                     )
                                   : const Icon(Icons.login),
                               label: const Text('Entrar'),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Servidor: ${Uri.parse(AppConfig.apiBaseUrl).host}\nMobile beta ${AppConfig.appVersion}',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
                             ),
                           ],
                         ),

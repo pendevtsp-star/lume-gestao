@@ -1,9 +1,15 @@
+import mimetypes
+from pathlib import PurePosixPath
+from urllib.parse import quote
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Prefetch, Q
+from django.http import FileResponse
 from django.http import Http404
-from django.http import HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
+from django.http import HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -530,6 +536,9 @@ class HomecareVideoDetailView(HomecarePortalAccessMixin, DetailView):
         embed_url = build_bunny_embed_url(video)
         provider_video_id = video.provider_video_id or ""
         is_demo_player = provider_video_id.startswith(("dry-run-", "demo-"))
+        local_video_url = ""
+        if video.provider == HomecareVideo.Provider.LOCAL and video.local_video_file:
+            local_video_url = reverse("homecare_public:video_stream", args=[video.slug])
         replies = (
             HomecareVideoComment.objects.filter(is_active=True)
             .select_related("author", "author__profile")
@@ -545,6 +554,8 @@ class HomecareVideoDetailView(HomecarePortalAccessMixin, DetailView):
             {
                 "embed_url": embed_url,
                 "is_demo_player": is_demo_player,
+                "is_local_player": bool(local_video_url),
+                "local_video_url": local_video_url,
                 "subscription": self.subscription,
                 "progress": progress,
                 "likes_total": video.likes.count(),
@@ -555,6 +566,46 @@ class HomecareVideoDetailView(HomecarePortalAccessMixin, DetailView):
             }
         )
         return context
+
+
+class HomecareVideoStreamView(HomecarePortalAccessMixin, View):
+    def get(self, request, slug):
+        video = get_object_or_404(
+            HomecareVideo.objects.filter(public_video_q(), provider=HomecareVideo.Provider.LOCAL).exclude(
+                local_video_file=""
+            ),
+            slug=slug,
+        )
+        if not video.local_video_file:
+            raise Http404("Video local indisponivel.")
+
+        file_name = video.local_video_file.name.replace("\\", "/")
+        private_prefix = settings.HOMECARE_LOCAL_VIDEO_PRIVATE_PREFIX
+        if not file_name.startswith(private_prefix):
+            raise Http404("Video local indisponivel.")
+
+        content_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+        download_name = PurePosixPath(file_name).name
+
+        if settings.HOMECARE_LOCAL_VIDEO_ACCEL_REDIRECT:
+            internal_path = quote(file_name[len(private_prefix) :].lstrip("/"), safe="/")
+            accel_prefix = settings.HOMECARE_LOCAL_VIDEO_ACCEL_PREFIX.rstrip("/")
+            response = HttpResponse()
+            response["Content-Type"] = content_type
+            response["Content-Disposition"] = f'inline; filename="{download_name}"'
+            response["X-Accel-Redirect"] = f"{accel_prefix}/{internal_path}"
+            response["Accept-Ranges"] = "bytes"
+            response["Cache-Control"] = "private, no-store"
+            return response
+
+        try:
+            file_handle = video.local_video_file.open("rb")
+        except FileNotFoundError as exc:
+            raise Http404("Arquivo de video nao encontrado.") from exc
+        response = FileResponse(file_handle, content_type=content_type, as_attachment=False, filename=download_name)
+        response["Cache-Control"] = "private, no-store"
+        response["Accept-Ranges"] = "bytes"
+        return response
 
 
 class HomecareVideoLikeToggleView(HomecarePortalAccessMixin, View):

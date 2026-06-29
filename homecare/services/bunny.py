@@ -1,7 +1,11 @@
 from pathlib import Path
+from uuid import uuid4
 from urllib import error, request
 
+from django.core.files.base import File
+from django.core.files.storage import default_storage
 from django.conf import settings
+from django.utils.text import slugify
 
 from core.integrations.credentials import first_configured_value
 from core.integrations.http import IntegrationError, post_json
@@ -73,7 +77,105 @@ def build_bunny_embed_url(video):
     return f"https://iframe.mediadelivery.net/embed/{library_id}/{video.provider_video_id}"
 
 
+def upload_provider():
+    provider = (settings.HOMECARE_VIDEO_PROVIDER or "local").lower()
+    return provider if provider in {"local", "bunny"} else "local"
+
+
+def local_video_target_name(video, source_path):
+    extension = source_path.suffix.lower() or ".mp4"
+    slug = slugify(video.slug or video.title) or f"video-{video.pk}"
+    return f"homecare/private/videos/{video.pk}/{slug}-{uuid4().hex[:10]}{extension}"
+
+
+def process_local_video_file(video):
+    if not video.temporary_file:
+        raise IntegrationError("Selecione um arquivo de video para salvar.")
+    file_path = Path(video.temporary_file.path)
+    if not file_path.exists():
+        raise IntegrationError("Arquivo temporario de video nao encontrado.")
+
+    previous_local_name = video.local_video_file.name if video.local_video_file else ""
+    target_name = local_video_target_name(video, file_path)
+    with file_path.open("rb") as file_handle:
+        video.local_video_file.save(target_name, File(file_handle), save=False)
+
+    if previous_local_name and previous_local_name != video.local_video_file.name:
+        default_storage.delete(previous_local_name)
+
+    return {
+        "success": True,
+        "storage": "local",
+        "path": video.local_video_file.name,
+        "size": video.local_video_file.size,
+    }
+
+
 def process_upload_job(job):
+    if upload_provider() == "local":
+        return process_local_upload_job(job)
+    return process_bunny_upload_job(job)
+
+
+def process_local_upload_job(job):
+    video = job.video
+    job.status = job.Status.RUNNING
+    job.attempts += 1
+    job.error_message = ""
+    from django.utils import timezone
+
+    job.started_at = timezone.now()
+    job.save(update_fields=["status", "attempts", "error_message", "started_at", "updated_at"])
+
+    video.status = video.Status.UPLOADING
+    video.upload_error = ""
+    video.save(update_fields=["status", "upload_error", "updated_at"])
+
+    try:
+        upload_result = process_local_video_file(video)
+    except Exception as exc:
+        job.status = job.Status.FAILED
+        job.error_message = str(exc)
+        job.finished_at = timezone.now()
+        job.save(update_fields=["status", "error_message", "finished_at", "updated_at"])
+        video.status = video.Status.FAILED
+        video.upload_error = str(exc)
+        video.save(update_fields=["status", "upload_error", "updated_at"])
+        return False
+
+    video.provider = video.Provider.LOCAL
+    video.provider_video_id = f"local-{video.pk}-{uuid4().hex[:10]}"
+    video.provider_library_id = ""
+    video.provider_embed_url = ""
+    video.provider_payload = {"local": upload_result}
+    video.status = video.Status.READY
+    video.upload_error = ""
+    video.save(
+        update_fields=[
+            "provider",
+            "provider_video_id",
+            "provider_library_id",
+            "provider_embed_url",
+            "provider_payload",
+            "local_video_file",
+            "status",
+            "upload_error",
+            "updated_at",
+        ]
+    )
+    if video.temporary_file:
+        video.temporary_file.delete(save=False)
+        video.temporary_file = ""
+        video.save(update_fields=["temporary_file", "updated_at"])
+
+    job.status = job.Status.DONE
+    job.finished_at = timezone.now()
+    job.error_message = ""
+    job.save(update_fields=["status", "finished_at", "error_message", "updated_at"])
+    return True
+
+
+def process_bunny_upload_job(job):
     video = job.video
     job.status = job.Status.RUNNING
     job.attempts += 1
@@ -104,6 +206,7 @@ def process_upload_job(job):
         return False
 
     library_id = str(created.get("libraryId") or first_configured_value(settings.BUNNY_STREAM_LIBRARY_ID))
+    video.provider = video.Provider.BUNNY
     video.provider_video_id = str(provider_video_id)
     video.provider_library_id = library_id
     video.provider_embed_url = created.get("embedUrl") or build_bunny_embed_url(video)
@@ -112,6 +215,7 @@ def process_upload_job(job):
     video.upload_error = ""
     video.save(
         update_fields=[
+            "provider",
             "provider_video_id",
             "provider_library_id",
             "provider_embed_url",

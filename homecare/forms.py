@@ -86,7 +86,9 @@ class HomecareVideoForm(StyledModelForm):
             "Opcional. Se preenchido, o video aparece para assinantes somente a partir desta data e horario."
         )
         self.fields["scheduled_publish_at"].input_formats = ["%Y-%m-%dT%H:%M"]
-        self.fields["upload_file"].help_text = f"MP4, MOV, M4V ou WEBM ate {settings.HOMECARE_MAX_UPLOAD_MB} MB."
+        self.fields["upload_file"].help_text = (
+            f"MP4 recomendado. MOV, M4V ou WEBM tambem sao aceitos, ate {settings.HOMECARE_MAX_UPLOAD_MB} MB."
+        )
         self.fields["upload_file"].widget.attrs.update(
             {
                 "class": "field-control file-input",
@@ -135,6 +137,9 @@ class HomecareVideoForm(StyledModelForm):
         if scheduled_publish_at:
             video.is_published = True
         if upload:
+            provider = settings.HOMECARE_VIDEO_PROVIDER
+            if provider in {HomecareVideo.Provider.LOCAL, HomecareVideo.Provider.BUNNY}:
+                video.provider = provider
             video.temporary_file = upload
             video.status = HomecareVideo.Status.QUEUED
             video.upload_error = ""

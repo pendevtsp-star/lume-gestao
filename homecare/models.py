@@ -100,6 +100,7 @@ class HomecareVideo(TimeStampedModel):
         ARCHIVED = "archived", "Arquivado"
 
     class Provider(models.TextChoices):
+        LOCAL = "local", "VPS protegida"
         BUNNY = "bunny", "Bunny Stream"
         MANUAL = "manual", "Manual"
 
@@ -122,8 +123,9 @@ class HomecareVideo(TimeStampedModel):
     difficulty = models.CharField("nivel", max_length=20, choices=Difficulty.choices, default=Difficulty.BEGINNER)
     duration_seconds = models.PositiveIntegerField("duracao em segundos", default=0, blank=True)
     temporary_file = models.FileField("arquivo temporario", upload_to="homecare/uploads/", blank=True)
+    local_video_file = models.FileField("arquivo local protegido", upload_to="homecare/private/videos/", blank=True)
     thumbnail = models.ImageField("capa", upload_to="homecare/thumbnails/", blank=True)
-    provider = models.CharField("provedor", max_length=20, choices=Provider.choices, default=Provider.BUNNY)
+    provider = models.CharField("provedor", max_length=20, choices=Provider.choices, default=Provider.LOCAL)
     provider_video_id = models.CharField("ID do video no provedor", max_length=160, blank=True, db_index=True)
     provider_library_id = models.CharField("ID da biblioteca", max_length=160, blank=True)
     provider_embed_url = models.URLField("URL de embed", max_length=500, blank=True)
@@ -157,7 +159,8 @@ class HomecareVideo(TimeStampedModel):
 
     @property
     def can_be_watched(self):
-        if not self.is_published or self.status != self.Status.READY or not self.provider_video_id:
+        has_media = bool(self.local_video_file) if self.provider == self.Provider.LOCAL else bool(self.provider_video_id)
+        if not self.is_published or self.status != self.Status.READY or not has_media:
             return False
         if self.scheduled_publish_at and self.scheduled_publish_at > timezone.now():
             return False

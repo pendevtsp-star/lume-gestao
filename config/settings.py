@@ -311,9 +311,12 @@ HOMECARE_UPLOAD_WORKER_ENABLED = HOMECARE_INTERNAL_ENABLED and config(
     cast=bool,
 )
 HOMECARE_PAYMENT_PROVIDER = config("HOMECARE_PAYMENT_PROVIDER", default="asaas")
-HOMECARE_VIDEO_PROVIDER = config("HOMECARE_VIDEO_PROVIDER", default="bunny")
+HOMECARE_VIDEO_PROVIDER = config("HOMECARE_VIDEO_PROVIDER", default="local").lower()
 HOMECARE_MAX_UPLOAD_MB = config("HOMECARE_MAX_UPLOAD_MB", default=1024, cast=int)
 HOMECARE_UPLOAD_BATCH_SIZE = config("HOMECARE_UPLOAD_BATCH_SIZE", default=3, cast=int)
+HOMECARE_LOCAL_VIDEO_ACCEL_REDIRECT = config("HOMECARE_LOCAL_VIDEO_ACCEL_REDIRECT", default=IS_PRODUCTION, cast=bool)
+HOMECARE_LOCAL_VIDEO_ACCEL_PREFIX = config("HOMECARE_LOCAL_VIDEO_ACCEL_PREFIX", default="/protected-homecare-media/")
+HOMECARE_LOCAL_VIDEO_PRIVATE_PREFIX = "homecare/private/"
 BUNNY_STREAM_DRY_RUN = config("BUNNY_STREAM_DRY_RUN", default=True, cast=bool)
 BUNNY_STREAM_API_KEY = config("BUNNY_STREAM_API_KEY", default="")
 BUNNY_STREAM_LIBRARY_ID = config("BUNNY_STREAM_LIBRARY_ID", default="")
@@ -330,11 +333,13 @@ if LUME_STRICT_PRODUCTION and IS_PRODUCTION and CHECKOUT_ENABLED:
         raise ImproperlyConfigured("Configuracao Checkout invalida: " + " ".join(checkout_errors))
 if LUME_STRICT_PRODUCTION and IS_PRODUCTION and HOMECARE_ENABLED:
     homecare_errors = []
+    if HOMECARE_VIDEO_PROVIDER not in {"local", "bunny"}:
+        homecare_errors.append("HOMECARE_VIDEO_PROVIDER deve ser local ou bunny.")
     if HOMECARE_CHECKOUT_ENABLED and ASAAS_DRY_RUN:
         homecare_errors.append("HOMECARE_CHECKOUT_ENABLED nao deve ficar ativo com ASAAS_DRY_RUN=True em producao.")
-    if not BUNNY_STREAM_DRY_RUN and _looks_like_placeholder(BUNNY_STREAM_API_KEY):
+    if HOMECARE_VIDEO_PROVIDER == "bunny" and not BUNNY_STREAM_DRY_RUN and _looks_like_placeholder(BUNNY_STREAM_API_KEY):
         homecare_errors.append("BUNNY_STREAM_API_KEY precisa estar configurado quando Bunny sair do dry-run.")
-    if not BUNNY_STREAM_DRY_RUN and _looks_like_placeholder(BUNNY_STREAM_LIBRARY_ID):
+    if HOMECARE_VIDEO_PROVIDER == "bunny" and not BUNNY_STREAM_DRY_RUN and _looks_like_placeholder(BUNNY_STREAM_LIBRARY_ID):
         homecare_errors.append("BUNNY_STREAM_LIBRARY_ID precisa estar configurado quando Bunny sair do dry-run.")
     if HOMECARE_CHECKOUT_ENABLED and _looks_like_placeholder(ASAAS_API_KEY):
         homecare_errors.append("ASAAS_API_KEY precisa estar configurado para o checkout do Homecare.")

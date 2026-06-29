@@ -31,8 +31,8 @@ class HomecarePlanAdmin(admin.ModelAdmin):
 
 @admin.register(HomecareVideo)
 class HomecareVideoAdmin(admin.ModelAdmin):
-    list_display = ("title", "category", "author", "status", "is_published", "scheduled_publish_at", "updated_at")
-    list_filter = ("status", "is_published", "scheduled_publish_at", "category", "difficulty")
+    list_display = ("title", "category", "author", "provider", "status", "is_published", "scheduled_publish_at", "updated_at")
+    list_filter = ("provider", "status", "is_published", "scheduled_publish_at", "category", "difficulty")
     search_fields = ("title", "description", "author__full_name", "provider_video_id")
     prepopulated_fields = {"slug": ("title",)}
 

@@ -65,6 +65,25 @@ server {
         add_header Cache-Control "public, max-age=2592000, immutable";
     }
 
+    # Bloqueia acesso direto aos videos temporarios e aos videos protegidos do
+    # Lume em casa. A reproducao deve passar pela rota Django, que valida login,
+    # paciente ativo, publicacao e agenda de lancamento antes de usar X-Accel.
+    location ^~ /media/homecare/uploads/ {
+        return 404;
+    }
+
+    location ^~ /media/homecare/private/ {
+        return 404;
+    }
+
+    location /protected-homecare-media/ {
+        internal;
+        alias /srv/lume-gestao/data/media/homecare/private/;
+        expires off;
+        add_header Cache-Control "private, no-store";
+        add_header X-Content-Type-Options nosniff always;
+    }
+
     # Diretorio persistente definido no docker-compose.prod.yml:
     # ./data/media:/app/media
     # Ajuste o caminho abaixo se o projeto estiver em outro diretorio.
@@ -74,8 +93,7 @@ server {
         add_header Cache-Control "private, max-age=3600";
     }
 
-    # Uploads do modulo Fisioterapia em Casa. Os arquivos ficam temporariamente
-    # na VPS e o worker envia para o Bunny Stream; nao sirva videos finais por /media/.
+    # Uploads do modulo Fisioterapia em Casa. Limite maior apenas nesta rota.
     location /conteudos/videos/ {
         client_max_body_size 1024M;
         proxy_pass http://127.0.0.1:8000;

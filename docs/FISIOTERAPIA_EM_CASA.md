@@ -31,7 +31,8 @@ Modo recomendado agora:
 - `HOMECARE_PUBLIC_ENABLED=True`: portal publico disponivel para usuarios autenticados.
 - `HOMECARE_CHECKOUT_ENABLED=False`: nenhuma venda online aparece ou processa.
 - `HOMECARE_WEBHOOK_ENABLED=False`: webhook externo bloqueado ate fase de gateway.
-- `ASAAS_DRY_RUN=True` e `BUNNY_STREAM_DRY_RUN=True`: nenhuma cobranca real e nenhum envio real ao provedor de video.
+- `ASAAS_DRY_RUN=True` e `BUNNY_STREAM_DRY_RUN=True`: nenhuma cobranca real e nenhum envio real ao Bunny.
+- `HOMECARE_VIDEO_PROVIDER=local`: videos ficam em area protegida da VPS nesta fase inicial.
 
 ## Permissoes
 
@@ -41,9 +42,25 @@ Modo recomendado agora:
 - Paciente inativo: nao acessa a biblioteca sem assinatura ativa.
 - Compras, assinaturas e liberacoes manuais do canal continuam no codigo para uso comercial futuro, mas o checkout permanece desligado nesta fase.
 
-## Bunny Stream
+## Videos Na VPS Agora
 
-O upload pelo painel salva o arquivo temporariamente em `/media/homecare/uploads/`. O `worker` executa `process_homecare_uploads`, cria o video no Bunny, envia o arquivo e remove o temporario quando conclui.
+O upload pelo painel salva o arquivo temporariamente em `/media/homecare/uploads/`. O `worker` executa `process_homecare_uploads`, move o arquivo final para `/media/homecare/private/videos/` e remove o temporario quando conclui.
+
+Os arquivos finais nao devem ficar publicos por `/media/`. Em producao, o Nginx bloqueia `/media/homecare/uploads/` e `/media/homecare/private/`. A reproducao passa por `/pilates-em-casa/videos/<slug>/assistir/`, onde o Django valida login, acesso, publicacao e lancamento programado antes de liberar o arquivo por `X-Accel-Redirect`.
+
+Variaveis:
+
+```text
+HOMECARE_VIDEO_PROVIDER=local
+HOMECARE_LOCAL_VIDEO_ACCEL_REDIRECT=True
+HOMECARE_LOCAL_VIDEO_ACCEL_PREFIX=/protected-homecare-media/
+HOMECARE_MAX_UPLOAD_MB=1024
+HOMECARE_UPLOAD_BATCH_SIZE=3
+```
+
+## Bunny Stream Futuro
+
+O Bunny Stream continua preservado no codigo para a fase comercial. Para migrar no futuro, troque `HOMECARE_VIDEO_PROVIDER=bunny`, configure as chaves e execute uma rotina de migracao dos arquivos locais para a biblioteca Bunny.
 
 Variaveis:
 
@@ -52,11 +69,9 @@ BUNNY_STREAM_DRY_RUN=True
 BUNNY_STREAM_API_KEY=
 BUNNY_STREAM_LIBRARY_ID=
 BUNNY_STREAM_TIMEOUT=60
-HOMECARE_MAX_UPLOAD_MB=1024
-HOMECARE_UPLOAD_BATCH_SIZE=3
 ```
 
-Mantenha `BUNNY_STREAM_DRY_RUN=True` ate validar a biblioteca. Em producao, os videos finais nao devem ser servidos por `/media/`.
+Mantenha `BUNNY_STREAM_DRY_RUN=True` enquanto a estrategia for local. Desative apenas quando Bunny for contratado/configurado.
 
 ## Asaas
 
@@ -124,11 +139,11 @@ Antes de liberar dados reais:
 2. Aplicar migracoes.
 3. Validar `/healthz/`.
 4. Testar painel interno em `/conteudos/`.
-5. Testar upload com `BUNNY_STREAM_DRY_RUN=True`.
+5. Testar upload com `HOMECARE_VIDEO_PROVIDER=local`.
 6. Liberar manualmente um paciente de homologacao.
 7. Testar login no portal com paciente ativo e com profissional/gestao.
 8. Testar webhook Asaas em sandbox somente quando `HOMECARE_WEBHOOK_ENABLED=True`.
 9. Fazer compra teste do canal apenas no fim da implementacao, evitando custo agora.
-10. Remover dry-run somente depois de confirmar upload, assinatura, financeiro e acesso.
+10. Migrar para Bunny e remover dry-run somente depois de confirmar volume, custos, upload, assinatura, financeiro e acesso.
 
-O Nginx possui limite maior apenas para `/conteudos/videos/`, preservando limite menor no restante da aplicacao.
+O Nginx possui limite maior apenas para `/conteudos/videos/`, preservando limite menor no restante da aplicacao, e bloqueia acesso direto aos arquivos de video do modulo.

@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ video.title }} | Fisioterapia em Casa</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-social-ui">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-local-video">
 </head>
 <body class="homecare-public">
   <main class="homecare-shell">
@@ -20,13 +20,18 @@
     </header>
 
     <section class="homecare-player-panel">
-      {% if is_demo_player %}
+      {% if is_local_player %}
+        <video class="homecare-local-player" controls preload="metadata" controlsList="nodownload" {% if video.thumbnail %}poster="{{ video.thumbnail.url }}"{% endif %}>
+          <source src="{{ local_video_url }}">
+          Seu navegador nao conseguiu reproduzir este video.
+        </video>
+      {% elif is_demo_player %}
         <div class="homecare-player-placeholder">
           <span class="homecare-player-button" aria-hidden="true"></span>
           <div>
             <p class="eyebrow">Preview seguro</p>
             <strong>{{ video.title }}</strong>
-            <small>O player real sera exibido quando o video estiver no Bunny Stream.</small>
+            <small>O player real sera exibido quando o video estiver processado.</small>
           </div>
         </div>
       {% elif embed_url %}

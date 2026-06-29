@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -177,6 +178,7 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
             "category": self.category,
             "author": self.professional,
             "status": HomecareVideo.Status.READY,
+            "provider": HomecareVideo.Provider.BUNNY,
             "provider_video_id": "video-123",
             "provider_library_id": "lib-123",
             "is_published": True,
@@ -314,6 +316,51 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
         self.assertContains(response, "Preview seguro")
         self.assertNotContains(response, "<iframe", html=False)
 
+    @override_settings(HOMECARE_LOCAL_VIDEO_ACCEL_REDIRECT=False)
+    def test_local_video_uses_protected_player_and_stream_route(self):
+        user = self.create_user("paciente-video-local", UserProfile.Role.PATIENT, patient=self.patient)
+        local_file = SimpleUploadedFile("aula-local.mp4", b"local-video", content_type="video/mp4")
+        video = self.create_ready_video(
+            title="Aula local protegida",
+            provider=HomecareVideo.Provider.LOCAL,
+            provider_video_id="local-123",
+            provider_library_id="",
+            provider_embed_url="",
+            local_video_file=local_file,
+        )
+        self.client.force_login(user)
+
+        detail_response = self.client.get(reverse("homecare_public:video_detail", args=[video.slug]))
+        stream_response = self.client.get(reverse("homecare_public:video_stream", args=[video.slug]))
+
+        self.assertContains(detail_response, "<video", html=False)
+        self.assertContains(detail_response, reverse("homecare_public:video_stream", args=[video.slug]))
+        self.assertEqual(stream_response.status_code, 200)
+        self.assertEqual(stream_response["Content-Type"], "video/mp4")
+        stream_response.close()
+        default_storage.delete(video.local_video_file.name)
+
+    @override_settings(HOMECARE_LOCAL_VIDEO_ACCEL_REDIRECT=True)
+    def test_local_video_stream_uses_x_accel_redirect_in_production_mode(self):
+        user = self.create_user("paciente-x-accel", UserProfile.Role.PATIENT, patient=self.patient)
+        local_file = SimpleUploadedFile("aula-x-accel.mp4", b"local-video", content_type="video/mp4")
+        video = self.create_ready_video(
+            title="Aula com x accel",
+            provider=HomecareVideo.Provider.LOCAL,
+            provider_video_id="local-456",
+            provider_library_id="",
+            provider_embed_url="",
+            local_video_file=local_file,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:video_stream", args=[video.slug]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response["X-Accel-Redirect"].startswith("/protected-homecare-media/"))
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+        default_storage.delete(video.local_video_file.name)
+
     def test_patient_can_toggle_video_like(self):
         user = self.create_user("paciente-curte-aula", UserProfile.Role.PATIENT, patient=self.patient)
         video = self.create_ready_video()
@@ -383,11 +430,12 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
 @override_settings(
     HOMECARE_ENABLED=True,
     HOMECARE_UPLOAD_WORKER_ENABLED=True,
+    HOMECARE_VIDEO_PROVIDER="bunny",
     BUNNY_STREAM_DRY_RUN=True,
     BUNNY_STREAM_LIBRARY_ID="library-test",
 )
 class HomecareUploadTests(HomecareTestMixin, TestCase):
-    def test_upload_job_dry_run_marks_video_ready_and_removes_temp_file(self):
+    def test_upload_job_bunny_dry_run_marks_video_ready_and_removes_temp_file(self):
         upload = SimpleUploadedFile("aula.mp4", b"video-bytes", content_type="video/mp4")
         video = HomecareVideo.objects.create(
             title="Upload teste",
@@ -405,8 +453,35 @@ class HomecareUploadTests(HomecareTestMixin, TestCase):
         job.refresh_from_db()
         self.assertEqual(video.status, HomecareVideo.Status.READY)
         self.assertEqual(job.status, HomecareUploadJob.Status.DONE)
+        self.assertEqual(video.provider, HomecareVideo.Provider.BUNNY)
         self.assertTrue(video.provider_video_id.startswith("dry-run-"))
         self.assertFalse(video.temporary_file)
+
+    @override_settings(HOMECARE_VIDEO_PROVIDER="local")
+    def test_upload_job_local_moves_video_to_private_storage(self):
+        upload = SimpleUploadedFile("aula-local.mp4", b"video-bytes", content_type="video/mp4")
+        video = HomecareVideo.objects.create(
+            title="Upload local teste",
+            category=self.category,
+            author=self.professional,
+            temporary_file=upload,
+            status=HomecareVideo.Status.QUEUED,
+        )
+        job = HomecareUploadJob.objects.create(video=video)
+
+        processed = process_upload_job(job)
+
+        self.assertTrue(processed)
+        video.refresh_from_db()
+        job.refresh_from_db()
+        self.assertEqual(video.status, HomecareVideo.Status.READY)
+        self.assertEqual(job.status, HomecareUploadJob.Status.DONE)
+        self.assertEqual(video.provider, HomecareVideo.Provider.LOCAL)
+        self.assertTrue(video.provider_video_id.startswith("local-"))
+        self.assertTrue(video.local_video_file.name.startswith("homecare/private/videos/"))
+        self.assertTrue(default_storage.exists(video.local_video_file.name))
+        self.assertFalse(video.temporary_file)
+        default_storage.delete(video.local_video_file.name)
 
 
 @override_settings(HOMECARE_ENABLED=True, HOMECARE_WEBHOOK_ENABLED=True, ASAAS_WEBHOOK_TOKEN="token-seguro")

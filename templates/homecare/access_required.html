@@ -5,10 +5,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Acesso necessario | Fisioterapia em Casa</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-ui3">
 </head>
 <body class="homecare-public">
   <main class="homecare-shell compact">
+    {% include "homecare/_public_nav.html" %}
+
     <section class="homecare-hero">
       <div>
         <p class="eyebrow">Fisioterapia em Casa</p>

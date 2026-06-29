@@ -1,0 +1,18 @@
+{% load static %}
+<header class="homecare-topbar">
+  <a class="homecare-wordmark" href="{% url 'homecare_public:landing' %}" aria-label="Lume em casa">
+    <img src="{% static 'images/website/lume-logo.jpg' %}" alt="" aria-hidden="true">
+    <strong>Lume em casa</strong>
+  </a>
+  <div class="homecare-account-actions">
+    {% if request.user.is_authenticated %}
+      <span class="homecare-account-name">{{ request.user.profile.display_name }}</span>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button class="button ghost compact" type="submit">Sair</button>
+      </form>
+    {% else %}
+      <a class="button secondary compact" href="/login/?next={% url 'homecare_public:library' %}">Entrar</a>
+    {% endif %}
+  </div>
+</header>

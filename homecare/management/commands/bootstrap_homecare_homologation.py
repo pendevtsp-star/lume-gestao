@@ -27,8 +27,11 @@ class Command(BaseCommand):
         categories = [
             ("pilates-em-casa", "Pilates em casa", "Aulas gerais de pilates para rotina domiciliar.", 10),
             ("mobilidade", "Mobilidade", "Exercicios de mobilidade e consciencia corporal.", 20),
-            ("fortalecimento", "Fortalecimento", "Sequencias leves de fortalecimento e estabilidade.", 30),
-            ("alongamento", "Alongamento", "Alongamentos guiados para cuidado complementar.", 40),
+            ("dor-lombar", "Dor lombar", "Rotinas guiadas para alivio, estabilidade e educacao de movimento.", 30),
+            ("fortalecimento", "Fortalecimento", "Sequencias leves de fortalecimento e estabilidade.", 40),
+            ("alongamento", "Alongamento", "Alongamentos guiados para cuidado complementar.", 50),
+            ("postura-e-respiracao", "Postura e respiracao", "Conteudos para consciencia postural, respiracao e controle corporal.", 60),
+            ("rotina-pos-atendimento", "Rotina pos-atendimento", "Orientacoes de continuidade para o cuidado entre sessoes.", 70),
         ]
         created_categories = 0
         for slug, name, description, order in categories:

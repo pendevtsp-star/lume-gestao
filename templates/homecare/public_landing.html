@@ -5,10 +5,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fisioterapia em Casa</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-ui3">
 </head>
 <body class="homecare-public">
   <main class="homecare-shell">
+    {% include "homecare/_public_nav.html" %}
+
     <section class="homecare-hero">
       <div>
         <p class="eyebrow">Lume Studio Fisio</p>
@@ -30,7 +32,7 @@
     <section class="homecare-public-grid">
       {% for category in categories %}
         <article class="homecare-card">
-          <span>{{ category.video_total }} video(s)</span>
+          <span>{{ category.video_total }} video{{ category.video_total|pluralize }}</span>
           <strong>{{ category.name }}</strong>
           <p>{{ category.description|default:"Conteudos organizados por foco de atendimento." }}</p>
         </article>
@@ -46,7 +48,7 @@
     <section id="planos" class="homecare-plans">
       <div class="homecare-section-head">
         <p class="eyebrow">Assinatura</p>
-        <h2>Escolha seu acesso</h2>
+        <h2>Acesso ao canal</h2>
       </div>
       <div class="homecare-public-grid">
         {% for plan in plans %}

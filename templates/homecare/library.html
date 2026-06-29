@@ -5,14 +5,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Biblioteca | Fisioterapia em Casa</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-ui3">
 </head>
 <body class="homecare-public">
   <main class="homecare-shell">
+    {% include "homecare/_public_nav.html" %}
+
     <header class="homecare-library-head">
       <div>
         <p class="eyebrow">Fisioterapia em Casa</p>
         <h1>Biblioteca</h1>
+        <p>{{ videos|length }} video(s) disponivel(is) para seu acesso.</p>
       </div>
       <a class="button secondary" href="{% url 'homecare_public:landing' %}">Inicio</a>
     </header>
@@ -74,8 +77,8 @@
 
     <section class="homecare-video-grid">
       {% for video in videos %}
-        <a class="homecare-video-card" href="{% url 'homecare_public:video_detail' video.slug %}">
-          <div class="homecare-thumb{% if not video.thumbnail %} is-generated{% endif %}">
+        <a class="homecare-video-card" href="{% url 'homecare_public:video_detail' video.slug %}" aria-label="{{ video.title }} - {{ video.category.name }}">
+          <div class="homecare-thumb{% if not video.thumbnail %} is-generated{% endif %}" aria-hidden="true">
             {% if video.thumbnail %}
               <img src="{{ video.thumbnail.url }}" alt="">
             {% else %}
@@ -96,7 +99,7 @@
           <small>{{ video.author.full_name }} - {{ video.duration_label }}</small>
         </a>
       {% empty %}
-        <article class="homecare-card">
+        <article class="homecare-card homecare-empty-card">
           <strong>Nenhum video encontrado</strong>
           <p>Ajuste os filtros ou volte para todos os conteudos da biblioteca.</p>
         </article>

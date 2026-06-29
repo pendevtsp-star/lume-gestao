@@ -7,13 +7,13 @@
   <title>{% block title %}Lume Gestao{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-lume-connect">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-ui3">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="{% url 'dashboard' %}" aria-label="Lume Gestao">
-        <span class="brand-mark">L</span>
+        <img class="brand-logo" src="{% static 'images/website/lume-logo.jpg' %}" alt="" aria-hidden="true">
         <span>
           <strong>Lume</strong>
           <small>Gestao da clinica</small>

@@ -5,10 +5,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ video.title }} | Fisioterapia em Casa</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-ui3">
 </head>
 <body class="homecare-public">
   <main class="homecare-shell">
+    {% include "homecare/_public_nav.html" %}
+
     <header class="homecare-library-head">
       <div>
         <p class="eyebrow">{{ video.category.name }}</p>

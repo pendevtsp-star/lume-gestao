@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import UserProfile
-from billing.models import Expense, ExpenseCategory, Membership, Payment, ServicePlan
+from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from core.models import (
     AuditLog,
     ClinicSettings,
@@ -23,6 +23,7 @@ from core.models import (
     WhatsAppMessageLog,
     WhatsAppMessageTemplate,
 )
+from core.services.whatsapp_automation import enqueue_automatic_whatsapp_messages
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
@@ -513,6 +514,33 @@ class IntegrationsTests(TestCase):
             "https://sistema.clinicafisiolume.com.br/integracoes/google/callback/",
         )
 
+    @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
+    def test_management_can_generate_and_revoke_secure_google_ics_link(self):
+        self.client.force_login(self.management)
+
+        response = self.client.post(reverse("integrations"), {"action": "regenerate_google_ics", "tab": "connections"})
+
+        self.assertEqual(response.status_code, 302)
+        integration = GoogleCalendarIntegration.load()
+        self.assertTrue(integration.has_calendar_feed)
+        self.assertGreater(len(integration.calendar_feed_token), 40)
+
+        feed_response = self.client.get(reverse("integrations_google_ics_feed", args=[integration.calendar_feed_token]))
+        body = feed_response.content.decode()
+        self.assertEqual(feed_response.status_code, 200)
+        self.assertIn("BEGIN:VCALENDAR", body)
+        self.assertNotIn(self.patient.full_name, body)
+
+        response = self.client.post(reverse("integrations"), {"action": "revoke_google_ics", "tab": "connections"})
+        self.assertEqual(response.status_code, 302)
+        integration.refresh_from_db()
+        self.assertFalse(integration.has_calendar_feed)
+
+    def test_google_ics_feed_rejects_invalid_token(self):
+        response = self.client.get(reverse("integrations_google_ics_feed", args=["token-invalido"]))
+
+        self.assertEqual(response.status_code, 404)
+
     @override_settings(
         GOOGLE_CALENDAR_CLIENT_ID="cole-o-client-id-google",
         GOOGLE_CALENDAR_CLIENT_SECRET="cole-o-client-secret-google",
@@ -694,6 +722,13 @@ class IntegrationsTests(TestCase):
                 "automation-appointment_reminder_hours_before": 12,
                 "automation-birthday_messages_enabled": "on",
                 "automation-birthday_send_time": "07:30",
+                "automation-membership_due_reminders_enabled": "on",
+                "automation-membership_due_days_before": 3,
+                "automation-membership_due_on_date": "on",
+                "automation-membership_overdue_enabled": "on",
+                "automation-membership_overdue_days_after": 1,
+                "automation-charge_overdue_enabled": "on",
+                "automation-charge_overdue_days_after": 1,
             },
         )
 
@@ -874,6 +909,94 @@ class IntegrationsTests(TestCase):
         self.assertEqual(integration.refresh_token, "")
         self.assertEqual(integration.access_token, "")
         self.assertIsNone(integration.token_expires_at)
+
+    def test_secret_fields_are_not_rendered_back_to_browser(self):
+        self.client.force_login(self.management)
+        GoogleCalendarIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"oauth_client_id": "client-id", "oauth_client_secret": "super-secret-google"},
+        )
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"embedded_app_id": "app-id", "embedded_config_id": "config-id", "embedded_app_secret": "super-secret-meta"},
+        )
+
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertNotContains(response, "super-secret-google")
+        self.assertNotContains(response, "super-secret-meta")
+
+    @override_settings(WHATSAPP_DRY_RUN=False)
+    def test_real_whatsapp_send_requires_meta_template_name(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "enabled": True,
+                "dry_run": False,
+                "phone_number_id": "phone-id",
+                "access_token": "access-token",
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )
+        WhatsAppMessageTemplate.ensure_defaults()
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "send_template:appointment",
+                "tab": "messages",
+                "send-appointment-appointment": self.appointment.pk,
+                "send-appointment-custom_number": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log = WhatsAppMessageLog.objects.get(template__template_type=WhatsAppMessageTemplate.TemplateType.APPOINTMENT)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.FAILED)
+        self.assertIn("Template nao configurado", log.error_message)
+
+    def test_financial_whatsapp_automation_schedules_due_and_overdue_messages(self):
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"enabled": True, "dry_run": True, "phone_number_id": "123", "clinic_whatsapp_number": "5511999990000"},
+        )
+        WhatsAppMessageTemplate.ensure_defaults()
+        automation = WhatsAppAutomationSettings.load()
+        automation.membership_due_reminders_enabled = True
+        automation.membership_due_days_before = 3
+        automation.membership_due_on_date = False
+        automation.membership_overdue_enabled = True
+        automation.membership_overdue_days_after = 1
+        automation.charge_overdue_enabled = True
+        automation.charge_overdue_days_after = 1
+        automation.save()
+        now = timezone.make_aware(datetime(2026, 6, 27, 9, 0))
+        self.payment.due_date = date(2026, 6, 30)
+        self.payment.save(update_fields=["due_date"])
+        overdue_payment = Payment.objects.create(
+            membership=self.membership,
+            reference_month=date(2026, 7, 1),
+            due_date=date(2026, 6, 26),
+            amount=Decimal("320.00"),
+            status=Payment.Status.OVERDUE,
+        )
+        charge = Charge.objects.create(
+            patient=self.patient,
+            description="Cobranca teste",
+            due_date=date(2026, 6, 26),
+            amount=Decimal("90.00"),
+            status=Charge.Status.OVERDUE,
+        )
+
+        created = enqueue_automatic_whatsapp_messages(now=now)
+
+        self.assertEqual(created["membership_due"], 1)
+        self.assertEqual(created["membership_overdue"], 1)
+        self.assertEqual(created["charge_overdue"], 1)
+        self.assertTrue(WhatsAppMessageLog.objects.filter(payment=self.payment).exists())
+        self.assertTrue(WhatsAppMessageLog.objects.filter(payment=overdue_payment).exists())
+        self.assertTrue(WhatsAppMessageLog.objects.filter(charge=charge).exists())
 
 
 class GoogleCalendarSignalTests(TestCase):

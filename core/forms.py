@@ -71,11 +71,17 @@ class GoogleCalendarIntegrationForm(StyledModelForm):
         self.fields["oauth_client_id"].help_text = "Cole aqui o Client ID criado no Google Cloud."
         self.fields["oauth_client_secret"].help_text = "Cole aqui o Client Secret criado no Google Cloud. Nunca use a senha da conta Google."
 
+    def clean_oauth_client_secret(self):
+        value = self.cleaned_data.get("oauth_client_secret")
+        if not value and self.instance and self.instance.pk:
+            return self.instance.oauth_client_secret
+        return value
+
     class Meta:
         model = GoogleCalendarIntegration
         fields = ["enabled", "calendar_id", "sync_on_save", "oauth_client_id", "oauth_client_secret"]
         widgets = {
-            "oauth_client_secret": forms.PasswordInput(render_value=True),
+            "oauth_client_secret": forms.PasswordInput(render_value=False),
         }
 
 
@@ -89,6 +95,12 @@ class WhatsAppIntegrationForm(StyledModelForm):
         self.fields["embedded_app_id"].help_text = "Opcional se estiver configurado no .env da VPS."
         self.fields["embedded_config_id"].help_text = "Opcional se estiver configurado no .env da VPS."
         self.fields["embedded_app_secret"].help_text = "Opcional se estiver configurado no .env da VPS."
+
+    def clean_embedded_app_secret(self):
+        value = self.cleaned_data.get("embedded_app_secret")
+        if not value and self.instance and self.instance.pk:
+            return self.instance.embedded_app_secret
+        return value
 
     class Meta:
         model = WhatsAppIntegration
@@ -105,14 +117,32 @@ class WhatsAppIntegrationForm(StyledModelForm):
             "embedded_app_secret",
         ]
         widgets = {
-            "embedded_app_secret": forms.PasswordInput(render_value=True),
+            "embedded_app_secret": forms.PasswordInput(render_value=False),
         }
 
 
 class WhatsAppMessageTemplateForm(StyledModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["meta_template_name"].required = False
+        self.fields["meta_template_language"].required = False
+        self.fields["meta_template_name"].help_text = "Obrigatorio apenas para envio real fora do modo teste."
+        self.fields["meta_template_language"].help_text = "Use o idioma cadastrado no template da Meta. Padrao: pt_BR."
+
+    def clean_meta_template_language(self):
+        return self.cleaned_data.get("meta_template_language") or "pt_BR"
+
     class Meta:
         model = WhatsAppMessageTemplate
-        fields = ["active", "title", "description", "body", "send_time"]
+        fields = [
+            "active",
+            "title",
+            "description",
+            "body",
+            "meta_template_name",
+            "meta_template_language",
+            "send_time",
+        ]
         widgets = {
             "body": forms.Textarea(attrs={"rows": 5}),
             "send_time": forms.TimeInput(attrs={"type": "time"}),
@@ -127,6 +157,13 @@ class WhatsAppAutomationSettingsForm(StyledModelForm):
             "appointment_reminder_hours_before",
             "birthday_messages_enabled",
             "birthday_send_time",
+            "membership_due_reminders_enabled",
+            "membership_due_days_before",
+            "membership_due_on_date",
+            "membership_overdue_enabled",
+            "membership_overdue_days_after",
+            "charge_overdue_enabled",
+            "charge_overdue_days_after",
         ]
         widgets = {
             "birthday_send_time": forms.TimeInput(attrs={"type": "time"}),

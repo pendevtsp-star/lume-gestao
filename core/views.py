@@ -1,8 +1,10 @@
 from datetime import datetime, time, timedelta
+from datetime import timezone as datetime_timezone
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.db.models import Count, Q, Sum
 from django.urls import reverse
@@ -36,9 +38,11 @@ from core.integrations.http import IntegrationError
 from core.integrations.whatsapp import (
     exchange_whatsapp_embedded_signup_code,
     format_whatsapp_currency,
+    meta_template_parameters,
     process_scheduled_whatsapp_messages,
     provider_reference_from_response,
     render_whatsapp_template,
+    send_whatsapp_template,
     send_whatsapp_text,
     whatsapp_embedded_signup_credentials,
     whatsapp_embedded_signup_configured,
@@ -61,6 +65,20 @@ from lume_connect.models import ConnectNotification, ConnectPost
 
 
 WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"]
+
+
+def escape_ics_value(value):
+    return (
+        str(value or "")
+        .replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\n", "\\n")
+    )
+
+
+def format_ics_datetime(value):
+    return value.astimezone(datetime_timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 class SearchableListView(LoginRequiredMixin):
@@ -579,6 +597,25 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             template_type: render_whatsapp_template(template.body, whatsapp_preview_context(template_type))
             for template_type, template in templates.items()
         }
+        google_ics_url = ""
+        if google_integration.has_calendar_feed:
+            path = reverse("integrations_google_ics_feed", args=[google_integration.calendar_feed_token])
+            google_ics_url = f"{settings.PUBLIC_BASE_URL.rstrip('/')}{path}" if settings.PUBLIC_BASE_URL else self.request.build_absolute_uri(path)
+        whatsapp_templates_ready = all(
+            template.meta_template_name
+            for template in templates.values()
+            if template.active
+        )
+        diagnostics = [
+            ("WhatsApp configurado", "Sim" if whatsapp_embedded_signup_configured(whatsapp_integration) else "Nao"),
+            ("WhatsApp conectado", "Sim" if whatsapp_integration.is_connected else "Nao"),
+            ("Modo teste WhatsApp", "Sim" if whatsapp_integration.dry_run or settings.WHATSAPP_DRY_RUN else "Nao"),
+            ("Templates Meta", "Sim" if whatsapp_templates_ready else "Pendente"),
+            ("Google OAuth configurado", "Sim" if google_calendar_configured() else "Nao"),
+            ("Google conectado", "Sim" if google_integration.is_connected else "Nao"),
+            ("Link .ics ativo", "Sim" if google_integration.has_calendar_feed else "Nao"),
+            ("Ultimo processamento", scheduled_logs[0].created_at.strftime("%d/%m/%Y %H:%M") if scheduled_logs else "-"),
+        ]
         return {
             "google_form": google_form or GoogleCalendarIntegrationForm(prefix="google", instance=google_integration),
             "whatsapp_form": whatsapp_form or WhatsAppIntegrationForm(prefix="whatsapp", instance=whatsapp_integration),
@@ -586,6 +623,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             "whatsapp": whatsapp_integration,
             "google_configured": google_calendar_configured(),
             "google_callback_url": google_redirect_uri(self.request),
+            "google_ics_url": google_ics_url,
             "google_uses_env_credentials": bool(
                 google_client_id
                 and google_client_secret
@@ -618,6 +656,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             ).count(),
             "scheduled_messages_total": log_queryset.filter(status=WhatsAppMessageLog.Status.SCHEDULED).count(),
             "active_templates_total": sum(1 for template in templates.values() if template.active),
+            "diagnostics": diagnostics,
             "active_tab": active_tab or self.get_active_tab(),
             "page_title": "Integracoes",
             "section_label": "Gerencia",
@@ -755,7 +794,15 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             return redirect(f"{reverse('integrations')}?tab=messages&message={template_type}")
 
         try:
-            result = send_whatsapp_text(target_number, rendered_message, integration=integration)
+            if integration.dry_run or settings.WHATSAPP_DRY_RUN:
+                result = send_whatsapp_text(target_number, rendered_message, integration=integration)
+            else:
+                result = send_whatsapp_template(
+                    target_number,
+                    template,
+                    meta_template_parameters(template, message_context),
+                    integration=integration,
+                )
         except IntegrationError as exc:
             self.create_whatsapp_log(
                 integration=integration,
@@ -829,6 +876,16 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 ]
             )
             messages.success(request, "Conta Google desconectada com sucesso.")
+            return redirect(f"{reverse('integrations')}?tab=connections")
+        elif action == "regenerate_google_ics":
+            integration = GoogleCalendarIntegration.load()
+            integration.regenerate_calendar_feed_token()
+            messages.success(request, "Link seguro do calendario recriado. Atualize a assinatura no Google Agenda.")
+            return redirect(f"{reverse('integrations')}?tab=connections")
+        elif action == "revoke_google_ics":
+            integration = GoogleCalendarIntegration.load()
+            integration.revoke_calendar_feed_token()
+            messages.success(request, "Link do calendario revogado com sucesso.")
             return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "save_whatsapp":
             form = WhatsAppIntegrationForm(request.POST, prefix="whatsapp", instance=WhatsAppIntegration.load())
@@ -952,7 +1009,16 @@ class BirthdayWhatsAppSendView(FinanceAccessMixin, View):
             return redirect("dashboard")
 
         try:
-            result = send_whatsapp_text(target_number, rendered_message, integration=integration)
+            message_context = build_whatsapp_message_context(patient=patient)
+            if integration.dry_run or settings.WHATSAPP_DRY_RUN:
+                result = send_whatsapp_text(target_number, rendered_message, integration=integration)
+            else:
+                result = send_whatsapp_template(
+                    target_number,
+                    template,
+                    meta_template_parameters(template, message_context),
+                    integration=integration,
+                )
         except IntegrationError as exc:
             WhatsAppMessageLog.objects.create(
                 integration=integration,
@@ -1032,5 +1098,56 @@ class GoogleCalendarSyncView(FinanceAccessMixin, View):
             else:
                 messages.success(request, f"Google Agenda sincronizado com {synced} agendamento(s).")
         return redirect("integrations")
+
+
+class GoogleCalendarIcsFeedView(View):
+    def get(self, request, token):
+        integration = GoogleCalendarIntegration.objects.filter(
+            calendar_feed_enabled=True,
+            calendar_feed_token=token,
+        ).first()
+        if not integration:
+            raise Http404("Calendario nao encontrado.")
+
+        now = timezone.now()
+        appointments = (
+            Appointment.objects.select_related("professional")
+            .filter(
+                starts_at__gte=now - timedelta(days=7),
+                starts_at__lte=now + timedelta(days=180),
+            )
+            .exclude(status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED])
+            .order_by("starts_at")[:1000]
+        )
+        generated_at = datetime.now(datetime_timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        lines = [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//Lume Gestao//Agenda Segura//PT-BR",
+            "CALSCALE:GREGORIAN",
+            "METHOD:PUBLISH",
+            "X-WR-CALNAME:Lume Gestao - Agenda",
+            "REFRESH-INTERVAL;VALUE=DURATION:PT30M",
+            "X-PUBLISHED-TTL:PT30M",
+        ]
+        for appointment in appointments:
+            professional_name = appointment.professional.full_name if appointment.professional_id else "Equipe Lume"
+            lines.extend(
+                [
+                    "BEGIN:VEVENT",
+                    f"UID:lume-secure-appointment-{appointment.pk}@clinicafisiolume.com.br",
+                    f"DTSTAMP:{generated_at}",
+                    f"DTSTART:{format_ics_datetime(appointment.starts_at)}",
+                    f"DTEND:{format_ics_datetime(appointment.ends_at)}",
+                    f"SUMMARY:{escape_ics_value('Atendimento Lume - ' + professional_name)}",
+                    f"DESCRIPTION:{escape_ics_value('Status: ' + appointment.get_status_display())}",
+                    "END:VEVENT",
+                ]
+            )
+        lines.append("END:VCALENDAR")
+        response = HttpResponse("\r\n".join(lines), content_type="text/calendar; charset=utf-8")
+        response["Content-Disposition"] = 'inline; filename="lume-agenda-segura.ics"'
+        response["Cache-Control"] = "private, max-age=900"
+        return response
 
 # Create your views here.

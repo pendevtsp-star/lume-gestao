@@ -41,7 +41,9 @@ WHATSAPP_META_PHONE_NUMBER_ID=cole-o-phone-number-id
 WHATSAPP_EMBEDDED_APP_ID=cole-o-meta-app-id
 WHATSAPP_EMBEDDED_CONFIG_ID=cole-o-meta-configuration-id
 WHATSAPP_EMBEDDED_APP_SECRET=cole-o-meta-app-secret
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=crie-um-token-forte-se-ativar-webhook
 WHATSAPP_TIMEOUT=15
+LUME_FIELD_ENCRYPTION_KEY=gere-uma-chave-forte-fora-do-git
 ```
 
 Para a experiencia mais simples do usuario final, preencha `WHATSAPP_EMBEDDED_APP_ID`, `WHATSAPP_EMBEDDED_CONFIG_ID` e `WHATSAPP_EMBEDDED_APP_SECRET` no `.env` da VPS. Assim a tela do sistema mostra o botao `Conectar WhatsApp oficial` e mantem a parte tecnica escondida.
@@ -106,8 +108,37 @@ No app desktop, a fila roda localmente enquanto o aplicativo estiver aberto.
 
 ## Importante sobre templates
 
-Mensagens iniciadas pela clinica, como lembrete de vencimento ou aviso de consulta, normalmente precisam de template aprovado pela Meta quando enviadas fora da janela de atendimento do WhatsApp. O modulo atual prepara texto simples para teste; a proxima etapa de producao deve adicionar envio por templates.
+Mensagens iniciadas pela clinica, como lembrete de vencimento, aniversario, cobranca ou aviso de consulta, normalmente precisam de template aprovado pela Meta quando enviadas fora da janela de atendimento do WhatsApp.
+
+Na aba `Integracoes > Mensagens`, cada modelo interno tem campos para:
+
+- nome do template aprovado na Meta;
+- idioma do template, por padrao `pt_BR`;
+- variaveis internas usadas na previa.
+
+Enquanto `WHATSAPP_DRY_RUN=True`, o sistema simula envios e usa o texto interno para facilitar testes. Quando `WHATSAPP_DRY_RUN=False`, envios iniciados pela clinica exigem o nome do template aprovado; caso contrario, o sistema bloqueia o disparo com a mensagem `Template nao configurado para producao`.
+
+Sugestao de homologacao:
+
+1. mantenha `WHATSAPP_DRY_RUN=True`;
+2. conecte pela Meta Embedded Signup;
+3. configure os nomes dos templates aprovados;
+4. envie testes e confira o historico;
+5. altere `WHATSAPP_DRY_RUN=False` somente depois de validar numero, templates e permissao da conta.
+
+## Automacoes
+
+O worker agenda e processa automaticamente:
+
+- lembretes de agendamento;
+- mensagens de aniversario;
+- lembretes de mensalidade a vencer;
+- avisos no dia do vencimento, se habilitado;
+- avisos de mensalidade vencida;
+- avisos de cobranca avulsa vencida.
+
+O sistema evita duplicidade para o mesmo paciente/referencia/data e registra tudo em `WhatsAppMessageLog`.
 
 ## URLs publicas
 
-Use `https://sistema.clinicafisiolume.com.br` como base publica para qualquer configuracao futura de callback, webhook ou tela de integracao da Meta. O projeto atual nao possui endpoint publico de webhook do WhatsApp versionado; nao cadastre endpoints inventados no painel da Meta.
+Use `https://sistema.clinicafisiolume.com.br` como base publica para qualquer configuracao futura de callback, webhook ou tela de integracao da Meta. O projeto ainda nao recebe status de mensagem por webhook publico versionado; nao cadastre endpoints inventados no painel da Meta antes de essa etapa ser ativada.

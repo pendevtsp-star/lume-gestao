@@ -6,6 +6,7 @@ from core.views import (
     DashboardView,
     GoogleCalendarCallbackView,
     GoogleCalendarConnectView,
+    GoogleCalendarIcsFeedView,
     GoogleCalendarSyncView,
     HealthCheckView,
     IntegrationsView,
@@ -27,4 +28,5 @@ urlpatterns = [
     path("integracoes/google/conectar/", GoogleCalendarConnectView.as_view(), name="integrations_google_connect"),
     path("integracoes/google/callback/", GoogleCalendarCallbackView.as_view(), name="integrations_google_callback"),
     path("integracoes/google/sincronizar/", GoogleCalendarSyncView.as_view(), name="integrations_google_sync"),
+    path("integracoes/google/agenda/<str:token>.ics", GoogleCalendarIcsFeedView.as_view(), name="integrations_google_ics_feed"),
 ]

@@ -96,6 +96,61 @@ def send_whatsapp_text(to_number, message, integration=None):
     return response
 
 
+def send_whatsapp_template(to_number, template, parameters, integration=None):
+    integration = integration or WhatsAppIntegration.load()
+    target = normalize_whatsapp_number(to_number, integration.default_country_code)
+    if not integration.enabled:
+        raise IntegrationError("Integracao WhatsApp esta desativada.")
+    if integration.provider != WhatsAppIntegration.Provider.META:
+        raise IntegrationError("Envio por template esta disponivel apenas para Meta Cloud API.")
+    if integration.dry_run or settings.WHATSAPP_DRY_RUN:
+        integration.last_test_at = timezone.now()
+        integration.last_error = ""
+        integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
+        return {
+            "dry_run": True,
+            "to": target,
+            "template": template.meta_template_name,
+            "language": template.meta_template_language,
+            "parameters": parameters,
+        }
+    if not template.meta_template_name:
+        raise IntegrationError("Template nao configurado para producao. Informe o nome aprovado na Meta.")
+    access_token = first_configured_value(integration.access_token, settings.WHATSAPP_META_ACCESS_TOKEN)
+    if not access_token:
+        raise IntegrationError("Token ausente ou expirado. Reconecte o WhatsApp pela Meta.")
+    phone_number_id = first_configured_value(integration.phone_number_id, settings.WHATSAPP_META_PHONE_NUMBER_ID)
+    if not phone_number_id:
+        raise IntegrationError("Phone Number ID ausente. Reconecte o WhatsApp pela Meta.")
+
+    url = f"https://graph.facebook.com/{settings.WHATSAPP_META_API_VERSION}/{phone_number_id}/messages"
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": target,
+        "type": "template",
+        "template": {
+            "name": template.meta_template_name,
+            "language": {"code": template.meta_template_language or "pt_BR"},
+            "components": [
+                {
+                    "type": "body",
+                    "parameters": [{"type": "text", "text": str(value or "-")} for value in parameters],
+                }
+            ],
+        },
+    }
+    response = post_json(
+        url,
+        payload,
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=settings.WHATSAPP_TIMEOUT,
+    )
+    integration.last_test_at = timezone.now()
+    integration.last_error = ""
+    integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
+    return response
+
+
 def format_whatsapp_currency(value):
     amount = value if isinstance(value, Decimal) else Decimal(str(value or "0"))
     return f"R$ {amount:.2f}".replace(".", ",")
@@ -106,6 +161,10 @@ def render_whatsapp_template(message, context):
     for token, value in context.items():
         rendered = rendered.replace(token, str(value or "-"))
     return rendered
+
+
+def meta_template_parameters(template, context):
+    return [context.get(token, "-") for token in template.variable_tokens]
 
 
 def provider_reference_from_response(result):
@@ -133,7 +192,23 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
     for log in due_logs:
         integration = log.integration or WhatsAppIntegration.load()
         try:
-            result = send_whatsapp_text(log.recipient_number, log.rendered_message, integration=integration)
+            if integration.dry_run or settings.WHATSAPP_DRY_RUN or not log.template:
+                result = send_whatsapp_text(log.recipient_number, log.rendered_message, integration=integration)
+            else:
+                from core.services.whatsapp_automation import build_whatsapp_message_context
+
+                context = build_whatsapp_message_context(
+                    patient=log.patient,
+                    appointment=log.appointment,
+                    payment=log.payment,
+                    charge=log.charge,
+                )
+                result = send_whatsapp_template(
+                    log.recipient_number,
+                    log.template,
+                    meta_template_parameters(log.template, context),
+                    integration=integration,
+                )
         except IntegrationError as exc:
             log.status = WhatsAppMessageLog.Status.FAILED
             log.error_message = str(exc)

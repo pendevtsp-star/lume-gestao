@@ -3,6 +3,39 @@
 {% block title %}Integracoes | Lume Gestao{% endblock %}
 
 {% block content %}
+<style>
+  .diagnostic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+  }
+
+  .diagnostic-item {
+    padding: 13px 14px;
+    border: 1px solid rgba(118, 104, 78, 0.14);
+    border-radius: 16px;
+    background: rgba(255, 253, 248, 0.76);
+  }
+
+  .diagnostic-item span,
+  .diagnostic-item strong {
+    display: block;
+  }
+
+  .diagnostic-item span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .diagnostic-item strong {
+    margin-top: 4px;
+    color: var(--ink);
+    font-size: 17px;
+  }
+</style>
 <section class="page-heading">
   <div>
     <p class="eyebrow">{{ section_label }}</p>
@@ -153,6 +186,30 @@
             </div>
           {% else %}
             <div class="slot-empty">Nenhum envio registrado ainda. Use a aba de mensagens para fazer o primeiro disparo.</div>
+          {% endif %}
+        </section>
+
+        <section class="panel zap-log-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Diagnostico seguro</h3>
+              <p>Resumo tecnico sem exibir tokens, secrets ou senhas.</p>
+            </div>
+          </div>
+          <div class="diagnostic-grid">
+            {% for label, value in diagnostics %}
+              <article class="diagnostic-item">
+                <span>{{ label }}</span>
+                <strong>{{ value }}</strong>
+              </article>
+            {% endfor %}
+          </div>
+          {% if google.last_error or whatsapp.last_error %}
+            <div class="connection-alert">
+              <strong>Ultimos erros amigaveis</strong>
+              {% if google.last_error %}<span>Google: {{ google.last_error }}</span>{% endif %}
+              {% if whatsapp.last_error %}<span>WhatsApp: {{ whatsapp.last_error }}</span>{% endif %}
+            </div>
           {% endif %}
         </section>
       </div>
@@ -413,6 +470,53 @@
           </form>
         </section>
 
+        <section class="panel connection-card connection-card-feature integration-wizard-card connection-hero-card">
+          <div class="connection-hero-top">
+            <div>
+              <p class="eyebrow">Google Agenda simples</p>
+              <h3>Assinar calendario por link seguro</h3>
+              <p>Use esta opcao quando a clinica quiser apenas visualizar os atendimentos no Google Agenda, sem liberar acesso OAuth.</p>
+            </div>
+            <span class="status-pill {% if google.has_calendar_feed %}is-success{% else %}is-muted{% endif %}">
+              {% if google.has_calendar_feed %}Link ativo{% else %}Sem link{% endif %}
+            </span>
+          </div>
+          <div class="connection-next-step">
+            <span>Privacidade</span>
+            <strong>O feed nao inclui prontuario, observacoes ou detalhes clinicos.</strong>
+            <p>O Google pode demorar alguns minutos para atualizar assinaturas `.ics`.</p>
+          </div>
+          {% if google_ics_url %}
+            <div class="callback-box">
+              <div>
+                <strong>Link de assinatura</strong>
+                <span>Copie ou abra para adicionar ao Google Agenda.</span>
+              </div>
+              <code>{{ google_ics_url }}</code>
+            </div>
+          {% endif %}
+          <div class="connection-main-actions">
+            {% if google_ics_url %}
+              <a class="button primary" href="https://calendar.google.com/calendar/render?cid={{ google_ics_url|urlencode }}" target="_blank" rel="noopener">Adicionar ao Google Agenda</a>
+              <button class="button secondary" type="button" data-copy-text="{{ google_ics_url }}">Copiar link</button>
+            {% endif %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="regenerate_google_ics">
+              <input type="hidden" name="tab" value="connections">
+              <button class="button secondary" type="submit">{% if google.has_calendar_feed %}Regenerar link{% else %}Gerar link seguro{% endif %}</button>
+            </form>
+            {% if google.has_calendar_feed %}
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="revoke_google_ics">
+                <input type="hidden" name="tab" value="connections">
+                <button class="button ghost" type="submit">Revogar link</button>
+              </form>
+            {% endif %}
+          </div>
+        </section>
+
         <section class="panel connection-card test-card">
           <div class="connection-card-head">
             <div>
@@ -563,6 +667,19 @@
         }
       });
     }
+  </script>
+{% endif %}
+{% if active_tab == "connections" %}
+  <script>
+    document.querySelectorAll("[data-copy-text]").forEach(function(button) {
+      button.addEventListener("click", function() {
+        var text = button.getAttribute("data-copy-text") || "";
+        navigator.clipboard.writeText(text).then(function() {
+          button.textContent = "Link copiado";
+          window.setTimeout(function() { button.textContent = "Copiar link"; }, 1800);
+        });
+      });
+    });
   </script>
 {% endif %}
 {% endblock %}

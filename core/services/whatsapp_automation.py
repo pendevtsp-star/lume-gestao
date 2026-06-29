@@ -95,16 +95,18 @@ def whatsapp_target_number(custom_number, patient=None):
     raise IntegrationError("O destinatario selecionado nao possui telefone cadastrado. Informe um numero manualmente.")
 
 
-def _create_scheduled_log(*, integration, template, patient, appointment=None, scheduled_for=None):
+def _create_scheduled_log(*, integration, template, patient, appointment=None, payment=None, charge=None, scheduled_for=None):
     rendered_message = render_whatsapp_template(
         template.body,
-        build_whatsapp_message_context(patient=patient, appointment=appointment),
+        build_whatsapp_message_context(patient=patient, appointment=appointment, payment=payment, charge=charge),
     )
     return WhatsAppMessageLog.objects.create(
         integration=integration,
         template=template,
         patient=patient,
         appointment=appointment,
+        payment=payment,
+        charge=charge,
         recipient_name=patient.full_name,
         recipient_number=patient.phone,
         rendered_message=rendered_message,
@@ -119,7 +121,7 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
     settings = WhatsAppAutomationSettings.load()
     integration = WhatsAppIntegration.load()
     WhatsAppMessageTemplate.ensure_defaults()
-    created = {"appointment": 0, "birthday": 0}
+    created = {"appointment": 0, "birthday": 0, "membership_due": 0, "membership_overdue": 0, "charge_overdue": 0}
 
     if not integration.is_connected:
         return created
@@ -184,5 +186,83 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     scheduled_for=now,
                 )
                 created["birthday"] += 1
+
+    charge_template = WhatsAppMessageTemplate.objects.get(template_type=WhatsAppMessageTemplate.TemplateType.CHARGE)
+    if charge_template.active:
+        today = local_now.date()
+        due_dates = []
+        if settings.membership_due_reminders_enabled:
+            due_dates.append((today + timedelta(days=settings.membership_due_days_before), "membership_due"))
+        if settings.membership_due_on_date:
+            due_dates.append((today, "membership_due"))
+        if settings.membership_overdue_enabled:
+            due_dates.append((today - timedelta(days=settings.membership_overdue_days_after), "membership_overdue"))
+
+        for due_date, counter_key in due_dates:
+            payments = (
+                Payment.objects.select_related("membership__patient")
+                .filter(
+                    status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
+                    due_date=due_date,
+                    membership__patient__active=True,
+                    membership__patient__phone__gt="",
+                )
+                .order_by("due_date", "membership__patient__full_name")[:limit]
+            )
+            for payment in payments:
+                patient = payment.membership.patient
+                exists = (
+                    WhatsAppMessageLog.objects.filter(
+                        template=charge_template,
+                        payment=payment,
+                        scheduled_for__date=today,
+                    )
+                    .exclude(status=WhatsAppMessageLog.Status.CANCELED)
+                    .exists()
+                )
+                if exists:
+                    continue
+                _create_scheduled_log(
+                    integration=integration,
+                    template=charge_template,
+                    patient=patient,
+                    payment=payment,
+                    scheduled_for=now,
+                )
+                created[counter_key] += 1
+
+        if settings.charge_overdue_enabled:
+            charge_due_date = today - timedelta(days=settings.charge_overdue_days_after)
+            charges = (
+                Charge.objects.select_related("patient")
+                .filter(
+                    status__in=[Charge.Status.OPEN, Charge.Status.OVERDUE],
+                    due_date=charge_due_date,
+                    patient__active=True,
+                    patient__phone__gt="",
+                )
+                .order_by("due_date", "patient__full_name")[:limit]
+            )
+            for charge in charges:
+                patient = charge.patient
+                exists = (
+                    WhatsAppMessageLog.objects.filter(
+                        template=charge_template,
+                        charge=charge,
+                        scheduled_for__date=today,
+                    )
+                    .exclude(status=WhatsAppMessageLog.Status.CANCELED)
+                    .exists()
+                )
+                if exists:
+                    continue
+                _create_scheduled_log(
+                    integration=integration,
+                    template=charge_template,
+                    patient=patient,
+                    charge=charge,
+                    scheduled_for=now,
+                )
+                created["charge_overdue"] += 1
 
     return created

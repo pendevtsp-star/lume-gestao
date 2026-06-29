@@ -1,8 +1,11 @@
 from datetime import time
 
+import secrets
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from core.integrations.credentials import configured_value
 
@@ -86,6 +89,9 @@ class GoogleCalendarIntegration(TimeStampedModel):
     connected_email = models.EmailField("conta conectada", blank=True)
     last_sync_at = models.DateTimeField("ultima sincronizacao", null=True, blank=True)
     last_error = models.TextField("ultimo erro", blank=True)
+    calendar_feed_enabled = models.BooleanField("link .ics ativo", default=False)
+    calendar_feed_token = models.CharField("token do calendario .ics", max_length=96, blank=True, unique=True)
+    calendar_feed_created_at = models.DateTimeField("link .ics criado em", null=True, blank=True)
 
     class Meta:
         verbose_name = "integracao Google Agenda"
@@ -98,6 +104,37 @@ class GoogleCalendarIntegration(TimeStampedModel):
     @property
     def is_connected(self):
         return bool(self.enabled and self.refresh_token)
+
+    @property
+    def has_calendar_feed(self):
+        return bool(self.calendar_feed_enabled and self.calendar_feed_token)
+
+    def regenerate_calendar_feed_token(self):
+        self.calendar_feed_token = secrets.token_urlsafe(48)
+        self.calendar_feed_enabled = True
+        self.calendar_feed_created_at = timezone.now()
+        self.save(
+            update_fields=[
+                "calendar_feed_token",
+                "calendar_feed_enabled",
+                "calendar_feed_created_at",
+                "updated_at",
+            ]
+        )
+        return self.calendar_feed_token
+
+    def revoke_calendar_feed_token(self):
+        self.calendar_feed_enabled = False
+        self.calendar_feed_token = ""
+        self.calendar_feed_created_at = None
+        self.save(
+            update_fields=[
+                "calendar_feed_enabled",
+                "calendar_feed_token",
+                "calendar_feed_created_at",
+                "updated_at",
+            ]
+        )
 
     @classmethod
     def load(cls):
@@ -159,6 +196,8 @@ class WhatsAppMessageTemplate(TimeStampedModel):
     title = models.CharField("titulo", max_length=120)
     description = models.CharField("descricao", max_length=255, blank=True)
     body = models.TextField("mensagem")
+    meta_template_name = models.CharField("nome do template aprovado na Meta", max_length=120, blank=True)
+    meta_template_language = models.CharField("idioma do template Meta", max_length=10, default="pt_BR")
     send_time = models.TimeField("horario do envio", null=True, blank=True)
     active = models.BooleanField("ativo", default=True)
     updated_by = models.ForeignKey(
@@ -235,6 +274,13 @@ class WhatsAppAutomationSettings(TimeStampedModel):
     appointment_reminder_hours_before = models.PositiveSmallIntegerField("horas antes da consulta", default=24)
     birthday_messages_enabled = models.BooleanField("enviar aniversarios automaticamente", default=True)
     birthday_send_time = models.TimeField("horario do aniversario", default=time(8, 0))
+    membership_due_reminders_enabled = models.BooleanField("enviar lembretes de mensalidade a vencer", default=True)
+    membership_due_days_before = models.PositiveSmallIntegerField("dias antes do vencimento", default=3)
+    membership_due_on_date = models.BooleanField("enviar tambem no dia do vencimento", default=True)
+    membership_overdue_enabled = models.BooleanField("enviar aviso de mensalidade vencida", default=True)
+    membership_overdue_days_after = models.PositiveSmallIntegerField("dias apos o vencimento", default=1)
+    charge_overdue_enabled = models.BooleanField("enviar aviso de cobranca avulsa vencida", default=True)
+    charge_overdue_days_after = models.PositiveSmallIntegerField("dias apos vencimento avulso", default=1)
 
     class Meta:
         verbose_name = "automacao WhatsApp"

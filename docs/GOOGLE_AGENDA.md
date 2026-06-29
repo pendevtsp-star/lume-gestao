@@ -1,6 +1,9 @@
 # Integracao Google Agenda
 
-O Lume Gestao ja possui exportacao `.ics`. Esta etapa adiciona a base OAuth para sincronizar diretamente com Google Calendar.
+O Lume Gestao oferece duas formas de integracao com Google Agenda:
+
+- link seguro `.ics`, simples, assinado e revogavel, para visualizacao dos atendimentos;
+- OAuth Google Calendar API, para criar, atualizar e remover eventos diretamente na conta Google da clinica.
 
 ## O que precisa ser criado no Google
 
@@ -55,6 +58,17 @@ https://sistema.clinicafisiolume.com.br/integracoes/
 
 Clique em `Conectar com Google`, escolha a conta Google da clinica, autorize o acesso e depois use `Sincronizar agora`.
 
+## Opcao simples: link `.ics`
+
+Na aba `Integracoes > Conexoes`, use o card `Google Agenda simples`.
+
+1. Clique em `Gerar link seguro`.
+2. Use `Adicionar ao Google Agenda` ou copie o link.
+3. Se o link vazar ou deixar de ser usado, clique em `Revogar link`.
+4. Para trocar o token, clique em `Regenerar link`.
+
+Esse feed nao exige login interativo do Google e foi feito para assinatura de calendario. Ele nao inclui prontuario, observacoes nem detalhes clinicos. O Google Agenda pode demorar alguns minutos para atualizar assinaturas `.ics`.
+
 Pelo terminal da VPS, valide sem expor segredos:
 
 ```bash
@@ -81,4 +95,4 @@ Se quiser usar a sincronizacao continua, mantenha a integracao:
 
 ## Observacao
 
-A sincronizacao direta depende do OAuth. Se a clinica ainda nao quiser criar credenciais Google, a exportacao `.ics` continua disponivel em `Agenda > Google Agenda .ics`.
+A sincronizacao direta depende do OAuth. Se a clinica ainda nao quiser criar credenciais Google, use o link `.ics` seguro da tela de integracoes. A exportacao antiga em `Agenda > Google Agenda .ics` continua disponivel para usuarios logados.

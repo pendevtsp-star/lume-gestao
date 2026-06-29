@@ -74,19 +74,19 @@ class MobileBootstrapTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("token", response.json())
 
-    def test_public_host_exposes_mobile_token_health_and_bootstrap(self):
-        user, _patient = self.create_patient_user(username="public-mobile", password="Senha@123")
+    def test_system_host_exposes_mobile_token_health_and_bootstrap(self):
+        user, _patient = self.create_patient_user(username="system-mobile", password="Senha@123")
 
-        health = self.client.get("/api/v1/mobile/health/", HTTP_HOST="clinicafisiolume.com.br")
+        health = self.client.get("/api/v1/mobile/health/", HTTP_HOST="sistema.clinicafisiolume.com.br")
         token_response = self.client.post(
             "/api/v1/mobile/auth/token/",
-            {"username": "public-mobile", "password": "Senha@123"},
-            HTTP_HOST="clinicafisiolume.com.br",
+            {"username": "system-mobile", "password": "Senha@123"},
+            HTTP_HOST="sistema.clinicafisiolume.com.br",
         )
         token = token_response.json()["token"]
         bootstrap = self.client.get(
             "/api/v1/mobile/bootstrap/",
-            HTTP_HOST="clinicafisiolume.com.br",
+            HTTP_HOST="sistema.clinicafisiolume.com.br",
             HTTP_AUTHORIZATION=f"Token {token}",
         )
 

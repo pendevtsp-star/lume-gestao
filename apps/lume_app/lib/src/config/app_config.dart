@@ -1,26 +1,21 @@
 class AppConfig {
-  static const appVersion = '0.2.2';
-  static const productionApiBaseUrl = 'https://clinicafisiolume.com.br';
+  static const appVersion = '0.2.3';
+  static const productionApiBaseUrl = 'https://sistema.clinicafisiolume.com.br';
 
   static const apiBaseUrl = String.fromEnvironment(
     'LUME_API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000',
+    defaultValue: productionApiBaseUrl,
   );
 
   static const allowInsecureHttp = bool.fromEnvironment(
     'LUME_ALLOW_INSECURE_HTTP',
-    defaultValue: true,
+    defaultValue: false,
   );
 
   static Uri apiUri(String path) {
     final base = Uri.parse(apiBaseUrl);
-    final isLocalDev = {
-      'localhost',
-      '127.0.0.1',
-      '10.0.2.2',
-    }.contains(base.host);
 
-    if (base.scheme != 'https' && !allowInsecureHttp && !isLocalDev) {
+    if (base.scheme != 'https' && !allowInsecureHttp) {
       throw StateError('A API de producao precisa usar HTTPS.');
     }
 

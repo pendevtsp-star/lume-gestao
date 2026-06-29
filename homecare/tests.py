@@ -16,6 +16,8 @@ from homecare.models import (
     HomecareSubscription,
     HomecareUploadJob,
     HomecareVideo,
+    HomecareVideoComment,
+    HomecareVideoLike,
     HomecareVideoProgress,
 )
 from homecare.services.bunny import process_upload_job
@@ -311,6 +313,71 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
 
         self.assertContains(response, "Preview seguro")
         self.assertNotContains(response, "<iframe", html=False)
+
+    def test_patient_can_toggle_video_like(self):
+        user = self.create_user("paciente-curte-aula", UserProfile.Role.PATIENT, patient=self.patient)
+        video = self.create_ready_video()
+        self.client.force_login(user)
+        url = reverse("homecare_public:toggle_like", args=[video.slug])
+
+        first_response = self.client.post(url)
+        second_response = self.client.post(url)
+
+        self.assertRedirects(first_response, reverse("homecare_public:video_detail", args=[video.slug]))
+        self.assertRedirects(second_response, reverse("homecare_public:video_detail", args=[video.slug]))
+        self.assertFalse(HomecareVideoLike.objects.filter(video=video, user=user).exists())
+
+    def test_patient_can_comment_and_reply_on_video(self):
+        user = self.create_user("paciente-comenta-aula", UserProfile.Role.PATIENT, patient=self.patient)
+        video = self.create_ready_video()
+        self.client.force_login(user)
+        url = reverse("homecare_public:add_comment", args=[video.slug])
+
+        comment_response = self.client.post(url, {"content": "Senti alivio no final."})
+        comment = HomecareVideoComment.objects.get(video=video, author=user, parent__isnull=True)
+        reply_response = self.client.post(url, {"content": "Vou repetir amanha.", "parent_id": comment.pk})
+
+        self.assertEqual(comment_response.status_code, 302)
+        self.assertEqual(reply_response.status_code, 302)
+        self.assertTrue(
+            HomecareVideoComment.objects.filter(
+                video=video,
+                author=user,
+                parent=comment,
+                content="Vou repetir amanha.",
+            ).exists()
+        )
+
+    def test_reply_to_reply_is_rejected(self):
+        user = self.create_user("paciente-resposta-profunda", UserProfile.Role.PATIENT, patient=self.patient)
+        video = self.create_ready_video()
+        parent = HomecareVideoComment.objects.create(video=video, author=user, content="Comentario principal")
+        reply = HomecareVideoComment.objects.create(video=video, author=user, parent=parent, content="Resposta")
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("homecare_public:add_comment", args=[video.slug]),
+            {"content": "Outra camada", "parent_id": reply.pk},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(HomecareVideoComment.objects.filter(video=video, content="Outra camada").exists())
+
+    def test_anonymous_user_cannot_like_or_comment(self):
+        video = self.create_ready_video()
+
+        like_response = self.client.post(reverse("homecare_public:toggle_like", args=[video.slug]))
+        comment_response = self.client.post(
+            reverse("homecare_public:add_comment", args=[video.slug]),
+            {"content": "Sem login"},
+        )
+
+        self.assertEqual(like_response.status_code, 302)
+        self.assertIn("/login/", like_response["Location"])
+        self.assertEqual(comment_response.status_code, 302)
+        self.assertIn("/login/", comment_response["Location"])
+        self.assertFalse(HomecareVideoLike.objects.filter(video=video).exists())
+        self.assertFalse(HomecareVideoComment.objects.filter(video=video).exists())
 
 
 @override_settings(

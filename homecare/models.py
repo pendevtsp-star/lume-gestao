@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
@@ -321,6 +321,91 @@ class HomecareVideoProgress(TimeStampedModel):
 
     def __str__(self):
         return f"{self.patient} - {self.video}"
+
+
+class HomecareVideoLike(models.Model):
+    video = models.ForeignKey(HomecareVideo, on_delete=models.CASCADE, related_name="likes")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="homecare_video_likes")
+    created_at = models.DateTimeField("criado em", auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["video", "user"], name="unique_homecare_video_like_per_user"),
+        ]
+        ordering = ["-created_at"]
+        verbose_name = "curtida de video do Lume em casa"
+        verbose_name_plural = "curtidas de videos do Lume em casa"
+
+    def __str__(self):
+        return f"{self.user} curtiu video #{self.video_id}"
+
+
+class HomecareVideoComment(TimeStampedModel):
+    video = models.ForeignKey(HomecareVideo, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="homecare_video_comments",
+    )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="replies",
+        null=True,
+        blank=True,
+        verbose_name="comentario respondido",
+    )
+    content = models.TextField("comentario")
+    is_active = models.BooleanField("ativo", default=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["video", "is_active", "created_at"]),
+            models.Index(fields=["parent", "is_active", "created_at"]),
+            models.Index(fields=["author", "-created_at"]),
+        ]
+        verbose_name = "comentario de video do Lume em casa"
+        verbose_name_plural = "comentarios de videos do Lume em casa"
+
+    def __str__(self):
+        return f"Comentario #{self.pk} no video #{self.video_id}"
+
+    def clean(self):
+        super().clean()
+        if not self.parent_id:
+            return
+        if self.parent.parent_id:
+            raise ValidationError({"parent": "Responda apenas comentarios principais."})
+        if self.video_id and self.parent.video_id and self.parent.video_id != self.video_id:
+            raise ValidationError({"parent": "O comentario respondido precisa pertencer ao mesmo video."})
+
+    @property
+    def author_profile(self):
+        try:
+            return self.author.profile
+        except (AttributeError, ObjectDoesNotExist):
+            return None
+
+    @property
+    def author_name(self):
+        profile = self.author_profile
+        if profile:
+            return profile.display_name
+        return self.author.get_full_name() or self.author.username
+
+    @property
+    def author_avatar_url(self):
+        profile = self.author_profile
+        return profile.avatar_url if profile else ""
+
+    @property
+    def author_initials(self):
+        profile = self.author_profile
+        if profile:
+            return profile.initials
+        name = self.author.get_full_name() or self.author.username
+        return (name[:1] or "U").upper()
 
 
 class HomecareUploadJob(TimeStampedModel):

@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Biblioteca | Fisioterapia em Casa</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-ui3">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-social-ui">
 </head>
 <body class="homecare-public">
   <main class="homecare-shell">
@@ -15,15 +15,30 @@
       <div>
         <p class="eyebrow">Fisioterapia em Casa</p>
         <h1>Biblioteca</h1>
-        <p>{{ videos|length }} video(s) disponivel(is) para seu acesso.</p>
+        <p>{{ filtered_video_count }} de {{ available_video_count }} video(s) disponivel(is) para seu acesso.</p>
       </div>
       <a class="button secondary" href="{% url 'homecare_public:landing' %}">Inicio</a>
     </header>
 
+    <section class="homecare-library-summary" aria-label="Resumo da biblioteca">
+      <article>
+        <span>Acesso</span>
+        <strong>{% if has_included_access %}Incluido pela clinica{% elif subscription %}Assinatura ativa{% else %}Em analise{% endif %}</strong>
+      </article>
+      <article>
+        <span>Conteudos</span>
+        <strong>{{ available_video_count }} aulas</strong>
+      </article>
+      <article>
+        <span>Retomada</span>
+        <strong>{{ continue_watching|length }} em andamento</strong>
+      </article>
+    </section>
+
     <nav class="homecare-category-tabs">
       <a {% if not selected_category %}class="is-active"{% endif %} href="{% url 'homecare_public:library' %}">Todos</a>
       {% for category in categories %}
-        <a {% if selected_category == category.slug %}class="is-active"{% endif %} href="{% url 'homecare_public:category' category.slug %}">{{ category.name }}</a>
+        <a {% if selected_category == category.slug %}class="is-active"{% endif %} href="{% url 'homecare_public:category' category.slug %}">{{ category.name }} <small>{{ category.video_total }}</small></a>
       {% endfor %}
     </nav>
 

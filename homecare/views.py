@@ -1,8 +1,9 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, Q
+from django.core.exceptions import ValidationError
+from django.db.models import Count, Prefetch, Q
 from django.http import Http404
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -15,7 +16,13 @@ from accounts.permissions import get_profile
 from core.integrations.http import IntegrationError
 from core.views import FormContextMixin, SearchableListView
 from homecare.features import homecare_checkout_enabled, homecare_public_enabled, homecare_webhook_enabled
-from homecare.forms import HomecareCategoryForm, HomecarePlanForm, HomecareSubscriptionForm, HomecareVideoForm
+from homecare.forms import (
+    HomecareCategoryForm,
+    HomecarePlanForm,
+    HomecareSubscriptionForm,
+    HomecareVideoCommentForm,
+    HomecareVideoForm,
+)
 from homecare.models import (
     HomecareCategory,
     HomecarePaymentEvent,
@@ -23,6 +30,8 @@ from homecare.models import (
     HomecareSubscription,
     HomecareUploadJob,
     HomecareVideo,
+    HomecareVideoComment,
+    HomecareVideoLike,
     HomecareVideoProgress,
 )
 from homecare.permissions import HomecareAdminAccessMixin, HomecareContentAccessMixin
@@ -463,7 +472,11 @@ class HomecareLibraryView(HomecarePortalAccessMixin, ListView):
                 progress.progress_percent = self.progress_percent(progress, progress.video)
         context.update(
             {
-                "categories": HomecareCategory.objects.filter(active=True),
+                "categories": HomecareCategory.objects.filter(active=True).annotate(
+                    video_total=Count("videos", filter=public_video_q("videos__"))
+                ),
+                "available_video_count": HomecareVideo.objects.filter(public_video_q()).count(),
+                "filtered_video_count": len(video_list),
                 "subscription": self.subscription,
                 "has_included_access": self.has_included_access,
                 "selected_category": selected_category,
@@ -517,15 +530,85 @@ class HomecareVideoDetailView(HomecarePortalAccessMixin, DetailView):
         embed_url = build_bunny_embed_url(video)
         provider_video_id = video.provider_video_id or ""
         is_demo_player = provider_video_id.startswith(("dry-run-", "demo-"))
+        replies = (
+            HomecareVideoComment.objects.filter(is_active=True)
+            .select_related("author", "author__profile")
+            .order_by("created_at")
+        )
+        comments = list(
+            HomecareVideoComment.objects.filter(video=video, is_active=True, parent__isnull=True)
+            .select_related("author", "author__profile")
+            .prefetch_related(Prefetch("replies", queryset=replies, to_attr="active_replies"))
+            .order_by("created_at")
+        )
         context.update(
             {
                 "embed_url": embed_url,
                 "is_demo_player": is_demo_player,
                 "subscription": self.subscription,
                 "progress": progress,
+                "likes_total": video.likes.count(),
+                "comments_total": HomecareVideoComment.objects.filter(video=video, is_active=True).count(),
+                "user_has_liked": HomecareVideoLike.objects.filter(video=video, user=self.request.user).exists(),
+                "comments": comments,
+                "comment_form": HomecareVideoCommentForm(),
             }
         )
         return context
+
+
+class HomecareVideoLikeToggleView(HomecarePortalAccessMixin, View):
+    def get(self, request, *args, **kwargs):
+        return HttpResponseNotAllowed(["POST"])
+
+    def post(self, request, slug):
+        video = get_object_or_404(HomecareVideo.objects.filter(public_video_q()), slug=slug)
+        like = HomecareVideoLike.objects.filter(video=video, user=request.user).first()
+        if like:
+            like.delete()
+            messages.success(request, "Curtida removida.")
+        else:
+            HomecareVideoLike.objects.create(video=video, user=request.user)
+            messages.success(request, "Aula curtida.")
+        return redirect("homecare_public:video_detail", slug=video.slug)
+
+
+class HomecareVideoCommentCreateView(HomecarePortalAccessMixin, View):
+    def get(self, request, *args, **kwargs):
+        return HttpResponseNotAllowed(["POST"])
+
+    def post(self, request, slug):
+        video = get_object_or_404(HomecareVideo.objects.filter(public_video_q()), slug=slug)
+        form = HomecareVideoCommentForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "Nao foi possivel publicar o comentario.")
+            return redirect(f"{reverse('homecare_public:video_detail', args=[video.slug])}#comentarios")
+
+        parent = None
+        parent_id = request.POST.get("parent_id", "").strip()
+        if parent_id:
+            parent = HomecareVideoComment.objects.filter(
+                video=video,
+                is_active=True,
+                parent__isnull=True,
+                pk=parent_id,
+            ).first()
+            if not parent:
+                messages.error(request, "Nao foi possivel encontrar o comentario respondido.")
+                return redirect(f"{reverse('homecare_public:video_detail', args=[video.slug])}#comentarios")
+
+        comment = form.save(commit=False)
+        comment.video = video
+        comment.author = request.user
+        comment.parent = parent
+        try:
+            comment.full_clean()
+        except ValidationError:
+            messages.error(request, "Nao foi possivel publicar a resposta.")
+            return redirect(f"{reverse('homecare_public:video_detail', args=[video.slug])}#comentarios")
+        comment.save()
+        messages.success(request, "Comentario publicado.")
+        return redirect(f"{reverse('homecare_public:video_detail', args=[video.slug])}#comentarios")
 
 
 class HomecareSubscribeView(HomecarePublicEnabledMixin, LoginRequiredMixin, View):

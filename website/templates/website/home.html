@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ canonical_url }}">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260629-floating-social">
+  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260629-homecare-link">
   <script type="application/ld+json">{{ structured_data_json|safe }}</script>
 </head>
 <body>
@@ -37,6 +37,7 @@
       <a href="#servicos">Atendimentos</a>
       <a href="#como-funciona">Como funciona</a>
       {% if plans %}<a href="#planos">Planos</a>{% endif %}
+      <a href="{% url 'homecare_public:landing' %}">Lume em casa</a>
       <a href="#contato">Contato</a>
       <a class="nav-action" href="{% url 'website_system_redirect' %}">{{ website_settings.system_cta_text }}</a>
     </nav>
@@ -58,6 +59,7 @@
         <div class="hero-actions">
           <a class="button-primary" href="{% url 'website_whatsapp_redirect' %}">{{ website_settings.primary_cta_text }}</a>
           <a class="button-secondary" href="{% url 'website_instagram_redirect' %}">Ver Instagram</a>
+          <a class="button-secondary" href="{% url 'homecare_public:landing' %}">Lume em casa</a>
         </div>
       </div>
 
@@ -68,6 +70,15 @@
           <span>{{ website_settings.city_name }} • {{ website_settings.resolved_business_hours }}</span>
         </div>
       </div>
+    </section>
+
+    <section class="homecare-site-section shell-panel">
+      <div>
+        <p class="eyebrow">Lume em casa</p>
+        <h2>Cuidado orientado para continuar sua rotina fora do studio.</h2>
+        <p class="section-text">A biblioteca de aulas gravadas aproxima a equipe da clinica do dia a dia do paciente, com conteudos organizados por foco, nivel e duracao.</p>
+      </div>
+      <a class="button-primary" href="{% url 'homecare_public:landing' %}">Acessar Lume em casa</a>
     </section>
 
     <section class="services-section shell-panel" id="servicos">

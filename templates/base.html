@@ -7,7 +7,7 @@
   <title>{% block title %}Lume Gestao{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-ui3">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-social-ui">
 </head>
 <body>
   <div class="app-shell">
@@ -19,6 +19,12 @@
           <small>Gestao da clinica</small>
         </span>
       </a>
+
+      <input class="mobile-nav-toggle" type="checkbox" id="mobile-nav-toggle">
+      <label class="mobile-nav-label" for="mobile-nav-toggle">
+        <span class="nav-icon icon-menu" aria-hidden="true"></span>
+        <span>Menu</span>
+      </label>
 
       <nav class="nav">
         <a href="{% url 'dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Dashboard</span></a>

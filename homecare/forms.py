@@ -4,7 +4,14 @@ from django.core.exceptions import ValidationError
 
 from accounts.permissions import get_profile
 from core.forms import StyledModelForm
-from homecare.models import HomecareCategory, HomecarePlan, HomecareSubscription, HomecareUploadJob, HomecareVideo
+from homecare.models import (
+    HomecareCategory,
+    HomecarePlan,
+    HomecareSubscription,
+    HomecareUploadJob,
+    HomecareVideo,
+    HomecareVideoComment,
+)
 from team.models import Professional
 
 
@@ -165,3 +172,25 @@ class HomecareSubscriptionForm(StyledModelForm):
             "current_period_end": forms.DateTimeInput(attrs={"type": "datetime-local"}),
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
+
+
+class HomecareVideoCommentForm(StyledModelForm):
+    class Meta:
+        model = HomecareVideoComment
+        fields = ["content"]
+        widgets = {
+            "content": forms.Textarea(
+                attrs={
+                    "rows": 3,
+                    "maxlength": 1200,
+                    "required": "required",
+                    "placeholder": "Escreva sua pergunta, percepcao ou ajuste que gostaria de comentar.",
+                }
+            ),
+        }
+
+    def clean_content(self):
+        content = self.cleaned_data["content"].strip()
+        if not content:
+            raise forms.ValidationError("Escreva um comentario antes de enviar.")
+        return content

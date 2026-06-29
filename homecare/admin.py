@@ -7,6 +7,8 @@ from homecare.models import (
     HomecareSubscription,
     HomecareUploadJob,
     HomecareVideo,
+    HomecareVideoComment,
+    HomecareVideoLike,
     HomecareVideoProgress,
 )
 
@@ -55,6 +57,30 @@ class HomecareVideoProgressAdmin(admin.ModelAdmin):
     list_display = ("patient", "video", "watched_seconds", "completed", "last_watched_at")
     list_filter = ("completed",)
     search_fields = ("patient__full_name", "video__title")
+
+
+@admin.register(HomecareVideoLike)
+class HomecareVideoLikeAdmin(admin.ModelAdmin):
+    list_display = ("video", "user", "created_at")
+    search_fields = ("video__title", "user__username", "user__first_name", "user__last_name")
+    autocomplete_fields = ("video", "user")
+
+
+@admin.register(HomecareVideoComment)
+class HomecareVideoCommentAdmin(admin.ModelAdmin):
+    list_display = ("video", "author", "parent", "is_active", "created_at")
+    list_filter = ("is_active", "created_at")
+    search_fields = ("video__title", "author__username", "author__first_name", "author__last_name", "content")
+    autocomplete_fields = ("video", "author", "parent")
+    actions = ("activate_comments", "deactivate_comments")
+
+    @admin.action(description="Ativar comentarios selecionados")
+    def activate_comments(self, request, queryset):
+        queryset.update(is_active=True)
+
+    @admin.action(description="Desativar comentarios selecionados")
+    def deactivate_comments(self, request, queryset):
+        queryset.update(is_active=False)
 
 
 @admin.register(HomecareUploadJob)

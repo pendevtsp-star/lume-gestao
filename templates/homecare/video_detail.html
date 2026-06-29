@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ video.title }} | Fisioterapia em Casa</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-ui3">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-social-ui">
 </head>
 <body class="homecare-public">
   <main class="homecare-shell">
@@ -37,12 +37,97 @@
     </section>
 
     <section class="homecare-video-copy">
-      <p>{{ video.description }}</p>
+      <p>{{ video.description|default:"Aula preparada pela equipe Lume para apoiar sua rotina de cuidado em casa." }}</p>
       <div class="homecare-facts">
         <span>{{ video.author.full_name }}</span>
         <span>{{ video.get_difficulty_display }}</span>
         <span>{{ video.duration_label }}</span>
         {% if progress and progress.completed %}<span>Concluido</span>{% endif %}
+      </div>
+    </section>
+
+    <section class="homecare-social-panel" id="comentarios">
+      <div class="homecare-social-head">
+        <div>
+          <p class="eyebrow">Comunidade da aula</p>
+          <h2>Trocas sobre a pratica</h2>
+          <p>Comente percepcoes, duvidas ou ajustes que surgiram durante a aula.</p>
+        </div>
+        <form method="post" action="{% url 'homecare_public:toggle_like' video.slug %}">
+          {% csrf_token %}
+          <button class="homecare-like-button{% if user_has_liked %} is-liked{% endif %}" type="submit" aria-pressed="{% if user_has_liked %}true{% else %}false{% endif %}">
+            <span aria-hidden="true">❤️</span>
+            {% if user_has_liked %}Curtido{% else %}Curtir{% endif %}
+          </button>
+        </form>
+      </div>
+
+      <div class="homecare-social-stats" aria-label="Interacoes desta aula">
+        <span><strong>{{ likes_total }}</strong> curtida{{ likes_total|pluralize }}</span>
+        <span><strong>{{ comments_total }}</strong> comentario{{ comments_total|pluralize }}</span>
+      </div>
+
+      <form class="homecare-comment-form" method="post" action="{% url 'homecare_public:add_comment' video.slug %}">
+        {% csrf_token %}
+        <label for="homecare-comment-content">Comentario</label>
+        <textarea id="homecare-comment-content" class="field-control" name="content" rows="3" maxlength="1200" required placeholder="Escreva sua pergunta, percepcao ou ajuste que gostaria de comentar."></textarea>
+        <button class="button primary" type="submit">Publicar comentario</button>
+      </form>
+
+      <div class="homecare-comments-list">
+        {% for comment in comments %}
+          <article class="homecare-comment">
+            <div class="homecare-comment-avatar" aria-hidden="true">
+              {% if comment.author_avatar_url %}
+                <img src="{{ comment.author_avatar_url }}" alt="">
+              {% else %}
+                {{ comment.author_initials }}
+              {% endif %}
+            </div>
+            <div class="homecare-comment-body">
+              <header>
+                <strong>{{ comment.author_name }}</strong>
+                <time datetime="{{ comment.created_at|date:'c' }}">{{ comment.created_at|date:"d/m/Y H:i" }}</time>
+              </header>
+              <div class="homecare-comment-text">{{ comment.content|linebreaks }}</div>
+
+              <details class="homecare-reply-box">
+                <summary>Responder</summary>
+                <form method="post" action="{% url 'homecare_public:add_comment' video.slug %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="parent_id" value="{{ comment.pk }}">
+                  <textarea class="field-control" name="content" rows="2" maxlength="1200" required placeholder="Responder {{ comment.author_name }}"></textarea>
+                  <button class="button secondary compact" type="submit">Enviar resposta</button>
+                </form>
+              </details>
+
+              {% if comment.active_replies %}
+                <div class="homecare-comment-replies">
+                  {% for reply in comment.active_replies %}
+                    <article class="homecare-comment is-reply">
+                      <div class="homecare-comment-avatar" aria-hidden="true">
+                        {% if reply.author_avatar_url %}
+                          <img src="{{ reply.author_avatar_url }}" alt="">
+                        {% else %}
+                          {{ reply.author_initials }}
+                        {% endif %}
+                      </div>
+                      <div class="homecare-comment-body">
+                        <header>
+                          <strong>{{ reply.author_name }}</strong>
+                          <time datetime="{{ reply.created_at|date:'c' }}">{{ reply.created_at|date:"d/m/Y H:i" }}</time>
+                        </header>
+                        <div class="homecare-comment-text">{{ reply.content|linebreaks }}</div>
+                      </div>
+                    </article>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </article>
+        {% empty %}
+          <p class="homecare-comment-empty">Seja a primeira pessoa a comentar esta aula.</p>
+        {% endfor %}
       </div>
     </section>
   </main>

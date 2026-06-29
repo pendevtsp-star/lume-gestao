@@ -138,6 +138,7 @@ img {
 .hero h1,
 .section-head h2,
 .journey-panel h2,
+.homecare-site-section h2,
 .plan-card h3,
 .contact-copy h2 {
   font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
@@ -351,6 +352,28 @@ img {
 
 .hero-note span {
   color: var(--ink-soft);
+}
+
+.homecare-site-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 24px;
+  background:
+    linear-gradient(135deg, rgba(135, 149, 111, 0.18), rgba(255, 252, 247, 0.90)),
+    linear-gradient(180deg, rgba(255, 253, 249, 0.98), var(--panel));
+}
+
+.homecare-site-section h2 {
+  max-width: 18ch;
+  margin: 0;
+  font-size: clamp(28px, 3.2vw, 40px);
+  line-height: 1.03;
+}
+
+.homecare-site-section .section-text {
+  margin-top: 12px;
 }
 
 .services-section,
@@ -660,6 +683,7 @@ img {
 @media (max-width: 1080px) {
   .experience-section,
   .contact-section,
+  .homecare-site-section,
   .site-header {
     grid-template-columns: 1fr;
   }
@@ -704,6 +728,7 @@ img {
 
   .site-header,
   .hero,
+  .homecare-site-section,
   .services-section,
   .journey-panel,
   .media-panel,

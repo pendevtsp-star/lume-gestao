@@ -97,7 +97,7 @@ docker compose -f docker-compose.prod.yml ps
 
 echo '[deploy] Validando healthcheck local'
 sleep 5
-curl -fsS http://127.0.0.1:8000/healthz/
+curl -fsS -H 'Host: clinicafisiolume.com.br' -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/healthz/
 
 echo '[deploy] Recarregando Nginx, se existir'
 $nginxCommand

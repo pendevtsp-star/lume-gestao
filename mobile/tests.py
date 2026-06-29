@@ -18,6 +18,7 @@ from team.models import Professional
     ALLOWED_HOSTS=["testserver", "clinicafisiolume.com.br", "sistema.clinicafisiolume.com.br"],
     WEBSITE_HOSTS=["clinicafisiolume.com.br"],
     SYSTEM_HOSTS=["sistema.clinicafisiolume.com.br"],
+    SECURE_SSL_REDIRECT=False,
 )
 class MobileBootstrapTests(TestCase):
     def create_patient_user(self, username="paciente-mobile", password="Senha@123"):

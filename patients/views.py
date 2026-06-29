@@ -12,6 +12,7 @@ from accounts.models import UserProfile
 from accounts.onboarding import ensure_patient_user
 from accounts.permissions import RoleRequiredMixin, get_profile
 from billing.models import Membership
+from core.deletion import DeletionDecisionMixin, hard_delete_patient, mark_active_object_for_deletion
 from core.exports import pdf_response, xlsx_response
 from core.views import FormContextMixin, SearchableListView
 from patients.forms import PatientForm, ProfessionalNoteForm, ProfessionalPatientAssignmentForm, note_type_options
@@ -178,7 +179,7 @@ class PatientUpdateView(FormContextMixin, PatientAccessMixin, UpdateView):
         return response
 
 
-class PatientDeleteView(FormContextMixin, RoleRequiredMixin, DeleteView):
+class PatientDeleteView(DeletionDecisionMixin, FormContextMixin, RoleRequiredMixin, DeleteView):
     allowed_roles = [UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT]
     model = Patient
     template_name = "core/confirm_deactivate.html"
@@ -187,16 +188,13 @@ class PatientDeleteView(FormContextMixin, RoleRequiredMixin, DeleteView):
     section_label = "Cadastro"
     back_url_name = "patients:list"
     entity_label = "paciente"
-    delete_button_label = "Excluir paciente"
 
-    def form_valid(self, form):
-        patient = self.object
-        patient.active = False
-        patient.full_clean()
-        patient.save(update_fields=["active", "updated_at"])
-        deactivate_patient_relationships(patient)
-        messages.success(self.request, "Paciente excluido da lista ativa com sucesso.")
-        return redirect(self.success_url)
+    def perform_delete_now(self):
+        hard_delete_patient(self.object)
+
+    def perform_deactivate(self):
+        mark_active_object_for_deletion(self.object)
+        deactivate_patient_relationships(self.object)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -204,10 +202,8 @@ class PatientDeleteView(FormContextMixin, RoleRequiredMixin, DeleteView):
             {
                 "object_name": self.object.full_name,
                 "entity_label": self.entity_label,
-                "delete_button_label": self.delete_button_label,
                 "delete_explanation": (
-                    "O cadastro sera marcado como inativo para preservar historico financeiro, agenda, prontuario "
-                    "e auditoria. Ele pode ser reativado editando o cadastro depois."
+                    "Escolha se deseja tirar o paciente da rotina ativa ou remover o cadastro definitivamente."
                 ),
             }
         )

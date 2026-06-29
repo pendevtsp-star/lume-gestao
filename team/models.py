@@ -16,6 +16,7 @@ class Employee(TimeStampedModel):
     email = models.EmailField("e-mail", blank=True)
     admission_date = models.DateField("data de admissao", null=True, blank=True)
     active = models.BooleanField("ativo", default=True)
+    deletion_requested_at = models.DateTimeField("exclusao solicitada em", null=True, blank=True)
 
     class Meta:
         ordering = ["full_name"]
@@ -42,6 +43,7 @@ class Professional(TimeStampedModel):
     email = models.EmailField("e-mail", blank=True)
     bio = models.TextField("observacoes", blank=True)
     active = models.BooleanField("ativo", default=True)
+    deletion_requested_at = models.DateTimeField("exclusao solicitada em", null=True, blank=True)
 
     class Meta:
         ordering = ["full_name"]

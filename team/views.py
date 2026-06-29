@@ -7,6 +7,7 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.permissions import RoleRequiredMixin
+from core.deletion import DeletionDecisionMixin, hard_delete_professional, mark_active_object_for_deletion
 from core.views import FormContextMixin, SearchableListView
 from patients.services import deactivate_professional_relationships
 from scheduling.models import Appointment
@@ -62,19 +63,13 @@ class EmployeeUpdateView(FormContextMixin, TeamAdminMixin, UpdateView):
         return context
 
 
-class SoftDeleteTeamView(FormContextMixin, TeamAdminMixin, DeleteView):
+class SoftDeleteTeamView(DeletionDecisionMixin, FormContextMixin, TeamAdminMixin, DeleteView):
     template_name = "core/confirm_deactivate.html"
     object_name_attribute = "full_name"
     entity_label = "cadastro"
-    delete_button_label = "Excluir cadastro"
 
-    def form_valid(self, form):
-        item = self.object
-        item.active = False
-        item.full_clean()
-        item.save(update_fields=["active", "updated_at"])
-        messages.success(self.request, f"{self.entity_label.capitalize()} excluido da lista ativa com sucesso.")
-        return redirect(self.success_url)
+    def perform_deactivate(self):
+        mark_active_object_for_deletion(self.object)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -82,10 +77,8 @@ class SoftDeleteTeamView(FormContextMixin, TeamAdminMixin, DeleteView):
             {
                 "object_name": getattr(self.object, self.object_name_attribute),
                 "entity_label": self.entity_label,
-                "delete_button_label": self.delete_button_label,
                 "delete_explanation": (
-                    "O cadastro sera marcado como inativo para preservar agenda, relatorios, auditoria e "
-                    "historicos ja vinculados. Ele pode ser reativado editando o cadastro depois."
+                    "Escolha se deseja tirar este cadastro da rotina ativa ou remover definitivamente."
                 ),
             }
         )
@@ -99,7 +92,6 @@ class EmployeeDeleteView(SoftDeleteTeamView):
     section_label = "Equipe"
     back_url_name = "team:employees"
     entity_label = "funcionario"
-    delete_button_label = "Excluir funcionario"
 
 
 class ProfessionalListView(TeamAdminMixin, SearchableListView, ListView):
@@ -181,11 +173,12 @@ class ProfessionalDeleteView(SoftDeleteTeamView):
     section_label = "Equipe"
     back_url_name = "team:professionals"
     entity_label = "profissional"
-    delete_button_label = "Excluir profissional"
 
-    def form_valid(self, form):
-        response = super().form_valid(form)
+    def perform_delete_now(self):
+        hard_delete_professional(self.object)
+
+    def perform_deactivate(self):
+        super().perform_deactivate()
         deactivate_professional_relationships(self.object)
-        return response
 
 # Create your views here.

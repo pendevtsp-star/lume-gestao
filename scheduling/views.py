@@ -23,6 +23,14 @@ from django.views.generic import CreateView, DeleteView, FormView, ListView, Upd
 
 from accounts.models import UserProfile
 from accounts.permissions import FinanceAccessMixin, RoleRequiredMixin, get_profile
+from core.deletion import (
+    DELETE_ACTION_NOW,
+    DeletionDecisionMixin,
+    hard_delete_availability,
+    hard_delete_service_package,
+    mark_active_object_for_deletion,
+    mark_package_for_deletion,
+)
 from core.models import ClinicSettings
 from core.views import FormContextMixin, SearchableListView
 from scheduling.forms import (
@@ -1075,21 +1083,24 @@ class ProfessionalAvailabilityUpdateView(FormContextMixin, ProfessionalAvailabil
         return super().form_valid(form)
 
 
-class ProfessionalAvailabilityDeleteView(FormContextMixin, ProfessionalAvailabilityAccessMixin, DeleteView):
+class ProfessionalAvailabilityDeleteView(DeletionDecisionMixin, FormContextMixin, ProfessionalAvailabilityAccessMixin, DeleteView):
     model = ProfessionalAvailability
+    default_delete_action = DELETE_ACTION_NOW
     template_name = "core/confirm_deactivate.html"
     success_url = reverse_lazy("scheduling:availabilities")
     page_title = "Excluir disponibilidade"
     section_label = "Agenda"
     back_url_name = "scheduling:availabilities"
+    entity_label = "disponibilidade"
 
     def get_queryset(self):
         return availabilities_for_user(self.request.user)
 
-    def form_valid(self, form):
-        self.object.delete()
-        messages.success(self.request, "Disponibilidade excluida com sucesso.")
-        return redirect(self.success_url)
+    def perform_delete_now(self):
+        hard_delete_availability(self.object)
+
+    def perform_deactivate(self):
+        mark_active_object_for_deletion(self.object)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1101,9 +1112,8 @@ class ProfessionalAvailabilityDeleteView(FormContextMixin, ProfessionalAvailabil
                     f"{availability.starts_at:%H:%M} ate {availability.ends_at:%H:%M}"
                 ),
                 "entity_label": "disponibilidade",
-                "delete_button_label": "Excluir disponibilidade",
                 "delete_explanation": (
-                    "Agendamentos ja criados continuam preservados. Esta regra de horario deixara de gerar novas vagas."
+                    "Escolha se deseja apenas retirar esta regra da agenda ativa ou remover definitivamente."
                 ),
             }
         )
@@ -1171,21 +1181,20 @@ class ServicePackageUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView)
         return super().form_valid(form)
 
 
-class ServicePackageDeleteView(FormContextMixin, FinanceAccessMixin, DeleteView):
+class ServicePackageDeleteView(DeletionDecisionMixin, FormContextMixin, FinanceAccessMixin, DeleteView):
     model = ServicePackage
     template_name = "core/confirm_deactivate.html"
     success_url = reverse_lazy("scheduling:packages")
     page_title = "Excluir pacote"
     section_label = "Agenda"
     back_url_name = "scheduling:packages"
+    entity_label = "pacote"
 
-    def form_valid(self, form):
-        package = self.object
-        package.status = ServicePackage.Status.CANCELED
-        package.full_clean()
-        package.save(update_fields=["status", "updated_at"])
-        messages.success(self.request, "Pacote excluido da lista ativa com sucesso.")
-        return redirect(self.success_url)
+    def perform_delete_now(self):
+        hard_delete_service_package(self.object)
+
+    def perform_deactivate(self):
+        mark_package_for_deletion(self.object)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1194,9 +1203,8 @@ class ServicePackageDeleteView(FormContextMixin, FinanceAccessMixin, DeleteView)
             {
                 "object_name": f"{package.membership.patient.full_name} - {package.membership.plan.name}",
                 "entity_label": "pacote",
-                "delete_button_label": "Excluir pacote",
                 "delete_explanation": (
-                    "O pacote sera cancelado para preservar o historico de aulas, baixas e relatorios."
+                    "Escolha se deseja cancelar o pacote agora ou remover definitivamente seus registros."
                 ),
             }
         )

@@ -1,5 +1,4 @@
 from django.contrib import messages
-from django.db.models import ProtectedError
 from django.db.models import Sum
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
@@ -8,6 +7,14 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 from accounts.permissions import FinanceAccessMixin
 from billing.forms import ChargeForm, ExpenseCategoryForm, ExpenseForm, MembershipForm, PaymentForm, ServicePlanForm
 from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
+from core.deletion import (
+    DELETE_ACTION_DEACTIVATE,
+    DELETE_ACTION_NOW,
+    DeletionDecisionMixin,
+    hard_delete_service_plan,
+    mark_active_object_for_deletion,
+    service_plan_has_pending_obligations,
+)
 from core.views import FormContextMixin, SearchableListView
 
 
@@ -47,29 +54,38 @@ class ServicePlanUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
         return super().form_valid(form)
 
 
-class ServicePlanDeleteView(FormContextMixin, FinanceAccessMixin, DeleteView):
+class ServicePlanDeleteView(DeletionDecisionMixin, FormContextMixin, FinanceAccessMixin, DeleteView):
     model = ServicePlan
-    template_name = "billing/plan_confirm_delete.html"
+    template_name = "core/confirm_deactivate.html"
     success_url = reverse_lazy("billing:plans")
     page_title = "Excluir plano"
     section_label = "Financeiro"
     back_url_name = "billing:plans"
+    entity_label = "plano"
 
-    def form_valid(self, form):
-        plan = self.object
-        try:
-            response = super().form_valid(form)
-        except ProtectedError:
-            plan.active = False
-            plan.full_clean()
-            plan.save(update_fields=["active", "updated_at"])
-            messages.warning(
-                self.request,
-                "Este plano possui historico vinculado e foi desativado em vez de excluido.",
-            )
-            return redirect(self.success_url)
-        messages.success(self.request, "Plano excluido com sucesso.")
-        return response
+    def get_default_delete_action(self):
+        if service_plan_has_pending_obligations(self.object):
+            return DELETE_ACTION_DEACTIVATE
+        return DELETE_ACTION_NOW
+
+    def perform_delete_now(self):
+        hard_delete_service_plan(self.object)
+
+    def perform_deactivate(self):
+        mark_active_object_for_deletion(self.object)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "object_name": self.object.name,
+                "entity_label": self.entity_label,
+                "delete_explanation": (
+                    "Escolha se deseja deixar o plano indisponivel para novas vendas ou excluir definitivamente."
+                ),
+            }
+        )
+        return context
 
 
 class MembershipListView(FinanceAccessMixin, SearchableListView, ListView):

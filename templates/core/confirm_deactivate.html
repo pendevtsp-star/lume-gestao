@@ -20,9 +20,22 @@
   <p class="confirm-copy">
     {{ delete_explanation }}
   </p>
+  <div class="split-grid">
+    <article class="panel form-panel">
+      <p class="eyebrow">Excluir agora</p>
+      <h3>Remocao definitiva</h3>
+      <p>{{ delete_now_explanation }}</p>
+    </article>
+    <article class="panel form-panel">
+      <p class="eyebrow">Inativar</p>
+      <h3>Sair da rotina ativa</h3>
+      <p>{{ deactivate_explanation }}</p>
+    </article>
+  </div>
   <div class="form-actions">
-    <a class="button secondary" href="{{ back_url }}">Cancelar</a>
-    <button class="button danger" type="submit">{{ delete_button_label }}</button>
+    <button class="button secondary" name="delete_action" value="cancel" type="submit">{{ cancel_button_label }}</button>
+    <button class="button secondary" name="delete_action" value="deactivate" type="submit">{{ deactivate_button_label }}</button>
+    <button class="button danger" name="delete_action" value="delete_now" type="submit">{{ delete_button_label }}</button>
   </div>
 </form>
 {% endblock %}

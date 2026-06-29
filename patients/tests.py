@@ -110,6 +110,62 @@ class PatientAccessTests(TestCase):
         self.assertContains(response, patient.full_name)
         self.assertNotContains(response, other.full_name)
 
+    def test_patient_deactivate_keeps_pending_obligations_until_cleanup(self):
+        user = get_user_model().objects.create_user(username="gestor-delete", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        patient = Patient.objects.create(full_name="Paciente Inativar")
+        professional = Professional.objects.create(full_name="Dra. Inativar", specialty=Professional.Specialty.PILATES)
+        starts_at = timezone.now() + timedelta(days=1)
+        Appointment.objects.create(
+            patient=patient,
+            professional=professional,
+            starts_at=starts_at,
+            ends_at=starts_at + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("patients:delete", args=[patient.pk]),
+            {"delete_action": "deactivate"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        patient.refresh_from_db()
+        self.assertFalse(patient.active)
+        self.assertIsNotNone(patient.deletion_requested_at)
+        self.assertTrue(Appointment.objects.filter(patient=patient).exists())
+
+    def test_patient_delete_now_removes_known_protected_relations(self):
+        user = get_user_model().objects.create_user(username="gestor-hard-delete", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        patient = Patient.objects.create(full_name="Paciente Excluir Agora")
+        professional = Professional.objects.create(full_name="Dra. Excluir Agora", specialty=Professional.Specialty.PILATES)
+        plan = ServicePlan.objects.create(
+            name="Plano Excluir Agora",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=300,
+            sessions_per_week=2,
+        )
+        Membership.objects.create(patient=patient, plan=plan, due_day=10)
+        starts_at = timezone.now() + timedelta(days=1)
+        Appointment.objects.create(
+            patient=patient,
+            professional=professional,
+            starts_at=starts_at,
+            ends_at=starts_at + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("patients:delete", args=[patient.pk]),
+            {"delete_action": "delete_now"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Patient.objects.filter(pk=patient.pk).exists())
+        self.assertFalse(Membership.objects.filter(patient_id=patient.pk).exists())
+        self.assertFalse(Appointment.objects.filter(patient_id=patient.pk).exists())
+
     def test_professional_record_only_shows_own_notes_by_patient(self):
         patient = Patient.objects.create(full_name="Paciente Prontuario")
         professional = Professional.objects.create(full_name="Dra. Uma", specialty=Professional.Specialty.PILATES)

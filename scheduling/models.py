@@ -223,6 +223,7 @@ class ProfessionalAvailability(TimeStampedModel):
     valid_from = models.DateField("valido a partir de", default=timezone.localdate)
     valid_until = models.DateField("valido ate", null=True, blank=True)
     active = models.BooleanField("ativo", default=True)
+    deletion_requested_at = models.DateTimeField("exclusao solicitada em", null=True, blank=True)
     notes = models.CharField("observacoes", max_length=180, blank=True)
 
     objects = ProfessionalAvailabilityQuerySet.as_manager()
@@ -264,6 +265,7 @@ class ServicePackage(TimeStampedModel):
     starts_on = models.DateField("inicio", default=timezone.localdate)
     expires_on = models.DateField("validade", null=True, blank=True)
     status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    deletion_requested_at = models.DateTimeField("exclusao solicitada em", null=True, blank=True)
     notes = models.TextField("observacoes", blank=True)
 
     class Meta:

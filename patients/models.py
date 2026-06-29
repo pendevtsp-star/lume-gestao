@@ -20,6 +20,7 @@ class Patient(TimeStampedModel):
     address = models.CharField("endereco", max_length=255, blank=True)
     clinical_notes = models.TextField("observacoes clinicas", blank=True)
     active = models.BooleanField("ativo", default=True)
+    deletion_requested_at = models.DateTimeField("exclusao solicitada em", null=True, blank=True)
 
     class Meta:
         ordering = ["full_name"]

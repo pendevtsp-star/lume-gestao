@@ -27,6 +27,7 @@ class ServicePlan(TimeStampedModel):
     display_order = models.PositiveSmallIntegerField("ordem no site", default=0, blank=True)
     highlight_badge = models.CharField("selo de destaque", max_length=40, blank=True)
     active = models.BooleanField("ativo", default=True)
+    deletion_requested_at = models.DateTimeField("exclusao solicitada em", null=True, blank=True)
 
     class Meta:
         ordering = ["category", "name"]

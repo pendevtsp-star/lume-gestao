@@ -18,7 +18,7 @@ class ProfessionalForm(StyledModelForm):
         label="Pacientes vinculados",
         queryset=Patient.objects.none(),
         required=False,
-        widget=forms.CheckboxSelectMultiple,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "multi-check-list"}),
         help_text="Marque ou desmarque pacientes vinculados a este profissional. Se ainda nao houver vinculo, deixe todos em branco.",
     )
 

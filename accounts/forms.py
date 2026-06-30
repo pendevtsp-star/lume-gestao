@@ -20,7 +20,7 @@ class UserAccountForm(forms.ModelForm):
         label="pacientes do profissional",
         queryset=Patient.objects.none(),
         required=False,
-        widget=forms.CheckboxSelectMultiple,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "multi-check-list"}),
         help_text="Opcional. Marque ou desmarque pacientes quando o perfil for Profissional.",
     )
 

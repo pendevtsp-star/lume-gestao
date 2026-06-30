@@ -10,8 +10,10 @@ from django.test import override_settings
 from django.urls import reverse
 from unittest.mock import patch
 
+from accounts.forms import UserAccountForm
 from accounts.models import UserProfile
 from patients.models import Patient
+from team.models import Professional
 
 
 class UserProfileTests(TestCase):
@@ -23,6 +25,33 @@ class UserProfileTests(TestCase):
 
         self.assertTrue(UserProfile.objects.filter(user=user).exists())
         self.assertEqual(user.profile.role, UserProfile.Role.ADMINISTRATION)
+
+    def test_user_account_form_clears_incompatible_links_when_role_changes(self):
+        user = get_user_model().objects.create_user(username="profissional", password="Senha@123", email="pro@lume.com")
+        professional = Professional.objects.create(full_name="Dra. Perfil", specialty=Professional.Specialty.PILATES)
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": professional},
+        )
+
+        form = UserAccountForm(
+            data={
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "is_active": "on",
+                "role": UserProfile.Role.MANAGEMENT,
+                "professional": professional.pk,
+            },
+            instance=user,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        user.profile.refresh_from_db()
+        self.assertEqual(user.profile.role, UserProfile.Role.MANAGEMENT)
+        self.assertIsNone(user.profile.professional)
 
     def test_user_can_update_own_login_and_password(self):
         user = get_user_model().objects.create_user(username="login-antigo", password="Senha@123")

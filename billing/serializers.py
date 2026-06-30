@@ -21,7 +21,8 @@ class MembershipSerializer(ModelCleanSerializerMixin, serializers.ModelSerialize
 
 
 class PaymentSerializer(ModelCleanSerializerMixin, serializers.ModelSerializer):
-    patient_name = serializers.CharField(source="membership.patient.full_name", read_only=True)
+    patient_name = serializers.CharField(source="patient_display", read_only=True)
+    item_label = serializers.CharField(source="item_display", read_only=True)
     plan_name = serializers.CharField(source="membership.plan.name", read_only=True)
 
     class Meta:

@@ -7,6 +7,7 @@ from django.utils import timezone
 from accounts.models import LGPD_CONSENT_VERSION, UserProfile
 from core.forms import StyledModelForm
 from patients.models import Patient
+from patients.services import sync_professional_patient_assignments
 from team.models import Professional
 
 
@@ -15,6 +16,13 @@ class UserAccountForm(forms.ModelForm):
     role = forms.ChoiceField(label="perfil", choices=UserProfile.Role.choices)
     patient = forms.ModelChoiceField(label="paciente vinculado", queryset=Patient.objects.none(), required=False)
     professional = forms.ModelChoiceField(label="profissional vinculado", queryset=Professional.objects.none(), required=False)
+    assigned_patients = forms.ModelMultipleChoiceField(
+        label="pacientes do profissional",
+        queryset=Patient.objects.none(),
+        required=False,
+        widget=forms.SelectMultiple(attrs={"size": 8}),
+        help_text="Opcional. Use quando o perfil for Profissional para liberar varios pacientes de uma vez.",
+    )
 
     class Meta:
         model = get_user_model()
@@ -30,12 +38,23 @@ class UserAccountForm(forms.ModelForm):
 
         self.fields["patient"].queryset = Patient.objects.filter(active=True)
         self.fields["professional"].queryset = Professional.objects.filter(active=True)
+        self.fields["assigned_patients"].queryset = Patient.objects.filter(active=True).order_by("full_name")
+        self.fields["role"].label = "perfil de acesso"
+        self.fields["role"].help_text = "Altere aqui o nivel do usuario. O sistema limpa vinculos que nao pertencem ao perfil escolhido."
+        self.fields["patient"].help_text = "Obrigatorio apenas para perfil Paciente."
+        self.fields["professional"].help_text = "Obrigatorio apenas para perfil Profissional."
 
         if self.instance.pk and hasattr(self.instance, "profile"):
             profile = self.instance.profile
             self.fields["role"].initial = profile.role
             self.fields["patient"].initial = profile.patient
             self.fields["professional"].initial = profile.professional
+            if profile.professional_id:
+                self.fields["assigned_patients"].initial = Patient.objects.filter(
+                    professional_assignments__professional=profile.professional,
+                    professional_assignments__active=True,
+                    active=True,
+                )
 
     def clean(self):
         cleaned = super().clean()
@@ -45,8 +64,22 @@ class UserAccountForm(forms.ModelForm):
 
         if role == UserProfile.Role.PATIENT and not patient:
             self.add_error("patient", "Vincule um paciente para este perfil.")
+        elif role != UserProfile.Role.PATIENT:
+            cleaned["patient"] = None
+
         if role == UserProfile.Role.PROFESSIONAL and not professional:
             self.add_error("professional", "Vincule um profissional para este perfil.")
+        elif role != UserProfile.Role.PROFESSIONAL:
+            cleaned["professional"] = None
+            cleaned["assigned_patients"] = []
+
+        profile_queryset = UserProfile.objects.all()
+        if self.instance.pk:
+            profile_queryset = profile_queryset.exclude(user=self.instance)
+        if cleaned.get("patient") and profile_queryset.filter(patient=cleaned["patient"]).exists():
+            self.add_error("patient", "Este paciente ja esta vinculado a outro usuario.")
+        if cleaned.get("professional") and profile_queryset.filter(professional=cleaned["professional"]).exists():
+            self.add_error("professional", "Este profissional ja esta vinculado a outro usuario.")
         return cleaned
 
     def save(self, commit=True):
@@ -64,6 +97,11 @@ class UserAccountForm(forms.ModelForm):
             profile.patient = self.cleaned_data.get("patient")
             profile.professional = self.cleaned_data.get("professional")
             profile.save()
+            if profile.role == UserProfile.Role.PROFESSIONAL and profile.professional_id:
+                sync_professional_patient_assignments(
+                    profile.professional,
+                    self.cleaned_data.get("assigned_patients", []),
+                )
         return user
 
 

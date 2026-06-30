@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 from django import forms
 from django.utils import timezone
@@ -66,10 +67,18 @@ class PaymentForm(StyledModelForm):
 
     reference_month_number = forms.ChoiceField(label="Mes de referencia", choices=MONTH_CHOICES)
     reference_year = forms.IntegerField(label="Ano de referencia", min_value=2020, max_value=2100)
+    amount = forms.CharField(
+        label="Valor",
+        widget=forms.TextInput(attrs={"inputmode": "decimal", "placeholder": "R$ 0,00"}),
+        help_text="Informe em reais. Ex.: 150,00 ou R$ 1.200,00.",
+    )
 
     class Meta:
         model = Payment
         fields = [
+            "patient",
+            "item_type",
+            "description",
             "membership",
             "reference_month_number",
             "reference_year",
@@ -89,15 +98,57 @@ class PaymentForm(StyledModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         reference = self.instance.reference_month or timezone.localdate().replace(day=1)
+        if self.instance.pk and self.instance.amount is not None:
+            self.fields["amount"].initial = f"{self.instance.amount:.2f}".replace(".", ",")
+        if self.instance.membership_id and not self.instance.patient_id:
+            self.fields["patient"].initial = self.instance.membership.patient_id
         self.fields["reference_month_number"].initial = reference.month
         self.fields["reference_year"].initial = reference.year
+        self.fields["patient"].label = "Paciente/usuario"
+        self.fields["item_type"].label = "Item/referencia"
+        self.fields["description"].label = "Descricao do item/referencia"
+        self.fields["membership"].label = "Mensalidade vinculada"
+        self.fields["membership"].required = False
+        self.fields["description"].required = False
+        self.fields["patient"].queryset = self.fields["patient"].queryset.filter(active=True)
+        self.fields["membership"].queryset = self.fields["membership"].queryset.select_related("patient", "plan").filter(
+            status__in=[Membership.Status.ACTIVE, Membership.Status.PAUSED]
+        )
+        self.fields["patient"].help_text = "Obrigatorio para pagamentos avulsos. Em mensalidades, pode ser preenchido automaticamente pela mensalidade escolhida."
+        self.fields["item_type"].help_text = "Use Mensalidade para plano ativo ou escolha servico/sessao/outro para pagamento avulso."
+        self.fields["description"].help_text = "Ex.: Massagem avulsa, sessao experimental, produto ou ajuste financeiro."
+        self.fields["membership"].help_text = "Obrigatorio apenas quando o item/referencia for Mensalidade."
         self.fields["reference_month_number"].help_text = "O sistema salva automaticamente como primeiro dia do mes."
         self.fields["reference_year"].help_text = "Use o ano da mensalidade, por exemplo 2026."
 
+    def clean_amount(self):
+        raw_value = str(self.cleaned_data.get("amount") or "").strip()
+        normalized = raw_value.replace("R$", "").replace(" ", "")
+        if "," in normalized:
+            normalized = normalized.replace(".", "").replace(",", ".")
+        try:
+            return Decimal(normalized)
+        except (InvalidOperation, ValueError):
+            raise forms.ValidationError("Informe um valor valido em reais. Ex.: 150,00.")
+
     def clean(self):
         cleaned_data = super().clean()
+        item_type = cleaned_data.get("item_type")
+        membership = cleaned_data.get("membership")
+        patient = cleaned_data.get("patient")
         month = cleaned_data.get("reference_month_number")
         year = cleaned_data.get("reference_year")
+        if membership:
+            cleaned_data["patient"] = membership.patient
+            self.instance.patient = membership.patient
+            if patient and membership.patient_id != patient.pk:
+                self.add_error("membership", "A mensalidade escolhida pertence a outro paciente.")
+        if item_type == Payment.ItemType.MEMBERSHIP and not membership:
+            self.add_error("membership", "Selecione a mensalidade vinculada.")
+        if item_type != Payment.ItemType.MEMBERSHIP and not patient:
+            self.add_error("patient", "Selecione o paciente para pagamento avulso.")
+        if item_type != Payment.ItemType.MEMBERSHIP and not cleaned_data.get("description"):
+            self.add_error("description", "Informe uma descricao para o pagamento avulso.")
         if month and year:
             reference_month = date(int(year), int(month), 1)
             cleaned_data["reference_month"] = reference_month
@@ -109,6 +160,8 @@ class PaymentForm(StyledModelForm):
         reference_month = self.cleaned_data.get("reference_month")
         if reference_month:
             instance.reference_month = reference_month
+        if instance.membership_id and not instance.patient_id:
+            instance.patient = instance.membership.patient
         if commit:
             instance.save()
             self.save_m2m()

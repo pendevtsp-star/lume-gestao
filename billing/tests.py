@@ -125,6 +125,7 @@ class BillingModelTests(TestCase):
         form = PaymentForm(
             data={
                 "membership": membership.pk,
+                "item_type": Payment.ItemType.MEMBERSHIP,
                 "reference_month_number": "7",
                 "reference_year": "2026",
                 "due_date": "2026-07-10",
@@ -138,6 +139,31 @@ class BillingModelTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         payment = form.save()
         self.assertEqual(payment.reference_month, date(2026, 7, 1))
+        self.assertEqual(payment.patient, self.patient)
+        self.assertEqual(payment.description, self.plan.name)
+
+    def test_payment_form_accepts_standalone_service_payment(self):
+        form = PaymentForm(
+            data={
+                "patient": self.patient.pk,
+                "item_type": Payment.ItemType.SERVICE,
+                "description": "Massagem avulsa",
+                "reference_month_number": "7",
+                "reference_year": "2026",
+                "due_date": "2026-07-10",
+                "amount": "R$ 150,00",
+                "status": Payment.Status.PENDING,
+                "method": Payment.Method.PIX,
+                "notes": "",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        payment = form.save()
+        self.assertIsNone(payment.membership)
+        self.assertEqual(payment.patient, self.patient)
+        self.assertEqual(payment.amount, Decimal("150.00"))
+        self.assertEqual(payment.item_display, "Massagem avulsa")
 
     def test_expense_category_and_kind_are_editable_structures(self):
         category = ExpenseCategory.objects.create(name="Marketing", kind=ExpenseCategory.Kind.VARIABLE)
@@ -232,6 +258,15 @@ class BillingModelTests(TestCase):
             status=Payment.Status.PAID,
             paid_at=date(2026, 7, 10),
         )
+        Payment.objects.create(
+            patient=self.patient,
+            item_type=Payment.ItemType.SERVICE,
+            description="Massagem avulsa",
+            reference_month=date(2026, 6, 1),
+            due_date=date(2026, 6, 12),
+            amount=Decimal("150.00"),
+            status=Payment.Status.PENDING,
+        )
         self.client.force_login(user)
 
         response = self.client.get(reverse("billing:payment_quick_receive"), {"q": "Paciente"})
@@ -239,6 +274,7 @@ class BillingModelTests(TestCase):
         self.assertContains(response, "Receber mensalidade")
         self.assertContains(response, reverse("billing:payment_receive", args=[pending.pk]))
         self.assertNotContains(response, "07/2026")
+        self.assertNotContains(response, "Massagem avulsa")
 
     def test_expense_delete_deactivate_cancels_expense_and_removes_from_totals(self):
         user = get_user_model().objects.create_user(username="financeiro-exclui-despesa", password="Senha@123")

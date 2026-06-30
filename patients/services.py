@@ -98,6 +98,36 @@ def refresh_assignment_for_pair(patient, professional):
         assignment.save(update_fields=["active", "updated_at"])
 
 
+def sync_professional_patient_assignments(professional, patients):
+    if not professional:
+        return
+
+    selected_ids = {patient.pk for patient in patients}
+    for patient in patients:
+        assignment, _ = ProfessionalPatientAssignment.objects.get_or_create(
+            patient=patient,
+            professional=professional,
+            defaults={"active": True, "notes": "Vinculo manual pelo cadastro do profissional."},
+        )
+        updates = []
+        if not assignment.active:
+            assignment.active = True
+            updates.append("active")
+        if not assignment.notes:
+            assignment.notes = "Vinculo manual pelo cadastro do profissional."
+            updates.append("notes")
+        if updates:
+            updates.append("updated_at")
+            assignment.save(update_fields=updates)
+
+    for assignment in ProfessionalPatientAssignment.objects.filter(professional=professional, active=True).exclude(
+        patient_id__in=selected_ids
+    ):
+        if not appointment_link_exists(assignment.patient, professional):
+            assignment.active = False
+            assignment.save(update_fields=["active", "updated_at"])
+
+
 def refresh_assignment_for_appointment(appointment):
     refresh_assignment_for_pair(appointment.patient, appointment.professional)
 

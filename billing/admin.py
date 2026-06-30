@@ -19,9 +19,9 @@ class MembershipAdmin(admin.ModelAdmin):
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
-    list_display = ("membership", "reference_month", "due_date", "amount", "status", "method")
-    list_filter = ("status", "method", "due_date")
-    search_fields = ("membership__patient__full_name", "membership__plan__name")
+    list_display = ("patient", "item_type", "description", "membership", "reference_month", "due_date", "amount", "status", "method")
+    list_filter = ("item_type", "status", "method", "due_date")
+    search_fields = ("patient__full_name", "description", "membership__patient__full_name", "membership__plan__name")
 
 
 @admin.register(Expense)

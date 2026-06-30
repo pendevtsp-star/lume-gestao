@@ -31,7 +31,7 @@ def build_whatsapp_message_context(patient=None, professional=None, appointment=
     clinic_settings = ClinicSettings.load()
     patient = patient or getattr(appointment, "patient", None)
     if not patient and payment:
-        patient = payment.membership.patient
+        patient = payment.patient or (payment.membership.patient if payment.membership_id else None)
     if not patient and charge:
         patient = charge.patient
     professional = professional or getattr(appointment, "professional", None) or default_professional_for_patient(patient)

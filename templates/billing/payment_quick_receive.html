@@ -47,10 +47,10 @@
         {% for payment in payments %}
           <tr class="{% if payment.status == 'overdue' %}table-row-danger{% else %}table-row-warning{% endif %}">
             <td>
-              <strong>{{ payment.membership.patient.full_name }}</strong>
-              <small>{{ payment.membership.patient.phone|default:"Sem telefone" }}</small>
+              <strong>{{ payment.patient_display }}</strong>
+              <small>{{ payment.patient.phone|default:"Sem telefone" }}</small>
             </td>
-            <td>{{ payment.membership.plan.name }}</td>
+            <td>{{ payment.item_display }}</td>
             <td>{{ payment.reference_month|date:"m/Y" }}</td>
             <td>{{ payment.due_date|date:"d/m/Y" }}</td>
             <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>

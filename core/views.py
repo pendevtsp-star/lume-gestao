@@ -263,6 +263,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         pending_payments = Payment.objects.filter(status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE])
         paid_this_month = Payment.objects.filter(status=Payment.Status.PAID, paid_at__gte=month_start)
         upcoming_payments = Payment.objects.filter(
+            item_type=Payment.ItemType.MEMBERSHIP,
+            membership__isnull=False,
             status=Payment.Status.PENDING,
             due_date__gte=today,
             due_date__lte=reminder_limit,
@@ -299,9 +301,9 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 "active_plans": ServicePlan.objects.filter(active=True).count() if finance_visible else 0,
                 "pending_total": pending_payments.aggregate(total=Sum("amount"))["total"] or 0,
                 "paid_month_total": paid_this_month.aggregate(total=Sum("amount"))["total"] or 0,
-                "next_payments": pending_payments.select_related("membership__patient", "membership__plan")[:8],
-                "upcoming_payments": upcoming_payments.select_related("membership__patient", "membership__plan")[:8],
-                "overdue_payments": overdue_payments.select_related("membership__patient", "membership__plan")[:8],
+                "next_payments": pending_payments.select_related("patient", "membership__patient", "membership__plan")[:8],
+                "upcoming_payments": upcoming_payments.select_related("patient", "membership__patient", "membership__plan")[:8],
+                "overdue_payments": overdue_payments.select_related("patient", "membership__patient", "membership__plan")[:8],
                 "next_appointments": appointment_queryset[:8],
                 "reminder_days": settings.membership_due_reminder_days,
                 "connect_recent_posts": (
@@ -463,7 +465,7 @@ def build_whatsapp_message_context(patient=None, professional=None, appointment=
     clinic_settings = ClinicSettings.load()
     patient = patient or getattr(appointment, "patient", None)
     if not patient and payment:
-        patient = payment.membership.patient
+        patient = payment.patient or (payment.membership.patient if payment.membership_id else None)
     if not patient and charge:
         patient = charge.patient
     professional = professional or getattr(appointment, "professional", None) or default_professional_for_patient(patient)

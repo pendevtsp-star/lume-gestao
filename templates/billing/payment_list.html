@@ -25,6 +25,7 @@
       <thead>
         <tr>
           <th>Paciente</th>
+          <th>Item/referencia</th>
           <th>Referencia</th>
           <th>Vencimento</th>
           <th>Status</th>
@@ -37,9 +38,10 @@
         {% for payment in payments %}
           <tr class="{% if payment.status == 'overdue' %}table-row-danger{% elif payment.status == 'pending' %}table-row-warning{% endif %}">
             <td>
-              <strong>{{ payment.membership.patient.full_name }}</strong>
-              <small>{{ payment.membership.plan.name }}</small>
+              <strong>{{ payment.patient_display }}</strong>
+              <small>{{ payment.patient.phone|default:"-" }}</small>
             </td>
+            <td>{{ payment.item_display }}</td>
             <td>{{ payment.reference_month|date:"m/Y" }}</td>
             <td>{{ payment.due_date|date:"d/m/Y" }}</td>
             <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
@@ -53,7 +55,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="7" class="empty">Nenhum pagamento encontrado.</td></tr>
+          <tr><td colspan="8" class="empty">Nenhum pagamento encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -230,7 +230,7 @@ class WhatsAppChargeSendForm(WhatsAppDeliveryForm):
         self.reference_map = {}
         choices = []
         payments = (
-            Payment.objects.select_related("membership__patient", "membership__plan")
+            Payment.objects.select_related("patient", "membership__patient", "membership__plan")
             .filter(status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE])
             .order_by("due_date")[:40]
         )
@@ -240,7 +240,7 @@ class WhatsAppChargeSendForm(WhatsAppDeliveryForm):
             choices.append(
                 (
                     key,
-                    f"Mensalidade - {payment.membership.patient.full_name} - "
+                    f"{payment.item_display} - {payment.patient_display} - "
                     f"{payment.due_date:%d/%m/%Y} - R$ {payment.amount:.2f}",
                 )
             )

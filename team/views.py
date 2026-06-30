@@ -137,8 +137,10 @@ class ProfessionalCreateView(FormContextMixin, TeamAdminMixin, CreateView):
     back_url_name = "team:professionals"
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        form.save_patient_assignments(self.object)
         messages.success(self.request, "Profissional cadastrado com sucesso.")
-        return super().form_valid(form)
+        return response
 
 
 class ProfessionalUpdateView(FormContextMixin, TeamAdminMixin, UpdateView):
@@ -151,10 +153,11 @@ class ProfessionalUpdateView(FormContextMixin, TeamAdminMixin, UpdateView):
     back_url_name = "team:professionals"
 
     def form_valid(self, form):
-        messages.success(self.request, "Profissional atualizado com sucesso.")
         response = super().form_valid(form)
+        form.save_patient_assignments(self.object)
         if not self.object.active:
             deactivate_professional_relationships(self.object)
+        messages.success(self.request, "Profissional atualizado com sucesso.")
         return response
 
     def get_context_data(self, **kwargs):

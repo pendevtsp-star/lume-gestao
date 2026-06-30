@@ -71,10 +71,16 @@ def register_membership_cycle_payment(
         membership=membership,
         reference_month=reference_month,
         defaults={
+            "patient": membership.patient,
+            "item_type": Payment.ItemType.MEMBERSHIP,
+            "description": membership.plan.name,
             "due_date": paid_at if status == Payment.Status.PAID else cycle_due_date(membership, starts_on),
             "amount": membership.monthly_amount,
         },
     )
+    payment.patient = membership.patient
+    payment.item_type = Payment.ItemType.MEMBERSHIP
+    payment.description = payment.description or membership.plan.name
     payment.status = status
     payment.method = method
     payment.amount = membership.monthly_amount

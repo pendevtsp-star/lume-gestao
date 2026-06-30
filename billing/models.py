@@ -137,6 +137,12 @@ class Membership(TimeStampedModel):
 
 
 class Payment(TimeStampedModel):
+    class ItemType(models.TextChoices):
+        MEMBERSHIP = "membership", "Mensalidade"
+        SERVICE = "service", "Servico avulso"
+        SINGLE_SESSION = "single_session", "Sessao avulsa"
+        OTHER = "other", "Outro pagamento"
+
     class Status(models.TextChoices):
         PENDING = "pending", "Pendente"
         PAID = "paid", "Pago"
@@ -150,7 +156,10 @@ class Payment(TimeStampedModel):
         CARD = "card", "Cartao"
         TRANSFER = "transfer", "Transferencia"
 
-    membership = models.ForeignKey(Membership, on_delete=models.PROTECT, related_name="payments")
+    patient = models.ForeignKey(Patient, on_delete=models.PROTECT, null=True, blank=True, related_name="payments")
+    membership = models.ForeignKey(Membership, on_delete=models.PROTECT, null=True, blank=True, related_name="payments")
+    item_type = models.CharField("item/referencia", max_length=30, choices=ItemType.choices, default=ItemType.MEMBERSHIP)
+    description = models.CharField("descricao do item", max_length=180, blank=True)
     reference_month = models.DateField("mes de referencia")
     due_date = models.DateField("vencimento")
     amount = models.DecimalField("valor", max_digits=10, decimal_places=2)
@@ -160,21 +169,46 @@ class Payment(TimeStampedModel):
     notes = models.TextField("observacoes", blank=True)
 
     class Meta:
-        ordering = ["-due_date", "membership__patient__full_name"]
+        ordering = ["-due_date", "patient__full_name", "membership__patient__full_name"]
         verbose_name = "pagamento"
         verbose_name_plural = "pagamentos"
         constraints = [
             models.UniqueConstraint(
                 fields=["membership", "reference_month"],
+                condition=Q(membership__isnull=False),
                 name="one_payment_per_membership_month",
             )
         ]
 
     def __str__(self):
-        return f"{self.membership.patient} - {self.reference_month:%m/%Y}"
+        return f"{self.patient_display} - {self.reference_month:%m/%Y}"
+
+    @property
+    def patient_display(self):
+        if self.patient_id:
+            return self.patient.full_name
+        if self.membership_id:
+            return self.membership.patient.full_name
+        return "Sem paciente"
+
+    @property
+    def item_display(self):
+        if self.membership_id:
+            return f"{self.get_item_type_display()} - {self.membership.plan.name}"
+        return self.description or self.get_item_type_display()
 
     def clean(self):
         super().clean()
+        if self.membership_id:
+            self.patient = self.membership.patient
+            if not self.description:
+                self.description = self.membership.plan.name
+        if self.item_type == self.ItemType.MEMBERSHIP and not self.membership_id:
+            raise ValidationError({"membership": "Selecione a mensalidade vinculada para pagamentos mensais."})
+        if self.item_type != self.ItemType.MEMBERSHIP and not self.patient_id:
+            raise ValidationError({"patient": "Selecione o paciente para pagamentos avulsos."})
+        if self.item_type != self.ItemType.MEMBERSHIP and not self.description:
+            raise ValidationError({"description": "Descreva o item, servico ou referencia do pagamento."})
         if self.amount is not None and self.amount <= Decimal("0"):
             raise ValidationError({"amount": "O valor do pagamento deve ser maior que zero."})
         if self.status == self.Status.PAID and not self.paid_at:

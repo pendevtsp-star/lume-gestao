@@ -314,8 +314,8 @@
       <tbody>
         {% for payment in upcoming_payments %}
           <tr>
-            <td>{{ payment.membership.patient.full_name }}</td>
-            <td>{{ payment.membership.plan.name }}</td>
+            <td>{{ payment.patient_display }}</td>
+            <td>{{ payment.item_display }}</td>
             <td>{{ payment.due_date|date:"d/m/Y" }}</td>
             <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
           </tr>
@@ -341,7 +341,7 @@
       <thead>
         <tr>
           <th>Paciente</th>
-          <th>Plano</th>
+          <th>Item</th>
           <th>Vencimento</th>
           <th>Status</th>
           <th class="right">Valor</th>
@@ -350,8 +350,8 @@
       <tbody>
         {% for payment in overdue_payments %}
           <tr>
-            <td>{{ payment.membership.patient.full_name }}</td>
-            <td>{{ payment.membership.plan.name }}</td>
+            <td>{{ payment.patient_display }}</td>
+            <td>{{ payment.item_display }}</td>
             <td>{{ payment.due_date|date:"d/m/Y" }}</td>
             <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
             <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>

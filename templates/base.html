@@ -72,7 +72,6 @@
             <div class="nav-submenu">
               <a href="{% url 'billing:memberships' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Mensalidades</span></a>
               <a href="{% url 'billing:payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Pagamentos</span></a>
-              <a href="{% url 'billing:charges' %}"><span class="nav-icon icon-charges" aria-hidden="true"></span><span>Cobrancas</span></a>
               <a href="{% url 'billing:expenses' %}"><span class="nav-icon icon-expenses" aria-hidden="true"></span><span>Despesas</span></a>
               {% if checkout_enabled %}
                 <a href="{% url 'checkout:orders' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Checkout</span></a>

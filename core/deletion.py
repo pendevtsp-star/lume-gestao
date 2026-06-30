@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.db.models import F
+from django.db.models import F, Q
 from django.db.models import ProtectedError
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -37,11 +37,12 @@ def _delete_membership_queryset(memberships):
 
 
 def hard_delete_patient(patient):
-    from billing.models import Charge, Membership
+    from billing.models import Charge, Membership, Payment
     from scheduling.models import Appointment
 
     _delete_appointment_queryset(Appointment.objects.filter(patient=patient))
     _delete_membership_queryset(Membership.objects.filter(patient=patient))
+    Payment.objects.filter(patient=patient).delete()
     Charge.objects.filter(patient=patient).update(patient=None)
     patient.delete()
 
@@ -93,7 +94,10 @@ def patient_has_pending_obligations(patient):
     memberships = Membership.objects.filter(patient=patient)
     if memberships.filter(status__in=[Membership.Status.ACTIVE, Membership.Status.PAUSED]).exists():
         return True
-    if Payment.objects.filter(membership__in=memberships, status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE]).exists():
+    if Payment.objects.filter(
+        Q(membership__in=memberships) | Q(patient=patient),
+        status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
+    ).exists():
         return True
     return ServicePackage.objects.filter(
         membership__in=memberships,

@@ -31,11 +31,11 @@ class MembershipViewSet(ModelViewSet):
 
 
 class PaymentViewSet(ModelViewSet):
-    queryset = Payment.objects.select_related("membership__patient", "membership__plan")
+    queryset = Payment.objects.select_related("patient", "membership__patient", "membership__plan")
     serializer_class = PaymentSerializer
     permission_classes = [FinanceApiPermission]
-    filterset_fields = ["status", "method", "due_date"]
-    search_fields = ["membership__patient__full_name", "membership__plan__name"]
+    filterset_fields = ["status", "method", "item_type", "due_date", "patient"]
+    search_fields = ["patient__full_name", "membership__patient__full_name", "membership__plan__name", "description"]
     ordering_fields = ["due_date", "reference_month", "amount", "created_at"]
 
 

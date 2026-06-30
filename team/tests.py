@@ -3,6 +3,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import UserProfile
+from patients.models import Patient, ProfessionalPatientAssignment
+from team.forms import ProfessionalForm
 from team.models import Employee, Professional
 
 
@@ -53,3 +55,28 @@ class TeamDeleteTests(TestCase):
         professional.refresh_from_db()
         self.assertEqual(response.status_code, 204)
         self.assertFalse(professional.active)
+
+    def test_professional_form_syncs_multiple_patients(self):
+        patient_one = Patient.objects.create(full_name="Paciente Um")
+        patient_two = Patient.objects.create(full_name="Paciente Dois")
+        form = ProfessionalForm(
+            data={
+                "full_name": "Dra. Vinculos",
+                "specialty": Professional.Specialty.PILATES,
+                "registration_number": "",
+                "phone": "",
+                "email": "",
+                "bio": "",
+                "active": "on",
+                "assigned_patients": [str(patient_one.pk), str(patient_two.pk)],
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        professional = form.save()
+        form.save_patient_assignments(professional)
+
+        self.assertEqual(
+            ProfessionalPatientAssignment.objects.filter(professional=professional, active=True).count(),
+            2,
+        )

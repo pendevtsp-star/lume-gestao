@@ -188,13 +188,22 @@ class PaymentListView(FinanceAccessMixin, SearchableListView, ListView):
     template_name = "billing/payment_list.html"
     context_object_name = "payments"
     paginate_by = 12
-    search_fields = ["membership__patient__full_name", "membership__plan__name", "status", "method"]
+    search_fields = [
+        "patient__full_name",
+        "patient__phone",
+        "membership__patient__full_name",
+        "membership__plan__name",
+        "description",
+        "item_type",
+        "status",
+        "method",
+    ]
 
     def get_queryset(self):
         return (
             super()
             .get_queryset()
-            .select_related("membership__patient", "membership__plan")
+            .select_related("patient", "membership__patient", "membership__plan")
             .annotate(
                 status_priority=Case(
                     When(status=Payment.Status.OVERDUE, then=0),
@@ -203,7 +212,7 @@ class PaymentListView(FinanceAccessMixin, SearchableListView, ListView):
                     output_field=IntegerField(),
                 )
             )
-            .order_by("status_priority", "due_date", "membership__patient__full_name")
+            .order_by("status_priority", "due_date", "patient__full_name", "membership__patient__full_name")
         )
 
 
@@ -223,8 +232,12 @@ class PaymentQuickReceiveView(FinanceAccessMixin, SearchableListView, ListView):
         return (
             super()
             .get_queryset()
-            .filter(status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE])
-            .select_related("membership__patient", "membership__plan")
+            .filter(
+                item_type=Payment.ItemType.MEMBERSHIP,
+                membership__isnull=False,
+                status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
+            )
+            .select_related("patient", "membership__patient", "membership__plan")
             .annotate(
                 status_priority=Case(
                     When(status=Payment.Status.OVERDUE, then=0),
@@ -232,7 +245,7 @@ class PaymentQuickReceiveView(FinanceAccessMixin, SearchableListView, ListView):
                     output_field=IntegerField(),
                 )
             )
-            .order_by("status_priority", "due_date", "membership__patient__full_name")
+            .order_by("status_priority", "due_date", "patient__full_name", "membership__patient__full_name")
         )
 
     def get_context_data(self, **kwargs):
@@ -279,7 +292,7 @@ class PaymentReceiveView(FormContextMixin, FinanceAccessMixin, FormView):
 
     def dispatch(self, request, *args, **kwargs):
         self.payment = get_object_or_404(
-            Payment.objects.select_related("membership__patient", "membership__plan"),
+            Payment.objects.select_related("patient", "membership__patient", "membership__plan"),
             pk=kwargs["pk"],
         )
         if self.payment.status in {Payment.Status.PAID, Payment.Status.CANCELED}:
@@ -311,7 +324,7 @@ class PaymentReceiveView(FormContextMixin, FinanceAccessMixin, FormView):
         payment.save()
         messages.success(
             self.request,
-            f"Pagamento de {payment.membership.patient.full_name} recebido com sucesso.",
+            f"Pagamento de {payment.patient_display} recebido com sucesso.",
         )
         return super().form_valid(form)
 

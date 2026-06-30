@@ -269,12 +269,12 @@ class FinancialReportView(PeriodReportMixin, RoleRequiredMixin, TemplateView):
             status=Payment.Status.PAID,
             paid_at__gte=start,
             paid_at__lte=end,
-        ).select_related("membership__patient", "membership__plan")
+        ).select_related("patient", "membership__patient", "membership__plan")
         pending_payments = Payment.objects.filter(
             status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
             due_date__gte=start,
             due_date__lte=end,
-        ).select_related("membership__patient", "membership__plan")
+        ).select_related("patient", "membership__patient", "membership__plan")
         if filters["method"]:
             paid_payments = paid_payments.filter(method=filters["method"])
         if filters["plan"]:
@@ -428,13 +428,13 @@ class FinancialReportView(PeriodReportMixin, RoleRequiredMixin, TemplateView):
         )
 
         receivable_alerts = [
-            {
-                "type": "Mensalidade",
-                "patient": payment.membership.patient.full_name,
-                "description": payment.membership.plan.name,
-                "due_date": payment.due_date,
-                "status": "Vencido" if payment.due_date < today else payment.get_status_display(),
-                "amount": payment.amount,
+                {
+                    "type": payment.get_item_type_display(),
+                    "patient": payment.patient_display,
+                    "description": payment.item_display,
+                    "due_date": payment.due_date,
+                    "status": "Vencido" if payment.due_date < today else payment.get_status_display(),
+                    "amount": payment.amount,
             }
             for payment in pending_payments.order_by("due_date")[:6]
         ]

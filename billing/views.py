@@ -1,18 +1,33 @@
 from django.contrib import messages
 from django.db.models import Sum
+from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, DeleteView, ListView, UpdateView
+from django.utils import timezone
+from django.views.generic import CreateView, DeleteView, FormView, ListView, UpdateView
 
 from accounts.permissions import FinanceAccessMixin
-from billing.forms import ChargeForm, ExpenseCategoryForm, ExpenseForm, MembershipForm, PaymentForm, ServicePlanForm
+from billing.forms import (
+    ChargeForm,
+    ExpenseCategoryForm,
+    ExpenseForm,
+    MembershipForm,
+    PaymentForm,
+    PaymentReceiveForm,
+    ServicePlanForm,
+)
 from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from core.deletion import (
     DELETE_ACTION_DEACTIVATE,
     DELETE_ACTION_NOW,
     DeletionDecisionMixin,
+    hard_delete_expense,
+    hard_delete_membership,
     hard_delete_service_plan,
     mark_active_object_for_deletion,
+    mark_expense_for_deletion,
+    mark_membership_for_deletion,
+    membership_has_pending_obligations,
     service_plan_has_pending_obligations,
 )
 from core.views import FormContextMixin, SearchableListView
@@ -127,6 +142,47 @@ class MembershipUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
         return super().form_valid(form)
 
 
+class MembershipDeleteView(DeletionDecisionMixin, FormContextMixin, FinanceAccessMixin, DeleteView):
+    model = Membership
+    template_name = "core/confirm_deactivate.html"
+    success_url = reverse_lazy("billing:memberships")
+    page_title = "Excluir mensalidade"
+    section_label = "Financeiro"
+    back_url_name = "billing:memberships"
+    entity_label = "mensalidade"
+    deactivate_button_label = "Cancelar mensalidade"
+    deactivate_explanation = (
+        "Cancela a mensalidade, suas cobrancas pendentes e a adesao ativa vinculada. "
+        "Valores ja pagos continuam no historico financeiro."
+    )
+
+    def get_queryset(self):
+        return Membership.objects.select_related("patient", "plan")
+
+    def get_default_delete_action(self):
+        if membership_has_pending_obligations(self.object):
+            return DELETE_ACTION_DEACTIVATE
+        return DELETE_ACTION_NOW
+
+    def perform_delete_now(self):
+        hard_delete_membership(self.object)
+
+    def perform_deactivate(self):
+        mark_membership_for_deletion(self.object)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "object_name": f"{self.object.patient.full_name} - {self.object.plan.name}",
+                "delete_explanation": (
+                    "Escolha se deseja cancelar a mensalidade para retirar da rotina financeira ou excluir definitivamente."
+                ),
+            }
+        )
+        return context
+
+
 class PaymentListView(FinanceAccessMixin, SearchableListView, ListView):
     model = Payment
     template_name = "billing/payment_list.html"
@@ -163,6 +219,53 @@ class PaymentUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
 
     def form_valid(self, form):
         messages.success(self.request, "Pagamento atualizado com sucesso.")
+        return super().form_valid(form)
+
+
+class PaymentReceiveView(FormContextMixin, FinanceAccessMixin, FormView):
+    form_class = PaymentReceiveForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("billing:payments")
+    page_title = "Receber pagamento"
+    section_label = "Financeiro"
+    back_url_name = "billing:payments"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.payment = get_object_or_404(
+            Payment.objects.select_related("membership__patient", "membership__plan"),
+            pk=kwargs["pk"],
+        )
+        if self.payment.status in {Payment.Status.PAID, Payment.Status.CANCELED}:
+            messages.warning(request, "Este pagamento nao esta disponivel para baixa manual.")
+            return redirect("billing:payments")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_initial(self):
+        initial = super().get_initial()
+        initial.update(
+            {
+                "amount": self.payment.amount,
+                "method": self.payment.method if self.payment.method != Payment.Method.MANUAL else Payment.Method.PIX,
+                "paid_at": timezone.localdate(),
+                "notes": self.payment.notes,
+            }
+        )
+        return initial
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["instance"] = self.payment
+        return kwargs
+
+    def form_valid(self, form):
+        payment = form.save(commit=False)
+        payment.status = Payment.Status.PAID
+        payment.full_clean()
+        payment.save()
+        messages.success(
+            self.request,
+            f"Pagamento de {payment.membership.patient.full_name} recebido com sucesso.",
+        )
         return super().form_valid(form)
 
 
@@ -248,6 +351,37 @@ class ExpenseUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Despesa atualizada com sucesso.")
         return super().form_valid(form)
+
+
+class ExpenseDeleteView(DeletionDecisionMixin, FormContextMixin, FinanceAccessMixin, DeleteView):
+    model = Expense
+    template_name = "core/confirm_deactivate.html"
+    success_url = reverse_lazy("billing:expenses")
+    page_title = "Excluir despesa"
+    section_label = "Financeiro"
+    back_url_name = "billing:expenses"
+    entity_label = "despesa"
+    default_delete_action = DELETE_ACTION_NOW
+    deactivate_button_label = "Cancelar despesa"
+    deactivate_explanation = "Marca a despesa como cancelada para que ela nao componha os relatorios financeiros."
+
+    def perform_delete_now(self):
+        hard_delete_expense(self.object)
+
+    def perform_deactivate(self):
+        mark_expense_for_deletion(self.object)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "object_name": self.object.description,
+                "delete_explanation": (
+                    "Escolha se deseja cancelar a despesa para preservar historico ou excluir definitivamente."
+                ),
+            }
+        )
+        return context
 
 
 class ExpenseCategoryListView(FinanceAccessMixin, SearchableListView, ListView):

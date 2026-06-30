@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import UserProfile
-from billing.models import Membership, ServicePlan
+from billing.models import Membership, Payment, ServicePlan
 from core.models import ClinicSettings
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, AppointmentSeries, ProfessionalAvailability, ServicePackage, ServiceUsage
@@ -202,6 +202,67 @@ class SchedulingTests(TestCase):
         self.assertEqual(package.used_sessions, 0)
         self.assertEqual(package.expires_on, date(2026, 9, 15))
         self.assertEqual(package.membership.plan, plan)
+
+    def test_service_package_form_can_register_paid_cycle_payment(self):
+        plan = ServicePlan.objects.create(
+            name="Pilates Semestral",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("1800.00"),
+            duration_months=6,
+            sessions_per_week=2,
+            included_sessions=48,
+        )
+        form = ServicePackageForm(
+            data={
+                "patient": self.patient.pk,
+                "plan": plan.pk,
+                "starts_on": "2026-06-15",
+                "status": ServicePackage.Status.ACTIVE,
+                "payment_mode": ServicePackageForm.PaymentMode.PAID_NOW,
+                "payment_method": Payment.Method.PIX,
+                "paid_at": "2026-06-15",
+                "notes": "Adesao paga na recepcao.",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        package = form.save()
+        payment = Payment.objects.get(membership=package.membership, reference_month=date(2026, 6, 1))
+
+        self.assertEqual(package.total_sessions, 48)
+        self.assertEqual(package.expires_on, date(2026, 12, 15))
+        self.assertEqual(payment.status, Payment.Status.PAID)
+        self.assertEqual(payment.amount, Decimal("1800.00"))
+        self.assertEqual(payment.paid_at, date(2026, 6, 15))
+
+    def test_service_package_form_can_register_pending_cycle_payment(self):
+        plan = ServicePlan.objects.create(
+            name="Pilates Mensal",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("500.00"),
+            duration_months=1,
+            sessions_per_week=2,
+            included_sessions=8,
+        )
+        form = ServicePackageForm(
+            data={
+                "patient": self.patient.pk,
+                "plan": plan.pk,
+                "starts_on": "2026-06-15",
+                "status": ServicePackage.Status.ACTIVE,
+                "payment_mode": ServicePackageForm.PaymentMode.PENDING,
+                "payment_method": Payment.Method.PIX,
+                "notes": "Gerar cobrança presencial.",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        package = form.save()
+        payment = Payment.objects.get(membership=package.membership, reference_month=date(2026, 6, 1))
+
+        self.assertEqual(payment.status, Payment.Status.PENDING)
+        self.assertIsNone(payment.paid_at)
+        self.assertEqual(payment.amount, Decimal("500.00"))
 
     def test_appointment_save_creates_backend_assignment(self):
         ProfessionalPatientAssignment.objects.filter(patient=self.patient, professional=self.professional).delete()

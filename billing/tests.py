@@ -163,6 +163,84 @@ class BillingModelTests(TestCase):
         self.assertNotContains(response, "Faixas elasticas")
         self.assertContains(response, "R$ 1000,00")
 
+    def test_payment_receive_marks_pending_payment_as_paid(self):
+        user = get_user_model().objects.create_user(username="financeiro-recebe", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        payment = Payment.objects.create(
+            membership=membership,
+            reference_month=date(2026, 6, 1),
+            due_date=date(2026, 6, 10),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PENDING,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("billing:payment_receive", args=[payment.pk]),
+            {
+                "amount": "400.00",
+                "method": Payment.Method.CASH,
+                "paid_at": "2026-06-12",
+                "notes": "Recebido no balcão.",
+            },
+        )
+
+        self.assertRedirects(response, reverse("billing:payments"))
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, Payment.Status.PAID)
+        self.assertEqual(payment.method, Payment.Method.CASH)
+        self.assertEqual(payment.paid_at, date(2026, 6, 12))
+
+    def test_expense_delete_deactivate_cancels_expense_and_removes_from_totals(self):
+        user = get_user_model().objects.create_user(username="financeiro-exclui-despesa", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        category = ExpenseCategory.objects.get(name="Aluguel")
+        expense = Expense.objects.create(
+            description="Despesa duplicada",
+            category=category,
+            kind=Expense.Kind.FIXED,
+            due_date=date(2026, 6, 5),
+            amount=Decimal("1000.00"),
+            status=Expense.Status.OPEN,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("billing:expense_delete", args=[expense.pk]),
+            {"delete_action": "deactivate"},
+        )
+
+        self.assertRedirects(response, reverse("billing:expenses"))
+        expense.refresh_from_db()
+        self.assertEqual(expense.status, Expense.Status.CANCELED)
+        list_response = self.client.get(reverse("billing:expenses"))
+        self.assertContains(list_response, "R$ 0,00")
+
+    def test_membership_delete_deactivate_cancels_pending_payment(self):
+        user = get_user_model().objects.create_user(username="financeiro-exclui-mensalidade", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        payment = Payment.objects.create(
+            membership=membership,
+            reference_month=date(2026, 6, 1),
+            due_date=date(2026, 6, 10),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PENDING,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("billing:membership_delete", args=[membership.pk]),
+            {"delete_action": "deactivate"},
+        )
+
+        self.assertRedirects(response, reverse("billing:memberships"))
+        membership.refresh_from_db()
+        payment.refresh_from_db()
+        self.assertEqual(membership.status, Membership.Status.CANCELED)
+        self.assertEqual(payment.status, Payment.Status.CANCELED)
+
     def test_plan_delete_removes_unused_plan(self):
         user = get_user_model().objects.create_user(username="gerencia-exclui-plano", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})

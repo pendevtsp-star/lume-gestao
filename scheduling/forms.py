@@ -6,13 +6,13 @@ from datetime import timedelta
 
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
-from billing.models import Membership, ServicePlan
+from billing.models import Payment, ServicePlan
 from core.forms import StyledModelForm
 from core.models import ClinicSettings
 from patients.models import Patient
 from patients.services import patient_professional_link_exists, patient_ids_for_professional, professional_ids_for_patient
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage
-from scheduling.services import package_defaults_for_plan, resolve_membership_for_plan
+from scheduling.services import package_defaults_for_plan, register_membership_cycle_payment, resolve_membership_for_plan
 from team.models import Professional
 
 
@@ -469,8 +469,32 @@ class ProfessionalAvailabilityBatchForm(StyledForm):
 
 
 class ServicePackageForm(StyledModelForm):
+    class PaymentMode(models.TextChoices):
+        NONE = "none", "Nao lancar pagamento agora"
+        PENDING = "pending", "Gerar cobranca do ciclo"
+        PAID_NOW = "paid_now", "Receber valor total agora"
+
     patient = forms.ModelChoiceField(label="Paciente", queryset=Patient.objects.none())
     plan = forms.ModelChoiceField(label="Plano/Servico", queryset=ServicePlan.objects.none())
+    payment_mode = forms.ChoiceField(
+        label="Condicao de pagamento",
+        choices=PaymentMode.choices,
+        initial=PaymentMode.NONE,
+        required=False,
+        help_text="Para planos de qualquer duracao, o valor do ciclo pode ser recebido integralmente ou ficar pendente.",
+    )
+    payment_method = forms.ChoiceField(
+        label="Forma de recebimento",
+        choices=Payment.Method.choices,
+        initial=Payment.Method.PIX,
+        required=False,
+    )
+    paid_at = forms.DateField(
+        label="Recebido em",
+        initial=timezone.localdate,
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -479,6 +503,11 @@ class ServicePackageForm(StyledModelForm):
         self.fields["patient"].help_text = "Escolha o paciente que aderiu ao plano ou servico."
         self.fields["plan"].help_text = "Total de atendimentos, validade e mensalidade serao herdados automaticamente."
         self.fields["starts_on"].help_text = "A validade sera calculada pela duracao configurada no plano/servico."
+        if self.instance and self.instance.pk:
+            self.fields["payment_mode"].help_text = "Edicoes de adesao nao alteram pagamentos ja lancados."
+            self.fields["payment_mode"].widget = forms.HiddenInput()
+            self.fields["payment_method"].widget = forms.HiddenInput()
+            self.fields["paid_at"].widget = forms.HiddenInput()
 
         if self.instance and self.instance.pk and self.instance.membership_id:
             self.fields["patient"].initial = self.instance.membership.patient_id
@@ -486,7 +515,7 @@ class ServicePackageForm(StyledModelForm):
 
     class Meta:
         model = ServicePackage
-        fields = ["patient", "plan", "starts_on", "status", "notes"]
+        fields = ["patient", "plan", "starts_on", "status", "payment_mode", "payment_method", "paid_at", "notes"]
         widgets = {
             "starts_on": forms.DateInput(attrs={"type": "date"}),
             "notes": forms.Textarea(attrs={"rows": 4}),
@@ -500,6 +529,10 @@ class ServicePackageForm(StyledModelForm):
             return cleaned_data
 
         starts_on = cleaned_data.get("starts_on") or timezone.localdate()
+        payment_mode = cleaned_data.get("payment_mode") or self.PaymentMode.NONE
+        paid_at = cleaned_data.get("paid_at")
+        if not self.instance.pk and payment_mode == self.PaymentMode.PAID_NOW and not paid_at:
+            self.add_error("paid_at", "Informe a data do recebimento.")
         defaults = package_defaults_for_plan(plan, starts_on)
         self.instance.total_sessions = defaults["total_sessions"]
         self.instance.expires_on = defaults["expires_on"]
@@ -524,16 +557,33 @@ class ServicePackageForm(StyledModelForm):
 
     def save(self, commit=True):
         instance = super().save(commit=False)
+        is_new = not instance.pk
         instance.membership = self.resolve_membership()
         defaults = package_defaults_for_plan(instance.membership.plan, instance.starts_on)
         instance.total_sessions = defaults["total_sessions"]
         instance.expires_on = defaults["expires_on"]
-        if not instance.pk:
+        if is_new:
             instance.used_sessions = 0
         if commit:
             instance.save()
+            if is_new:
+                self.register_payment_if_needed(instance)
             self.save_m2m()
         return instance
+
+    def register_payment_if_needed(self, package):
+        payment_mode = self.cleaned_data.get("payment_mode") or self.PaymentMode.NONE
+        if payment_mode == self.PaymentMode.NONE:
+            return None
+        note = "Pagamento lancado automaticamente pela criacao da adesao."
+        return register_membership_cycle_payment(
+            package.membership,
+            starts_on=package.starts_on,
+            mode=payment_mode,
+            method=self.cleaned_data.get("payment_method") or Payment.Method.PIX,
+            paid_at=self.cleaned_data.get("paid_at") or timezone.localdate(),
+            notes=note,
+        )
 
 
 class AgendaSettingsForm(StyledModelForm):

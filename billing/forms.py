@@ -1,4 +1,5 @@
 from django import forms
+from django.utils import timezone
 
 from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from core.forms import StyledModelForm
@@ -55,6 +56,29 @@ class PaymentForm(StyledModelForm):
             "paid_at": forms.DateInput(attrs={"type": "date"}),
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
+
+
+class PaymentReceiveForm(StyledModelForm):
+    class Meta:
+        model = Payment
+        fields = ["amount", "method", "paid_at", "notes"]
+        widgets = {
+            "paid_at": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["amount"].label = "Valor recebido"
+        self.fields["paid_at"].label = "Recebido em"
+        self.fields["paid_at"].initial = self.initial.get("paid_at") or timezone.localdate()
+        self.fields["method"].initial = self.initial.get("method") or Payment.Method.PIX
+        self.fields["notes"].help_text = "Opcional. Use para registrar recibo, caixa ou detalhe do recebimento presencial."
+
+    def clean(self):
+        cleaned_data = super().clean()
+        self.instance.status = Payment.Status.PAID
+        return cleaned_data
 
 
 class ExpenseForm(StyledModelForm):

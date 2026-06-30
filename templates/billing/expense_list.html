@@ -99,7 +99,10 @@
             <td>{{ expense.due_date|date:"d/m/Y" }}</td>
             <td><span class="badge {{ expense.status }}">{{ expense.get_status_display }}</span></td>
             <td class="right">R$ {{ expense.amount|floatformat:2 }}</td>
-            <td class="right"><a class="table-action" href="{% url 'billing:expense_update' expense.pk %}">Editar</a></td>
+            <td class="right table-actions">
+              <a class="table-action" href="{% url 'billing:expense_update' expense.pk %}">Editar</a>
+              <a class="table-action danger-link" href="{% url 'billing:expense_delete' expense.pk %}">Excluir</a>
+            </td>
           </tr>
         {% empty %}
           <tr><td colspan="7" class="empty">Nenhuma despesa encontrada.</td></tr>

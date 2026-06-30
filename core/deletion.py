@@ -63,6 +63,14 @@ def hard_delete_service_plan(plan):
     plan.delete()
 
 
+def hard_delete_membership(membership):
+    _delete_membership_queryset(membership.__class__.objects.filter(pk=membership.pk))
+
+
+def hard_delete_expense(expense):
+    expense.delete()
+
+
 def hard_delete_service_package(package):
     from scheduling.models import ServiceUsage
 
@@ -118,6 +126,55 @@ def service_plan_has_pending_obligations(plan):
 
 def service_package_has_pending_obligations(package):
     return package.status == package.Status.ACTIVE and package.used_sessions < package.total_sessions
+
+
+def membership_has_pending_obligations(membership):
+    from billing.models import Payment
+    from scheduling.models import ServicePackage
+
+    if Payment.objects.filter(
+        membership=membership,
+        status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
+    ).exists():
+        return True
+    return ServicePackage.objects.filter(
+        membership=membership,
+        status=ServicePackage.Status.ACTIVE,
+        used_sessions__lt=F("total_sessions"),
+    ).exists()
+
+
+def mark_membership_for_deletion(membership):
+    from billing.models import Payment
+    from scheduling.models import ServicePackage
+
+    membership.status = membership.Status.CANCELED
+    membership.notes = append_deletion_note(membership.notes)
+    membership.full_clean()
+    membership.save(update_fields=["status", "notes", "updated_at"])
+    Payment.objects.filter(
+        membership=membership,
+        status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
+    ).update(status=Payment.Status.CANCELED, paid_at=None, updated_at=_now())
+    ServicePackage.objects.filter(membership=membership, status=ServicePackage.Status.ACTIVE).update(
+        status=ServicePackage.Status.CANCELED,
+        deletion_requested_at=_now(),
+        updated_at=_now(),
+    )
+
+
+def mark_expense_for_deletion(expense):
+    expense.status = expense.Status.CANCELED
+    expense.paid_at = None
+    expense.notes = append_deletion_note(expense.notes)
+    expense.full_clean()
+    expense.save(update_fields=["status", "paid_at", "notes", "updated_at"])
+
+
+def append_deletion_note(notes):
+    timestamp = timezone.localtime(_now()).strftime("%d/%m/%Y %H:%M")
+    note = f"Cancelado para nao compor relatorios em {timestamp}."
+    return f"{notes}\n{note}".strip() if notes else note
 
 
 def mark_active_object_for_deletion(instance):

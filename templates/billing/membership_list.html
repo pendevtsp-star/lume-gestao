@@ -40,8 +40,9 @@
             <td class="right">
               <a class="table-action" href="{% url 'billing:membership_update' membership.pk %}">Editar</a>
               {% if membership.status == "active" %}
-                <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ membership.patient.pk }}&plan={{ membership.plan.pk }}">Criar pacote</a>
+                <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ membership.patient.pk }}&plan={{ membership.plan.pk }}">Criar adesao</a>
               {% endif %}
+              <a class="table-action danger-link" href="{% url 'billing:membership_delete' membership.pk %}">Excluir</a>
             </td>
           </tr>
         {% empty %}

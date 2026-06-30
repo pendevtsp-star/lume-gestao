@@ -42,7 +42,12 @@
             <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
             <td>{{ payment.get_method_display }}</td>
             <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
-            <td class="right"><a class="table-action" href="{% url 'billing:payment_update' payment.pk %}">Editar</a></td>
+            <td class="right table-actions">
+              {% if payment.status == "pending" or payment.status == "overdue" %}
+                <a class="table-action" href="{% url 'billing:payment_receive' payment.pk %}">Receber</a>
+              {% endif %}
+              <a class="table-action" href="{% url 'billing:payment_update' payment.pk %}">Editar</a>
+            </td>
           </tr>
         {% empty %}
           <tr><td colspan="7" class="empty">Nenhum pagamento encontrado.</td></tr>

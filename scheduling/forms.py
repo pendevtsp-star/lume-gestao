@@ -263,6 +263,7 @@ class AppointmentRescheduleSlotForm(StyledForm):
             self.fields["appointment_date"].initial = timezone.localtime(self.original_appointment.starts_at).date()
             duration = self.original_appointment.ends_at - self.original_appointment.starts_at
             self.fields["duration_minutes"].initial = int(duration.total_seconds() // 60)
+            self.fields["duration_minutes"].widget = forms.HiddenInput()
             self.fields["notes"].initial = self.original_appointment.notes
 
         if not self.has_future_series:

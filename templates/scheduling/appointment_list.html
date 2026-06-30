@@ -3,6 +3,109 @@
 {% block title %}Agenda | Lume Gestao{% endblock %}
 
 {% block content %}
+<style>
+  .agenda-modal-trigger {
+    width: 100%;
+    border: 0;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .agenda-action-modal {
+    width: min(520px, calc(100% - 28px));
+    border: 0;
+    border-radius: 22px;
+    padding: 0;
+    color: var(--ink);
+    box-shadow: 0 24px 80px rgba(35, 46, 36, 0.26);
+  }
+
+  .agenda-action-modal::backdrop {
+    background: rgba(24, 32, 28, 0.42);
+    backdrop-filter: blur(3px);
+  }
+
+  .agenda-modal-card {
+    display: grid;
+    gap: 16px;
+    padding: 22px;
+    background: linear-gradient(145deg, #fffdf7, #f4efe2);
+  }
+
+  .agenda-modal-head {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .agenda-modal-head h3 {
+    margin: 0 0 4px;
+    font-size: 22px;
+  }
+
+  .agenda-modal-head p {
+    margin: 0;
+    color: var(--muted);
+    font-weight: 750;
+  }
+
+  .agenda-modal-close {
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(96, 114, 79, 0.22);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--ink);
+    cursor: pointer;
+    font-weight: 900;
+  }
+
+  .agenda-modal-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .agenda-modal-facts div {
+    padding: 12px;
+    border: 1px solid rgba(96, 114, 79, 0.14);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.66);
+  }
+
+  .agenda-modal-facts span,
+  .agenda-modal-facts strong {
+    display: block;
+  }
+
+  .agenda-modal-facts span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .agenda-modal-facts strong {
+    margin-top: 3px;
+  }
+
+  .agenda-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .agenda-modal-actions form {
+    margin: 0;
+  }
+
+  @media (max-width: 680px) {
+    .agenda-modal-facts {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
 <div class="agenda-page">
 <section class="page-heading agenda-page-heading">
   <div>
@@ -85,7 +188,7 @@
             {% for cell in row.cells %}
               <td class="{% if cell.day == today %}is-today{% endif %} {% if cell.sessions %}has-events{% endif %}">
                 {% for session in cell.sessions %}
-                  <a class="calendar-event {{ session.status_class }} {% if session.is_group %}is-group{% endif %}" href="{% if request.user.profile.role == 'patient' %}{% url 'scheduling:appointment_reschedule' session.appointment.pk %}{% else %}{% url 'scheduling:appointment_update' session.appointment.pk %}{% endif %}">
+                  <button class="calendar-event agenda-modal-trigger {{ session.status_class }} {% if session.is_group %}is-group{% endif %}" type="button" data-open-appointment="appointment-modal-{{ session.appointment.pk }}">
                     <span class="event-time">{{ session.starts_at|date:"H:i" }}</span>
                     <strong>{{ session.title }}</strong>
                     <span class="event-professional">{{ session.professional.full_name }}</span>
@@ -102,7 +205,66 @@
                       {% if session.is_group %}<span>{{ session.occupied }}/{{ session.capacity }} alunos</span>{% endif %}
                       {% if session.is_recurring %}<span>Recorrente</span>{% endif %}
                     </small>
-                  </a>
+                  </button>
+                  <dialog class="agenda-action-modal" id="appointment-modal-{{ session.appointment.pk }}">
+                    <article class="agenda-modal-card">
+                      <header class="agenda-modal-head">
+                        <div>
+                          <h3>{{ session.title }}</h3>
+                          <p>{{ session.professional.full_name }} &middot; {{ session.status_display }}</p>
+                        </div>
+                        <button class="agenda-modal-close" type="button" data-close-dialog aria-label="Fechar">×</button>
+                      </header>
+                      <div class="agenda-modal-facts">
+                        <div>
+                          <span>Data e horario</span>
+                          <strong>{{ session.starts_at|date:"d/m/Y H:i" }} ate {{ session.ends_at|date:"H:i" }}</strong>
+                        </div>
+                        <div>
+                          <span>Sessao</span>
+                          <strong>{% if session.is_group %}Grupo {{ session.occupied }}/{{ session.capacity }}{% else %}Individual{% endif %}</strong>
+                        </div>
+                        <div>
+                          <span>Paciente(s)</span>
+                          <strong>
+                            {% if session.is_group %}
+                              {% for patient_name in session.patient_names %}{{ patient_name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if session.hidden_count %} +{{ session.hidden_count }}{% endif %}
+                            {% else %}
+                              {{ session.appointment.patient.full_name }}
+                            {% endif %}
+                          </strong>
+                        </div>
+                        <div>
+                          <span>Tipo</span>
+                          <strong>{% if session.is_recurring %}Recorrente{% else %}Sessao unica{% endif %}</strong>
+                        </div>
+                      </div>
+                      <div class="agenda-modal-actions">
+                        {% if session.appointment.status == "requested" and request.user.profile.role != "patient" %}
+                          <form method="post" action="{% url 'scheduling:appointment_confirm' session.appointment.pk %}">
+                            {% csrf_token %}
+                            <button class="button secondary" type="submit">Confirmar</button>
+                          </form>
+                        {% endif %}
+                        {% if session.appointment.status != "completed" and session.appointment.status != "canceled" and session.appointment.status != "rescheduled" %}
+                          <a class="button primary" href="{% url 'scheduling:appointment_reschedule' session.appointment.pk %}">Reagendar</a>
+                          <form method="post" action="{% url 'scheduling:appointment_cancel' session.appointment.pk %}">
+                            {% csrf_token %}
+                            <button class="button secondary" type="submit">Cancelar</button>
+                          </form>
+                        {% endif %}
+                        {% if session.appointment.status != "completed" and session.appointment.status != "canceled" and session.appointment.status != "rescheduled" and request.user.profile.role != "patient" %}
+                          <form method="post" action="{% url 'scheduling:appointment_complete' session.appointment.pk %}">
+                            {% csrf_token %}
+                            <button class="button secondary" type="submit">Baixar atendimento</button>
+                          </form>
+                        {% endif %}
+                        {% if request.user.profile.role != "patient" %}
+                          <a class="button secondary" href="{% url 'scheduling:appointment_update' session.appointment.pk %}">Editar detalhes</a>
+                        {% endif %}
+                      </div>
+                    </article>
+                  </dialog>
                 {% endfor %}
               </td>
             {% endfor %}
@@ -249,4 +411,29 @@
   {% include "core/pagination.html" %}
 </section>
 </div>
+<script>
+  (() => {
+    document.querySelectorAll("[data-open-appointment]").forEach((trigger) => {
+      trigger.addEventListener("click", () => {
+        const dialog = document.getElementById(trigger.dataset.openAppointment);
+        if (dialog && typeof dialog.showModal === "function") {
+          dialog.showModal();
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-close-dialog]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const dialog = button.closest("dialog");
+        if (dialog) dialog.close();
+      });
+    });
+
+    document.querySelectorAll(".agenda-action-modal").forEach((dialog) => {
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) dialog.close();
+      });
+    });
+  })();
+</script>
 {% endblock %}

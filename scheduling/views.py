@@ -133,6 +133,11 @@ def calendar_week_start(request):
     return selected - timedelta(days=selected.weekday())
 
 
+def agenda_redirect_for_date(day):
+    week_start = day - timedelta(days=day.weekday())
+    return redirect(f"{reverse('scheduling:appointments')}?semana={week_start.isoformat()}&dia={day.isoformat()}")
+
+
 def escape_ics(value):
     return (
         str(value or "")
@@ -607,6 +612,7 @@ class AppointmentCreateView(SlotSelectionMixin, AppointmentAccessMixin, View):
                                 transaction.set_rollback(True)
                                 return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
                             created_count += 1
+                    first_created_day = timezone.localtime(occurrence_payloads[0]["starts_at"]).date()
 
                 if len(recurrence_dates) > 1:
                     messages.success(
@@ -615,7 +621,7 @@ class AppointmentCreateView(SlotSelectionMixin, AppointmentAccessMixin, View):
                     )
                 else:
                     messages.success(request, "Agendamento cadastrado com sucesso.")
-                return redirect(self.success_url)
+                return agenda_redirect_for_date(first_created_day)
 
         return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
@@ -793,7 +799,7 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                 return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
         messages.success(self.request, "Agendamento reagendado sem consumo de credito.")
-        return redirect(self.success_url)
+        return agenda_redirect_for_date(timezone.localtime(new_appointment.starts_at).date())
 
     def reschedule_current_and_future(self, form, starts_at, ends_at, new_status, slots, booking_values):
         profile = get_profile(self.request.user)
@@ -812,6 +818,7 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                 return redirect(self.success_url)
 
             occurrences = []
+            first_replacement_day = None
             for source in sources:
                 shifted_start = source.starts_at + delta
                 occurrences.append(
@@ -879,13 +886,14 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                 try:
                     replacement.full_clean()
                     replacement.save()
+                    first_replacement_day = first_replacement_day or timezone.localtime(replacement.starts_at).date()
                 except ValidationError as error:
                     add_model_validation_errors(form, error)
                     transaction.set_rollback(True)
                     return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
         messages.success(self.request, "Sessao atual e proximas reagendadas com sucesso.")
-        return redirect(self.success_url)
+        return agenda_redirect_for_date(first_replacement_day or timezone.localdate())
 
 
 class AppointmentCompleteView(AppointmentAccessMixin, View):

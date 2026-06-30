@@ -217,6 +217,9 @@ class SchedulingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
+        expected_week = new_day - timedelta(days=new_day.weekday())
+        self.assertIn(f"semana={expected_week.isoformat()}", response["Location"])
+        self.assertIn(f"dia={new_day.isoformat()}", response["Location"])
         appointment.refresh_from_db()
         package.refresh_from_db()
         self.assertEqual(appointment.status, Appointment.Status.RESCHEDULED)
@@ -228,6 +231,25 @@ class SchedulingTests(TestCase):
                 status=Appointment.Status.REQUESTED,
             ).exists()
         )
+
+    def test_reschedule_form_reuses_duration_without_showing_it(self):
+        user = get_user_model().objects.create_user(username="gestao-reagendar-simples", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        start = timezone.now() + timedelta(days=5)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(minutes=60),
+            service_units=1,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("scheduling:appointment_reschedule", args=[appointment.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Duracao")
+        self.assertContains(response, 'name="duration_minutes"', html=False)
 
     def test_patient_cannot_reschedule_inside_configured_deadline(self):
         settings = ClinicSettings.load()
@@ -825,6 +847,8 @@ class SchedulingTests(TestCase):
         response = self.client.get(reverse("scheduling:appointments"))
         self.assertContains(response, "Sessoes em grupo")
         self.assertContains(response, self.patient.full_name)
+        self.assertContains(response, "data-open-appointment")
+        self.assertContains(response, "agenda-action-modal")
 
         ics_response = self.client.get(reverse("scheduling:appointments_ical"))
         self.assertEqual(ics_response.status_code, 200)

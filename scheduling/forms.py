@@ -6,6 +6,7 @@ from datetime import timedelta
 
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
+from billing.models import Membership, ServicePlan
 from core.forms import StyledModelForm
 from core.models import ClinicSettings
 from patients.models import Patient
@@ -426,14 +427,80 @@ class ProfessionalAvailabilityBatchForm(StyledForm):
 
 
 class ServicePackageForm(StyledModelForm):
+    patient = forms.ModelChoiceField(label="Paciente", queryset=Patient.objects.none())
+    plan = forms.ModelChoiceField(label="Plano", queryset=ServicePlan.objects.none())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["patient"].queryset = Patient.objects.filter(active=True).order_by("full_name")
+        self.fields["plan"].queryset = ServicePlan.objects.filter(active=True).order_by("category", "name")
+        self.fields["patient"].help_text = "Escolha o paciente que comprou o pacote."
+        self.fields["plan"].help_text = "O sistema cria ou reutiliza a mensalidade ativa deste plano."
+
+        if self.instance and self.instance.pk and self.instance.membership_id:
+            self.fields["patient"].initial = self.instance.membership.patient_id
+            self.fields["plan"].initial = self.instance.membership.plan_id
+
     class Meta:
         model = ServicePackage
-        fields = ["membership", "total_sessions", "used_sessions", "starts_on", "expires_on", "status", "notes"]
+        fields = ["patient", "plan", "total_sessions", "used_sessions", "starts_on", "expires_on", "status", "notes"]
         widgets = {
             "starts_on": forms.DateInput(attrs={"type": "date"}),
             "expires_on": forms.DateInput(attrs={"type": "date"}),
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        patient = cleaned_data.get("patient")
+        plan = cleaned_data.get("plan")
+        if not patient or not plan:
+            return cleaned_data
+
+        active_membership = (
+            Membership.objects.select_related("plan")
+            .filter(patient=patient, status=Membership.Status.ACTIVE)
+            .first()
+        )
+        if active_membership and active_membership.plan_id != plan.pk:
+            self.add_error(
+                "plan",
+                (
+                    f"{patient.full_name} ja possui mensalidade ativa no plano "
+                    f"{active_membership.plan.name}. Edite a mensalidade ativa antes de vincular outro plano."
+                ),
+            )
+        return cleaned_data
+
+    def resolve_membership(self):
+        patient = self.cleaned_data["patient"]
+        plan = self.cleaned_data["plan"]
+        active_membership = Membership.objects.filter(
+            patient=patient,
+            status=Membership.Status.ACTIVE,
+        ).first()
+        if active_membership:
+            return active_membership
+
+        clinic_settings = ClinicSettings.load()
+        membership, _created = Membership.objects.get_or_create(
+            patient=patient,
+            plan=plan,
+            status=Membership.Status.ACTIVE,
+            defaults={
+                "due_day": clinic_settings.default_membership_due_day,
+                "start_date": self.cleaned_data.get("starts_on") or timezone.localdate(),
+            },
+        )
+        return membership
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.membership = self.resolve_membership()
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class AgendaSettingsForm(StyledModelForm):

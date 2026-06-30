@@ -69,10 +69,18 @@
                     <strong>Mensalidade / plano</strong>
                     {% if patient.detail_memberships %}
                       {% for membership in patient.detail_memberships %}
-                        <p>{{ membership.plan.name }}: {{ membership.get_status_display }} desde {{ membership.start_date|date:"d/m/Y" }}.</p>
+                        <p>
+                          {{ membership.plan.name }}: {{ membership.get_status_display }} desde {{ membership.start_date|date:"d/m/Y" }}.
+                          {% if membership.status == "active" %}
+                            <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}&plan={{ membership.plan.pk }}">Adicionar pacote</a>
+                          {% endif %}
+                        </p>
                       {% endfor %}
                     {% else %}
-                      <p>Nenhuma mensalidade cadastrada.</p>
+                      <p>
+                        Nenhuma mensalidade cadastrada.
+                        <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}">Adicionar plano/pacote</a>
+                      </p>
                     {% endif %}
                   </div>
                   <div class="detail-block">

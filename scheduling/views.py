@@ -1162,8 +1162,20 @@ class ServicePackageCreateView(FormContextMixin, FinanceAccessMixin, CreateView)
     section_label = "Agenda"
     back_url_name = "scheduling:packages"
 
+    def get_initial(self):
+        initial = super().get_initial()
+        patient_id = self.request.GET.get("patient")
+        plan_id = self.request.GET.get("plan")
+        if patient_id:
+            initial["patient"] = patient_id
+        if plan_id:
+            initial["plan"] = plan_id
+        return initial
+
     def form_valid(self, form):
-        messages.success(self.request, "Pacote cadastrado com sucesso.")
+        patient = form.cleaned_data["patient"]
+        plan = form.cleaned_data["plan"]
+        messages.success(self.request, f"Pacote vinculado a {patient.full_name} no plano {plan.name}.")
         return super().form_valid(form)
 
 
@@ -1177,7 +1189,9 @@ class ServicePackageUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView)
     back_url_name = "scheduling:packages"
 
     def form_valid(self, form):
-        messages.success(self.request, "Pacote atualizado com sucesso.")
+        patient = form.cleaned_data["patient"]
+        plan = form.cleaned_data["plan"]
+        messages.success(self.request, f"Pacote atualizado para {patient.full_name} no plano {plan.name}.")
         return super().form_valid(form)
 
 

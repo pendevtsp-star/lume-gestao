@@ -577,6 +577,83 @@ class SchedulingTests(TestCase):
         list_response = self.client.get(reverse("scheduling:packages"))
         self.assertNotContains(list_response, self.patient.full_name)
 
+    def test_management_can_create_package_by_patient_and_plan(self):
+        user = get_user_model().objects.create_user(username="gestao-pacote-fluido", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        patient = Patient.objects.create(full_name="Paciente Sem Plano")
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:package_create"),
+            {
+                "patient": patient.pk,
+                "plan": self.plan.pk,
+                "total_sessions": 8,
+                "used_sessions": 0,
+                "starts_on": timezone.localdate().isoformat(),
+                "expires_on": "",
+                "status": ServicePackage.Status.ACTIVE,
+                "notes": "Pacote criado pelo fluxo simplificado.",
+            },
+        )
+
+        self.assertRedirects(response, reverse("scheduling:packages"))
+        membership = Membership.objects.get(patient=patient, plan=self.plan, status=Membership.Status.ACTIVE)
+        package = ServicePackage.objects.get(membership=membership)
+        self.assertEqual(package.total_sessions, 8)
+
+    def test_package_form_reuses_existing_active_membership(self):
+        user = get_user_model().objects.create_user(username="gestao-pacote-reuso", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:package_create"),
+            {
+                "patient": self.patient.pk,
+                "plan": self.plan.pk,
+                "total_sessions": 6,
+                "used_sessions": 0,
+                "starts_on": timezone.localdate().isoformat(),
+                "expires_on": "",
+                "status": ServicePackage.Status.ACTIVE,
+                "notes": "",
+            },
+        )
+
+        self.assertRedirects(response, reverse("scheduling:packages"))
+        package = ServicePackage.objects.get(total_sessions=6)
+        self.assertEqual(package.membership, self.membership)
+
+    def test_package_form_blocks_different_plan_when_patient_has_active_membership(self):
+        user = get_user_model().objects.create_user(username="gestao-pacote-plano-diferente", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        other_plan = ServicePlan.objects.create(
+            name="Plano Diferente",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("500.00"),
+            sessions_per_week=3,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:package_create"),
+            {
+                "patient": self.patient.pk,
+                "plan": other_plan.pk,
+                "total_sessions": 6,
+                "used_sessions": 0,
+                "starts_on": timezone.localdate().isoformat(),
+                "expires_on": "",
+                "status": ServicePackage.Status.ACTIVE,
+                "notes": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ja possui mensalidade ativa")
+        self.assertFalse(ServicePackage.objects.filter(membership__plan=other_plan).exists())
+
     def test_service_package_api_destroy_cancels_package(self):
         user = get_user_model().objects.create_user(username="gestao-api-excluir-pacote", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})

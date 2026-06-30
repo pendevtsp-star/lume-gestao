@@ -37,7 +37,12 @@
             <td>Dia {{ membership.due_day }}</td>
             <td><span class="badge {{ membership.status }}">{{ membership.get_status_display }}</span></td>
             <td class="right">R$ {{ membership.monthly_amount|floatformat:2 }}</td>
-            <td class="right"><a class="table-action" href="{% url 'billing:membership_update' membership.pk %}">Editar</a></td>
+            <td class="right">
+              <a class="table-action" href="{% url 'billing:membership_update' membership.pk %}">Editar</a>
+              {% if membership.status == "active" %}
+                <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ membership.patient.pk }}&plan={{ membership.plan.pk }}">Criar pacote</a>
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
           <tr><td colspan="6" class="empty">Nenhuma mensalidade encontrada.</td></tr>

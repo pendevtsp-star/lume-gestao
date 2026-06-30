@@ -3,7 +3,6 @@ import hashlib
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.contrib.auth import logout
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -14,11 +13,12 @@ from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
-from django.views.generic import CreateView, FormView, ListView, UpdateView
+from django.views.generic import CreateView, DeleteView, FormView, ListView, UpdateView
 
 from accounts.forms import ForcePasswordChangeForm, PasswordRecoveryRequestForm, UserAccountForm, UserSelfSettingsForm
 from accounts.onboarding import generate_temporary_password, send_welcome_credentials
 from accounts.permissions import ManagementAccessMixin
+from core.deletion import DeletionDecisionMixin
 from core.views import SearchableListView
 
 
@@ -103,6 +103,43 @@ class UserAccountUpdateView(ManagementAccessMixin, UpdateView):
         else:
             messages.success(self.request, "Usuario atualizado com sucesso.")
         return response
+
+
+class UserAccountDeleteView(DeletionDecisionMixin, ManagementAccessMixin, DeleteView):
+    model = get_user_model()
+    template_name = "core/confirm_deactivate.html"
+    success_url = reverse_lazy("accounts:list")
+    page_title = "Excluir usuario"
+    section_label = "Acessos"
+    back_url_name = "accounts:list"
+    entity_label = "usuario"
+    deactivate_explanation = "Bloqueia o acesso do usuario sem remover o historico vinculado."
+    delete_now_explanation = "Remove definitivamente o acesso. Paciente ou profissional vinculado permanecem cadastrados."
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if self.object.pk == request.user.pk:
+            messages.error(request, "Voce nao pode excluir ou inativar o proprio usuario logado.")
+            return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)
+
+    def perform_deactivate(self):
+        self.object.is_active = False
+        self.object.save(update_fields=["is_active"])
+
+    def get_deactivate_success_message(self):
+        return "Usuario inativado. O acesso fica bloqueado ate ser reativado."
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "object_name": self.object.get_full_name() or self.object.username,
+                "entity_label": self.entity_label,
+                "delete_explanation": "Escolha se deseja bloquear este acesso ou remover o usuario definitivamente.",
+            }
+        )
+        return context
 
 
 class UserSelfSettingsView(LoginRequiredMixin, FormView):
@@ -232,9 +269,9 @@ class ForcePasswordChangeView(LoginRequiredMixin, FormView):
         return kwargs
 
     def form_valid(self, form):
-        form.save()
-        logout(self.request)
-        messages.success(self.request, "Senha alterada com sucesso. Entre novamente usando sua nova senha.")
-        return redirect("login")
+        user = form.save()
+        update_session_auth_hash(self.request, user)
+        messages.success(self.request, "Senha alterada com sucesso. Bem-vindo(a) ao Lume Gestao.")
+        return redirect("dashboard")
 
 # Create your views here.

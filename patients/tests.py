@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from accounts.models import UserProfile
 from billing.models import Membership, ServicePlan
+from patients.forms import PatientForm
 from patients.models import Patient
 from patients.models import ProfessionalNote
 from patients.models import ProfessionalPatientAssignment
@@ -66,7 +67,7 @@ class PatientAccessTests(TestCase):
         patient = Patient.objects.get(full_name="Maria Clara")
         self.assertEqual(patient.user_profile.role, UserProfile.Role.PATIENT)
         self.assertTrue(patient.user_profile.must_change_password)
-        self.assertTrue(patient.user_profile.user.username.startswith("maria123"))
+        self.assertEqual(patient.user_profile.user.username, "mariaclara")
         self.assertEqual(patient.user_profile.user.email, "maria@lume.local")
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn(patient.user_profile.user.username, mail.outbox[0].body)
@@ -114,6 +115,11 @@ class PatientAccessTests(TestCase):
         user = get_user_model().objects.create_user(username="gestor-delete", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
         patient = Patient.objects.create(full_name="Paciente Inativar")
+        patient_user = get_user_model().objects.create_user(username="pacienteinativar", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=patient_user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": patient},
+        )
         professional = Professional.objects.create(full_name="Dra. Inativar", specialty=Professional.Specialty.PILATES)
         starts_at = timezone.now() + timedelta(days=1)
         Appointment.objects.create(
@@ -134,11 +140,18 @@ class PatientAccessTests(TestCase):
         self.assertFalse(patient.active)
         self.assertIsNotNone(patient.deletion_requested_at)
         self.assertTrue(Appointment.objects.filter(patient=patient).exists())
+        patient_user.refresh_from_db()
+        self.assertFalse(patient_user.is_active)
 
     def test_patient_delete_now_removes_known_protected_relations(self):
         user = get_user_model().objects.create_user(username="gestor-hard-delete", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
         patient = Patient.objects.create(full_name="Paciente Excluir Agora")
+        patient_user = get_user_model().objects.create_user(username="pacienteexcluir", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=patient_user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": patient},
+        )
         professional = Professional.objects.create(full_name="Dra. Excluir Agora", specialty=Professional.Specialty.PILATES)
         plan = ServicePlan.objects.create(
             name="Plano Excluir Agora",
@@ -163,6 +176,7 @@ class PatientAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Patient.objects.filter(pk=patient.pk).exists())
+        self.assertFalse(get_user_model().objects.filter(pk=patient_user.pk).exists())
         self.assertFalse(Membership.objects.filter(patient_id=patient.pk).exists())
         self.assertFalse(Appointment.objects.filter(patient_id=patient.pk).exists())
 
@@ -379,6 +393,14 @@ class PatientAccessTests(TestCase):
         patient.refresh_from_db()
         self.assertEqual(response.status_code, 302)
         self.assertFalse(patient.active)
+
+    def test_patient_form_rejects_email_already_used_by_user(self):
+        get_user_model().objects.create_user(username="email-paciente", email="paciente@lume.local", password="Senha@123")
+
+        form = PatientForm(data={"full_name": "Paciente Email", "email": "paciente@lume.local", "active": "on"})
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("Este e-mail ja esta cadastrado.", form.errors["email"])
 
     def test_patient_delete_cancels_active_package(self):
         patient = Patient.objects.create(full_name="Paciente Pacote Excluir")

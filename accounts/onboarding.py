@@ -37,16 +37,32 @@ def normalize_username_part(value):
     return cleaned or "paciente"
 
 
-def generate_patient_username(patient):
+def username_base_from_name(full_name, fallback="usuario"):
+    parts = [normalize_username_part(part) for part in (full_name or "").split() if part]
+    parts = [part for part in parts if part]
+    if len(parts) >= 2:
+        return f"{parts[0]}{parts[-1]}"
+    if parts:
+        return parts[0]
+    return normalize_username_part(fallback)
+
+
+def generate_unique_username(full_name, fallback="usuario", exclude_user=None):
     user_model = get_user_model()
-    first_name = normalize_username_part((patient.full_name or "paciente").split()[0])
-    base = f"{first_name}123"
+    base = username_base_from_name(full_name, fallback=fallback)
     username = base
     suffix = 2
-    while user_model.objects.filter(username__iexact=username).exists():
+    queryset = user_model.objects.all()
+    if exclude_user and getattr(exclude_user, "pk", None):
+        queryset = queryset.exclude(pk=exclude_user.pk)
+    while queryset.filter(username__iexact=username).exists():
         username = f"{base}{suffix}"
         suffix += 1
     return username
+
+
+def generate_patient_username(patient):
+    return generate_unique_username(patient.full_name, fallback="paciente")
 
 
 def generate_temporary_password(length=12):

@@ -94,6 +94,23 @@ class UserProfileTests(TestCase):
 
         self.assertContains(response, "Este login ja esta em uso.", status_code=200)
 
+    def test_user_account_form_rejects_duplicate_email(self):
+        get_user_model().objects.create_user(username="email-existente", email="duplicado@lume.local", password="Senha@123")
+
+        form = UserAccountForm(
+            data={
+                "username": "",
+                "first_name": "Novo",
+                "last_name": "Duplicado",
+                "email": "duplicado@lume.local",
+                "is_active": "on",
+                "role": UserProfile.Role.ADMINISTRATION,
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("Este e-mail ja esta cadastrado.", form.errors["email"])
+
     def test_user_can_remove_current_profile_photo(self):
         patient = Patient.objects.create(full_name="Paciente Foto", photo="patients/photos/teste.jpg")
         user = get_user_model().objects.create_user(username="paciente-foto", password="Senha@123")
@@ -170,6 +187,29 @@ class UserProfileTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("novoacesso", mail.outbox[0].body)
         self.assertIn("Senha temporaria", mail.outbox[0].body)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_management_user_creation_generates_username_from_name_when_blank(self):
+        manager = get_user_model().objects.create_user(username="gestor-login", password="Senha@123")
+        UserProfile.objects.update_or_create(user=manager, defaults={"role": UserProfile.Role.MANAGEMENT})
+        get_user_model().objects.create_user(username="mariasilva", password="Senha@123")
+        self.client.force_login(manager)
+
+        response = self.client.post(
+            reverse("accounts:create"),
+            {
+                "username": "",
+                "first_name": "Maria",
+                "last_name": "Silva",
+                "email": "maria.silva@lume.local",
+                "is_active": "on",
+                "role": UserProfile.Role.ADMINISTRATION,
+                "password": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(get_user_model().objects.filter(username="mariasilva2").exists())
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_password_recovery_sends_email_for_existing_user(self):
@@ -284,7 +324,7 @@ class UserProfileTests(TestCase):
             },
         )
 
-        self.assertRedirects(response, reverse("login"))
+        self.assertRedirects(response, reverse("dashboard"))
         user.refresh_from_db()
         user.profile.refresh_from_db()
         self.assertTrue(user.check_password("SenhaFinal@123"))
@@ -292,7 +332,7 @@ class UserProfileTests(TestCase):
         self.assertIsNotNone(user.profile.terms_accepted_at)
         self.assertIsNotNone(user.profile.privacy_policy_accepted_at)
         self.assertIsNotNone(user.profile.sensitive_data_consent_at)
-        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertEqual(str(user.pk), self.client.session.get("_auth_user_id"))
 
     def test_legal_pages_are_public(self):
         for url_name, expected_text in [
@@ -380,12 +420,35 @@ class UserProfileTests(TestCase):
             secure=True,
         )
 
-        self.assertRedirects(response, reverse("login"))
+        self.assertRedirects(response, reverse("dashboard"))
         user.refresh_from_db()
         user.profile.refresh_from_db()
         self.assertTrue(user.check_password("NovaSenha@123"))
         self.assertFalse(user.profile.must_change_password)
-        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertEqual(str(user.pk), self.client.session.get("_auth_user_id"))
+
+    def test_management_can_deactivate_user_access(self):
+        manager = get_user_model().objects.create_user(username="gestor-excluir", password="Senha@123")
+        UserProfile.objects.update_or_create(user=manager, defaults={"role": UserProfile.Role.MANAGEMENT})
+        target = get_user_model().objects.create_user(username="usuario-inativar", password="Senha@123")
+        self.client.force_login(manager)
+
+        response = self.client.post(reverse("accounts:delete", args=[target.pk]), {"delete_action": "deactivate"})
+
+        self.assertEqual(response.status_code, 302)
+        target.refresh_from_db()
+        self.assertFalse(target.is_active)
+
+    def test_management_can_delete_user_access_now(self):
+        manager = get_user_model().objects.create_user(username="gestor-remover", password="Senha@123")
+        UserProfile.objects.update_or_create(user=manager, defaults={"role": UserProfile.Role.MANAGEMENT})
+        target = get_user_model().objects.create_user(username="usuario-remover", password="Senha@123")
+        self.client.force_login(manager)
+
+        response = self.client.post(reverse("accounts:delete", args=[target.pk]), {"delete_action": "delete_now"})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(get_user_model().objects.filter(pk=target.pk).exists())
 
     def test_create_patient_users_requires_delivery_option(self):
         Patient.objects.create(full_name="Paciente Sem Login")

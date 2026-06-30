@@ -3,6 +3,7 @@ from django.urls import path
 from accounts.views import (
     ForcePasswordChangeView,
     UserAccountCreateView,
+    UserAccountDeleteView,
     UserAccountListView,
     UserAccountUpdateView,
     UserSelfSettingsView,
@@ -16,4 +17,5 @@ urlpatterns = [
     path("", UserAccountListView.as_view(), name="list"),
     path("novo/", UserAccountCreateView.as_view(), name="create"),
     path("<int:pk>/editar/", UserAccountUpdateView.as_view(), name="update"),
+    path("<int:pk>/excluir/", UserAccountDeleteView.as_view(), name="delete"),
 ]

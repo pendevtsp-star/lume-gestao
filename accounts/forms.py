@@ -5,6 +5,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from accounts.models import LGPD_CONSENT_VERSION, UserProfile
+from accounts.onboarding import generate_unique_username
 from core.forms import StyledModelForm
 from patients.models import Patient
 from patients.services import sync_professional_patient_assignments
@@ -40,6 +41,9 @@ class UserAccountForm(forms.ModelForm):
         self.fields["professional"].queryset = Professional.objects.filter(active=True)
         self.fields["assigned_patients"].queryset = Patient.objects.filter(active=True).order_by("full_name")
         self.fields["role"].label = "perfil de acesso"
+        self.fields["username"].label = "login"
+        self.fields["username"].required = False
+        self.fields["username"].help_text = "Opcional. Se ficar em branco, o sistema cria usando nome e sobrenome."
         self.fields["role"].help_text = "Altere aqui o nivel do usuario. O sistema limpa vinculos que nao pertencem ao perfil escolhido."
         self.fields["patient"].help_text = "Obrigatorio apenas para perfil Paciente."
         self.fields["professional"].help_text = "Obrigatorio apenas para perfil Profissional."
@@ -55,6 +59,35 @@ class UserAccountForm(forms.ModelForm):
                     professional_assignments__active=True,
                     active=True,
                 )
+
+    def clean_username(self):
+        username = (self.cleaned_data.get("username") or "").strip()
+        user_model = get_user_model()
+        queryset = user_model.objects.all()
+        if self.instance.pk:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if username:
+            if queryset.filter(username__iexact=username).exists():
+                raise forms.ValidationError("Este login ja esta em uso.")
+            return username
+
+        first_name = (self.data.get(self.add_prefix("first_name")) or "").strip()
+        last_name = (self.data.get(self.add_prefix("last_name")) or "").strip()
+        email = (self.data.get(self.add_prefix("email")) or "").strip()
+        fallback = email.split("@", 1)[0] if email else "usuario"
+        return generate_unique_username(f"{first_name} {last_name}".strip(), fallback=fallback, exclude_user=self.instance)
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip()
+        if not email:
+            return email
+        user_model = get_user_model()
+        queryset = user_model.objects.filter(email__iexact=email)
+        if self.instance.pk:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise forms.ValidationError("Este e-mail ja esta cadastrado.")
+        return email
 
     def clean(self):
         cleaned = super().clean()
@@ -175,6 +208,16 @@ class UserSelfSettingsForm(forms.Form):
         if exists:
             raise forms.ValidationError("Este login ja esta em uso.")
         return username
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip()
+        if not email:
+            return email
+        user_model = get_user_model()
+        exists = user_model.objects.exclude(pk=self.user.pk).filter(email__iexact=email).exists()
+        if exists:
+            raise forms.ValidationError("Este e-mail ja esta cadastrado.")
+        return email
 
     def clean(self):
         cleaned = super().clean()

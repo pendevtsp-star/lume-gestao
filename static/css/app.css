@@ -3452,6 +3452,34 @@ td small {
   color: var(--warning);
 }
 
+.first-access-consents {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+
+.consent-check {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.consent-check input {
+  width: 18px;
+  min-height: 18px;
+  margin-top: 1px;
+}
+
+.consent-check a {
+  color: var(--sage-dark);
+  text-decoration: underline;
+}
+
 .login-page {
   display: grid;
   place-items: center;

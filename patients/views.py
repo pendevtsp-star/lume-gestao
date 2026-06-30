@@ -12,7 +12,7 @@ from accounts.models import UserProfile
 from accounts.onboarding import ensure_patient_user
 from accounts.permissions import RoleRequiredMixin, get_profile
 from billing.models import Membership
-from core.deletion import DeletionDecisionMixin, hard_delete_patient, mark_active_object_for_deletion
+from core.deletion import DeletionDecisionMixin, hard_delete_patient, mark_active_object_for_deletion, set_patient_user_active
 from core.exports import pdf_response, xlsx_response
 from core.views import FormContextMixin, SearchableListView
 from patients.forms import PatientForm, ProfessionalNoteForm, ProfessionalPatientAssignmentForm, note_type_options
@@ -190,6 +190,7 @@ class PatientUpdateView(FormContextMixin, PatientAccessMixin, UpdateView):
         response = super().form_valid(form)
         if not self.object.active:
             deactivate_patient_relationships(self.object)
+        set_patient_user_active(self.object, self.object.active)
         return response
 
 
@@ -209,6 +210,7 @@ class PatientDeleteView(DeletionDecisionMixin, FormContextMixin, RoleRequiredMix
     def perform_deactivate(self):
         mark_active_object_for_deletion(self.object)
         deactivate_patient_relationships(self.object)
+        set_patient_user_active(self.object, False)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

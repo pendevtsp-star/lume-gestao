@@ -47,7 +47,10 @@
               {% if user.profile.patient %}{{ user.profile.patient.full_name }}{% elif user.profile.professional %}{{ user.profile.professional.full_name }}{% else %}-{% endif %}
             </td>
             <td><span class="badge {% if user.is_active %}active{% else %}canceled{% endif %}">{% if user.is_active %}Ativo{% else %}Inativo{% endif %}</span></td>
-            <td class="right"><a class="table-action" href="{% url 'accounts:update' user.pk %}">Editar acesso</a></td>
+            <td class="right">
+              <a class="table-action" href="{% url 'accounts:update' user.pk %}">Editar acesso</a>
+              <a class="table-action danger-link" href="{% url 'accounts:delete' user.pk %}">Excluir</a>
+            </td>
           </tr>
         {% empty %}
           <tr><td colspan="5" class="empty">Nenhum usuario encontrado.</td></tr>

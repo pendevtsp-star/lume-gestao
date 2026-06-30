@@ -36,6 +36,23 @@ def _delete_membership_queryset(memberships):
     memberships.delete()
 
 
+def set_patient_user_active(patient, active):
+    profile = getattr(patient, "user_profile", None)
+    if not profile or not profile.user_id:
+        return
+    user = profile.user
+    if user.is_active == active:
+        return
+    user.is_active = active
+    user.save(update_fields=["is_active"])
+
+
+def delete_patient_user(patient):
+    profile = getattr(patient, "user_profile", None)
+    if profile and profile.user_id:
+        profile.user.delete()
+
+
 def hard_delete_patient(patient):
     from billing.models import Charge, Membership, Payment
     from scheduling.models import Appointment
@@ -44,6 +61,7 @@ def hard_delete_patient(patient):
     _delete_membership_queryset(Membership.objects.filter(patient=patient))
     Payment.objects.filter(patient=patient).delete()
     Charge.objects.filter(patient=patient).update(patient=None)
+    delete_patient_user(patient)
     patient.delete()
 
 

@@ -1,4 +1,5 @@
 from django import forms
+from django.contrib.auth import get_user_model
 
 from billing.models import ServicePlan
 from core.forms import StyledModelForm
@@ -204,6 +205,18 @@ class PatientForm(StyledModelForm):
             "birth_date": forms.DateInput(attrs={"type": "date"}),
             "clinical_notes": forms.Textarea(attrs={"rows": 4}),
         }
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip()
+        if not email:
+            return email
+        linked_user = getattr(getattr(self.instance, "user_profile", None), "user", None)
+        queryset = get_user_model().objects.filter(email__iexact=email)
+        if linked_user and linked_user.pk:
+            queryset = queryset.exclude(pk=linked_user.pk)
+        if queryset.exists():
+            raise forms.ValidationError("Este e-mail ja esta cadastrado.")
+        return email
 
 
 class ProfessionalPatientAssignmentForm(StyledModelForm):

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Receber mensalidade | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Financeiro</p>
+    <h1>Receber mensalidade</h1>
+    <p class="page-subtitle">Busque o paciente e baixe rapidamente mensalidades pendentes ou vencidas.</p>
+  </div>
+  <a class="button secondary" href="{% url 'billing:payments' %}">Ver pagamentos</a>
+</section>
+
+<section class="panel quick-receive-panel">
+  <form class="toolbar quick-receive-search" method="get">
+    <input
+      class="search-input"
+      type="search"
+      name="q"
+      value="{{ q }}"
+      placeholder="Digite nome, CPF, telefone ou plano"
+      autofocus
+    >
+    <button class="button primary" type="submit">Buscar</button>
+  </form>
+
+  <div class="quick-receive-summary">
+    <strong>{{ pending_receive_count }}</strong>
+    <span>mensalidade{{ pending_receive_count|pluralize }} pronta{{ pending_receive_count|pluralize }} para baixa</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Plano/servico</th>
+          <th>Referencia</th>
+          <th>Vencimento</th>
+          <th>Status</th>
+          <th class="right">Valor</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for payment in payments %}
+          <tr class="{% if payment.status == 'overdue' %}table-row-danger{% else %}table-row-warning{% endif %}">
+            <td>
+              <strong>{{ payment.membership.patient.full_name }}</strong>
+              <small>{{ payment.membership.patient.phone|default:"Sem telefone" }}</small>
+            </td>
+            <td>{{ payment.membership.plan.name }}</td>
+            <td>{{ payment.reference_month|date:"m/Y" }}</td>
+            <td>{{ payment.due_date|date:"d/m/Y" }}</td>
+            <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
+            <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
+            <td class="right">
+              <a class="button primary compact" href="{% url 'billing:payment_receive' payment.pk %}">Receber</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="empty">
+              Nenhuma mensalidade pendente encontrada. Ajuste a busca ou confira a lista completa de pagamentos.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

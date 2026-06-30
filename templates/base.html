@@ -8,6 +8,7 @@
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-local-video">
+  <link rel="stylesheet" href="{% static 'css/quick-actions.css' %}?v=20260630-finance-actions">
 </head>
 <body>
   <div class="app-shell">
@@ -161,5 +162,15 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+  {% if request.user.is_authenticated and request.user.profile.role != "patient" %}
+    <nav class="floating-actions" aria-label="Acoes rapidas">
+      {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+        <a class="floating-action primary" href="{% url 'billing:payment_quick_receive' %}">Receber mensalidade</a>
+      {% endif %}
+      {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.profile.role == "professional" %}
+        <a class="floating-action" href="{% url 'scheduling:appointment_create' %}">Novo agendamento</a>
+      {% endif %}
+    </nav>
+  {% endif %}
 </body>
 </html>

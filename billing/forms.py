@@ -1,3 +1,5 @@
+from datetime import date
+
 from django import forms
 from django.utils import timezone
 
@@ -47,15 +49,70 @@ class MembershipForm(StyledModelForm):
 
 
 class PaymentForm(StyledModelForm):
+    MONTH_CHOICES = [
+        (1, "Janeiro"),
+        (2, "Fevereiro"),
+        (3, "Marco"),
+        (4, "Abril"),
+        (5, "Maio"),
+        (6, "Junho"),
+        (7, "Julho"),
+        (8, "Agosto"),
+        (9, "Setembro"),
+        (10, "Outubro"),
+        (11, "Novembro"),
+        (12, "Dezembro"),
+    ]
+
+    reference_month_number = forms.ChoiceField(label="Mes de referencia", choices=MONTH_CHOICES)
+    reference_year = forms.IntegerField(label="Ano de referencia", min_value=2020, max_value=2100)
+
     class Meta:
         model = Payment
-        fields = ["membership", "reference_month", "due_date", "amount", "status", "method", "paid_at", "notes"]
+        fields = [
+            "membership",
+            "reference_month_number",
+            "reference_year",
+            "due_date",
+            "amount",
+            "status",
+            "method",
+            "paid_at",
+            "notes",
+        ]
         widgets = {
-            "reference_month": forms.DateInput(attrs={"type": "date"}),
             "due_date": forms.DateInput(attrs={"type": "date"}),
             "paid_at": forms.DateInput(attrs={"type": "date"}),
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        reference = self.instance.reference_month or timezone.localdate().replace(day=1)
+        self.fields["reference_month_number"].initial = reference.month
+        self.fields["reference_year"].initial = reference.year
+        self.fields["reference_month_number"].help_text = "O sistema salva automaticamente como primeiro dia do mes."
+        self.fields["reference_year"].help_text = "Use o ano da mensalidade, por exemplo 2026."
+
+    def clean(self):
+        cleaned_data = super().clean()
+        month = cleaned_data.get("reference_month_number")
+        year = cleaned_data.get("reference_year")
+        if month and year:
+            reference_month = date(int(year), int(month), 1)
+            cleaned_data["reference_month"] = reference_month
+            self.instance.reference_month = reference_month
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        reference_month = self.cleaned_data.get("reference_month")
+        if reference_month:
+            instance.reference_month = reference_month
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class PaymentReceiveForm(StyledModelForm):

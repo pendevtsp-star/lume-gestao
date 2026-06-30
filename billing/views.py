@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.db.models import Sum
+from django.db.models import Case, IntegerField, Sum, When
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
@@ -191,7 +191,54 @@ class PaymentListView(FinanceAccessMixin, SearchableListView, ListView):
     search_fields = ["membership__patient__full_name", "membership__plan__name", "status", "method"]
 
     def get_queryset(self):
-        return super().get_queryset().select_related("membership__patient", "membership__plan")
+        return (
+            super()
+            .get_queryset()
+            .select_related("membership__patient", "membership__plan")
+            .annotate(
+                status_priority=Case(
+                    When(status=Payment.Status.OVERDUE, then=0),
+                    When(status=Payment.Status.PENDING, then=1),
+                    default=2,
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by("status_priority", "due_date", "membership__patient__full_name")
+        )
+
+
+class PaymentQuickReceiveView(FinanceAccessMixin, SearchableListView, ListView):
+    model = Payment
+    template_name = "billing/payment_quick_receive.html"
+    context_object_name = "payments"
+    paginate_by = 12
+    search_fields = [
+        "membership__patient__full_name",
+        "membership__patient__phone",
+        "membership__patient__cpf",
+        "membership__plan__name",
+    ]
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .filter(status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE])
+            .select_related("membership__patient", "membership__plan")
+            .annotate(
+                status_priority=Case(
+                    When(status=Payment.Status.OVERDUE, then=0),
+                    default=1,
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by("status_priority", "due_date", "membership__patient__full_name")
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["pending_receive_count"] = context["paginator"].count if context.get("paginator") else len(context["payments"])
+        return context
 
 
 class PaymentCreateView(FormContextMixin, FinanceAccessMixin, CreateView):

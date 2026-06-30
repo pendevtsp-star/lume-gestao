@@ -7,6 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import UserProfile
+from billing.forms import PaymentForm
 from billing.models import Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from patients.models import Patient
 
@@ -118,6 +119,26 @@ class BillingModelTests(TestCase):
         with self.assertRaises(ValidationError):
             payment.full_clean()
 
+    def test_payment_form_uses_month_and_year_for_reference(self):
+        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+
+        form = PaymentForm(
+            data={
+                "membership": membership.pk,
+                "reference_month_number": "7",
+                "reference_year": "2026",
+                "due_date": "2026-07-10",
+                "amount": "400.00",
+                "status": Payment.Status.PENDING,
+                "method": Payment.Method.MANUAL,
+                "notes": "",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        payment = form.save()
+        self.assertEqual(payment.reference_month, date(2026, 7, 1))
+
     def test_expense_category_and_kind_are_editable_structures(self):
         category = ExpenseCategory.objects.create(name="Marketing", kind=ExpenseCategory.Kind.VARIABLE)
         expense = Expense(
@@ -191,6 +212,33 @@ class BillingModelTests(TestCase):
         self.assertEqual(payment.status, Payment.Status.PAID)
         self.assertEqual(payment.method, Payment.Method.CASH)
         self.assertEqual(payment.paid_at, date(2026, 6, 12))
+
+    def test_payment_quick_receive_lists_only_open_payments(self):
+        user = get_user_model().objects.create_user(username="financeiro-recebimento-rapido", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        pending = Payment.objects.create(
+            membership=membership,
+            reference_month=date(2026, 6, 1),
+            due_date=date(2026, 6, 10),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PENDING,
+        )
+        Payment.objects.create(
+            membership=membership,
+            reference_month=date(2026, 7, 1),
+            due_date=date(2026, 7, 10),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PAID,
+            paid_at=date(2026, 7, 10),
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("billing:payment_quick_receive"), {"q": "Paciente"})
+
+        self.assertContains(response, "Receber mensalidade")
+        self.assertContains(response, reverse("billing:payment_receive", args=[pending.pk]))
+        self.assertNotContains(response, "07/2026")
 
     def test_expense_delete_deactivate_cancels_expense_and_removes_from_totals(self):
         user = get_user_model().objects.create_user(username="financeiro-exclui-despesa", password="Senha@123")

@@ -39,6 +39,39 @@
   {% endif %}
 </section>
 
+{% if finance_visible %}
+<section class="panel quick-actions-panel stacked-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Acoes rapidas</h2>
+      <p>Atalhos para as rotinas mais usadas no atendimento da clinica.</p>
+    </div>
+  </header>
+  <div class="quick-actions-grid">
+    <a class="quick-action-card highlight" href="{% url 'billing:payment_quick_receive' %}">
+      <span>Receber mensalidade</span>
+      <strong>Baixar pagamento</strong>
+      <small>Buscar paciente e registrar recebimento presencial.</small>
+    </a>
+    <a class="quick-action-card" href="{% url 'scheduling:appointment_create' %}">
+      <span>Agenda</span>
+      <strong>Novo agendamento</strong>
+      <small>Criar sessao avulsa, recorrente ou compartilhada.</small>
+    </a>
+    <a class="quick-action-card" href="{% url 'patients:create' %}">
+      <span>Paciente</span>
+      <strong>Cadastrar paciente</strong>
+      <small>Iniciar cadastro com dados essenciais.</small>
+    </a>
+    <a class="quick-action-card" href="{% url 'billing:membership_create' %}">
+      <span>Adesao</span>
+      <strong>Nova adesao</strong>
+      <small>Vincular plano/servico ativo ao paciente.</small>
+    </a>
+  </div>
+</section>
+{% endif %}
+
 <section class="panel connect-dashboard-panel stacked-panel">
   <header class="panel-header">
     <div>

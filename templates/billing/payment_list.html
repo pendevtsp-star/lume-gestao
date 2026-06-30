@@ -9,7 +9,10 @@
     <h1>Pagamentos</h1>
     <p class="page-subtitle">Controle recebimentos, vencimentos e status financeiro por paciente.</p>
   </div>
-  <a class="button primary" href="{% url 'billing:payment_create' %}">Novo pagamento</a>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Receber mensalidade</a>
+    <a class="button primary" href="{% url 'billing:payment_create' %}">Novo pagamento</a>
+  </div>
 </section>
 
 <section class="panel">
@@ -32,7 +35,7 @@
       </thead>
       <tbody>
         {% for payment in payments %}
-          <tr>
+          <tr class="{% if payment.status == 'overdue' %}table-row-danger{% elif payment.status == 'pending' %}table-row-warning{% endif %}">
             <td>
               <strong>{{ payment.membership.patient.full_name }}</strong>
               <small>{{ payment.membership.plan.name }}</small>

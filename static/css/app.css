@@ -3431,6 +3431,27 @@ td small {
   color: var(--warning);
 }
 
+.form-messages {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.form-message {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: rgba(49, 112, 91, 0.12);
+  color: var(--success);
+  font-weight: 800;
+}
+
+.form-message.warning,
+.form-message.error {
+  background: rgba(167, 109, 27, 0.12);
+  color: var(--warning);
+}
+
 .login-page {
   display: grid;
   place-items: center;

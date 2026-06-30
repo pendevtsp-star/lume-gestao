@@ -145,6 +145,33 @@ class UserProfileTests(TestCase):
         self.assertTrue(user.profile.whatsapp_notifications_enabled)
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_management_user_creation_generates_and_sends_temporary_password(self):
+        manager = get_user_model().objects.create_user(username="gestor", password="Senha@123")
+        UserProfile.objects.update_or_create(user=manager, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(manager)
+
+        response = self.client.post(
+            reverse("accounts:create"),
+            {
+                "username": "novoacesso",
+                "first_name": "Novo",
+                "last_name": "Acesso",
+                "email": "novo@lume.local",
+                "is_active": "on",
+                "role": UserProfile.Role.ADMINISTRATION,
+                "password": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        user = get_user_model().objects.get(username="novoacesso")
+        self.assertTrue(user.has_usable_password())
+        self.assertTrue(user.profile.must_change_password)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("novoacesso", mail.outbox[0].body)
+        self.assertIn("Senha temporaria", mail.outbox[0].body)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_password_recovery_sends_email_for_existing_user(self):
         get_user_model().objects.create_user(
             username="recuperar",
@@ -257,7 +284,7 @@ class UserProfileTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("login"))
         user.refresh_from_db()
         user.profile.refresh_from_db()
         self.assertTrue(user.check_password("SenhaFinal@123"))
@@ -265,6 +292,7 @@ class UserProfileTests(TestCase):
         self.assertIsNotNone(user.profile.terms_accepted_at)
         self.assertIsNotNone(user.profile.privacy_policy_accepted_at)
         self.assertIsNotNone(user.profile.sensitive_data_consent_at)
+        self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_legal_pages_are_public(self):
         for url_name, expected_text in [
@@ -327,6 +355,19 @@ class UserProfileTests(TestCase):
         )
         self.assertContains(short_response, "Use pelo menos 8 caracteres.", status_code=200)
 
+        mismatch_response = self.client.post(
+            reverse("accounts:force_password_change"),
+            {
+                "new_password1": "NovaSenha@123",
+                "new_password2": "OutraSenha@123",
+                "accept_terms": "on",
+                "accept_privacy": "on",
+                "accept_sensitive_data": "on",
+            },
+            secure=True,
+        )
+        self.assertContains(mismatch_response, "As senhas devem ser iguais.", status_code=200)
+
         response = self.client.post(
             reverse("accounts:force_password_change"),
             {
@@ -339,11 +380,12 @@ class UserProfileTests(TestCase):
             secure=True,
         )
 
-        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("login"))
         user.refresh_from_db()
         user.profile.refresh_from_db()
         self.assertTrue(user.check_password("NovaSenha@123"))
         self.assertFalse(user.profile.must_change_password)
+        self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_create_patient_users_requires_delivery_option(self):
         Patient.objects.create(full_name="Paciente Sem Login")

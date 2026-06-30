@@ -96,6 +96,21 @@ def send_patient_welcome_email(patient, username, temporary_password, login_url)
     message.send(fail_silently=False)
 
 
+def send_user_welcome_email(user, temporary_password, login_url):
+    context = {
+        "display_name": user.get_full_name() or user.username,
+        "username": user.username,
+        "temporary_password": temporary_password,
+        "login_url": login_url,
+    }
+    subject = render_to_string("accounts/email/welcome_user_subject.txt", context).strip()
+    text_body = render_to_string("accounts/email/welcome_user.txt", context)
+    html_body = render_to_string("accounts/email/welcome_user.html", context)
+    message = EmailMultiAlternatives(subject, text_body, settings.DEFAULT_FROM_EMAIL, [user.email])
+    message.attach_alternative(html_body, "text/html")
+    message.send(fail_silently=False)
+
+
 def send_patient_welcome_whatsapp(patient, username, temporary_password, login_url):
     result = send_whatsapp_text(
         patient.phone,
@@ -182,7 +197,27 @@ def send_welcome_credentials(user, temporary_password, request=None, phone_numbe
     profile = user.profile
     patient = profile.patient
     if not patient:
-        return {"sent": False, "method": "", "error": "Usuario sem paciente vinculado."}
+        if prefer_email and user.email:
+            try:
+                send_user_welcome_email(user, temporary_password, build_login_url(request))
+            except Exception as exc:
+                profile.onboarding_delivery_method = ""
+                profile.onboarding_delivery_error = str(exc)
+                profile.save(update_fields=["onboarding_delivery_method", "onboarding_delivery_error", "updated_at"])
+                return {"sent": False, "method": "", "error": profile.onboarding_delivery_error}
+            profile.onboarding_message_sent_at = timezone.now()
+            profile.onboarding_delivery_method = "email"
+            profile.onboarding_delivery_error = ""
+            profile.save(
+                update_fields=[
+                    "onboarding_message_sent_at",
+                    "onboarding_delivery_method",
+                    "onboarding_delivery_error",
+                    "updated_at",
+                ]
+            )
+            return {"sent": True, "method": "email", "error": ""}
+        return {"sent": False, "method": "", "error": "Usuario sem e-mail para envio automatico."}
 
     original_email = patient.email
     original_phone = patient.phone

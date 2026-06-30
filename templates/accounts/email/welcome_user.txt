@@ -1,0 +1,12 @@
+Ola, {{ display_name }}!
+
+Seu acesso ao Lume Gestao foi criado.
+
+Login: {{ username }}
+Senha temporaria: {{ temporary_password }}
+
+Acesse: {{ login_url }}
+
+Por seguranca, o sistema vai pedir que voce troque essa senha no primeiro acesso. Use pelo menos 8 caracteres e nao compartilhe sua senha com terceiros.
+
+Equipe Lume.

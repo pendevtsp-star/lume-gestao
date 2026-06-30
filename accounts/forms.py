@@ -294,7 +294,7 @@ class ForcePasswordChangeForm(forms.Form):
         if new_password1 and len(new_password1) < 8:
             self.add_error("new_password1", "Use pelo menos 8 caracteres.")
         if new_password1 and new_password2 and new_password1 != new_password2:
-            self.add_error("new_password2", "As senhas nao conferem.")
+            self.add_error("new_password2", "As senhas devem ser iguais.")
         if new_password1:
             try:
                 validate_password(new_password1, self.user)

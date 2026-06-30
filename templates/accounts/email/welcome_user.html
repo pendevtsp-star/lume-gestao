@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>Acesso ao Lume Gestao</title>
+</head>
+<body style="margin:0;background:#f1eadc;color:#263028;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1eadc;padding:28px 14px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#fffdf8;border:1px solid #ded4bd;border-radius:24px;overflow:hidden;">
+          <tr>
+            <td style="background:#60724f;padding:28px 32px;color:#f8f3e7;">
+              <div style="font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#efe2c9;">Lume Gestao</div>
+              <h1 style="margin:8px 0 0;font-size:28px;line-height:1.2;">Seu acesso esta pronto</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:30px 32px;">
+              <p style="margin:0 0 16px;font-size:18px;">Ola, <strong>{{ display_name }}</strong>!</p>
+              <p style="margin:0 0 20px;color:#526247;line-height:1.6;">
+                Criamos seu acesso ao Lume Gestao para acompanhar as rotinas da clinica com mais organizacao e seguranca.
+              </p>
+              <div style="background:#f8f3e7;border:1px solid #ded4bd;border-radius:18px;padding:18px;margin:22px 0;">
+                <p style="margin:0 0 10px;"><strong>Login:</strong> {{ username }}</p>
+                <p style="margin:0;"><strong>Senha temporaria:</strong> {{ temporary_password }}</p>
+              </div>
+              <p style="margin:0 0 22px;color:#526247;line-height:1.6;">
+                No primeiro acesso, o sistema vai pedir para voce trocar essa senha.
+                Use pelo menos 8 caracteres e nao compartilhe sua senha com terceiros.
+              </p>
+              <a href="{{ login_url }}" style="display:inline-block;background:#60724f;color:#ffffff;text-decoration:none;border-radius:14px;padding:14px 22px;font-weight:bold;">
+                Acessar Lume Gestao
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 32px;background:#f8f3e7;color:#6e7469;font-size:13px;">
+              Com carinho, equipe Lume.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

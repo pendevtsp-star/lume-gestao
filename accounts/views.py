@@ -1,7 +1,9 @@
 import hashlib
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.auth import logout
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -55,8 +57,21 @@ class UserAccountCreateView(ManagementAccessMixin, CreateView):
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, "Usuario cadastrado com sucesso.")
-        return super().form_valid(form)
+        temporary_password = form.cleaned_data.get("password") or generate_temporary_password()
+        form.cleaned_data["password"] = temporary_password
+        response = super().form_valid(form)
+        profile = self.object.profile
+        profile.must_change_password = True
+        profile.save(update_fields=["must_change_password", "updated_at"])
+        delivery = send_welcome_credentials(self.object, temporary_password, request=self.request)
+        if delivery["sent"]:
+            messages.success(self.request, "Usuario cadastrado e senha temporaria enviada por e-mail.")
+        else:
+            messages.warning(
+                self.request,
+                "Usuario cadastrado. Nao foi possivel enviar a senha temporaria automaticamente; informe a senha ao usuario com seguranca.",
+            )
+        return response
 
 
 class UserAccountUpdateView(ManagementAccessMixin, UpdateView):
@@ -71,8 +86,23 @@ class UserAccountUpdateView(ManagementAccessMixin, UpdateView):
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, "Usuario atualizado com sucesso.")
-        return super().form_valid(form)
+        temporary_password = form.cleaned_data.get("password")
+        response = super().form_valid(form)
+        if temporary_password:
+            profile = self.object.profile
+            profile.must_change_password = True
+            profile.save(update_fields=["must_change_password", "updated_at"])
+            delivery = send_welcome_credentials(self.object, temporary_password, request=self.request)
+            if delivery["sent"]:
+                messages.success(self.request, "Usuario atualizado e nova senha temporaria enviada por e-mail.")
+            else:
+                messages.warning(
+                    self.request,
+                    "Usuario atualizado. Nao foi possivel enviar a nova senha temporaria automaticamente.",
+                )
+        else:
+            messages.success(self.request, "Usuario atualizado com sucesso.")
+        return response
 
 
 class UserSelfSettingsView(LoginRequiredMixin, FormView):
@@ -133,7 +163,7 @@ class PasswordRecoveryRequestView(FormView):
         }
         subject = render_to_string("registration/password_reset_subject.txt", context).strip()
         message = render_to_string("registration/password_reset_email.html", context)
-        send_mail(subject, message, None, [user.email], fail_silently=False)
+        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
 
     def send_temporary_password_by_whatsapp(self, user, phone_number):
         if not phone_number:
@@ -202,9 +232,9 @@ class ForcePasswordChangeView(LoginRequiredMixin, FormView):
         return kwargs
 
     def form_valid(self, form):
-        user = form.save()
-        update_session_auth_hash(self.request, user)
-        messages.success(self.request, "Senha definida com sucesso. Bem-vindo(a) ao Lume Gestao.")
-        return super().form_valid(form)
+        form.save()
+        logout(self.request)
+        messages.success(self.request, "Senha alterada com sucesso. Entre novamente usando sua nova senha.")
+        return redirect("login")
 
 # Create your views here.

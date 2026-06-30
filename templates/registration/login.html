@@ -21,6 +21,13 @@
     <form method="post" class="form-panel">
       {% csrf_token %}
       <h1>Entrar</h1>
+      {% if messages %}
+        <div class="form-messages">
+          {% for message in messages %}
+            <p class="form-message {{ message.tags }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
       {% if form.non_field_errors %}
         <div class="form-errors">{{ form.non_field_errors }}</div>
       {% endif %}

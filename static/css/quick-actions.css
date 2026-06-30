@@ -2,6 +2,10 @@
   background: linear-gradient(135deg, #fffdf8 0%, #f4efe4 100%);
 }
 
+body:has(.floating-actions) .main {
+  padding-bottom: 104px;
+}
+
 .quick-actions-grid {
   display: grid;
   gap: 14px;
@@ -51,12 +55,18 @@
 }
 
 .floating-actions {
-  bottom: 24px;
+  align-items: center;
+  background: rgba(255, 253, 248, 0.98);
+  border: 1px solid rgba(82, 111, 68, 0.22);
+  border-radius: 24px 24px 0 0;
+  bottom: 0;
+  box-shadow: 0 -18px 42px rgba(32, 48, 28, 0.16);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 10px;
   position: fixed;
-  right: 24px;
+  right: 32px;
+  padding: 12px;
   z-index: 45;
 }
 
@@ -65,7 +75,7 @@
   background: #fffdf8;
   border: 2px solid #526f44;
   border-radius: 999px;
-  box-shadow: 0 18px 42px rgba(32, 48, 28, 0.28);
+  box-shadow: 0 8px 22px rgba(32, 48, 28, 0.18);
   color: #24301f;
   display: inline-flex;
   font-weight: 800;
@@ -80,10 +90,41 @@
 }
 
 .floating-action.primary {
-  background: #526f44;
-  border-color: #526f44;
-  box-shadow: 0 18px 42px rgba(32, 48, 28, 0.36);
+  background: #2f5c43;
+  border-color: #2f5c43;
+  box-shadow: 0 8px 22px rgba(32, 48, 28, 0.24);
   color: #fff;
+}
+
+.form-field ul:has(input[type="checkbox"]) {
+  background: #fffdf8;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  max-height: 280px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.form-field ul:has(input[type="checkbox"]) li {
+  margin: 0;
+}
+
+.form-field ul:has(input[type="checkbox"]) label {
+  align-items: center;
+  border-radius: 12px;
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+.form-field ul:has(input[type="checkbox"]) label:has(input:checked) {
+  background: #eef5e8;
+  color: #20301f;
+  font-weight: 800;
 }
 
 .quick-receive-panel {
@@ -145,13 +186,13 @@
   }
 
   .floating-actions {
-    bottom: 14px;
-    left: 14px;
-    right: 14px;
+    border-radius: 18px 18px 0 0;
+    left: 0;
+    right: 0;
   }
 
   .floating-action {
     justify-content: center;
-    width: 100%;
+    width: 50%;
   }
 }

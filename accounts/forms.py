@@ -20,8 +20,8 @@ class UserAccountForm(forms.ModelForm):
         label="pacientes do profissional",
         queryset=Patient.objects.none(),
         required=False,
-        widget=forms.SelectMultiple(attrs={"size": 8}),
-        help_text="Opcional. Use quando o perfil for Profissional para liberar varios pacientes de uma vez.",
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Opcional. Marque ou desmarque pacientes quando o perfil for Profissional.",
     )
 
     class Meta:

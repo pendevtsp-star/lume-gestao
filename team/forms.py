@@ -18,8 +18,8 @@ class ProfessionalForm(StyledModelForm):
         label="Pacientes vinculados",
         queryset=Patient.objects.none(),
         required=False,
-        widget=forms.SelectMultiple(attrs={"size": 8}),
-        help_text="Selecione um ou mais pacientes. Se ainda nao houver paciente vinculado, deixe em branco.",
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Marque ou desmarque pacientes vinculados a este profissional. Se ainda nao houver vinculo, deixe todos em branco.",
     )
 
     class Meta:

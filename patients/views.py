@@ -19,6 +19,7 @@ from patients.forms import PatientForm, ProfessionalNoteForm, ProfessionalPatien
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
 from patients.services import deactivate_patient_relationships, patient_ids_for_professional
 from scheduling.models import Appointment, ServicePackage
+from scheduling.services import create_service_package_for_plan
 
 
 class PatientAccessMixin(RoleRequiredMixin):
@@ -134,19 +135,32 @@ class PatientCreateView(FormContextMixin, RoleRequiredMixin, CreateView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
+        selected_plans = form.cleaned_data.get("initial_service_plans") or []
+        created_adhesions = 0
+        for plan in selected_plans:
+            create_service_package_for_plan(
+                self.object,
+                plan,
+                notes="Adesao criada automaticamente no cadastro inicial do paciente.",
+            )
+            created_adhesions += 1
         result = ensure_patient_user(self.object, request=self.request, send_notifications=True)
         if result.delivered:
             channel = "e-mail" if result.delivery_channel == "email" else "WhatsApp"
             messages.success(
                 self.request,
-                f"Paciente cadastrado. Acesso criado e enviado por {channel}. Login: {result.username}.",
+                (
+                    f"Paciente cadastrado. Acesso criado e enviado por {channel}. Login: {result.username}."
+                    f" Adesoes criadas: {created_adhesions}."
+                ),
             )
         else:
             detail = f" Motivo: {result.delivery_error}" if result.delivery_error else ""
             messages.warning(
                 self.request,
                 "Paciente cadastrado. Acesso criado, mas a senha temporaria precisa ser informada manualmente. "
-                f"Login: {result.username} | Senha temporaria: {result.temporary_password}.{detail}",
+                f"Login: {result.username} | Senha temporaria: {result.temporary_password}."
+                f" Adesoes criadas: {created_adhesions}.{detail}",
             )
         return response
 

@@ -58,6 +58,14 @@ class Appointment(TimeStampedModel):
 
     patient = models.ForeignKey("patients.Patient", on_delete=models.PROTECT, related_name="appointments")
     professional = models.ForeignKey("team.Professional", on_delete=models.PROTECT, related_name="appointments")
+    service_plan = models.ForeignKey(
+        "billing.ServicePlan",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="appointments",
+        verbose_name="plano/servico",
+    )
     starts_at = models.DateTimeField("inicio")
     ends_at = models.DateTimeField("fim")
     status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.SCHEDULED)
@@ -286,6 +294,8 @@ class ServicePackage(TimeStampedModel):
             raise ValidationError({"total_sessions": "O pacote precisa ter ao menos 1 atendimento."})
         if self.used_sessions > self.total_sessions:
             raise ValidationError({"used_sessions": "Usos nao podem superar o total do pacote."})
+        if self.expires_on and self.expires_on < self.starts_on:
+            raise ValidationError({"expires_on": "A validade nao pode ser anterior ao inicio."})
 
 
 class ServiceUsage(TimeStampedModel):

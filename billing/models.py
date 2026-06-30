@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -16,11 +17,19 @@ class ServicePlan(TimeStampedModel):
         MASSAGE = "massage", "Massagem"
         REIKI = "reiki", "Reiki"
         COMBO = "combo", "Combo"
+        OTHER = "other", "Outro servico"
+
+    class PlanType(models.TextChoices):
+        RECURRING = "recurring", "Plano recorrente"
+        SINGLE = "single", "Servico avulso"
 
     name = models.CharField("nome do plano", max_length=120)
     category = models.CharField("categoria", max_length=30, choices=Category.choices)
-    monthly_price = models.DecimalField("valor mensal", max_digits=10, decimal_places=2)
+    plan_type = models.CharField("tipo", max_length=20, choices=PlanType.choices, default=PlanType.RECURRING)
+    monthly_price = models.DecimalField("valor do ciclo", max_digits=10, decimal_places=2)
+    duration_months = models.PositiveSmallIntegerField("duracao do ciclo em meses", default=1)
     sessions_per_week = models.PositiveSmallIntegerField("sessoes por semana", default=2)
+    included_sessions = models.PositiveSmallIntegerField("atendimentos incluidos no ciclo", default=8)
     description = models.TextField("descricao", blank=True)
     public_description = models.TextField("descricao publica", blank=True)
     show_on_website = models.BooleanField("exibir no site", default=False)
@@ -37,12 +46,46 @@ class ServicePlan(TimeStampedModel):
     def __str__(self):
         return self.name
 
+    @property
+    def is_single_service(self):
+        return self.plan_type == self.PlanType.SINGLE
+
+    @property
+    def default_total_sessions(self):
+        if self.is_single_service:
+            return 1
+        return max(self.included_sessions, 1)
+
+    def default_expires_on(self, starts_on):
+        months = max(self.duration_months or 1, 1)
+        return add_months(starts_on, months)
+
     def clean(self):
         super().clean()
         if self.monthly_price is not None and self.monthly_price <= Decimal("0"):
-            raise ValidationError({"monthly_price": "O valor mensal deve ser maior que zero."})
+            raise ValidationError({"monthly_price": "O valor do ciclo deve ser maior que zero."})
+        if self.duration_months < 1:
+            raise ValidationError({"duration_months": "Informe pelo menos 1 mes de validade."})
+        if self.included_sessions < 1:
+            raise ValidationError({"included_sessions": "Informe pelo menos 1 atendimento incluido."})
+        if self.is_single_service:
+            self.included_sessions = 1
+            self.sessions_per_week = 1
         if not 1 <= self.sessions_per_week <= 7:
             raise ValidationError({"sessions_per_week": "Informe entre 1 e 7 sessoes por semana."})
+
+
+def add_months(start_date, months):
+    year = start_date.year + (start_date.month - 1 + months) // 12
+    month = (start_date.month - 1 + months) % 12 + 1
+    day = min(start_date.day, days_in_month(year, month))
+    return date(year, month, day)
+
+
+def days_in_month(year, month):
+    if month == 12:
+        return 31
+    return (date(year, month + 1, 1) - date(year, month, 1)).days
 
 
 class Membership(TimeStampedModel):
@@ -70,9 +113,9 @@ class Membership(TimeStampedModel):
         verbose_name_plural = "mensalidades"
         constraints = [
             models.UniqueConstraint(
-                fields=["patient"],
+                fields=["patient", "plan"],
                 condition=Q(status="active"),
-                name="one_active_membership_per_patient",
+                name="one_active_membership_per_patient_plan",
             )
         ]
 

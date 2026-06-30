@@ -439,6 +439,7 @@ class SlotSelectionMixin:
             name
             for name in [
                 "patients",
+                "service_plan",
                 "professional",
                 "appointment_date",
                 "duration_minutes",
@@ -474,6 +475,8 @@ class SlotSelectionMixin:
         }
         if "patients" in form.cleaned_data:
             values["patient_ids"] = [patient.pk for patient in form.cleaned_data["patients"]]
+        if "service_plan" in form.cleaned_data and form.cleaned_data.get("service_plan"):
+            values["service_plan"] = form.cleaned_data["service_plan"].pk
         if "service_units" in form.cleaned_data:
             values["service_units"] = form.cleaned_data["service_units"]
         if "session_capacity" in form.cleaned_data:
@@ -593,6 +596,7 @@ class AppointmentCreateView(SlotSelectionMixin, AppointmentAccessMixin, View):
                             appointment = Appointment(
                                 patient=patient,
                                 professional=form.cleaned_data["professional"],
+                                service_plan=form.cleaned_data.get("service_plan"),
                                 starts_at=payload["starts_at"],
                                 ends_at=payload["ends_at"],
                                 status=status,
@@ -778,6 +782,7 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
             new_appointment = Appointment(
                 patient=original.patient,
                 professional=form.cleaned_data["professional"],
+                service_plan=original.service_plan,
                 starts_at=starts_at,
                 ends_at=ends_at,
                 status=new_status,
@@ -871,6 +876,7 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                 replacement = Appointment(
                     patient=source.patient,
                     professional=form.cleaned_data["professional"],
+                    service_plan=source.service_plan,
                     starts_at=source.starts_at + delta,
                     ends_at=source.ends_at + delta,
                     status=new_status,
@@ -919,13 +925,21 @@ class AppointmentCompleteView(AppointmentAccessMixin, View):
                     used_sessions__lt=F("total_sessions"),
                 )
                 .order_by("expires_on", "created_at")
-                .first()
             )
+            if appointment.service_plan_id:
+                package = package.filter(membership__plan_id=appointment.service_plan_id)
+            elif package.values("membership__plan_id").distinct().count() > 1:
+                messages.error(
+                    request,
+                    "Este paciente possui mais de uma adesao ativa. Edite o agendamento e informe o plano/servico antes da baixa.",
+                )
+                return redirect("scheduling:appointments")
+            package = package.first()
             if not package:
-                messages.error(request, "Nao ha pacote ativo com saldo para este paciente.")
+                messages.error(request, "Nao ha adesao ativa com saldo para este paciente e plano/servico.")
                 return redirect("scheduling:appointments")
             if package.remaining_sessions < appointment.service_units:
-                messages.error(request, "O pacote nao possui saldo suficiente.")
+                messages.error(request, "A adesao nao possui saldo suficiente.")
                 return redirect("scheduling:appointments")
             appointment.status = Appointment.Status.COMPLETED
             appointment.completed_by = request.user
@@ -944,7 +958,7 @@ class AppointmentCompleteView(AppointmentAccessMixin, View):
             package.full_clean()
             package.save()
 
-        messages.success(request, "Atendimento baixado e pacote atualizado.")
+        messages.success(request, "Atendimento baixado e adesao atualizada.")
         return redirect("scheduling:appointments")
 
 
@@ -1166,7 +1180,7 @@ class ServicePackageCreateView(FormContextMixin, FinanceAccessMixin, CreateView)
     form_class = ServicePackageForm
     template_name = "core/form.html"
     success_url = reverse_lazy("scheduling:packages")
-    page_title = "Pacote"
+    page_title = "Adesao"
     section_label = "Agenda"
     back_url_name = "scheduling:packages"
 
@@ -1183,7 +1197,7 @@ class ServicePackageCreateView(FormContextMixin, FinanceAccessMixin, CreateView)
     def form_valid(self, form):
         patient = form.cleaned_data["patient"]
         plan = form.cleaned_data["plan"]
-        messages.success(self.request, f"Pacote vinculado a {patient.full_name} no plano {plan.name}.")
+        messages.success(self.request, f"Adesao criada para {patient.full_name} em {plan.name}.")
         return super().form_valid(form)
 
 
@@ -1192,14 +1206,14 @@ class ServicePackageUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView)
     form_class = ServicePackageForm
     template_name = "core/form.html"
     success_url = reverse_lazy("scheduling:packages")
-    page_title = "Pacote"
+    page_title = "Adesao"
     section_label = "Agenda"
     back_url_name = "scheduling:packages"
 
     def form_valid(self, form):
         patient = form.cleaned_data["patient"]
         plan = form.cleaned_data["plan"]
-        messages.success(self.request, f"Pacote atualizado para {patient.full_name} no plano {plan.name}.")
+        messages.success(self.request, f"Adesao atualizada para {patient.full_name} em {plan.name}.")
         return super().form_valid(form)
 
 
@@ -1207,10 +1221,10 @@ class ServicePackageDeleteView(DeletionDecisionMixin, FormContextMixin, FinanceA
     model = ServicePackage
     template_name = "core/confirm_deactivate.html"
     success_url = reverse_lazy("scheduling:packages")
-    page_title = "Excluir pacote"
+    page_title = "Excluir adesao"
     section_label = "Agenda"
     back_url_name = "scheduling:packages"
-    entity_label = "pacote"
+    entity_label = "adesao"
 
     def perform_delete_now(self):
         hard_delete_service_package(self.object)
@@ -1224,9 +1238,9 @@ class ServicePackageDeleteView(DeletionDecisionMixin, FormContextMixin, FinanceA
         context.update(
             {
                 "object_name": f"{package.membership.patient.full_name} - {package.membership.plan.name}",
-                "entity_label": "pacote",
+                "entity_label": "adesao",
                 "delete_explanation": (
-                    "Escolha se deseja cancelar o pacote agora ou remover definitivamente seus registros."
+                    "Escolha se deseja inativar esta adesao ou remover definitivamente seus registros."
                 ),
             }
         )

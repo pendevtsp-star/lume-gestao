@@ -31,12 +31,12 @@ class ServicePlanCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
     form_class = ServicePlanForm
     template_name = "core/form.html"
     success_url = reverse_lazy("billing:plans")
-    page_title = "Plano"
+    page_title = "Plano/Servico"
     section_label = "Financeiro"
     back_url_name = "billing:plans"
 
     def form_valid(self, form):
-        messages.success(self.request, "Plano cadastrado com sucesso.")
+        messages.success(self.request, "Plano/servico cadastrado com sucesso.")
         return super().form_valid(form)
 
 
@@ -45,12 +45,12 @@ class ServicePlanUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
     form_class = ServicePlanForm
     template_name = "core/form.html"
     success_url = reverse_lazy("billing:plans")
-    page_title = "Plano"
+    page_title = "Plano/Servico"
     section_label = "Financeiro"
     back_url_name = "billing:plans"
 
     def form_valid(self, form):
-        messages.success(self.request, "Plano atualizado com sucesso.")
+        messages.success(self.request, "Plano/servico atualizado com sucesso.")
         return super().form_valid(form)
 
 
@@ -58,10 +58,10 @@ class ServicePlanDeleteView(DeletionDecisionMixin, FormContextMixin, FinanceAcce
     model = ServicePlan
     template_name = "core/confirm_deactivate.html"
     success_url = reverse_lazy("billing:plans")
-    page_title = "Excluir plano"
+    page_title = "Excluir plano/servico"
     section_label = "Financeiro"
     back_url_name = "billing:plans"
-    entity_label = "plano"
+    entity_label = "plano/servico"
 
     def get_default_delete_action(self):
         if service_plan_has_pending_obligations(self.object):
@@ -81,7 +81,7 @@ class ServicePlanDeleteView(DeletionDecisionMixin, FormContextMixin, FinanceAcce
                 "object_name": self.object.name,
                 "entity_label": self.entity_label,
                 "delete_explanation": (
-                    "Escolha se deseja deixar o plano indisponivel para novas vendas ou excluir definitivamente."
+                    "Escolha se deseja deixar o plano/servico indisponivel para novas vendas ou excluir definitivamente."
                 ),
             }
         )

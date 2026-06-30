@@ -56,7 +56,7 @@
                     <div><dt>Contato emergencia</dt><dd>{{ patient.emergency_contact|default:"-" }}</dd></div>
                   </dl>
                   <div class="detail-block">
-                    <strong>Pacote atual</strong>
+                    <strong>Adesoes ativas</strong>
                     {% if patient.detail_packages %}
                       {% for package in patient.detail_packages %}
                         <p>{{ package.membership.plan.name }}: {{ package.used_sessions }}/{{ package.total_sessions }} usados, {{ package.remaining_sessions }} restantes. Status: {{ package.get_status_display }}.</p>
@@ -66,20 +66,20 @@
                     {% endif %}
                   </div>
                   <div class="detail-block">
-                    <strong>Mensalidade / plano</strong>
+                    <strong>Mensalidade / plano-servico</strong>
                     {% if patient.detail_memberships %}
                       {% for membership in patient.detail_memberships %}
                         <p>
                           {{ membership.plan.name }}: {{ membership.get_status_display }} desde {{ membership.start_date|date:"d/m/Y" }}.
                           {% if membership.status == "active" %}
-                            <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}&plan={{ membership.plan.pk }}">Adicionar pacote</a>
+                            <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}&plan={{ membership.plan.pk }}">Adicionar adesao</a>
                           {% endif %}
                         </p>
                       {% endfor %}
                     {% else %}
                       <p>
                         Nenhuma mensalidade cadastrada.
-                        <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}">Adicionar plano/pacote</a>
+                        <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}">Adicionar plano/servico</a>
                       </p>
                     {% endif %}
                   </div>

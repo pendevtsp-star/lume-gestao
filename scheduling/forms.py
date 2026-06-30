@@ -12,6 +12,7 @@ from core.models import ClinicSettings
 from patients.models import Patient
 from patients.services import patient_professional_link_exists, patient_ids_for_professional, professional_ids_for_patient
 from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage
+from scheduling.services import package_defaults_for_plan, resolve_membership_for_plan
 from team.models import Professional
 
 
@@ -81,6 +82,7 @@ class AppointmentForm(StyledModelForm):
         fields = [
             "patient",
             "professional",
+            "service_plan",
             "starts_at",
             "ends_at",
             "status",
@@ -136,6 +138,12 @@ class AppointmentSlotSearchForm(StyledForm):
         queryset=Patient.objects.none(),
         widget=forms.SelectMultiple(attrs={"size": 6}),
     )
+    service_plan = forms.ModelChoiceField(
+        label="Plano/Servico",
+        queryset=ServicePlan.objects.none(),
+        required=False,
+        help_text="Opcional quando o paciente tem apenas uma adesao ativa. Obrigatorio se houver mais de um servico ativo.",
+    )
     professional = forms.ModelChoiceField(label="Profissional", queryset=Professional.objects.none())
     appointment_date = forms.DateField(
         label="Data",
@@ -175,7 +183,9 @@ class AppointmentSlotSearchForm(StyledForm):
         self.request = kwargs.pop("request", None)
         super().__init__(*args, **kwargs)
         self.fields["patients"].queryset = visible_patients_for_request(self.request)
+        self.fields["service_plan"].queryset = ServicePlan.objects.filter(active=True).order_by("category", "name")
         self.fields["professional"].queryset = visible_professionals_for_request(self.request)
+        self.fields["service_units"].widget = forms.HiddenInput()
 
         if self.request:
             profile = get_profile(self.request.user)
@@ -206,6 +216,7 @@ class AppointmentSlotSearchForm(StyledForm):
         repeat_until = cleaned_data.get("repeat_until")
         repeat_count = cleaned_data.get("repeat_count")
         session_capacity = cleaned_data.get("session_capacity") or 1
+        service_plan = cleaned_data.get("service_plan")
         cleaned_data["repeat_mode"] = repeat_mode
         cleaned_data["session_capacity"] = session_capacity
 
@@ -216,6 +227,36 @@ class AppointmentSlotSearchForm(StyledForm):
                     patient, professional
                 ):
                     raise forms.ValidationError(f"{patient.full_name} nao pode ser agendado com este profissional.")
+
+        if patients:
+            inferred_plan_ids = []
+            for patient in patients:
+                active_plan_ids = list(
+                    ServicePackage.objects.filter(
+                        membership__patient=patient,
+                        status=ServicePackage.Status.ACTIVE,
+                        used_sessions__lt=models.F("total_sessions"),
+                    )
+                    .values_list("membership__plan_id", flat=True)
+                    .distinct()
+                )
+                if service_plan:
+                    if active_plan_ids and service_plan.pk not in active_plan_ids:
+                        self.add_error(
+                            "service_plan",
+                            f"{patient.full_name} nao possui saldo ativo para este plano/servico.",
+                        )
+                elif len(active_plan_ids) == 1:
+                    inferred_plan_ids.append(active_plan_ids[0])
+                elif len(active_plan_ids) > 1:
+                    self.add_error(
+                        "service_plan",
+                        f"{patient.full_name} possui mais de uma adesao ativa. Escolha o plano/servico do agendamento.",
+                    )
+            if not service_plan and inferred_plan_ids and len(set(inferred_plan_ids)) == 1:
+                cleaned_data["service_plan"] = ServicePlan.objects.get(pk=inferred_plan_ids[0])
+            elif not service_plan and len(set(inferred_plan_ids)) > 1:
+                self.add_error("service_plan", "Escolha um plano/servico comum aos pacientes selecionados.")
 
         if repeat_mode == self.RepeatMode.WEEKLY:
             if not repeat_until and not repeat_count:
@@ -429,14 +470,15 @@ class ProfessionalAvailabilityBatchForm(StyledForm):
 
 class ServicePackageForm(StyledModelForm):
     patient = forms.ModelChoiceField(label="Paciente", queryset=Patient.objects.none())
-    plan = forms.ModelChoiceField(label="Plano", queryset=ServicePlan.objects.none())
+    plan = forms.ModelChoiceField(label="Plano/Servico", queryset=ServicePlan.objects.none())
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["patient"].queryset = Patient.objects.filter(active=True).order_by("full_name")
         self.fields["plan"].queryset = ServicePlan.objects.filter(active=True).order_by("category", "name")
-        self.fields["patient"].help_text = "Escolha o paciente que comprou o pacote."
-        self.fields["plan"].help_text = "O sistema cria ou reutiliza a mensalidade ativa deste plano."
+        self.fields["patient"].help_text = "Escolha o paciente que aderiu ao plano ou servico."
+        self.fields["plan"].help_text = "Total de atendimentos, validade e mensalidade serao herdados automaticamente."
+        self.fields["starts_on"].help_text = "A validade sera calculada pela duracao configurada no plano/servico."
 
         if self.instance and self.instance.pk and self.instance.membership_id:
             self.fields["patient"].initial = self.instance.membership.patient_id
@@ -444,10 +486,9 @@ class ServicePackageForm(StyledModelForm):
 
     class Meta:
         model = ServicePackage
-        fields = ["patient", "plan", "total_sessions", "used_sessions", "starts_on", "expires_on", "status", "notes"]
+        fields = ["patient", "plan", "starts_on", "status", "notes"]
         widgets = {
             "starts_on": forms.DateInput(attrs={"type": "date"}),
-            "expires_on": forms.DateInput(attrs={"type": "date"}),
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
 
@@ -458,46 +499,37 @@ class ServicePackageForm(StyledModelForm):
         if not patient or not plan:
             return cleaned_data
 
-        active_membership = (
-            Membership.objects.select_related("plan")
-            .filter(patient=patient, status=Membership.Status.ACTIVE)
-            .first()
-        )
-        if active_membership and active_membership.plan_id != plan.pk:
+        starts_on = cleaned_data.get("starts_on") or timezone.localdate()
+        defaults = package_defaults_for_plan(plan, starts_on)
+        self.instance.total_sessions = defaults["total_sessions"]
+        self.instance.expires_on = defaults["expires_on"]
+        self.instance.used_sessions = self.instance.used_sessions or 0
+        used_sessions = self.instance.used_sessions if self.instance and self.instance.pk else 0
+        if used_sessions > defaults["total_sessions"]:
             self.add_error(
                 "plan",
-                (
-                    f"{patient.full_name} ja possui mensalidade ativa no plano "
-                    f"{active_membership.plan.name}. Edite a mensalidade ativa antes de vincular outro plano."
-                ),
+                "Este plano/servico possui menos atendimentos do que ja foi usado nesta adesao.",
             )
         return cleaned_data
 
     def resolve_membership(self):
         patient = self.cleaned_data["patient"]
         plan = self.cleaned_data["plan"]
-        active_membership = Membership.objects.filter(
-            patient=patient,
-            status=Membership.Status.ACTIVE,
-        ).first()
-        if active_membership:
-            return active_membership
-
-        clinic_settings = ClinicSettings.load()
-        membership, _created = Membership.objects.get_or_create(
-            patient=patient,
-            plan=plan,
-            status=Membership.Status.ACTIVE,
-            defaults={
-                "due_day": clinic_settings.default_membership_due_day,
-                "start_date": self.cleaned_data.get("starts_on") or timezone.localdate(),
-            },
+        membership, _created = resolve_membership_for_plan(
+            patient,
+            plan,
+            starts_on=self.cleaned_data.get("starts_on") or timezone.localdate(),
         )
         return membership
 
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.membership = self.resolve_membership()
+        defaults = package_defaults_for_plan(instance.membership.plan, instance.starts_on)
+        instance.total_sessions = defaults["total_sessions"]
+        instance.expires_on = defaults["expires_on"]
+        if not instance.pk:
+            instance.used_sessions = 0
         if commit:
             instance.save()
             self.save_m2m()

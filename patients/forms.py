@@ -1,5 +1,6 @@
 from django import forms
 
+from billing.models import ServicePlan
 from core.forms import StyledModelForm
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
 
@@ -168,6 +169,22 @@ def note_type_options():
 
 
 class PatientForm(StyledModelForm):
+    initial_service_plans = forms.ModelMultipleChoiceField(
+        label="Planos/servicos iniciais",
+        queryset=ServicePlan.objects.none(),
+        required=False,
+        help_text="Opcional. Ao salvar um novo paciente, o sistema cria as adesoes com créditos e validade herdados do plano/servico.",
+        widget=forms.SelectMultiple(attrs={"size": 5}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["initial_service_plans"].queryset = ServicePlan.objects.filter(active=True).order_by("category", "name")
+        if self.instance and self.instance.pk:
+            self.fields["initial_service_plans"].help_text = (
+                "Para adicionar novos planos/servicos a paciente existente, use a tela de Adesoes."
+            )
+
     class Meta:
         model = Patient
         fields = [
@@ -181,6 +198,7 @@ class PatientForm(StyledModelForm):
             "address",
             "clinical_notes",
             "active",
+            "initial_service_plans",
         ]
         widgets = {
             "birth_date": forms.DateInput(attrs={"type": "date"}),

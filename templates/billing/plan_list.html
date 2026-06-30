@@ -1,27 +1,30 @@
 {% extends "base.html" %}
 
-{% block title %}Planos | Lume Gestao{% endblock %}
+{% block title %}Planos/Servicos | Lume Gestao{% endblock %}
 
 {% block content %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Financeiro</p>
-    <h1>Planos</h1>
+    <h1>Planos/Servicos</h1>
   </div>
-  <a class="button primary" href="{% url 'billing:plan_create' %}">Novo plano</a>
+  <a class="button primary" href="{% url 'billing:plan_create' %}">Novo plano/servico</a>
 </section>
 
 <section class="panel">
   <form class="toolbar" method="get">
-    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar planos">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar planos ou servicos">
     <button class="button secondary" type="submit">Buscar</button>
   </form>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>Plano</th>
+          <th>Plano/Servico</th>
           <th>Categoria</th>
+          <th>Tipo</th>
+          <th>Ciclo</th>
+          <th>Creditos</th>
           <th>Site</th>
           <th>Sessoes/semana</th>
           <th>Status</th>
@@ -34,6 +37,9 @@
           <tr>
             <td><strong>{{ plan.name }}</strong></td>
             <td>{{ plan.get_category_display }}</td>
+            <td>{{ plan.get_plan_type_display }}</td>
+            <td>{{ plan.duration_months }} mes(es)</td>
+            <td>{{ plan.default_total_sessions }}</td>
             <td>
               {% if plan.show_on_website %}
                 <span class="badge active">Publico</span>
@@ -51,7 +57,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="7" class="empty">Nenhum plano encontrado.</td></tr>
+          <tr><td colspan="10" class="empty">Nenhum plano/servico encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>

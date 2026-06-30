@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -13,6 +13,7 @@ from billing.models import Membership, ServicePlan
 from core.models import ClinicSettings
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, AppointmentSeries, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.forms import ServicePackageForm
 from scheduling.slots import generate_available_slots
 from team.models import Professional
 
@@ -138,6 +139,69 @@ class SchedulingTests(TestCase):
         self.assertEqual(appointment.status, Appointment.Status.COMPLETED)
         self.assertEqual(package.used_sessions, 2)
         self.assertTrue(ServiceUsage.objects.filter(appointment=appointment).exists())
+
+    def test_complete_appointment_consumes_matching_service_plan_package(self):
+        user = get_user_model().objects.create_user(username="prof-agenda-servico", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        massage_plan = ServicePlan.objects.create(
+            name="Massagem avulsa",
+            category=ServicePlan.Category.MASSAGE,
+            plan_type=ServicePlan.PlanType.SINGLE,
+            monthly_price=Decimal("120.00"),
+            sessions_per_week=1,
+            included_sessions=1,
+        )
+        massage_membership = Membership.objects.create(patient=self.patient, plan=massage_plan, due_day=10)
+        pilates_package = ServicePackage.objects.create(membership=self.membership, total_sessions=8, used_sessions=0)
+        massage_package = ServicePackage.objects.create(membership=massage_membership, total_sessions=1, used_sessions=0)
+        start = timezone.now() + timedelta(days=1)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            service_plan=massage_plan,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            service_units=1,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("scheduling:appointment_complete", args=[appointment.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        pilates_package.refresh_from_db()
+        massage_package.refresh_from_db()
+        self.assertEqual(pilates_package.used_sessions, 0)
+        self.assertEqual(massage_package.used_sessions, 1)
+
+    def test_service_package_form_inherits_plan_defaults(self):
+        plan = ServicePlan.objects.create(
+            name="Pilates Trimestral",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("900.00"),
+            duration_months=3,
+            sessions_per_week=2,
+            included_sessions=24,
+        )
+        form = ServicePackageForm(
+            data={
+                "patient": self.patient.pk,
+                "plan": plan.pk,
+                "starts_on": "2026-06-15",
+                "status": ServicePackage.Status.ACTIVE,
+                "notes": "Adesao inicial.",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        package = form.save()
+
+        self.assertEqual(package.total_sessions, 24)
+        self.assertEqual(package.used_sessions, 0)
+        self.assertEqual(package.expires_on, date(2026, 9, 15))
+        self.assertEqual(package.membership.plan, plan)
 
     def test_appointment_save_creates_backend_assignment(self):
         ProfessionalPatientAssignment.objects.filter(patient=self.patient, professional=self.professional).delete()
@@ -610,12 +674,9 @@ class SchedulingTests(TestCase):
             {
                 "patient": patient.pk,
                 "plan": self.plan.pk,
-                "total_sessions": 8,
-                "used_sessions": 0,
                 "starts_on": timezone.localdate().isoformat(),
-                "expires_on": "",
                 "status": ServicePackage.Status.ACTIVE,
-                "notes": "Pacote criado pelo fluxo simplificado.",
+                "notes": "Adesao criada pelo fluxo simplificado.",
             },
         )
 
@@ -634,20 +695,18 @@ class SchedulingTests(TestCase):
             {
                 "patient": self.patient.pk,
                 "plan": self.plan.pk,
-                "total_sessions": 6,
-                "used_sessions": 0,
                 "starts_on": timezone.localdate().isoformat(),
-                "expires_on": "",
                 "status": ServicePackage.Status.ACTIVE,
                 "notes": "",
             },
         )
 
         self.assertRedirects(response, reverse("scheduling:packages"))
-        package = ServicePackage.objects.get(total_sessions=6)
+        package = ServicePackage.objects.get(membership=self.membership)
+        self.assertEqual(package.total_sessions, self.plan.default_total_sessions)
         self.assertEqual(package.membership, self.membership)
 
-    def test_package_form_blocks_different_plan_when_patient_has_active_membership(self):
+    def test_package_form_allows_different_plan_when_patient_has_active_membership(self):
         user = get_user_model().objects.create_user(username="gestao-pacote-plano-diferente", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
         other_plan = ServicePlan.objects.create(
@@ -663,18 +722,14 @@ class SchedulingTests(TestCase):
             {
                 "patient": self.patient.pk,
                 "plan": other_plan.pk,
-                "total_sessions": 6,
-                "used_sessions": 0,
                 "starts_on": timezone.localdate().isoformat(),
-                "expires_on": "",
                 "status": ServicePackage.Status.ACTIVE,
                 "notes": "",
             },
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "ja possui mensalidade ativa")
-        self.assertFalse(ServicePackage.objects.filter(membership__plan=other_plan).exists())
+        self.assertRedirects(response, reverse("scheduling:packages"))
+        self.assertTrue(ServicePackage.objects.filter(membership__patient=self.patient, membership__plan=other_plan).exists())
 
     def test_service_package_api_destroy_cancels_package(self):
         user = get_user_model().objects.create_user(username="gestao-api-excluir-pacote", password="Senha@123")

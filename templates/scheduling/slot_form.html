@@ -58,6 +58,9 @@
           <input type="hidden" name="patients" value="{{ patient_id }}">
         {% endfor %}
         <input type="hidden" name="professional" value="{{ booking_values.professional }}">
+        {% if booking_values.service_plan %}
+          <input type="hidden" name="service_plan" value="{{ booking_values.service_plan }}">
+        {% endif %}
         <input type="hidden" name="appointment_date" value="{{ booking_values.appointment_date }}">
         <input type="hidden" name="duration_minutes" value="{{ booking_values.duration_minutes }}">
         {% if booking_values.service_units %}

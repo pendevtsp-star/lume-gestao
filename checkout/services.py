@@ -13,6 +13,7 @@ from core.integrations.http import IntegrationError, post_json
 from core.models import ClinicSettings
 from patients.models import Patient
 from scheduling.models import ServicePackage
+from scheduling.services import package_defaults_for_plan
 
 
 PAID_EVENTS = {"PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"}
@@ -273,17 +274,13 @@ def create_patient_from_order(order):
 
 
 def ensure_membership_for_order(order, patient):
-    active_membership = Membership.objects.filter(patient=patient, status=Membership.Status.ACTIVE).first()
+    active_membership = Membership.objects.filter(
+        patient=patient,
+        plan=order.plan,
+        status=Membership.Status.ACTIVE,
+    ).first()
     if active_membership:
-        if active_membership.plan_id != order.plan_id:
-            active_membership.status = Membership.Status.CANCELED
-            active_membership.notes = append_note(
-                active_membership.notes,
-                f"Cancelada automaticamente pela adesao ao plano {order.plan.name} no checkout.",
-            )
-            active_membership.save(update_fields=["status", "notes", "updated_at"])
-        else:
-            return active_membership
+        return active_membership
     settings_object = ClinicSettings.load()
     return Membership.objects.create(
         patient=patient,
@@ -321,7 +318,8 @@ def ensure_paid_membership_payment(order, membership, payment_payload):
 def ensure_initial_service_package(order, membership):
     if not order.plan_id:
         return None
-    total_sessions = max(order.plan.sessions_per_week * 4, 1)
+    starts_on = timezone.localdate()
+    plan_defaults = package_defaults_for_plan(order.plan, starts_on)
     existing = ServicePackage.objects.filter(
         membership=membership,
         status=ServicePackage.Status.ACTIVE,
@@ -331,11 +329,12 @@ def ensure_initial_service_package(order, membership):
         return existing
     return ServicePackage.objects.create(
         membership=membership,
-        total_sessions=total_sessions,
+        total_sessions=plan_defaults["total_sessions"],
         used_sessions=0,
-        starts_on=timezone.localdate(),
+        starts_on=starts_on,
+        expires_on=plan_defaults["expires_on"],
         status=ServicePackage.Status.ACTIVE,
-        notes=f"Pacote inicial criado automaticamente pelo checkout {order.external_reference}.",
+        notes=f"Adesao inicial criada automaticamente pelo checkout {order.external_reference}.",
     )
 
 

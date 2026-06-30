@@ -10,8 +10,11 @@ class ServicePlanForm(StyledModelForm):
         fields = [
             "name",
             "category",
+            "plan_type",
             "monthly_price",
+            "duration_months",
             "sessions_per_week",
+            "included_sessions",
             "description",
             "public_description",
             "show_on_website",
@@ -23,6 +26,13 @@ class ServicePlanForm(StyledModelForm):
             "description": forms.Textarea(attrs={"rows": 4}),
             "public_description": forms.Textarea(attrs={"rows": 4}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["monthly_price"].help_text = "Valor cobrado pelo ciclo configurado: mensal, trimestral, semestral ou avulso."
+        self.fields["duration_months"].help_text = "Use 1 para mensal, 3 para trimestral, 6 para semestral ou outro ciclo em meses."
+        self.fields["included_sessions"].help_text = "Total de atendimentos liberados automaticamente quando este plano/servico for atribuido ao paciente."
+        self.fields["sessions_per_week"].help_text = "Referencia operacional para agenda e relatorios. Em servico avulso, mantenha 1."
 
 
 class MembershipForm(StyledModelForm):

@@ -53,6 +53,45 @@ class BillingModelTests(TestCase):
 
         self.assertEqual(membership.monthly_amount, Decimal("350.00"))
 
+    def test_patient_can_have_multiple_active_memberships_for_different_services(self):
+        other_plan = ServicePlan.objects.create(
+            name="Massagem avulsa",
+            category=ServicePlan.Category.MASSAGE,
+            plan_type=ServicePlan.PlanType.SINGLE,
+            monthly_price=Decimal("120.00"),
+            sessions_per_week=1,
+            included_sessions=1,
+        )
+        Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        membership = Membership(patient=self.patient, plan=other_plan, due_day=15)
+
+        membership.full_clean()
+        membership.save()
+
+        self.assertEqual(Membership.objects.filter(patient=self.patient, status=Membership.Status.ACTIVE).count(), 2)
+
+    def test_patient_cannot_have_duplicate_active_membership_for_same_plan(self):
+        Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        duplicate = Membership(patient=self.patient, plan=self.plan, due_day=15)
+
+        with self.assertRaises(ValidationError):
+            duplicate.full_clean()
+
+    def test_single_service_plan_uses_one_included_session(self):
+        plan = ServicePlan(
+            name="Sessao avulsa",
+            category=ServicePlan.Category.PHYSIOTHERAPY,
+            plan_type=ServicePlan.PlanType.SINGLE,
+            monthly_price=Decimal("180.00"),
+            sessions_per_week=3,
+            included_sessions=8,
+        )
+
+        plan.full_clean()
+
+        self.assertEqual(plan.sessions_per_week, 1)
+        self.assertEqual(plan.default_total_sessions, 1)
+
     def test_payment_paid_requires_paid_date(self):
         membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
         payment = Payment(

@@ -78,8 +78,8 @@
               {% endif %}
             </div>
           </details>
-          <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Pacotes</span></a>
-          <a href="{% url 'billing:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos</span></a>
+          <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Adesoes</span></a>
+          <a href="{% url 'billing:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos/Servicos</span></a>
           {% if homecare_internal_enabled %}
             <details class="nav-menu" {% if request.resolver_match.app_name == "homecare" %}open{% endif %}>
               <summary>

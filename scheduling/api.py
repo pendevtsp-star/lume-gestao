@@ -171,7 +171,7 @@ class ServicePackageViewSet(ModelViewSet):
             return
         profile = get_profile(self.request.user)
         if not profile or profile.role not in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT}:
-            raise PermissionDenied("Apenas administracao ou gerencia podem alterar pacotes pela API.")
+            raise PermissionDenied("Apenas administracao ou gerencia podem alterar adesoes pela API.")
 
     def perform_create(self, serializer):
         self.require_finance_role()
@@ -233,8 +233,13 @@ class ServiceUsageViewSet(ModelViewSet):
         with transaction.atomic():
             locked_appointment = Appointment.objects.select_for_update().get(pk=appointment.pk)
             locked_package = ServicePackage.objects.select_for_update().get(pk=service_package.pk)
+            if (
+                locked_appointment.service_plan_id
+                and locked_package.membership.plan_id != locked_appointment.service_plan_id
+            ):
+                raise ValidationError({"service_package": "A adesao nao corresponde ao plano/servico do agendamento."})
             if locked_package.remaining_sessions < units:
-                raise ValidationError({"units": "O pacote nao possui saldo suficiente."})
+                raise ValidationError({"units": "A adesao nao possui saldo suficiente."})
             serializer.save(
                 registered_by=self.request.user,
                 appointment=locked_appointment,

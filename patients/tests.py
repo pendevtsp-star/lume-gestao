@@ -414,7 +414,7 @@ class PatientAccessTests(TestCase):
 
         response = self.client.get(reverse("patients:list"))
 
-        self.assertContains(response, "Pacote atual")
+        self.assertContains(response, "Adesoes ativas")
         self.assertContains(response, "Pilates Detalhado")
 
     def test_patient_search_matches_partial_patient_context(self):

@@ -1,7 +1,10 @@
+import shutil
+import tempfile
 from io import StringIO
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core import mail
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -137,6 +140,46 @@ class UserProfileTests(TestCase):
         self.assertEqual(response.status_code, 302)
         patient.refresh_from_db()
         self.assertFalse(patient.photo)
+
+    def test_user_can_upload_current_profile_photo_with_absolute_media_url(self):
+        temp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, temp_dir, ignore_errors=True)
+        user = get_user_model().objects.create_user(
+            username="usuario-foto",
+            password="Senha@123",
+            email="usuario-foto@lume.local",
+            first_name="Usuario",
+            last_name="Foto",
+        )
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        self.client.force_login(user)
+        image = SimpleUploadedFile(
+            "avatar.gif",
+            (
+                b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00"
+                b"\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,"
+                b"\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+            ),
+            content_type="image/gif",
+        )
+
+        with override_settings(MEDIA_ROOT=temp_dir):
+            response = self.client.post(
+                reverse("accounts:self_settings"),
+                {
+                    "username": "usuario-foto",
+                    "first_name": "Usuario",
+                    "last_name": "Foto",
+                    "email": "usuario-foto@lume.local",
+                    "phone": "",
+                    "photo": image,
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        user.profile.refresh_from_db()
+        self.assertTrue(user.profile.photo.name.startswith("users/photos/"))
+        self.assertTrue(user.profile.avatar_url.startswith("/media/"))
 
     def test_management_user_can_save_whatsapp_settings(self):
         user = get_user_model().objects.create_user(username="gestor-whatsapp", password="Senha@123")

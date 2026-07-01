@@ -242,7 +242,7 @@ STATICFILES_STORAGE = (
     if IS_PRODUCTION
     else "django.contrib.staticfiles.storage.StaticFilesStorage"
 )
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 DEFAULT_MEDIA_ROOT = LUME_DATA_DIR / 'media' if LUME_DESKTOP else BASE_DIR / 'media'
 MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(DEFAULT_MEDIA_ROOT))).resolve()
 LUME_CONNECT_ENABLED = config("LUME_CONNECT_ENABLED", default=True, cast=bool)

@@ -564,6 +564,79 @@ class SchedulingTests(TestCase):
         self.assertContains(agenda_response, "Sessao em grupo")
         self.assertContains(agenda_response, "2/6 alunos")
 
+    def test_group_session_modal_lists_all_patients_with_individual_actions(self):
+        user = get_user_model().objects.create_user(username="gestao-modal-grupo", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        third_patient = Patient.objects.create(full_name="Paciente Cascata")
+        ProfessionalPatientAssignment.objects.create(patient=third_patient, professional=self.professional)
+        day = timezone.localdate() + timedelta(days=8)
+        start = timezone.make_aware(datetime.combine(day, time(9, 0)))
+        group_appointments = [
+            Appointment.objects.create(
+                patient=patient,
+                professional=self.professional,
+                starts_at=start,
+                ends_at=start + timedelta(hours=1),
+                slot_capacity=6,
+                slot_group="grupo-modal",
+            )
+            for patient in [self.patient, self.patient_two, third_patient]
+        ]
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("scheduling:appointments"), {"semana": day.isoformat()})
+
+        self.assertContains(response, "Pacientes desta sessao (3/6)")
+        self.assertContains(response, "Abra a lista de pacientes")
+        for appointment in group_appointments:
+            self.assertContains(response, appointment.patient.full_name)
+            self.assertContains(response, reverse("scheduling:appointment_reschedule", args=[appointment.pk]))
+
+    def test_reschedule_to_existing_group_slot_uses_target_group(self):
+        user = get_user_model().objects.create_user(username="gestao-reagenda-grupo-alvo", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        day = timezone.localdate() + timedelta(days=8)
+        source_start = timezone.make_aware(datetime.combine(day, time(9, 0)))
+        target_start = timezone.make_aware(datetime.combine(day, time(10, 0)))
+        source = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=source_start,
+            ends_at=source_start + timedelta(hours=1),
+            slot_capacity=4,
+            slot_group="grupo-origem",
+        )
+        target = Appointment.objects.create(
+            patient=self.patient_two,
+            professional=self.professional,
+            starts_at=target_start,
+            ends_at=target_start + timedelta(hours=1),
+            slot_capacity=4,
+            slot_group="grupo-destino",
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:appointment_reschedule", args=[source.pk]),
+            {
+                "professional": self.professional.pk,
+                "appointment_date": day.isoformat(),
+                "duration_minutes": "60",
+                "selected_start": "10:00",
+                "notes": "Mudanca para grupo existente.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        source.refresh_from_db()
+        target.refresh_from_db()
+        replacement = Appointment.objects.get(rescheduled_from=source)
+        self.assertEqual(source.status, Appointment.Status.RESCHEDULED)
+        self.assertEqual(target.status, Appointment.Status.SCHEDULED)
+        self.assertEqual(replacement.starts_at, target_start)
+        self.assertEqual(replacement.slot_group, target.slot_group)
+        self.assertEqual(replacement.slot_capacity, target.slot_capacity)
+
     def test_professional_can_confirm_requested_appointment(self):
         user = get_user_model().objects.create_user(username="prof-confirma", password="Senha@123")
         UserProfile.objects.update_or_create(

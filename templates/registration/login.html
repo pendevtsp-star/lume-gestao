@@ -3,18 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Entrar | Lume Gestao</title>
+  <title>Entrar | Lume Gestão</title>
   <link rel="icon" type="image/svg+xml" href="/static/images/lume-favicon.svg">
   <link rel="shortcut icon" href="/static/images/lume-favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=20260625-login-mobile">
+  <link rel="stylesheet" href="/static/css/app.css?v=20260701-login-mobile">
 </head>
 <body class="login-page">
   <main class="login-panel">
     <div class="login-brand">
       <span class="brand-mark">L</span>
       <div>
-        <strong>Lume Gestao</strong>
-        <small>Clinica de fisioterapia e pilates</small>
+        <strong>Lume Gestão</strong>
+        <small>Clínica de fisioterapia e pilates</small>
       </div>
     </div>
 
@@ -31,9 +31,9 @@
       {% if form.non_field_errors %}
         <div class="form-errors">{{ form.non_field_errors }}</div>
       {% endif %}
-      <p class="login-copy">Primeiro acesso? Use o login e a senha temporaria recebidos pela clinica. Depois voce criara sua senha definitiva.</p>
+      <p class="login-copy">Primeiro acesso? Use o login e a senha temporária recebidos pela clínica. Depois você criará sua senha definitiva.</p>
       <label class="form-field">
-        <span>Login</span>
+        <span>Login, CPF ou e-mail</span>
         {{ form.username }}
       </label>
       <label class="form-field">
@@ -53,7 +53,7 @@
       <div class="login-legal-links">
         <a href="{% url 'terms_of_use' %}" target="_blank" rel="noopener">Termos</a>
         <a href="{% url 'privacy_policy' %}" target="_blank" rel="noopener">Privacidade</a>
-        <a href="{% url 'sensitive_data_consent' %}" target="_blank" rel="noopener">Dados de saude</a>
+        <a href="{% url 'sensitive_data_consent' %}" target="_blank" rel="noopener">Dados de saúde</a>
       </div>
     </form>
   </main>

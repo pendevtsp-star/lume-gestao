@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ canonical_url }}">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260629-homecare-link">
+  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260701-mobile-ui">
   <script type="application/ld+json">{{ structured_data_json|safe }}</script>
 </head>
 <body>
@@ -32,6 +32,12 @@
         <small>{{ website_settings.city_name }} | Pilates, fisioterapia e bem-estar</small>
       </span>
     </a>
+
+    <input class="site-nav-toggle" type="checkbox" id="site-nav-toggle">
+    <label class="site-nav-label" for="site-nav-toggle" aria-label="Abrir menu">
+      <span></span>
+      <strong>Menu</strong>
+    </label>
 
     <nav class="site-nav" aria-label="Navegação principal">
       <a href="#servicos">Atendimentos</a>
@@ -64,7 +70,10 @@
       </div>
 
       <div class="hero-visual">
-        <img src="{% static 'images/website/hero-generated.png' %}" alt="Ambiente de Pilates e bem-estar inspirado na Lume Studio Fisio">
+        <picture>
+          <source srcset="{% static 'images/website/hero-generated.webp' %}" type="image/webp">
+          <img src="{% static 'images/website/hero-generated.png' %}" alt="Ambiente de Pilates e bem-estar inspirado na Lume Studio Fisio">
+        </picture>
         <div class="hero-note">
           <strong>{{ website_settings.resolved_address }}</strong>
           <span>{{ website_settings.city_name }} • {{ website_settings.resolved_business_hours }}</span>
@@ -76,7 +85,7 @@
       <div>
         <p class="eyebrow">Lume em casa</p>
         <h2>Cuidado orientado para continuar sua rotina fora do studio.</h2>
-        <p class="section-text">A biblioteca de aulas gravadas aproxima a equipe da clinica do dia a dia do paciente, com conteudos organizados por foco, nivel e duracao.</p>
+        <p class="section-text">A biblioteca de aulas gravadas aproxima a equipe da clínica do dia a dia do paciente, com conteúdos organizados por foco, nível e duração.</p>
       </div>
       <a class="button-primary" href="{% url 'homecare_public:landing' %}">Acessar Lume em casa</a>
     </section>

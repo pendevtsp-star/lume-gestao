@@ -658,6 +658,7 @@ class IntegrationsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="whatsapp-embedded-debug"')
+        self.assertContains(response, "Etapa: aguardando novo teste")
         self.assertContains(response, "setWhatsAppSignupDiagnostics")
 
     @patch("core.views.exchange_whatsapp_embedded_signup_code")

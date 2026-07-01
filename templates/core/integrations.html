@@ -363,7 +363,7 @@
             {% endif %}
           </div>
           <div class="setup-note" id="whatsapp-embedded-status" hidden></div>
-          <div class="setup-note" id="whatsapp-embedded-debug">
+          <div class="setup-note" id="whatsapp-embedded-debug" style="display: grid; gap: 4px; overflow-wrap: anywhere;">
             <strong>Diagnostico da conexao Meta</strong>
             <span>Etapa: aguardando novo teste</span>
             <span>OAuth code recebido: nao</span>
@@ -582,6 +582,7 @@
       eventKeys: "",
       errorCode: "",
       errorMessage: "",
+      accessTokenPresent: false,
       lastStep: "",
       submitted: false
     };
@@ -626,6 +627,7 @@
         "Phone Number ID: " + maskWhatsAppSignupValue(whatsappSignupState.phoneNumberId),
         "Numero retornado: " + maskWhatsAppSignupValue(whatsappSignupState.clinicNumber),
         "Status do login: " + (whatsappSignupState.authStatus || "-"),
+        "Access token recebido no navegador: " + (whatsappSignupState.accessTokenPresent ? "sim" : "nao"),
         "Origem do evento: " + (whatsappSignupState.eventOrigin || "-"),
         "Campos recebidos: " + (whatsappSignupState.eventKeys || "-"),
         "Erro Meta: " + (whatsappSignupState.errorMessage || whatsappSignupState.errorCode || "-")
@@ -651,6 +653,43 @@
       } catch (error) {
         return null;
       }
+    }
+
+    function parseWhatsAppSignupUrlData(rawData) {
+      if (typeof rawData !== "string" || !rawData) {
+        return null;
+      }
+      var candidates = [rawData];
+      try {
+        var params = new URLSearchParams(rawData);
+        var nestedData = params.get("data");
+        if (nestedData) {
+          candidates.push(nestedData);
+        }
+        if (params.get("code")) {
+          return {
+            type: "FACEBOOK_LOGIN_CODE",
+            event: "CODE",
+            data: { code: params.get("code") },
+            keys: Array.from(params.keys()).sort().join(", ")
+          };
+        }
+      } catch (error) {
+        // Continua para a tentativa de JSON abaixo.
+      }
+      for (var index = 0; index < candidates.length; index += 1) {
+        try {
+          return JSON.parse(candidates[index]);
+        } catch (error) {
+          continue;
+        }
+      }
+      return {
+        type: "FACEBOOK_MESSAGE",
+        event: "NON_JSON",
+        data: {},
+        keys: rawData.slice(0, 80)
+      };
     }
 
     function submitWhatsAppSignupWhenReady() {
@@ -693,12 +732,18 @@
       }
       var data = parseWhatsAppSignupData(event.data);
       if (!data || data.type !== "WA_EMBEDDED_SIGNUP") {
+        data = parseWhatsAppSignupUrlData(event.data);
+      }
+      if (!data) {
         return;
       }
       whatsappSignupState.eventOrigin = event.origin;
       whatsappSignupState.eventType = data.type || "";
       whatsappSignupState.eventName = data.event || "";
-      whatsappSignupState.eventKeys = data.data ? Object.keys(data.data).sort().join(", ") : "";
+      whatsappSignupState.eventKeys = data.keys || (data.data ? Object.keys(data.data).sort().join(", ") : "");
+      if (data.data && data.data.code) {
+        whatsappSignupState.code = data.data.code;
+      }
       if (data.event === "FINISH" || data.event === "FINISH_ONLY_WABA") {
         var payload = data.data || {};
         whatsappSignupState.phoneNumberId = payload.phone_number_id || whatsappSignupState.phoneNumberId;
@@ -706,11 +751,14 @@
         whatsappSignupState.clinicNumber = payload.phone_number || whatsappSignupState.clinicNumber;
         setWhatsAppSignupDiagnostics("evento de conclusao recebido");
         submitWhatsAppSignupWhenReady();
+      } else if (data.event === "CODE") {
+        setWhatsAppSignupDiagnostics("OAuth code recebido por mensagem Facebook");
+        submitWhatsAppSignupWhenReady();
       } else {
-        whatsappSignupState.errorCode = data.error_code || "";
-        whatsappSignupState.errorMessage = data.error_message || data.message || "";
+        whatsappSignupState.errorCode = data.error_code || (data.data && data.data.error_code) || "";
+        whatsappSignupState.errorMessage = data.error_message || data.message || (data.data && data.data.error_message) || "";
         setWhatsAppSignupStatus("A Meta retornou um evento sem conclusao da conexao.");
-        setWhatsAppSignupDiagnostics("evento sem conclusao recebido");
+        setWhatsAppSignupDiagnostics(data.event === "NON_JSON" ? "mensagem Facebook sem JSON recebida" : "evento sem conclusao recebido");
       }
     });
 
@@ -728,6 +776,7 @@
         eventKeys: "",
         errorCode: "",
         errorMessage: "",
+        accessTokenPresent: false,
         lastStep: "",
         submitted: false
       };
@@ -738,6 +787,7 @@
       setWhatsAppSignupDiagnostics("fluxo iniciado");
       FB.login(function(response) {
         whatsappSignupState.authStatus = response.status || "";
+        whatsappSignupState.accessTokenPresent = Boolean(response.authResponse && response.authResponse.accessToken);
         if (!response.authResponse || !response.authResponse.code) {
           if (button) {
             button.disabled = false;
@@ -756,7 +806,8 @@
         response_type: "code",
         override_default_response_type: true,
         extras: {
-          sessionInfoVersion: 3
+          setup: {},
+          sessionInfoVersion: "3"
         }
       });
       window.setTimeout(function() {

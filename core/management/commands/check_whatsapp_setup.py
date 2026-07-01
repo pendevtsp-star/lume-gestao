@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from django.urls import reverse
 
 from core.integrations.credentials import configured_value
 from core.integrations.http import IntegrationError
@@ -25,6 +26,9 @@ class Command(BaseCommand):
         phone_number_id_configured = bool(
             configured_value(integration.phone_number_id) or configured_value(settings.WHATSAPP_META_PHONE_NUMBER_ID)
         )
+        webhook_token_configured = bool(configured_value(settings.WHATSAPP_WEBHOOK_VERIFY_TOKEN))
+        webhook_base_url = (settings.SYSTEM_BASE_URL or settings.PUBLIC_BASE_URL or "https://sistema.clinicafisiolume.com.br").rstrip("/")
+        webhook_url = f"{webhook_base_url}{reverse('whatsapp_webhook')}"
 
         self.stdout.write(f"[whatsapp] Provedor: {integration.get_provider_display()}")
         self.stdout.write(f"[whatsapp] Integracao ativa: {'sim' if integration.enabled else 'nao'}")
@@ -32,6 +36,8 @@ class Command(BaseCommand):
         self.stdout.write(f"[whatsapp] Numero da clinica: {integration.clinic_whatsapp_number or '-'}")
         self.stdout.write(f"[whatsapp] Phone Number ID configurado: {'sim' if phone_number_id_configured else 'nao'}")
         self.stdout.write(f"[whatsapp] Token Meta configurado: {'sim' if meta_token_configured else 'nao'}")
+        self.stdout.write(f"[whatsapp] Webhook Meta URL: {webhook_url}")
+        self.stdout.write(f"[whatsapp] Verify Token webhook configurado: {'sim' if webhook_token_configured else 'nao'}")
         self.stdout.write(f"[whatsapp] Embedded Signup: {'sim' if whatsapp_embedded_signup_configured(integration) else 'nao'}")
         self.stdout.write(f"[whatsapp] App ID: {'sim' if app_id else 'nao'}")
         self.stdout.write(f"[whatsapp] Configuration ID: {'sim' if config_id else 'nao'}")

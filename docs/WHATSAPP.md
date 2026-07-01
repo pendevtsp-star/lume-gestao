@@ -106,6 +106,18 @@ docker compose exec web python manage.py process_whatsapp_queue
 No ambiente Docker, a fila tambem e processada automaticamente pelo servico `worker`.
 No app desktop, a fila roda localmente enquanto o aplicativo estiver aberto.
 
+## Webhook Meta
+
+Callback URL para configurar no painel da Meta:
+
+```text
+https://sistema.clinicafisiolume.com.br/webhooks/whatsapp/
+```
+
+Use o mesmo valor forte de `WHATSAPP_WEBHOOK_VERIFY_TOKEN` no `.env` da VPS e no campo `Verify token` do painel da Meta.
+
+O endpoint faz a verificacao inicial da Meta via `hub.mode`, `hub.verify_token` e `hub.challenge`. O `POST` de eventos ja responde `200 OK`, mas ainda nao processa status de mensagens ou mensagens recebidas.
+
 ## Importante sobre templates
 
 Mensagens iniciadas pela clinica, como lembrete de vencimento, aniversario, cobranca ou aviso de consulta, normalmente precisam de template aprovado pela Meta quando enviadas fora da janela de atendimento do WhatsApp.
@@ -141,4 +153,4 @@ O sistema evita duplicidade para o mesmo paciente/referencia/data e registra tud
 
 ## URLs publicas
 
-Use `https://sistema.clinicafisiolume.com.br` como base publica para qualquer configuracao futura de callback, webhook ou tela de integracao da Meta. O projeto ainda nao recebe status de mensagem por webhook publico versionado; nao cadastre endpoints inventados no painel da Meta antes de essa etapa ser ativada.
+Use `https://sistema.clinicafisiolume.com.br` como base publica para callbacks e telas da Meta. O webhook oficial do WhatsApp neste backend e `https://sistema.clinicafisiolume.com.br/webhooks/whatsapp/`.

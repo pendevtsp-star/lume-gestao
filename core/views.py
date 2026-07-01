@@ -1,5 +1,6 @@
 from datetime import datetime, time, timedelta
 from datetime import timezone as datetime_timezone
+from secrets import compare_digest
 
 from django.conf import settings
 from django.contrib import messages
@@ -10,7 +11,9 @@ from django.db.models import Count, Q, Sum
 from django.urls import reverse
 from django.urls import reverse_lazy
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import ListView, TemplateView, UpdateView
 
 from accounts.models import UserProfile
@@ -26,6 +29,7 @@ from core.forms import (
     WhatsAppIntegrationForm,
     WhatsAppMessageTemplateForm,
 )
+from core.integrations.credentials import configured_value
 from core.integrations.google_calendar import (
     build_google_authorization_url,
     exchange_google_code,
@@ -107,6 +111,23 @@ class SearchableListView(LoginRequiredMixin):
 class HealthCheckView(View):
     def get(self, request):
         return JsonResponse({"status": "ok"})
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class WhatsAppWebhookView(View):
+    def get(self, request):
+        mode = request.GET.get("hub.mode", "")
+        received_token = request.GET.get("hub.verify_token", "")
+        challenge = request.GET.get("hub.challenge", "")
+        expected_token = configured_value(settings.WHATSAPP_WEBHOOK_VERIFY_TOKEN)
+
+        if mode == "subscribe" and expected_token and compare_digest(received_token, expected_token):
+            return HttpResponse(challenge, content_type="text/plain")
+
+        return JsonResponse({"ok": False, "detail": "Webhook WhatsApp nao autorizado."}, status=403)
+
+    def post(self, request):
+        return JsonResponse({"ok": True})
 
 
 class LegalDocumentView(TemplateView):

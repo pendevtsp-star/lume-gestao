@@ -29,6 +29,59 @@ from scheduling.models import Appointment, ProfessionalAvailability, ServicePack
 from team.models import Employee, Professional
 
 
+class WhatsAppWebhookTests(TestCase):
+    @override_settings(WHATSAPP_WEBHOOK_VERIFY_TOKEN="token-seguro-meta")
+    def test_meta_verification_returns_challenge_for_valid_token(self):
+        response = self.client.get(
+            reverse("whatsapp_webhook"),
+            {
+                "hub.mode": "subscribe",
+                "hub.verify_token": "token-seguro-meta",
+                "hub.challenge": "desafio-123",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content.decode(), "desafio-123")
+        self.assertEqual(response["Content-Type"], "text/plain")
+
+    @override_settings(WHATSAPP_WEBHOOK_VERIFY_TOKEN="token-seguro-meta")
+    def test_meta_verification_rejects_invalid_token(self):
+        response = self.client.get(
+            reverse("whatsapp_webhook"),
+            {
+                "hub.mode": "subscribe",
+                "hub.verify_token": "token-incorreto",
+                "hub.challenge": "desafio-123",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(WHATSAPP_WEBHOOK_VERIFY_TOKEN="")
+    def test_meta_verification_rejects_missing_configured_token(self):
+        response = self.client.get(
+            reverse("whatsapp_webhook"),
+            {
+                "hub.mode": "subscribe",
+                "hub.verify_token": "qualquer-token",
+                "hub.challenge": "desafio-123",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_meta_post_webhook_acknowledges_event_without_login(self):
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data={"object": "whatsapp_business_account"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
+
+
 class DashboardAccessTests(TestCase):
     def test_dashboard_requires_login(self):
         response = self.client.get(reverse("dashboard"))

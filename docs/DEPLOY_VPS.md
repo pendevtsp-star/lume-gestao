@@ -173,7 +173,7 @@ URLs publicas de integracao:
 - Base publica do sistema: `https://sistema.clinicafisiolume.com.br`.
 - Callback Google Agenda existente: `https://sistema.clinicafisiolume.com.br/integracoes/google/callback/`.
 - Tela de integracoes existente: `https://sistema.clinicafisiolume.com.br/integracoes/`.
-- O projeto ainda nao possui webhook publico versionado para WhatsApp/Meta; nao cadastre endpoints inventados.
+- Webhook WhatsApp/Meta: `https://sistema.clinicafisiolume.com.br/webhooks/whatsapp/`.
 
 ## 8. Subida dos containers
 

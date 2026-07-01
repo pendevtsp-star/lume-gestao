@@ -6,6 +6,7 @@ from core.integrations.credentials import configured_value
 from core.integrations.http import IntegrationError
 from core.integrations.whatsapp import (
     send_whatsapp_text,
+    whatsapp_access_token,
     whatsapp_embedded_signup_configured,
     whatsapp_embedded_signup_credentials,
 )
@@ -22,7 +23,12 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         integration = WhatsAppIntegration.load()
         app_id, config_id, app_secret = whatsapp_embedded_signup_credentials(integration)
-        meta_token_configured = bool(configured_value(integration.access_token) or configured_value(settings.WHATSAPP_META_ACCESS_TOKEN))
+        try:
+            meta_token_configured = bool(whatsapp_access_token(integration))
+            token_read_error = ""
+        except IntegrationError as exc:
+            meta_token_configured = False
+            token_read_error = str(exc)
         phone_number_id_configured = bool(
             configured_value(integration.phone_number_id) or configured_value(settings.WHATSAPP_META_PHONE_NUMBER_ID)
         )
@@ -36,6 +42,8 @@ class Command(BaseCommand):
         self.stdout.write(f"[whatsapp] Numero da clinica: {integration.clinic_whatsapp_number or '-'}")
         self.stdout.write(f"[whatsapp] Phone Number ID configurado: {'sim' if phone_number_id_configured else 'nao'}")
         self.stdout.write(f"[whatsapp] Token Meta configurado: {'sim' if meta_token_configured else 'nao'}")
+        if token_read_error:
+            self.stdout.write(f"[whatsapp] Token Meta: {token_read_error}")
         self.stdout.write(f"[whatsapp] Webhook Meta URL: {webhook_url}")
         self.stdout.write(f"[whatsapp] Verify Token webhook configurado: {'sim' if webhook_token_configured else 'nao'}")
         self.stdout.write(f"[whatsapp] Embedded Signup: {'sim' if whatsapp_embedded_signup_configured(integration) else 'nao'}")

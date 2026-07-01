@@ -8,6 +8,7 @@ from django.db import models
 from django.utils import timezone
 
 from core.integrations.credentials import configured_value
+from core.integrations.secret_fields import decrypt_secret, encrypt_secret
 
 
 class TimeStampedModel(models.Model):
@@ -177,8 +178,18 @@ class WhatsAppIntegration(TimeStampedModel):
         if self.provider != self.Provider.META:
             return False
         phone_number_id = configured_value(self.phone_number_id) or configured_value(settings.WHATSAPP_META_PHONE_NUMBER_ID)
-        access_token = configured_value(self.access_token) or configured_value(settings.WHATSAPP_META_ACCESS_TOKEN)
+        try:
+            saved_access_token = self.get_access_token()
+        except ValueError:
+            saved_access_token = ""
+        access_token = configured_value(saved_access_token) or configured_value(settings.WHATSAPP_META_ACCESS_TOKEN)
         return bool(phone_number_id and (self.dry_run or access_token))
+
+    def set_access_token(self, access_token):
+        self.access_token = encrypt_secret(access_token)
+
+    def get_access_token(self):
+        return decrypt_secret(self.access_token)
 
     @classmethod
     def load(cls):

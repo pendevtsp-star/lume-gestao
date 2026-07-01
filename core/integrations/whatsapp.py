@@ -30,10 +30,35 @@ def whatsapp_embedded_signup_configured(integration=None):
     return all(whatsapp_embedded_signup_credentials(integration))
 
 
+def whatsapp_access_token(integration=None):
+    integration = integration or WhatsAppIntegration.load()
+    try:
+        saved_access_token = integration.get_access_token()
+    except ValueError as exc:
+        raise IntegrationError(str(exc)) from exc
+    return first_configured_value(saved_access_token, settings.WHATSAPP_META_ACCESS_TOKEN)
+
+
+def subscribe_whatsapp_business_account(waba_id, access_token):
+    waba_id = str(waba_id or "").strip()
+    access_token = str(access_token or "").strip()
+    if not waba_id:
+        raise IntegrationError("A Meta nao retornou o ID da conta WhatsApp Business.")
+    if not access_token:
+        raise IntegrationError("Token Meta ausente para inscrever a WABA nos webhooks.")
+
+    return post_json(
+        f"https://graph.facebook.com/{settings.WHATSAPP_META_API_VERSION}/{waba_id}/subscribed_apps",
+        {},
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=settings.WHATSAPP_TIMEOUT,
+    )
+
+
 def exchange_whatsapp_embedded_signup_code(code, integration=None):
     integration = integration or WhatsAppIntegration.load()
-    app_id, _config_id, app_secret = whatsapp_embedded_signup_credentials(integration)
-    if not all([app_id, app_secret]):
+    app_id, config_id, app_secret = whatsapp_embedded_signup_credentials(integration)
+    if not all([app_id, config_id, app_secret]):
         raise IntegrationError("Configure Meta App ID, Configuration ID e App Secret antes de conectar.")
     if not code:
         raise IntegrationError("A Meta nao retornou o codigo de autorizacao.")
@@ -50,7 +75,11 @@ def exchange_whatsapp_embedded_signup_code(code, integration=None):
     access_token = token_data.get("access_token")
     if not access_token:
         raise IntegrationError("A Meta nao retornou token de acesso para o WhatsApp.")
-    integration.access_token = access_token
+    subscribe_whatsapp_business_account(integration.business_account_id, access_token)
+    try:
+        integration.set_access_token(access_token)
+    except ValueError as exc:
+        raise IntegrationError(str(exc)) from exc
     integration.enabled = True
     integration.connected_at = timezone.now()
     integration.last_error = ""
@@ -70,7 +99,7 @@ def send_whatsapp_text(to_number, message, integration=None):
         integration.last_error = ""
         integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
         return {"dry_run": True, "to": target, "message": message}
-    access_token = first_configured_value(integration.access_token, settings.WHATSAPP_META_ACCESS_TOKEN)
+    access_token = whatsapp_access_token(integration)
     if not access_token:
         raise IntegrationError("Conecte o WhatsApp pela Meta ou configure WHATSAPP_META_ACCESS_TOKEN no .env.")
     phone_number_id = first_configured_value(integration.phone_number_id, settings.WHATSAPP_META_PHONE_NUMBER_ID)
@@ -116,7 +145,7 @@ def send_whatsapp_template(to_number, template, parameters, integration=None):
         }
     if not template.meta_template_name:
         raise IntegrationError("Template nao configurado para producao. Informe o nome aprovado na Meta.")
-    access_token = first_configured_value(integration.access_token, settings.WHATSAPP_META_ACCESS_TOKEN)
+    access_token = whatsapp_access_token(integration)
     if not access_token:
         raise IntegrationError("Token ausente ou expirado. Reconecte o WhatsApp pela Meta.")
     phone_number_id = first_configured_value(integration.phone_number_id, settings.WHATSAPP_META_PHONE_NUMBER_ID)

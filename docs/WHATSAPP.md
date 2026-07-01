@@ -38,15 +38,17 @@ WHATSAPP_DRY_RUN=True
 WHATSAPP_META_API_VERSION=v23.0
 WHATSAPP_META_ACCESS_TOKEN=cole-o-token-da-meta
 WHATSAPP_META_PHONE_NUMBER_ID=cole-o-phone-number-id
-WHATSAPP_EMBEDDED_APP_ID=cole-o-meta-app-id
-WHATSAPP_EMBEDDED_CONFIG_ID=cole-o-meta-configuration-id
-WHATSAPP_EMBEDDED_APP_SECRET=cole-o-meta-app-secret
+META_APP_ID=cole-o-meta-app-id
+META_CONFIGURATION_ID=cole-o-meta-configuration-id
+META_APP_SECRET=cole-o-meta-app-secret
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=crie-um-token-forte-se-ativar-webhook
 WHATSAPP_TIMEOUT=15
 LUME_FIELD_ENCRYPTION_KEY=gere-uma-chave-forte-fora-do-git
 ```
 
-Para a experiencia mais simples do usuario final, preencha `WHATSAPP_EMBEDDED_APP_ID`, `WHATSAPP_EMBEDDED_CONFIG_ID` e `WHATSAPP_EMBEDDED_APP_SECRET` no `.env` da VPS. Assim a tela do sistema mostra o botao `Conectar WhatsApp oficial` e mantem a parte tecnica escondida.
+Para a experiencia mais simples do usuario final, preencha `META_APP_ID`, `META_CONFIGURATION_ID` e `META_APP_SECRET` no `.env` da VPS. Os nomes antigos `WHATSAPP_EMBEDDED_APP_ID`, `WHATSAPP_EMBEDDED_CONFIG_ID` e `WHATSAPP_EMBEDDED_APP_SECRET` continuam aceitos. Assim a tela do sistema mostra o botao `Conectar WhatsApp oficial` e mantem a parte tecnica escondida.
+
+`LUME_FIELD_ENCRYPTION_KEY` precisa estar configurada antes de concluir o Embedded Signup, pois o token retornado pela Meta e salvo criptografado no banco.
 
 Mantenha `WHATSAPP_DRY_RUN=True` enquanto estiver testando. Assim o sistema simula o envio sem disparar mensagem real.
 
@@ -117,6 +119,8 @@ https://sistema.clinicafisiolume.com.br/webhooks/whatsapp/
 Use o mesmo valor forte de `WHATSAPP_WEBHOOK_VERIFY_TOKEN` no `.env` da VPS e no campo `Verify token` do painel da Meta.
 
 O endpoint faz a verificacao inicial da Meta via `hub.mode`, `hub.verify_token` e `hub.challenge`. O `POST` de eventos ja responde `200 OK`, mas ainda nao processa status de mensagens ou mensagens recebidas.
+
+Ao concluir o Embedded Signup, o backend tambem chama `/{WABA_ID}/subscribed_apps` usando o token retornado pela Meta. Esse passo inscreve o app nos webhooks da WABA conectada.
 
 ## Importante sobre templates
 

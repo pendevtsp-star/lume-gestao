@@ -667,6 +667,43 @@ class IntegrationsTests(TestCase):
         self.assertEqual(integration.clinic_whatsapp_number, "5511999990000")
         exchange_mock.assert_called_once()
 
+    @override_settings(
+        WHATSAPP_EMBEDDED_APP_ID="meta-app-id-real-fake",
+        WHATSAPP_EMBEDDED_CONFIG_ID="meta-config-real-fake",
+        WHATSAPP_EMBEDDED_APP_SECRET="meta-app-secret-real-fake",
+        LUME_FIELD_ENCRYPTION_KEY="segredo-local-para-testes",
+    )
+    def test_embedded_signup_subscribes_waba_and_encrypts_access_token(self):
+        from core.integrations.whatsapp import exchange_whatsapp_embedded_signup_code
+
+        integration = WhatsAppIntegration.load()
+        integration.phone_number_id = "phone-123"
+        integration.business_account_id = "waba-123"
+        integration.save()
+
+        with patch(
+            "core.integrations.whatsapp.post_form",
+            return_value={"access_token": "token-super-secreto"},
+        ) as token_request, patch(
+            "core.integrations.whatsapp.post_json",
+            return_value={"success": True},
+        ) as subscribe_request:
+            result = exchange_whatsapp_embedded_signup_code("oauth-code", integration=integration)
+
+        integration.refresh_from_db()
+        self.assertEqual(result["access_token"], "token-super-secreto")
+        self.assertTrue(integration.enabled)
+        self.assertTrue(integration.access_token.startswith("fernet:"))
+        self.assertNotIn("token-super-secreto", integration.access_token)
+        self.assertEqual(integration.get_access_token(), "token-super-secreto")
+        token_request.assert_called_once()
+        subscribe_request.assert_called_once_with(
+            "https://graph.facebook.com/v23.0/waba-123/subscribed_apps",
+            {},
+            headers={"Authorization": "Bearer token-super-secreto"},
+            timeout=15,
+        )
+
     def test_messages_tab_filters_single_template(self):
         self.client.force_login(self.management)
 

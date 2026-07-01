@@ -347,7 +347,7 @@
 
           <div class="connection-main-actions">
             {% if whatsapp_embedded_configured %}
-              <button class="button primary" type="button" onclick="launchWhatsAppSignup()">
+              <button class="button primary" id="whatsapp-connect-button" type="button" onclick="launchWhatsAppSignup()">
                 {% if whatsapp.is_connected %}Trocar WhatsApp Meta{% else %}Conectar WhatsApp oficial{% endif %}
               </button>
             {% else %}
@@ -362,6 +362,7 @@
               </form>
             {% endif %}
           </div>
+          <div class="setup-note" id="whatsapp-embedded-status" hidden></div>
 
           <div class="connection-summary-strip">
             <div>
@@ -560,6 +561,62 @@
 {% if active_tab == "connections" and whatsapp_embedded_configured %}
   <script async defer crossorigin="anonymous" src="https://connect.facebook.net/pt_BR/sdk.js"></script>
   <script>
+    var whatsappSignupState = {
+      code: "",
+      phoneNumberId: "",
+      businessAccountId: "",
+      clinicNumber: "",
+      submitted: false
+    };
+
+    function setWhatsAppSignupStatus(message) {
+      var status = document.getElementById("whatsapp-embedded-status");
+      if (!status) {
+        return;
+      }
+      status.hidden = !message;
+      status.textContent = message || "";
+    }
+
+    function parseWhatsAppSignupData(rawData) {
+      if (!rawData) {
+        return null;
+      }
+      if (typeof rawData === "object") {
+        return rawData;
+      }
+      if (typeof rawData !== "string") {
+        return null;
+      }
+      try {
+        return JSON.parse(rawData);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function submitWhatsAppSignupWhenReady() {
+      if (whatsappSignupState.submitted) {
+        return;
+      }
+      if (!whatsappSignupState.code) {
+        setWhatsAppSignupStatus("Aguardando autorizacao da Meta.");
+        return;
+      }
+      if (!whatsappSignupState.businessAccountId || !whatsappSignupState.phoneNumberId) {
+        setWhatsAppSignupStatus("Aguardando dados do WhatsApp retornados pela Meta.");
+        return;
+      }
+
+      whatsappSignupState.submitted = true;
+      document.getElementById("embedded-code").value = whatsappSignupState.code;
+      document.getElementById("embedded-phone-number-id").value = whatsappSignupState.phoneNumberId;
+      document.getElementById("embedded-business-account-id").value = whatsappSignupState.businessAccountId;
+      document.getElementById("embedded-clinic-number").value = whatsappSignupState.clinicNumber;
+      setWhatsAppSignupStatus("Finalizando conexao do WhatsApp.");
+      document.getElementById("whatsapp-embedded-form").submit();
+    }
+
     window.fbAsyncInit = function() {
       FB.init({
         appId: "{{ whatsapp_embedded_app_id|escapejs }}",
@@ -570,32 +627,45 @@
     };
 
     window.addEventListener("message", function(event) {
-      if (!event.origin.endsWith("facebook.com")) {
+      if (!event.origin || !event.origin.endsWith("facebook.com")) {
         return;
       }
-      try {
-        var data = JSON.parse(event.data);
-        if (data.type !== "WA_EMBEDDED_SIGNUP") {
-          return;
-        }
-        if (data.event === "FINISH" || data.event === "FINISH_ONLY_WABA") {
-          var payload = data.data || {};
-          document.getElementById("embedded-phone-number-id").value = payload.phone_number_id || "";
-          document.getElementById("embedded-business-account-id").value = payload.waba_id || "";
-          document.getElementById("embedded-clinic-number").value = payload.phone_number || "";
-        }
-      } catch (error) {
+      var data = parseWhatsAppSignupData(event.data);
+      if (!data || data.type !== "WA_EMBEDDED_SIGNUP") {
         return;
+      }
+      if (data.event === "FINISH" || data.event === "FINISH_ONLY_WABA") {
+        var payload = data.data || {};
+        whatsappSignupState.phoneNumberId = payload.phone_number_id || whatsappSignupState.phoneNumberId;
+        whatsappSignupState.businessAccountId = payload.waba_id || whatsappSignupState.businessAccountId;
+        whatsappSignupState.clinicNumber = payload.phone_number || whatsappSignupState.clinicNumber;
+        submitWhatsAppSignupWhenReady();
       }
     });
 
     function launchWhatsAppSignup() {
+      var button = document.getElementById("whatsapp-connect-button");
+      whatsappSignupState = {
+        code: "",
+        phoneNumberId: "",
+        businessAccountId: "",
+        clinicNumber: "",
+        submitted: false
+      };
+      if (button) {
+        button.disabled = true;
+      }
+      setWhatsAppSignupStatus("Aguardando autorizacao da Meta.");
       FB.login(function(response) {
         if (!response.authResponse || !response.authResponse.code) {
+          if (button) {
+            button.disabled = false;
+          }
+          setWhatsAppSignupStatus("A conexao nao foi concluida na Meta.");
           return;
         }
-        document.getElementById("embedded-code").value = response.authResponse.code;
-        document.getElementById("whatsapp-embedded-form").submit();
+        whatsappSignupState.code = response.authResponse.code;
+        submitWhatsAppSignupWhenReady();
       }, {
         config_id: "{{ whatsapp_embedded_config_id|escapejs }}",
         response_type: "code",
@@ -604,6 +674,11 @@
           sessionInfoVersion: 3
         }
       });
+      window.setTimeout(function() {
+        if (!whatsappSignupState.submitted && button) {
+          button.disabled = false;
+        }
+      }, 45000);
     }
   </script>
 {% endif %}

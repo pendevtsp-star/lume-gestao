@@ -323,11 +323,11 @@
           <div class="connection-hero-top">
             <div>
               <p class="eyebrow">WhatsApp oficial</p>
-              <h3>{% if whatsapp.is_connected %}WhatsApp conectado{% elif whatsapp_embedded_configured %}Pronto para conectar pela Meta{% else %}Configurar Meta Embedded Signup{% endif %}</h3>
-              <p>O WhatsApp usa a conta oficial da Meta para lembretes, aniversarios, cobrancas e fila automatica.</p>
+              <h3>{% if whatsapp.is_connected %}WhatsApp conectado{% elif whatsapp_embedded_configured %}Conectar WhatsApp{% else %}Conexao indisponivel{% endif %}</h3>
+              <p>Conecte a conta oficial da clinica para enviar lembretes, cobrancas e avisos automaticos.</p>
             </div>
             <span class="status-pill {% if whatsapp.is_connected %}is-success{% elif whatsapp_embedded_configured %}is-warning{% else %}is-muted{% endif %}">
-              {% if whatsapp.is_connected %}Conectado{% elif whatsapp_embedded_configured %}Pronto para conectar{% else %}Configurar Meta{% endif %}
+              {% if whatsapp.is_connected %}Conectado{% elif whatsapp_embedded_configured %}Nao conectado{% else %}Pendente{% endif %}
             </span>
           </div>
 
@@ -335,13 +335,13 @@
             <span>Proximo passo</span>
             {% if whatsapp.is_connected %}
               <strong>Envie uma mensagem de teste antes de usar com pacientes.</strong>
-              <p>{% if whatsapp.dry_run %}O modo teste esta ativo, entao os disparos sao simulados.{% else %}Envio real ativo pela API Meta.{% endif %}</p>
+              <p>{% if whatsapp.dry_run %}A conexao esta em modo teste.{% else %}O envio real pela Meta esta ativo.{% endif %}</p>
             {% elif whatsapp_embedded_configured %}
-              <strong>Clique em conectar WhatsApp oficial e siga a tela da Meta.</strong>
-              <p>{% if whatsapp_uses_env_credentials %}Credenciais no .env da VPS.{% else %}Credenciais salvas na tela.{% endif %} Meta Embedded Signup pronto.</p>
+              <strong>Clique em conectar e siga a tela segura da Meta.</strong>
+              <p>A clinica escolhe ou valida o numero oficial durante a autorizacao.</p>
             {% else %}
-              <strong>Configure App ID, Configuration ID e App Secret da Meta.</strong>
-              <p>Preferencialmente coloque esses dados no `.env` da VPS para o usuario final ver apenas o botao de conexao.</p>
+              <strong>Configuracao tecnica pendente.</strong>
+              <p>Fale com o suporte para liberar o botao de conexao.</p>
             {% endif %}
           </div>
 
@@ -365,16 +365,20 @@
 
           <div class="connection-summary-strip">
             <div>
-              <span>Numero</span>
+              <span>Numero conectado</span>
               <strong>{{ whatsapp.clinic_whatsapp_number|default:"Nao informado" }}</strong>
             </div>
             <div>
-              <span>Meta Embedded Signup</span>
-              <strong>{% if whatsapp_embedded_configured %}Configurado{% else %}Pendente{% endif %}</strong>
+              <span>Status</span>
+              <strong>{% if whatsapp.is_connected %}Conectado{% elif whatsapp_embedded_configured %}Aguardando conexao{% else %}Pendente{% endif %}</strong>
             </div>
             <div>
-              <span>Modo</span>
-              <strong>{% if whatsapp.dry_run %}Teste{% else %}Envio real{% endif %}</strong>
+              <span>Envio</span>
+              <strong>{% if whatsapp.dry_run %}Teste{% else %}Real{% endif %}</strong>
+            </div>
+            <div>
+              <span>Ultimo teste</span>
+              <strong>{{ whatsapp.last_test_at|date:"d/m/Y H:i"|default:"-" }}</strong>
             </div>
           </div>
 
@@ -390,84 +394,16 @@
             </form>
           {% else %}
             <div class="google-setup-guide">
-              <strong>Falta a configuracao inicial da Meta.</strong>
-              <span>Use a Meta for Developers para gerar App ID, Configuration ID e App Secret.</span>
-              <span>Preferencia para producao: preencher esses valores no `.env` da VPS e manter a tela limpa.</span>
+              <strong>Conexao ainda nao liberada.</strong>
+              <span>O suporte precisa finalizar a configuracao segura antes do primeiro uso.</span>
             </div>
           {% endif %}
 
-          <form method="post" class="integration-body compact-integration-body quick-settings-form">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="save_whatsapp">
-            <input type="hidden" name="tab" value="connections">
-            <div class="friendly-form-grid">
-              <label class="form-field">
-                <span>{{ whatsapp_form.clinic_whatsapp_number.label }}</span>
-                {{ whatsapp_form.clinic_whatsapp_number }}
-                {% for error in whatsapp_form.clinic_whatsapp_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-              </label>
-              <label class="form-field">
-                <span>{{ whatsapp_form.default_country_code.label }}</span>
-                {{ whatsapp_form.default_country_code }}
-                {% for error in whatsapp_form.default_country_code.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-              </label>
-              <label class="form-field toggle-card">
-                {{ whatsapp_form.enabled }}
-                <span>{{ whatsapp_form.enabled.label }}</span>
-              </label>
-              <label class="form-field toggle-card">
-                {{ whatsapp_form.dry_run }}
-                <span>{{ whatsapp_form.dry_run.label }}</span>
-              </label>
+          {% if whatsapp.last_error %}
+            <div class="setup-note">
+              Ultimo erro: {{ whatsapp.last_error }}
             </div>
-
-            <dl class="integration-facts compact-facts compact-facts-soft">
-              <div><dt>Conectado em</dt><dd>{{ whatsapp.connected_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
-              <div><dt>Phone Number ID</dt><dd>{{ whatsapp.phone_number_id|default:"-" }}</dd></div>
-              <div><dt>Ultimo teste</dt><dd>{{ whatsapp.last_test_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
-              <div><dt>Ultimo erro</dt><dd>{{ whatsapp.last_error|default:"-" }}</dd></div>
-            </dl>
-
-            <details class="template-advanced connection-advanced slim-advanced">
-              <summary>Configuracao tecnica da Meta</summary>
-              <div class="setup-note">
-                Use estes campos apenas se nao for configurar a Meta pelo `.env` da VPS. Tokens e segredos reais nao devem ir para o Git.
-              </div>
-              <div class="form-grid compact-form-grid">
-                <label class="form-field">
-                  <span>{{ whatsapp_form.provider.label }}</span>
-                  {{ whatsapp_form.provider }}
-                </label>
-                <label class="form-field">
-                  <span>{{ whatsapp_form.phone_number_id.label }}</span>
-                  {{ whatsapp_form.phone_number_id }}
-                </label>
-                <label class="form-field">
-                  <span>{{ whatsapp_form.business_account_id.label }}</span>
-                  {{ whatsapp_form.business_account_id }}
-                </label>
-                <label class="form-field">
-                  <span>{{ whatsapp_form.embedded_app_id.label }}</span>
-                  {{ whatsapp_form.embedded_app_id }}
-                  {% if whatsapp_form.embedded_app_id.help_text %}<small>{{ whatsapp_form.embedded_app_id.help_text }}</small>{% endif %}
-                </label>
-                <label class="form-field">
-                  <span>{{ whatsapp_form.embedded_config_id.label }}</span>
-                  {{ whatsapp_form.embedded_config_id }}
-                  {% if whatsapp_form.embedded_config_id.help_text %}<small>{{ whatsapp_form.embedded_config_id.help_text }}</small>{% endif %}
-                </label>
-                <label class="form-field">
-                  <span>{{ whatsapp_form.embedded_app_secret.label }}</span>
-                  {{ whatsapp_form.embedded_app_secret }}
-                  {% if whatsapp_form.embedded_app_secret.help_text %}<small>{{ whatsapp_form.embedded_app_secret.help_text }}</small>{% endif %}
-                </label>
-              </div>
-            </details>
-
-            <div class="form-actions compact-actions">
-              <button class="button secondary" type="submit">Salvar ajustes do WhatsApp</button>
-            </div>
-          </form>
+          {% endif %}
         </section>
 
         <section class="panel connection-card connection-card-feature integration-wizard-card connection-hero-card">
@@ -517,33 +453,35 @@
           </div>
         </section>
 
-        <section class="panel connection-card test-card">
-          <div class="connection-card-head">
-            <div>
-              <p class="eyebrow">Teste rapido</p>
-              <h3>Enviar mensagem de teste</h3>
-              <p>Valide se o numero e a API estao respondendo antes de usar com pacientes.</p>
+        {% if whatsapp.is_connected %}
+          <section class="panel connection-card test-card">
+            <div class="connection-card-head">
+              <div>
+                <p class="eyebrow">Teste rapido</p>
+                <h3>Enviar mensagem de teste</h3>
+                <p>Valide se o numero e a API estao respondendo antes de usar com pacientes.</p>
+              </div>
             </div>
-          </div>
-          <form method="post" class="integration-body compact-integration-body">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="test_whatsapp">
-            <input type="hidden" name="tab" value="connections">
-            <div class="friendly-form-grid test-form-grid">
-              <label class="form-field">
-                <span>Numero para teste</span>
-                <input class="field-control" name="test_number" placeholder="11999990000">
-              </label>
-              <label class="form-field">
-                <span>Mensagem</span>
-                <textarea class="field-control" name="test_message" rows="3">Teste de mensagem do Lume Gestao.</textarea>
-              </label>
-            </div>
-            <div class="form-actions compact-actions">
-              <button class="button secondary" type="submit">Testar WhatsApp</button>
-            </div>
-          </form>
-        </section>
+            <form method="post" class="integration-body compact-integration-body">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="test_whatsapp">
+              <input type="hidden" name="tab" value="connections">
+              <div class="friendly-form-grid test-form-grid">
+                <label class="form-field">
+                  <span>Numero para teste</span>
+                  <input class="field-control" name="test_number" placeholder="11999990000">
+                </label>
+                <label class="form-field">
+                  <span>Mensagem</span>
+                  <textarea class="field-control" name="test_message" rows="3">Teste de mensagem do Lume Gestao.</textarea>
+                </label>
+              </div>
+              <div class="form-actions compact-actions">
+                <button class="button secondary" type="submit">Testar WhatsApp</button>
+              </div>
+            </form>
+          </section>
+        {% endif %}
       </div>
     {% else %}
       <div class="zap-message-list">

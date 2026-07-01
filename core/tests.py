@@ -484,8 +484,10 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Meta Embedded Signup")
+        self.assertContains(response, "Aguardando conexao")
         self.assertContains(response, "Conectar WhatsApp oficial")
+        self.assertNotContains(response, "Configuracao tecnica da Meta")
+        self.assertNotContains(response, "Salvar ajustes do WhatsApp")
 
     def test_connections_tab_shows_disconnect_whatsapp_when_connected(self):
         self.client.force_login(self.management)
@@ -541,7 +543,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertFalse(integration.is_connected)
-        self.assertContains(response, "Configurar Meta")
+        self.assertContains(response, "Conexao indisponivel")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",
@@ -553,7 +555,7 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Credenciais no .env da VPS")
+        self.assertContains(response, "Clique em conectar e siga a tela segura da Meta")
         self.assertContains(response, "Conectar WhatsApp oficial")
 
     @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
@@ -607,7 +609,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Configurar credenciais")
-        self.assertContains(response, "Configurar Meta")
+        self.assertContains(response, "Conexao indisponivel")
         self.assertContains(response, "Conectar com Google")
         self.assertContains(response, "Conectar WhatsApp oficial")
         self.assertContains(response, "disabled")

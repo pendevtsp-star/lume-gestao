@@ -2994,6 +2994,18 @@ td small {
   align-items: center;
 }
 
+#whatsapp-embedded-debug {
+  display: grid;
+  gap: 4px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+#whatsapp-embedded-debug strong {
+  font-family: inherit;
+}
+
 .connection-summary-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

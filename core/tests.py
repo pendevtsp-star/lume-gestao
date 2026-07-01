@@ -646,6 +646,20 @@ class IntegrationsTests(TestCase):
 
         self.assertIn("Embedded Signup: sim", output.getvalue())
 
+    @override_settings(
+        WHATSAPP_EMBEDDED_APP_ID="meta-app-id-real-fake",
+        WHATSAPP_EMBEDDED_CONFIG_ID="meta-config-real-fake",
+        WHATSAPP_EMBEDDED_APP_SECRET="meta-app-secret-real-fake",
+    )
+    def test_integrations_renders_whatsapp_embedded_diagnostics(self):
+        self.client.force_login(self.management)
+
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="whatsapp-embedded-debug"')
+        self.assertContains(response, "setWhatsAppSignupDiagnostics")
+
     @patch("core.views.exchange_whatsapp_embedded_signup_code")
     def test_management_can_finish_whatsapp_embedded_signup(self, exchange_mock):
         self.client.force_login(self.management)

@@ -363,6 +363,7 @@
             {% endif %}
           </div>
           <div class="setup-note" id="whatsapp-embedded-status" hidden></div>
+          <div class="setup-note" id="whatsapp-embedded-debug" hidden></div>
 
           <div class="connection-summary-strip">
             <div>
@@ -566,6 +567,14 @@
       phoneNumberId: "",
       businessAccountId: "",
       clinicNumber: "",
+      authStatus: "",
+      eventName: "",
+      eventType: "",
+      eventOrigin: "",
+      eventKeys: "",
+      errorCode: "",
+      errorMessage: "",
+      lastStep: "",
       submitted: false
     };
 
@@ -576,6 +585,47 @@
       }
       status.hidden = !message;
       status.textContent = message || "";
+    }
+
+    function maskWhatsAppSignupValue(value) {
+      if (!value) {
+        return "nao";
+      }
+      var text = String(value);
+      if (text.length <= 8) {
+        return "sim (" + text.replace(/./g, "*") + ")";
+      }
+      return "sim (" + text.slice(0, 4) + "..." + text.slice(-4) + ")";
+    }
+
+    function setWhatsAppSignupDiagnostics(step) {
+      var debug = document.getElementById("whatsapp-embedded-debug");
+      if (!debug) {
+        return;
+      }
+      whatsappSignupState.lastStep = step || whatsappSignupState.lastStep;
+      debug.hidden = false;
+      debug.replaceChildren();
+      var title = document.createElement("strong");
+      title.textContent = "Diagnostico da conexao Meta";
+      debug.appendChild(title);
+      [
+        "Etapa: " + (whatsappSignupState.lastStep || "-"),
+        "OAuth code recebido: " + (whatsappSignupState.code ? "sim" : "nao"),
+        "Evento Embedded Signup: " + (whatsappSignupState.eventName || "nao recebido"),
+        "Tipo do evento: " + (whatsappSignupState.eventType || "-"),
+        "WABA ID: " + maskWhatsAppSignupValue(whatsappSignupState.businessAccountId),
+        "Phone Number ID: " + maskWhatsAppSignupValue(whatsappSignupState.phoneNumberId),
+        "Numero retornado: " + maskWhatsAppSignupValue(whatsappSignupState.clinicNumber),
+        "Status do login: " + (whatsappSignupState.authStatus || "-"),
+        "Origem do evento: " + (whatsappSignupState.eventOrigin || "-"),
+        "Campos recebidos: " + (whatsappSignupState.eventKeys || "-"),
+        "Erro Meta: " + (whatsappSignupState.errorMessage || whatsappSignupState.errorCode || "-")
+      ].forEach(function(line) {
+        var item = document.createElement("span");
+        item.textContent = line;
+        debug.appendChild(item);
+      });
     }
 
     function parseWhatsAppSignupData(rawData) {
@@ -601,10 +651,12 @@
       }
       if (!whatsappSignupState.code) {
         setWhatsAppSignupStatus("Aguardando autorizacao da Meta.");
+        setWhatsAppSignupDiagnostics("aguardando OAuth code");
         return;
       }
       if (!whatsappSignupState.businessAccountId || !whatsappSignupState.phoneNumberId) {
         setWhatsAppSignupStatus("Aguardando dados do WhatsApp retornados pela Meta.");
+        setWhatsAppSignupDiagnostics("aguardando WABA e Phone Number ID");
         return;
       }
 
@@ -614,6 +666,7 @@
       document.getElementById("embedded-business-account-id").value = whatsappSignupState.businessAccountId;
       document.getElementById("embedded-clinic-number").value = whatsappSignupState.clinicNumber;
       setWhatsAppSignupStatus("Finalizando conexao do WhatsApp.");
+      setWhatsAppSignupDiagnostics("enviando dados ao backend");
       document.getElementById("whatsapp-embedded-form").submit();
     }
 
@@ -634,12 +687,22 @@
       if (!data || data.type !== "WA_EMBEDDED_SIGNUP") {
         return;
       }
+      whatsappSignupState.eventOrigin = event.origin;
+      whatsappSignupState.eventType = data.type || "";
+      whatsappSignupState.eventName = data.event || "";
+      whatsappSignupState.eventKeys = data.data ? Object.keys(data.data).sort().join(", ") : "";
       if (data.event === "FINISH" || data.event === "FINISH_ONLY_WABA") {
         var payload = data.data || {};
         whatsappSignupState.phoneNumberId = payload.phone_number_id || whatsappSignupState.phoneNumberId;
         whatsappSignupState.businessAccountId = payload.waba_id || whatsappSignupState.businessAccountId;
         whatsappSignupState.clinicNumber = payload.phone_number || whatsappSignupState.clinicNumber;
+        setWhatsAppSignupDiagnostics("evento de conclusao recebido");
         submitWhatsAppSignupWhenReady();
+      } else {
+        whatsappSignupState.errorCode = data.error_code || "";
+        whatsappSignupState.errorMessage = data.error_message || data.message || "";
+        setWhatsAppSignupStatus("A Meta retornou um evento sem conclusao da conexao.");
+        setWhatsAppSignupDiagnostics("evento sem conclusao recebido");
       }
     });
 
@@ -650,21 +713,35 @@
         phoneNumberId: "",
         businessAccountId: "",
         clinicNumber: "",
+        authStatus: "",
+        eventName: "",
+        eventType: "",
+        eventOrigin: "",
+        eventKeys: "",
+        errorCode: "",
+        errorMessage: "",
+        lastStep: "",
         submitted: false
       };
       if (button) {
         button.disabled = true;
       }
       setWhatsAppSignupStatus("Aguardando autorizacao da Meta.");
+      setWhatsAppSignupDiagnostics("fluxo iniciado");
       FB.login(function(response) {
+        whatsappSignupState.authStatus = response.status || "";
         if (!response.authResponse || !response.authResponse.code) {
           if (button) {
             button.disabled = false;
           }
+          whatsappSignupState.errorCode = response.error_code || "";
+          whatsappSignupState.errorMessage = response.error_message || "";
           setWhatsAppSignupStatus("A conexao nao foi concluida na Meta.");
+          setWhatsAppSignupDiagnostics("OAuth sem code");
           return;
         }
         whatsappSignupState.code = response.authResponse.code;
+        setWhatsAppSignupDiagnostics("OAuth code recebido");
         submitWhatsAppSignupWhenReady();
       }, {
         config_id: "{{ whatsapp_embedded_config_id|escapejs }}",

@@ -7,12 +7,9 @@
   <div>
     <p class="eyebrow">Financeiro</p>
     <h1>Receber mensalidade</h1>
-    <p class="page-subtitle">Busque o paciente para baixar mensalidades em aberto ou receber a proxima mensalidade adiantada.</p>
+    <p class="page-subtitle">Busque o paciente para receber mensalidades pendentes, vencidas ou adiantadas.</p>
   </div>
-  <div class="panel-actions">
-    <a class="button secondary" href="{% url 'billing:cashier_day' %}">Caixa do dia</a>
-    <a class="button secondary" href="{% url 'billing:payments' %}">Ver pagamentos</a>
-  </div>
+  <a class="button secondary" href="{% url 'billing:payments' %}">Ver pagamentos</a>
 </section>
 
 <section class="panel quick-receive-panel">
@@ -29,17 +26,16 @@
   </form>
 
   <div class="quick-receive-summary">
-    <strong>{{ pending_receive_count }}</strong>
-    <span>mensalidade{{ pending_receive_count|pluralize }} pronta{{ pending_receive_count|pluralize }} para baixa</span>
+    <strong>{{ available_receive_count }}</strong>
+    <span>opcoes de recebimento encontradas</span>
   </div>
 
-  <div class="panel-header">
+  <header class="panel-header">
     <div>
-      <h3>Mensalidades em aberto</h3>
-      <p>Receba vencimentos pendentes ou vencidos ja lancados no financeiro.</p>
+      <h2>Pendentes e vencidas</h2>
+      <p>Use esta lista quando a mensalidade ja existe no financeiro.</p>
     </div>
-  </div>
-
+  </header>
   <div class="table-wrap">
     <table>
       <thead>
@@ -72,7 +68,7 @@
         {% empty %}
           <tr>
             <td colspan="7" class="empty">
-              Nenhuma mensalidade pendente encontrada. Use a lista de adiantamento abaixo para receber a proxima mensalidade.
+              Nenhuma mensalidade pendente encontrada. Ajuste a busca ou confira a lista completa de pagamentos.
             </td>
           </tr>
         {% endfor %}
@@ -82,46 +78,55 @@
   {% include "core/pagination.html" %}
 </section>
 
-<section class="panel quick-receive-panel">
-  <div class="panel-header">
+<section class="panel stacked-panel">
+  <header class="panel-header">
     <div>
-      <h3>Receber mensalidade adiantada</h3>
-      <p>Crie e baixe o proximo ciclo de uma mensalidade ativa quando o paciente quiser pagar antes do vencimento.</p>
+      <h2>Receber mensalidade adiantada</h2>
+      <p>Para pacientes que querem pagar o proximo ciclo antes do vencimento.</p>
     </div>
-    <span class="badge pending">{{ advance_membership_count }} ativa{{ advance_membership_count|pluralize }}</span>
-  </div>
-
+  </header>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th>Paciente</th>
           <th>Plano/servico</th>
-          <th>Proxima referencia</th>
-          <th>Vencimento sugerido</th>
+          <th>Referencia sugerida</th>
+          <th>Vencimento</th>
           <th class="right">Valor</th>
-          <th class="right">Acao</th>
+          <th class="right">Receber</th>
         </tr>
       </thead>
       <tbody>
-        {% for membership in advance_memberships %}
+        {% for row in upcoming_receivables %}
           <tr>
             <td>
-              <strong>{{ membership.patient.full_name }}</strong>
-              <small>{{ membership.patient.phone|default:"Sem telefone" }}</small>
+              <strong>{{ row.membership.patient.full_name }}</strong>
+              <small>{{ row.membership.patient.phone|default:"Sem telefone" }}</small>
             </td>
-            <td>{{ membership.plan.name }}</td>
-            <td>{{ membership.next_reference_month|date:"m/Y" }}</td>
-            <td>{{ membership.next_due_date|date:"d/m/Y" }}</td>
-            <td class="right">R$ {{ membership.monthly_amount|floatformat:2 }}</td>
+            <td>{{ row.membership.plan.name }}</td>
+            <td>{{ row.reference_month|date:"m/Y" }}</td>
+            <td>{{ row.due_date|date:"d/m/Y" }}</td>
+            <td class="right">R$ {{ row.amount|floatformat:2 }}</td>
             <td class="right">
-              <a class="button primary compact" href="{% url 'billing:payment_advance_receive' membership.pk %}">Receber adiantado</a>
+              <form class="inline-form" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="membership" value="{{ row.membership.pk }}">
+                <input type="hidden" name="reference_month" value="{{ row.reference_month|date:'Y-m-d' }}">
+                <input type="hidden" name="paid_at" value="{% now 'Y-m-d' %}">
+                <select class="field-control compact-control" name="method" aria-label="Metodo de pagamento">
+                  {% for value, label in quick_receive_form.fields.method.choices %}
+                    <option value="{{ value }}" {% if value == "pix" %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <button class="button primary compact" type="submit">Receber agora</button>
+              </form>
             </td>
           </tr>
         {% empty %}
           <tr>
             <td colspan="6" class="empty">
-              Nenhuma mensalidade ativa encontrada para adiantamento. Ajuste a busca ou cadastre uma mensalidade ativa.
+              Nenhuma mensalidade futura sugerida. Busque pelo paciente ou confira se ele possui mensalidade ativa.
             </td>
           </tr>
         {% endfor %}

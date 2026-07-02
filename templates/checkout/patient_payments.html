@@ -1,22 +1,47 @@
 {% extends "base.html" %}
 
-{% block title %}Minhas mensalidades | Lume Gestao{% endblock %}
+{% block title %}Meu painel | Lume Gestao{% endblock %}
 
 {% block content %}
 <section class="page-heading">
   <div>
-    <p class="eyebrow">Checkout</p>
+    <p class="eyebrow">Meu painel</p>
     <h1>Minhas mensalidades</h1>
-    <p class="page-subtitle">Pague mensalidades pendentes diretamente pelo checkout seguro.</p>
+    <p class="page-subtitle">Acompanhe pagamentos, creditos e proximos atendimentos em um so lugar.</p>
   </div>
 </section>
 
+<section class="metric-grid">
+  <article class="metric">
+    <span>Mensalidades em aberto</span>
+    <strong>{{ pending_payments|length }}</strong>
+  </article>
+  <article class="metric">
+    <span>Planos ativos</span>
+    <strong>{{ active_memberships|length }}</strong>
+  </article>
+  <article class="metric">
+    <span>Creditos disponiveis</span>
+    <strong>{{ active_credit_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Proximos horarios</span>
+    <strong>{{ upcoming_appointments|length }}</strong>
+  </article>
+</section>
+
 <section class="panel">
+  <header class="panel-header">
+    <div>
+      <h2>Pagamentos em aberto</h2>
+      <p>Escolha uma mensalidade para pagar pelo checkout seguro.</p>
+    </div>
+  </header>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Plano</th><th>Vencimento</th><th>Status</th><th class="right">Valor</th><th class="right">Acao</th></tr></thead>
       <tbody>
-        {% for payment in payments %}
+        {% for payment in pending_payments %}
           <tr>
             <td><strong>{{ payment.membership.plan.name }}</strong><div class="table-meta">{{ payment.reference_month|date:"m/Y" }}</div></td>
             <td>{{ payment.due_date|date:"d/m/Y" }}</td>
@@ -25,7 +50,7 @@
             <td class="right">
               <form method="post" action="{% url 'checkout:payment_start' payment.pk %}">
                 {% csrf_token %}
-                <button class="table-action" type="submit">Pagar</button>
+                <button class="button primary compact" type="submit">Pagar</button>
               </form>
             </td>
           </tr>
@@ -35,5 +60,108 @@
       </tbody>
     </table>
   </div>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Planos e creditos</h2>
+        <p>Saldo atual das suas adesoes ativas.</p>
+      </div>
+    </header>
+    <div class="table-wrap">
+      <table class="compact-table">
+        <thead><tr><th>Plano</th><th class="right">Usados</th><th class="right">Restantes</th><th>Validade</th></tr></thead>
+        <tbody>
+          {% for package in active_packages %}
+            <tr>
+              <td>{{ package.membership.plan.name }}</td>
+              <td class="right">{{ package.used_sessions }}/{{ package.total_sessions }}</td>
+              <td class="right">{{ package.remaining_sessions }}</td>
+              <td>{% if package.expires_on %}{{ package.expires_on|date:"d/m/Y" }}{% else %}Sem validade{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="empty">Nenhum credito ativo no momento.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Proximos atendimentos</h2>
+        <p>Horarios agendados ou aguardando confirmacao.</p>
+      </div>
+    </header>
+    <div class="day-agenda-list">
+      {% for appointment in upcoming_appointments %}
+        <article class="day-agenda-item">
+          <time>{{ appointment.starts_at|date:"d/m H:i" }}</time>
+          <div>
+            <strong>{{ appointment.professional.full_name }}</strong>
+            <span>{{ appointment.service_plan.name|default:"Atendimento" }} &middot; {{ appointment.get_status_display }}</span>
+          </div>
+        </article>
+      {% empty %}
+        <p class="empty">Nenhum atendimento futuro agendado.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Historico recente</h2>
+        <p>Ultimos atendimentos baixados pela equipe.</p>
+      </div>
+    </header>
+    <div class="table-wrap">
+      <table class="compact-table">
+        <thead><tr><th>Data</th><th>Plano</th><th>Profissional</th><th class="right">Creditos</th></tr></thead>
+        <tbody>
+          {% for usage in recent_usages %}
+            <tr>
+              <td>{{ usage.registered_at|date:"d/m/Y" }}</td>
+              <td>{{ usage.service_package.membership.plan.name }}</td>
+              <td>{{ usage.appointment.professional.full_name }}</td>
+              <td class="right">{{ usage.units }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="empty">Nenhum atendimento registrado ainda.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Pagamentos recentes</h2>
+        <p>Ultimas mensalidades registradas como pagas.</p>
+      </div>
+    </header>
+    <div class="table-wrap">
+      <table class="compact-table">
+        <thead><tr><th>Plano</th><th>Pago em</th><th class="right">Valor</th></tr></thead>
+        <tbody>
+          {% for payment in paid_payments %}
+            <tr>
+              <td>{{ payment.membership.plan.name }}</td>
+              <td>{{ payment.paid_at|date:"d/m/Y" }}</td>
+              <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="empty">Nenhum pagamento recente.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
 </section>
 {% endblock %}

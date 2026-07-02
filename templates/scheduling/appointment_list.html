@@ -25,10 +25,6 @@
     backdrop-filter: blur(3px);
   }
 
-  .completion-credit-modal {
-    width: min(420px, calc(100% - 28px));
-  }
-
   .agenda-modal-card {
     display: grid;
     gap: 16px;
@@ -104,110 +100,9 @@
     margin: 0;
   }
 
-  .completion-credit-actions {
-    justify-content: flex-end;
-  }
-
-  .agenda-modal-hint {
-    margin: 0;
-    color: var(--muted);
-    font-weight: 750;
-  }
-
-  .agenda-modal-patients {
-    border: 1px solid rgba(96, 114, 79, 0.16);
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.62);
-    overflow: hidden;
-  }
-
-  .agenda-modal-patients summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 14px;
-    color: var(--ink);
-    cursor: pointer;
-    font-weight: 900;
-    list-style: none;
-  }
-
-  .agenda-modal-patients summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .agenda-modal-patients summary::after {
-    content: "Ver mais";
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: rgba(96, 114, 79, 0.12);
-    color: var(--muted);
-    font-size: 12px;
-    text-transform: uppercase;
-  }
-
-  .agenda-modal-patients[open] summary::after {
-    content: "Ver menos";
-  }
-
-  .agenda-modal-patient-list {
-    display: grid;
-    gap: 8px;
-    padding: 0 12px 12px;
-  }
-
-  .agenda-modal-patient-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 12px;
-    align-items: center;
-    padding: 12px;
-    border: 1px solid rgba(96, 114, 79, 0.12);
-    border-radius: 14px;
-    background: rgba(255, 253, 247, 0.92);
-  }
-
-  .agenda-modal-patient-row strong,
-  .agenda-modal-patient-row span {
-    display: block;
-  }
-
-  .agenda-modal-patient-row span {
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 750;
-  }
-
-  .agenda-modal-patient-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
-  }
-
-  .agenda-modal-patient-actions form {
-    margin: 0;
-  }
-
-  .agenda-modal-patient-actions .button,
-  .agenda-modal-patient-actions .table-action {
-    min-height: 34px;
-    padding: 7px 10px;
-    font-size: 13px;
-  }
-
   @media (max-width: 680px) {
     .agenda-modal-facts {
       grid-template-columns: 1fr;
-    }
-
-    .agenda-modal-patient-row {
-      grid-template-columns: 1fr;
-    }
-
-    .agenda-modal-patient-actions {
-      justify-content: flex-start;
     }
   }
 </style>
@@ -345,82 +240,34 @@
                         </div>
                       </div>
                       <div class="agenda-modal-actions">
-                        {% if session.is_group %}
-                          <p class="agenda-modal-hint">Abra a lista de pacientes para reagendar, cancelar ou baixar um paciente especifico desta sessao.</p>
-                        {% else %}
-                          {% if session.appointment.status == "requested" and request.user.profile.role != "patient" %}
-                            <form method="post" action="{% url 'scheduling:appointment_confirm' session.appointment.pk %}">
-                              {% csrf_token %}
-                              <button class="button secondary" type="submit">Confirmar</button>
-                            </form>
-                          {% endif %}
-                          {% if session.appointment.status != "completed" and session.appointment.status != "canceled" and session.appointment.status != "rescheduled" %}
-                            <a class="button primary" href="{% url 'scheduling:appointment_reschedule' session.appointment.pk %}">Reagendar</a>
-                            <form method="post" action="{% url 'scheduling:appointment_cancel' session.appointment.pk %}">
-                              {% csrf_token %}
-                              <button class="button secondary" type="submit">Cancelar</button>
-                            </form>
-                          {% endif %}
-                          {% if session.appointment.status != "completed" and session.appointment.status != "canceled" and session.appointment.status != "rescheduled" and request.user.profile.role != "patient" %}
-                            <form method="post" action="{% url 'scheduling:appointment_complete' session.appointment.pk %}" data-complete-appointment-form{% if session.appointment.needs_completion_credit_prompt %} data-needs-credit="true"{% endif %}>
-                              {% csrf_token %}
-                              <input type="hidden" name="add_completion_credit" value="0">
+                        {% if session.appointment.status == "requested" and request.user.profile.role != "patient" %}
+                          <form method="post" action="{% url 'scheduling:appointment_confirm' session.appointment.pk %}">
+                            {% csrf_token %}
+                            <button class="button secondary" type="submit">Confirmar</button>
+                          </form>
+                        {% endif %}
+                        {% if session.appointment.status != "completed" and session.appointment.status != "canceled" and session.appointment.status != "rescheduled" %}
+                          <a class="button primary" href="{% url 'scheduling:appointment_reschedule' session.appointment.pk %}">Reagendar</a>
+                          <form method="post" action="{% url 'scheduling:appointment_cancel' session.appointment.pk %}">
+                            {% csrf_token %}
+                            <button class="button secondary" type="submit">Cancelar</button>
+                          </form>
+                        {% endif %}
+                        {% if session.appointment.status != "completed" and session.appointment.status != "canceled" and session.appointment.status != "rescheduled" and request.user.profile.role != "patient" %}
+                          <form method="post" action="{% url 'scheduling:appointment_complete' session.appointment.pk %}">
+                            {% csrf_token %}
+                            {% if session.appointment.needs_credit_adjustment %}
+                              <input type="hidden" name="add_credit" value="1">
+                              <button class="button secondary" type="submit" onclick="return confirm('O cliente nao tem creditos disponiveis. Gostaria de acrescentar um credito e continuar?')">Baixar e adicionar credito</button>
+                            {% else %}
                               <button class="button secondary" type="submit">Baixar atendimento</button>
-                            </form>
-                          {% endif %}
-                          {% if request.user.profile.role != "patient" %}
-                            <a class="button secondary" href="{% url 'patients:quick_panel' session.appointment.patient.pk %}">Painel do paciente</a>
-                            <a class="button secondary" href="{% url 'scheduling:appointment_update' session.appointment.pk %}">Editar detalhes</a>
-                            {% if request.user.profile.role == "professional" %}
-                              <a class="button secondary" href="{% url 'patients:note_create' session.appointment.patient.pk %}?tipo=daily_evolution">Evolucao</a>
                             {% endif %}
-                          {% endif %}
+                          </form>
+                        {% endif %}
+                        {% if request.user.profile.role != "patient" %}
+                          <a class="button secondary" href="{% url 'scheduling:appointment_update' session.appointment.pk %}">Editar detalhes</a>
                         {% endif %}
                       </div>
-                      {% if session.is_group %}
-                        <details class="agenda-modal-patients">
-                          <summary>Pacientes desta sessao ({{ session.occupied }}/{{ session.capacity }})</summary>
-                          <div class="agenda-modal-patient-list">
-                            {% for item in session.appointments %}
-                              <article class="agenda-modal-patient-row">
-                                <div>
-                                  <strong>{{ item.patient.full_name }}</strong>
-                                  <span>{{ item.get_status_display }}{% if item.service_plan %} &middot; {{ item.service_plan.name }}{% endif %}</span>
-                                </div>
-                                <div class="agenda-modal-patient-actions">
-                                  {% if item.status == "requested" and request.user.profile.role != "patient" %}
-                                    <form method="post" action="{% url 'scheduling:appointment_confirm' item.pk %}">
-                                      {% csrf_token %}
-                                      <button class="button secondary" type="submit">Confirmar</button>
-                                    </form>
-                                  {% endif %}
-                                  {% if item.status != "completed" and item.status != "canceled" and item.status != "rescheduled" %}
-                                    <a class="table-action" href="{% url 'scheduling:appointment_reschedule' item.pk %}">Reagendar</a>
-                                    <form method="post" action="{% url 'scheduling:appointment_cancel' item.pk %}">
-                                      {% csrf_token %}
-                                      <button class="table-action button-link" type="submit">Cancelar</button>
-                                    </form>
-                                  {% endif %}
-                                  {% if item.status != "completed" and item.status != "canceled" and item.status != "rescheduled" and request.user.profile.role != "patient" %}
-                                    <form method="post" action="{% url 'scheduling:appointment_complete' item.pk %}" data-complete-appointment-form{% if item.needs_completion_credit_prompt %} data-needs-credit="true"{% endif %}>
-                                      {% csrf_token %}
-                                      <input type="hidden" name="add_completion_credit" value="0">
-                                      <button class="table-action button-link" type="submit">Baixar</button>
-                                    </form>
-                                  {% endif %}
-                                  {% if request.user.profile.role != "patient" %}
-                                    <a class="table-action" href="{% url 'patients:quick_panel' item.patient.pk %}">Painel</a>
-                                    <a class="table-action" href="{% url 'scheduling:appointment_update' item.pk %}">Editar</a>
-                                    {% if request.user.profile.role == "professional" %}
-                                      <a class="table-action" href="{% url 'patients:note_create' item.patient.pk %}?tipo=daily_evolution">Evolucao</a>
-                                    {% endif %}
-                                  {% endif %}
-                                </div>
-                              </article>
-                            {% endfor %}
-                          </div>
-                        </details>
-                      {% endif %}
                     </article>
                   </dialog>
                 {% endfor %}
@@ -482,9 +329,6 @@
           </span>
         </div>
         <div class="table-actions">
-          {% if request.user.profile.role != "patient" %}
-            <a class="table-action" href="{% url 'patients:quick_panel' appointment.patient.pk %}">Painel</a>
-          {% endif %}
           {% if appointment.status == "requested" and request.user.profile.role != "patient" %}
             <form method="post" action="{% url 'scheduling:appointment_confirm' appointment.pk %}">
               {% csrf_token %}
@@ -497,9 +341,6 @@
               {% csrf_token %}
               <button class="table-action button-link" type="submit">Cancelar</button>
             </form>
-          {% endif %}
-          {% if request.user.profile.role == "professional" %}
-            <a class="table-action" href="{% url 'patients:note_create' appointment.patient.pk %}?tipo=daily_evolution">Evolucao</a>
           {% endif %}
         </div>
       </article>
@@ -549,7 +390,6 @@
                 </form>
               {% endif %}
               {% if request.user.profile.role != "patient" %}
-                <a class="table-action" href="{% url 'patients:quick_panel' appointment.patient.pk %}">Painel</a>
                 <a class="table-action" href="{% url 'scheduling:appointment_update' appointment.pk %}">Editar</a>
               {% endif %}
               {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" %}
@@ -560,14 +400,15 @@
                 </form>
               {% endif %}
               {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" and request.user.profile.role != "patient" %}
-                <form method="post" action="{% url 'scheduling:appointment_complete' appointment.pk %}" data-complete-appointment-form{% if appointment.needs_completion_credit_prompt %} data-needs-credit="true"{% endif %}>
+                <form method="post" action="{% url 'scheduling:appointment_complete' appointment.pk %}">
                   {% csrf_token %}
-                  <input type="hidden" name="add_completion_credit" value="0">
-                  <button class="table-action button-link" type="submit">Baixar</button>
+                  {% if appointment.needs_credit_adjustment %}
+                    <input type="hidden" name="add_credit" value="1">
+                    <button class="table-action button-link" type="submit" onclick="return confirm('O cliente nao tem creditos disponiveis. Gostaria de acrescentar um credito e continuar?')">Baixar + credito</button>
+                  {% else %}
+                    <button class="table-action button-link" type="submit">Baixar</button>
+                  {% endif %}
                 </form>
-              {% endif %}
-              {% if request.user.profile.role == "professional" %}
-                <a class="table-action" href="{% url 'patients:note_create' appointment.patient.pk %}?tipo=daily_evolution">Evolucao</a>
               {% endif %}
             </td>
           </tr>
@@ -580,22 +421,6 @@
   {% include "core/pagination.html" %}
 </section>
 </div>
-<dialog id="completionCreditDialog" class="agenda-action-modal completion-credit-modal">
-  <div class="agenda-modal-card">
-    <div class="agenda-modal-head">
-      <div>
-        <p>Credito indisponivel</p>
-        <h3>Adicionar credito?</h3>
-      </div>
-      <button class="agenda-modal-close" type="button" data-credit-cancel aria-label="Fechar">x</button>
-    </div>
-    <p class="agenda-modal-hint">O cliente nao tem creditos disponiveis gostaria de acrescentar um credito e continuar?</p>
-    <div class="agenda-modal-actions completion-credit-actions">
-      <button class="button secondary" type="button" data-credit-cancel>Cancelar</button>
-      <button class="button primary" type="button" data-credit-confirm>Sim</button>
-    </div>
-  </div>
-</dialog>
 <script>
   (() => {
     document.querySelectorAll("[data-open-appointment]").forEach((trigger) => {
@@ -611,52 +436,6 @@
       button.addEventListener("click", () => {
         const dialog = button.closest("dialog");
         if (dialog) dialog.close();
-      });
-    });
-
-    const creditDialog = document.getElementById("completionCreditDialog");
-    let pendingCompletionForm = null;
-
-    const submitCompletionWithCredit = () => {
-      if (!pendingCompletionForm) return;
-      const input = pendingCompletionForm.querySelector("[name='add_completion_credit']");
-      if (input) input.value = "1";
-      pendingCompletionForm.dataset.creditConfirmed = "true";
-      if (typeof pendingCompletionForm.requestSubmit === "function") {
-        pendingCompletionForm.requestSubmit();
-      } else {
-        pendingCompletionForm.submit();
-      }
-    };
-
-    document.querySelectorAll("[data-complete-appointment-form]").forEach((form) => {
-      form.addEventListener("submit", (event) => {
-        if (form.dataset.needsCredit !== "true" || form.dataset.creditConfirmed === "true") {
-          return;
-        }
-        event.preventDefault();
-        pendingCompletionForm = form;
-        if (creditDialog && typeof creditDialog.showModal === "function") {
-          creditDialog.showModal();
-          return;
-        }
-        if (window.confirm("O cliente nao tem creditos disponiveis gostaria de acrescentar um credito e continuar?")) {
-          submitCompletionWithCredit();
-        }
-      });
-    });
-
-    document.querySelectorAll("[data-credit-confirm]").forEach((button) => {
-      button.addEventListener("click", () => {
-        creditDialog?.close();
-        submitCompletionWithCredit();
-      });
-    });
-
-    document.querySelectorAll("[data-credit-cancel]").forEach((button) => {
-      button.addEventListener("click", () => {
-        pendingCompletionForm = null;
-        creditDialog?.close();
       });
     });
 

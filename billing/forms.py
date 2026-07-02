@@ -4,8 +4,8 @@ from decimal import Decimal, InvalidOperation
 from django import forms
 from django.utils import timezone
 
-from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
-from core.forms import StyledForm, StyledModelForm
+from billing.models import CashClosing, Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
+from core.forms import StyledModelForm
 
 
 class ServicePlanForm(StyledModelForm):
@@ -15,6 +15,8 @@ class ServicePlanForm(StyledModelForm):
             "name",
             "category",
             "plan_type",
+            "delivery_mode",
+            "grants_homecare_access",
             "monthly_price",
             "duration_months",
             "sessions_per_week",
@@ -37,6 +39,12 @@ class ServicePlanForm(StyledModelForm):
         self.fields["duration_months"].help_text = "Use 1 para mensal, 3 para trimestral, 6 para semestral ou outro ciclo em meses."
         self.fields["included_sessions"].help_text = "Total de atendimentos liberados automaticamente quando este plano/servico for atribuido ao paciente."
         self.fields["sessions_per_week"].help_text = "Referencia operacional para agenda e relatorios. Em servico avulso, mantenha 1."
+        self.fields[
+            "grants_homecare_access"
+        ].help_text = (
+            "Libera automaticamente o acesso do paciente ao modulo Lume em Casa enquanto o vinculo/plano estiver ativo. "
+            "Alterar este campo afeta imediatamente todos os pacientes com vinculo ativo neste plano."
+        )
 
 
 class MembershipForm(StyledModelForm):
@@ -168,52 +176,6 @@ class PaymentForm(StyledModelForm):
         return instance
 
 
-class PaymentAdvanceReceiveForm(StyledForm):
-    reference_month_number = forms.ChoiceField(label="Mes de referencia", choices=PaymentForm.MONTH_CHOICES)
-    reference_year = forms.IntegerField(label="Ano de referencia", min_value=2020, max_value=2100)
-    due_date = forms.DateField(label="Vencimento", widget=forms.DateInput(attrs={"type": "date"}))
-    amount = forms.CharField(
-        label="Valor recebido",
-        widget=forms.TextInput(attrs={"inputmode": "decimal", "placeholder": "R$ 0,00"}),
-        help_text="O valor vem da mensalidade, mas pode ser ajustado se houver acordo no atendimento.",
-    )
-    method = forms.ChoiceField(label="Metodo", choices=Payment.Method.choices, initial=Payment.Method.PIX)
-    paid_at = forms.DateField(label="Recebido em", widget=forms.DateInput(attrs={"type": "date"}))
-    notes = forms.CharField(
-        label="Observacoes",
-        required=False,
-        widget=forms.Textarea(attrs={"rows": 3}),
-        help_text="Opcional. Use para registrar recibo, caixa ou detalhe do pagamento antecipado.",
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        reference = self.initial.get("reference_month") or timezone.localdate().replace(day=1)
-        self.fields["reference_month_number"].initial = reference.month
-        self.fields["reference_year"].initial = reference.year
-        self.fields["paid_at"].initial = self.initial.get("paid_at") or timezone.localdate()
-        if self.initial.get("amount") is not None:
-            self.fields["amount"].initial = f"{self.initial['amount']:.2f}".replace(".", ",")
-
-    def clean_amount(self):
-        raw_value = str(self.cleaned_data.get("amount") or "").strip()
-        normalized = raw_value.replace("R$", "").replace(" ", "")
-        if "," in normalized:
-            normalized = normalized.replace(".", "").replace(",", ".")
-        try:
-            return Decimal(normalized)
-        except (InvalidOperation, ValueError):
-            raise forms.ValidationError("Informe um valor valido em reais. Ex.: 150,00.")
-
-    def clean(self):
-        cleaned_data = super().clean()
-        month = cleaned_data.get("reference_month_number")
-        year = cleaned_data.get("reference_year")
-        if month and year:
-            cleaned_data["reference_month"] = date(int(year), int(month), 1)
-        return cleaned_data
-
-
 class PaymentReceiveForm(StyledModelForm):
     class Meta:
         model = Payment
@@ -235,6 +197,48 @@ class PaymentReceiveForm(StyledModelForm):
         cleaned_data = super().clean()
         self.instance.status = Payment.Status.PAID
         return cleaned_data
+
+
+class QuickMembershipReceiveForm(forms.Form):
+    membership = forms.ModelChoiceField(queryset=Membership.objects.none(), widget=forms.HiddenInput)
+    reference_month = forms.DateField(widget=forms.HiddenInput)
+    method = forms.ChoiceField(label="Metodo", choices=Payment.Method.choices)
+    paid_at = forms.DateField(label="Recebido em", widget=forms.DateInput(attrs={"type": "date"}))
+    notes = forms.CharField(
+        label="Observacao",
+        required=False,
+        widget=forms.TextInput(attrs={"placeholder": "Opcional"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["membership"].queryset = Membership.objects.select_related("patient", "plan").filter(
+            status=Membership.Status.ACTIVE
+        )
+        self.fields["method"].initial = Payment.Method.PIX
+        self.fields["paid_at"].initial = timezone.localdate()
+
+    def clean_reference_month(self):
+        reference_month = self.cleaned_data["reference_month"]
+        if reference_month.day != 1:
+            raise forms.ValidationError("A referencia precisa ser o primeiro dia do mes.")
+        return reference_month
+
+
+class CashClosingForm(StyledModelForm):
+    class Meta:
+        model = CashClosing
+        fields = ["cash_counted", "notes"]
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["cash_counted"].label = "Dinheiro conferido no caixa"
+        self.fields["cash_counted"].required = False
+        self.fields["notes"].label = "Observacao do fechamento"
+        self.fields["notes"].required = False
 
 
 class ExpenseForm(StyledModelForm):

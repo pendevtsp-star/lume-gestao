@@ -8,7 +8,6 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count
-from django.db.models import F
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -23,7 +22,6 @@ from django.views.generic import CreateView, DeleteView, FormView, ListView, Upd
 
 from accounts.models import UserProfile
 from accounts.permissions import FinanceAccessMixin, RoleRequiredMixin, get_profile
-from billing.models import Membership
 from core.deletion import (
     DELETE_ACTION_NOW,
     DeletionDecisionMixin,
@@ -43,8 +41,19 @@ from scheduling.forms import (
     ProfessionalAvailabilityBatchForm,
     ServicePackageForm,
 )
-from scheduling.models import Appointment, AppointmentSeries, ProfessionalAvailability, ServicePackage, ServiceUsage
-from scheduling.services import append_note, package_defaults_for_plan
+from scheduling.models import (
+    Appointment,
+    AppointmentSeries,
+    ProfessionalAvailability,
+    ServicePackage,
+    ServicePackageAdjustment,
+    ServiceUsage,
+)
+from scheduling.services import (
+    completion_needs_credit_adjustment,
+    completion_package_for_appointment,
+    ensure_credit_for_appointment,
+)
 from scheduling.slots import (
     availability_capacity_for_slot,
     generate_available_slots,
@@ -55,7 +64,6 @@ from scheduling.slots import (
 
 
 ACTIVE_APPOINTMENT_STATUSES = [Appointment.Status.REQUESTED, Appointment.Status.SCHEDULED]
-ADD_COMPLETION_CREDIT_FIELD = "add_completion_credit"
 
 
 class AppointmentAccessMixin(RoleRequiredMixin):
@@ -112,110 +120,6 @@ def add_model_validation_errors(form, error):
         return
     for message in error.messages:
         form.add_error(None, message)
-
-
-def completion_package_queryset(appointment, *, with_available_credit=True, lock=False):
-    queryset = ServicePackage.objects.filter(membership__patient=appointment.patient)
-    if lock:
-        queryset = queryset.select_for_update()
-    if with_available_credit:
-        queryset = queryset.filter(status=ServicePackage.Status.ACTIVE, used_sessions__lt=F("total_sessions"))
-    else:
-        queryset = queryset.filter(status__in=[ServicePackage.Status.ACTIVE, ServicePackage.Status.FINISHED])
-    if appointment.service_plan_id:
-        queryset = queryset.filter(membership__plan_id=appointment.service_plan_id)
-    return queryset
-
-
-def completion_package_plan_count(appointment, *, with_available_credit):
-    return (
-        completion_package_queryset(appointment, with_available_credit=with_available_credit, lock=False)
-        .values("membership__plan_id")
-        .distinct()
-        .count()
-    )
-
-
-def completion_available_package(appointment, *, lock=False):
-    queryset = completion_package_queryset(appointment, with_available_credit=True, lock=lock).order_by(
-        "expires_on", "created_at"
-    )
-    if not appointment.service_plan_id and completion_package_plan_count(appointment, with_available_credit=True) > 1:
-        return None, "ambiguous"
-    return queryset.first(), ""
-
-
-def completion_credit_target_package(appointment, *, lock=False, create_missing=False):
-    queryset = completion_package_queryset(appointment, with_available_credit=False, lock=lock).order_by(
-        "-starts_on", "-created_at"
-    )
-    if not appointment.service_plan_id and completion_package_plan_count(appointment, with_available_credit=False) > 1:
-        return None, "ambiguous"
-
-    package = queryset.first()
-    if package:
-        return package, ""
-
-    memberships = Membership.objects.filter(patient=appointment.patient, status=Membership.Status.ACTIVE)
-    if appointment.service_plan_id:
-        memberships = memberships.filter(plan_id=appointment.service_plan_id)
-    if not appointment.service_plan_id and memberships.values("plan_id").distinct().count() > 1:
-        return None, "ambiguous"
-
-    membership = memberships.select_related("plan").first()
-    if not membership:
-        return None, "missing_membership"
-    if not create_missing:
-        return None, "can_create_package"
-
-    starts_on = timezone.localdate()
-    defaults = package_defaults_for_plan(membership.plan, starts_on)
-    package = ServicePackage(
-        membership=membership,
-        total_sessions=max(appointment.service_units, 1),
-        used_sessions=0,
-        starts_on=starts_on,
-        expires_on=defaults["expires_on"],
-        status=ServicePackage.Status.ACTIVE,
-        notes="Pacote criado automaticamente durante baixa de atendimento sem credito disponivel.",
-    )
-    package.full_clean()
-    package.save()
-    return package, "created_package"
-
-
-def add_completion_credit(package, appointment, user):
-    missing_units = max(appointment.service_units - package.remaining_sessions, 1)
-    package.total_sessions += missing_units
-    package.status = ServicePackage.Status.ACTIVE
-    package.notes = append_note(
-        package.notes,
-        (
-            f"{missing_units} credito(s) acrescentado(s) durante baixa do atendimento "
-            f"{appointment.pk} por {user.get_username()}."
-        ),
-    )
-    package.full_clean()
-    package.save(update_fields=["total_sessions", "status", "notes", "updated_at"])
-    return package
-
-
-def appointment_needs_completion_credit_prompt(appointment):
-    if appointment.status in {Appointment.Status.COMPLETED, Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED}:
-        return False
-    package, reason = completion_available_package(appointment)
-    if reason == "ambiguous":
-        return False
-    if package and package.remaining_sessions >= appointment.service_units:
-        return False
-    target_package, target_reason = completion_credit_target_package(appointment)
-    return bool((target_package or target_reason == "can_create_package") and target_reason != "ambiguous")
-
-
-def decorate_completion_credit_prompts(appointments):
-    for appointment in appointments:
-        appointment.needs_completion_credit_prompt = appointment_needs_completion_credit_prompt(appointment)
-    return appointments
 
 
 def filter_appointment_search(queryset, query):
@@ -340,11 +244,12 @@ def build_occurrence_payloads(
         starts_at = make_local_datetime(current_date, selected_start)
         ends_at = starts_at + duration
         exclude_ids = exclude_ids_by_date.get(current_date.isoformat(), [])
+        exclude_appointment_id = exclude_ids[0] if len(exclude_ids) == 1 else None
         snapshot = slot_capacity_snapshot(
             professional.pk,
             starts_at,
             ends_at,
-            exclude_appointment_ids=exclude_ids,
+            exclude_appointment_id=exclude_appointment_id,
         )
         if snapshot["partial_overlap"]:
             raise ValidationError(f"{current_date:%d/%m/%Y}: o profissional ja possui atendimento nesse horario.")
@@ -403,7 +308,6 @@ def build_calendar_session_groups(appointments):
         sessions.append(
             {
                 "appointment": first,
-                "appointments": group_appointments,
                 "starts_at": first.starts_at,
                 "ends_at": first.ends_at,
                 "professional": first.professional,
@@ -423,6 +327,12 @@ def build_calendar_session_groups(appointments):
     return sorted(sessions, key=lambda session: (session["starts_at"], session["professional"].full_name))
 
 
+def annotate_credit_adjustment_flags(appointments):
+    for appointment in appointments:
+        appointment.needs_credit_adjustment = completion_needs_credit_adjustment(appointment)
+    return appointments
+
+
 class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
     model = Appointment
     template_name = "scheduling/appointment_list.html"
@@ -436,7 +346,7 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        decorate_completion_credit_prompts(context.get("appointments", []))
+        annotate_credit_adjustment_flags(context["appointments"])
         week_start = calendar_week_start(self.request)
         week_end = week_start + timedelta(days=6)
         selected_day = parse_date(self.request.GET.get("dia", "")) or timezone.localdate()
@@ -444,14 +354,14 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
             selected_day = week_start
         week_days = [week_start + timedelta(days=offset) for offset in range(7)]
         hour_slots = range(6, 21)
-        calendar_appointments = list(
+        calendar_queryset = list(
             self.get_queryset()
             .filter(starts_at__date__gte=week_start, starts_at__date__lte=week_end)
             .exclude(status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED])
         )
-        decorate_completion_credit_prompts(calendar_appointments)
+        annotate_credit_adjustment_flags(calendar_queryset)
         events_by_day_hour = {day: {hour: [] for hour in hour_slots} for day in week_days}
-        for appointment in calendar_appointments:
+        for appointment in calendar_queryset:
             local_start = timezone.localtime(appointment.starts_at)
             day = local_start.date()
             hour = local_start.hour
@@ -488,14 +398,11 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
                 "selected_day": selected_day,
                 "week_days": week_days,
                 "calendar_rows": calendar_rows,
-                "day_appointments": sorted(
-                    [
-                        appointment
-                        for appointment in calendar_appointments
-                        if timezone.localtime(appointment.starts_at).date() == selected_day
-                    ],
-                    key=lambda appointment: appointment.starts_at,
-                ),
+                "day_appointments": [
+                    appointment
+                    for appointment in calendar_queryset
+                    if timezone.localtime(appointment.starts_at).date() == selected_day
+                ],
                 "today_total": base_queryset.filter(starts_at__date=today).exclude(
                     status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
                 ).count(),
@@ -890,43 +797,34 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
 
     def reschedule_current_only(self, form, starts_at, ends_at, new_status, slots, booking_values):
         profile = get_profile(self.request.user)
-        try:
-            with transaction.atomic():
-                original = Appointment.objects.select_for_update().get(pk=self.original_appointment.pk)
-                original.status = Appointment.Status.RESCHEDULED
-                original.full_clean()
-                original.save(update_fields=["status", "updated_at"])
-                target_day = timezone.localtime(starts_at).date()
-                payload = build_occurrence_payloads(
-                    professional=form.cleaned_data["professional"],
-                    patient_ids=[original.patient_id],
-                    dates=[target_day],
-                    selected_start=timezone.localtime(starts_at).time(),
-                    duration_minutes=form.cleaned_data["duration_minutes"],
-                    requested_capacity=original.slot_capacity,
-                    exclude_ids_by_date={target_day.isoformat(): [original.pk]},
-                )[0]
-                new_appointment = Appointment(
-                    patient=original.patient,
-                    professional=form.cleaned_data["professional"],
-                    service_plan=original.service_plan,
-                    starts_at=payload["starts_at"],
-                    ends_at=payload["ends_at"],
-                    status=new_status,
-                    booking_source=profile_booking_source(profile),
-                    booked_by=self.request.user,
-                    rescheduled_from=original,
-                    series=original.series,
-                    slot_group=payload["slot_group"],
-                    slot_capacity=payload["slot_capacity"],
-                    service_units=original.service_units,
-                    notes=form.cleaned_data.get("notes", ""),
-                )
+        with transaction.atomic():
+            original = Appointment.objects.select_for_update().get(pk=self.original_appointment.pk)
+            original.status = Appointment.Status.RESCHEDULED
+            original.full_clean()
+            original.save(update_fields=["status", "updated_at"])
+            new_appointment = Appointment(
+                patient=original.patient,
+                professional=form.cleaned_data["professional"],
+                service_plan=original.service_plan,
+                starts_at=starts_at,
+                ends_at=ends_at,
+                status=new_status,
+                booking_source=profile_booking_source(profile),
+                booked_by=self.request.user,
+                rescheduled_from=original,
+                series=original.series,
+                slot_group=original.slot_group if original.slot_capacity > 1 else "",
+                slot_capacity=original.slot_capacity,
+                service_units=original.service_units,
+                notes=form.cleaned_data.get("notes", ""),
+            )
+            try:
                 new_appointment.full_clean()
                 new_appointment.save()
-        except ValidationError as error:
-            add_model_validation_errors(form, error)
-            return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+            except ValidationError as error:
+                add_model_validation_errors(form, error)
+                transaction.set_rollback(True)
+                return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
         messages.success(self.request, "Agendamento reagendado sem consumo de credito.")
         return agenda_redirect_for_date(timezone.localtime(new_appointment.starts_at).date())
@@ -934,41 +832,41 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
     def reschedule_current_and_future(self, form, starts_at, ends_at, new_status, slots, booking_values):
         profile = get_profile(self.request.user)
         delta = starts_at - self.original_appointment.starts_at
-        first_replacement_day = None
-        try:
-            with transaction.atomic():
-                sources = list(
-                    self.original_appointment.series.appointments.select_for_update()
-                    .filter(
-                        status__in=ACTIVE_APPOINTMENT_STATUSES,
-                        starts_at__gte=self.original_appointment.starts_at,
-                    )
-                    .order_by("starts_at")
+        with transaction.atomic():
+            sources = list(
+                self.original_appointment.series.appointments.select_for_update()
+                .filter(
+                    status__in=ACTIVE_APPOINTMENT_STATUSES,
+                    starts_at__gte=self.original_appointment.starts_at,
                 )
-                if not sources:
-                    messages.error(self.request, "Nao ha sessoes futuras disponiveis para reagendar.")
-                    return redirect(self.success_url)
+                .order_by("starts_at")
+            )
+            if not sources:
+                messages.error(self.request, "Nao ha sessoes futuras disponiveis para reagendar.")
+                return redirect(self.success_url)
 
-                occurrences = []
-                for source in sources:
-                    shifted_start = source.starts_at + delta
-                    occurrences.append(
-                        {
-                            "source": source,
-                            "date": timezone.localtime(shifted_start).date(),
-                            "starts_at": shifted_start,
-                            "ends_at": source.ends_at + delta,
-                        }
-                    )
+            occurrences = []
+            first_replacement_day = None
+            for source in sources:
+                shifted_start = source.starts_at + delta
+                occurrences.append(
+                    {
+                        "source": source,
+                        "date": timezone.localtime(shifted_start).date(),
+                        "starts_at": shifted_start,
+                        "ends_at": source.ends_at + delta,
+                    }
+                )
 
-                grouped_occurrences = {}
-                for item in occurrences:
-                    grouped_occurrences.setdefault(item["date"], []).append(item)
+            grouped_occurrences = {}
+            for item in occurrences:
+                grouped_occurrences.setdefault(item["date"], []).append(item)
 
-                payload_by_date = {}
-                for current_date, items in grouped_occurrences.items():
-                    patient_ids = [item["source"].patient_id for item in items]
-                    exclude_ids_by_date = {current_date.isoformat(): [item["source"].pk for item in items]}
+            payload_by_date = {}
+            for current_date, items in grouped_occurrences.items():
+                patient_ids = [item["source"].patient_id for item in items]
+                exclude_ids_by_date = {current_date.isoformat(): [item["source"].pk for item in items]}
+                try:
                     payload = build_occurrence_payloads(
                         professional=form.cleaned_data["professional"],
                         patient_ids=patient_ids,
@@ -978,44 +876,50 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                         requested_capacity=max(item["source"].slot_capacity for item in items),
                         exclude_ids_by_date=exclude_ids_by_date,
                     )[0]
-                    payload_by_date[current_date] = payload
+                except ValidationError as error:
+                    add_model_validation_errors(form, error)
+                    transaction.set_rollback(True)
+                    return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+                payload_by_date[current_date] = payload
 
-                new_series = AppointmentSeries.objects.create(
-                    created_by=self.request.user,
-                    repeat_type=AppointmentSeries.RepeatType.WEEKLY,
-                    interval_weeks=self.original_appointment.series.interval_weeks,
-                    repeat_until=max(payload_by_date) if payload_by_date else None,
-                    occurrences_count=len(payload_by_date),
-                    notes=f"Serie ajustada a partir de {timezone.localtime(starts_at):%d/%m/%Y}",
+            new_series = AppointmentSeries.objects.create(
+                created_by=self.request.user,
+                repeat_type=AppointmentSeries.RepeatType.WEEKLY,
+                interval_weeks=self.original_appointment.series.interval_weeks,
+                repeat_until=max(payload_by_date) if payload_by_date else None,
+                occurrences_count=len(payload_by_date),
+                notes=f"Serie ajustada a partir de {timezone.localtime(starts_at):%d/%m/%Y}",
+            )
+            for source in sources:
+                source.status = Appointment.Status.RESCHEDULED
+                source.full_clean()
+                source.save(update_fields=["status", "updated_at"])
+                shifted_date = timezone.localtime(source.starts_at + delta).date()
+                payload = payload_by_date[shifted_date]
+                replacement = Appointment(
+                    patient=source.patient,
+                    professional=form.cleaned_data["professional"],
+                    service_plan=source.service_plan,
+                    starts_at=source.starts_at + delta,
+                    ends_at=source.ends_at + delta,
+                    status=new_status,
+                    booking_source=profile_booking_source(profile),
+                    booked_by=self.request.user,
+                    rescheduled_from=source,
+                    series=new_series,
+                    slot_group=payload["slot_group"],
+                    slot_capacity=payload["slot_capacity"],
+                    service_units=source.service_units,
+                    notes=form.cleaned_data.get("notes", "") or source.notes,
                 )
-                for source in sources:
-                    source.status = Appointment.Status.RESCHEDULED
-                    source.full_clean()
-                    source.save(update_fields=["status", "updated_at"])
-                    shifted_date = timezone.localtime(source.starts_at + delta).date()
-                    payload = payload_by_date[shifted_date]
-                    replacement = Appointment(
-                        patient=source.patient,
-                        professional=form.cleaned_data["professional"],
-                        service_plan=source.service_plan,
-                        starts_at=source.starts_at + delta,
-                        ends_at=source.ends_at + delta,
-                        status=new_status,
-                        booking_source=profile_booking_source(profile),
-                        booked_by=self.request.user,
-                        rescheduled_from=source,
-                        series=new_series,
-                        slot_group=payload["slot_group"],
-                        slot_capacity=payload["slot_capacity"],
-                        service_units=source.service_units,
-                        notes=form.cleaned_data.get("notes", "") or source.notes,
-                    )
+                try:
                     replacement.full_clean()
                     replacement.save()
                     first_replacement_day = first_replacement_day or timezone.localtime(replacement.starts_at).date()
-        except ValidationError as error:
-            add_model_validation_errors(form, error)
-            return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+                except ValidationError as error:
+                    add_model_validation_errors(form, error)
+                    transaction.set_rollback(True)
+                    return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
         messages.success(self.request, "Sessao atual e proximas reagendadas com sucesso.")
         return agenda_redirect_for_date(first_replacement_day or timezone.localdate())
@@ -1036,36 +940,23 @@ class AppointmentCompleteView(AppointmentAccessMixin, View):
                 messages.error(request, "Este atendimento ja foi baixado.")
                 return redirect("scheduling:appointments")
 
-            package, package_reason = completion_available_package(appointment, lock=True)
-            if package_reason == "ambiguous":
-                messages.error(
-                    request,
-                    "Este paciente possui mais de uma adesao ativa. Edite o agendamento e informe o plano/servico antes da baixa.",
-                )
+            try:
+                package = completion_package_for_appointment(appointment, lock=True)
+            except ValidationError as error:
+                messages.error(request, error.messages[0])
                 return redirect("scheduling:appointments")
-            if not package or package.remaining_sessions < appointment.service_units:
-                if request.POST.get(ADD_COMPLETION_CREDIT_FIELD) == "1":
-                    package, target_reason = completion_credit_target_package(
-                        appointment,
-                        lock=True,
-                        create_missing=True,
+            needs_credit = not package or package.remaining_sessions < appointment.service_units
+            if needs_credit:
+                if request.POST.get("add_credit") != "1":
+                    messages.error(
+                        request,
+                        "O cliente nao tem creditos disponiveis. Confirme no botao de baixa para adicionar 1 credito e continuar.",
                     )
-                    if target_reason == "ambiguous":
-                        messages.error(
-                            request,
-                            "Este paciente possui mais de uma adesao ativa. Edite o agendamento e informe o plano/servico antes da baixa.",
-                        )
-                        return redirect("scheduling:appointments")
-                    if not package:
-                        messages.error(request, "Nao ha adesao ativa para adicionar credito neste paciente e plano/servico.")
-                        return redirect("scheduling:appointments")
-                    if target_reason != "created_package":
-                        package = add_completion_credit(package, appointment, request.user)
-                elif not package:
-                    messages.error(request, "Nao ha adesao ativa com saldo para este paciente e plano/servico.")
                     return redirect("scheduling:appointments")
-                else:
-                    messages.error(request, "A adesao nao possui saldo suficiente.")
+                try:
+                    package = ensure_credit_for_appointment(appointment, request.user)
+                except ValidationError as error:
+                    messages.error(request, error.messages[0])
                     return redirect("scheduling:appointments")
             appointment.status = Appointment.Status.COMPLETED
             appointment.completed_by = request.user
@@ -1084,7 +975,7 @@ class AppointmentCompleteView(AppointmentAccessMixin, View):
             package.full_clean()
             package.save()
 
-        messages.success(request, "Atendimento baixado e adesao atualizada. Use Evolucao para registrar o prontuario do atendimento.")
+        messages.success(request, "Atendimento baixado e adesao atualizada.")
         return redirect("scheduling:appointments")
 
 
@@ -1298,6 +1189,31 @@ class ServicePackageListView(FinanceAccessMixin, SearchableListView, ListView):
             .get_queryset()
             .select_related("membership__patient", "membership__plan")
             .exclude(status=ServicePackage.Status.CANCELED)
+        )
+
+
+class ServicePackageAdjustmentListView(FinanceAccessMixin, SearchableListView, ListView):
+    model = ServicePackageAdjustment
+    template_name = "scheduling/package_adjustment_list.html"
+    context_object_name = "adjustments"
+    paginate_by = 20
+    search_fields = [
+        "service_package__membership__patient__full_name",
+        "service_package__membership__plan__name",
+        "reason",
+        "notes",
+    ]
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .select_related(
+                "service_package__membership__patient",
+                "service_package__membership__plan",
+                "appointment",
+                "created_by",
+            )
         )
 
 

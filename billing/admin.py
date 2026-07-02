@@ -1,12 +1,12 @@
 from django.contrib import admin
 
-from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
+from billing.models import CashClosing, Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 
 
 @admin.register(ServicePlan)
 class ServicePlanAdmin(admin.ModelAdmin):
-    list_display = ("name", "category", "monthly_price", "sessions_per_week", "active")
-    list_filter = ("category", "active")
+    list_display = ("name", "category", "delivery_mode", "grants_homecare_access", "monthly_price", "sessions_per_week", "active")
+    list_filter = ("category", "delivery_mode", "grants_homecare_access", "active")
     search_fields = ("name", "description")
 
 
@@ -43,3 +43,10 @@ class ChargeAdmin(admin.ModelAdmin):
     list_display = ("description", "patient", "due_date", "amount", "status")
     list_filter = ("status", "due_date")
     search_fields = ("description", "patient__full_name")
+
+
+@admin.register(CashClosing)
+class CashClosingAdmin(admin.ModelAdmin):
+    list_display = ("date", "payments_total", "charges_total", "expenses_total", "cash_expected", "cash_counted", "closed_by", "closed_at")
+    list_filter = ("date", "closed_at")
+    search_fields = ("notes", "closed_by__username")

@@ -8,7 +8,7 @@ from django.urls import reverse
 
 from accounts.models import UserProfile
 from billing.forms import PaymentForm
-from billing.models import Expense, ExpenseCategory, Membership, Payment, ServicePlan
+from billing.models import CashClosing, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from patients.models import Patient
 
 
@@ -92,6 +92,49 @@ class BillingModelTests(TestCase):
 
         self.assertEqual(plan.sessions_per_week, 1)
         self.assertEqual(plan.default_total_sessions, 1)
+
+    def test_finance_user_can_create_digital_plan_with_homecare_access(self):
+        user = get_user_model().objects.create_user(username="financeiro-plano-digital", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("billing:plan_create"),
+            {
+                "name": "Lume em Casa Digital",
+                "category": ServicePlan.Category.PHYSIOTHERAPY,
+                "plan_type": ServicePlan.PlanType.RECURRING,
+                "delivery_mode": ServicePlan.DeliveryMode.DIGITAL,
+                "grants_homecare_access": "on",
+                "monthly_price": "89.90",
+                "duration_months": "1",
+                "sessions_per_week": "1",
+                "included_sessions": "1",
+                "description": "Plano digital.",
+                "public_description": "",
+                "show_on_website": "",
+                "display_order": "0",
+                "highlight_badge": "",
+                "active": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("billing:plans"))
+        plan = ServicePlan.objects.get(name="Lume em Casa Digital")
+        self.assertEqual(plan.delivery_mode, ServicePlan.DeliveryMode.DIGITAL)
+        self.assertTrue(plan.grants_homecare_access)
+        list_response = self.client.get(reverse("billing:plans"))
+        self.assertContains(list_response, "Lume em Casa")
+        self.assertContains(list_response, "Digital")
+
+    def test_plan_form_warns_that_homecare_access_affects_active_patients(self):
+        user = get_user_model().objects.create_user(username="financeiro-aviso-lume", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("billing:plan_update", args=[self.plan.pk]))
+
+        self.assertContains(response, "Alterar este campo afeta imediatamente todos os pacientes com vinculo ativo neste plano.")
 
     def test_payment_paid_requires_paid_date(self):
         membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
@@ -239,50 +282,6 @@ class BillingModelTests(TestCase):
         self.assertEqual(payment.method, Payment.Method.CASH)
         self.assertEqual(payment.paid_at, date(2026, 6, 12))
 
-    def test_payment_list_links_to_delete_payment(self):
-        user = get_user_model().objects.create_user(username="financeiro-lista-excluir", password="Senha@123")
-        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
-        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
-        payment = Payment.objects.create(
-            membership=membership,
-            reference_month=date(2026, 6, 1),
-            due_date=date(2026, 6, 10),
-            amount=Decimal("400.00"),
-            status=Payment.Status.PENDING,
-        )
-        self.client.force_login(user)
-
-        response = self.client.get(reverse("billing:payments"))
-
-        self.assertContains(response, reverse("billing:payment_delete", args=[payment.pk]))
-        self.assertContains(response, "Excluir")
-
-    def test_payment_delete_deactivate_cancels_payment(self):
-        user = get_user_model().objects.create_user(username="financeiro-exclui-pagamento", password="Senha@123")
-        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
-        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
-        payment = Payment.objects.create(
-            membership=membership,
-            reference_month=date(2026, 6, 1),
-            due_date=date(2026, 6, 10),
-            amount=Decimal("400.00"),
-            status=Payment.Status.PAID,
-            method=Payment.Method.PIX,
-            paid_at=date(2026, 6, 8),
-        )
-        self.client.force_login(user)
-
-        response = self.client.post(
-            reverse("billing:payment_delete", args=[payment.pk]),
-            {"delete_action": "deactivate"},
-        )
-
-        self.assertRedirects(response, reverse("billing:payments"))
-        payment.refresh_from_db()
-        self.assertEqual(payment.status, Payment.Status.CANCELED)
-        self.assertIsNone(payment.paid_at)
-        self.assertIn("Cancelado", payment.notes)
-
     def test_payment_quick_receive_lists_only_open_payments(self):
         user = get_user_model().objects.create_user(username="financeiro-recebimento-rapido", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
@@ -320,44 +319,70 @@ class BillingModelTests(TestCase):
         self.assertNotContains(response, "07/2026")
         self.assertNotContains(response, "Massagem avulsa")
 
-    def test_quick_receive_suggests_advance_membership_payment(self):
-        user = get_user_model().objects.create_user(username="financeiro-adianta-lista", password="Senha@123")
-        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
-        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
-        self.client.force_login(user)
-
-        response = self.client.get(reverse("billing:payment_quick_receive"), {"q": "Paciente"})
-
-        self.assertContains(response, "Receber mensalidade adiantada")
-        self.assertContains(response, reverse("billing:payment_advance_receive", args=[membership.pk]))
-        self.assertContains(response, "Receber adiantado")
-
-    def test_advance_receive_creates_paid_membership_payment(self):
-        user = get_user_model().objects.create_user(username="financeiro-adianta-recebe", password="Senha@123")
+    def test_payment_quick_receive_can_receive_future_membership_month(self):
+        user = get_user_model().objects.create_user(username="financeiro-recebe-adiantado", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
         membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
         self.client.force_login(user)
 
         response = self.client.post(
-            reverse("billing:payment_advance_receive", args=[membership.pk]),
+            reverse("billing:payment_quick_receive"),
             {
-                "reference_month_number": "8",
-                "reference_year": "2026",
-                "due_date": "2026-08-10",
-                "amount": "400,00",
-                "method": Payment.Method.CARD,
+                "membership": membership.pk,
+                "reference_month": "2026-08-01",
+                "method": Payment.Method.PIX,
                 "paid_at": "2026-07-02",
-                "notes": "Paciente adiantou a mensalidade.",
+                "notes": "Pagamento adiantado.",
             },
         )
 
-        self.assertRedirects(response, reverse("billing:payments"))
+        self.assertRedirects(response, reverse("billing:payment_quick_receive"))
         payment = Payment.objects.get(membership=membership, reference_month=date(2026, 8, 1))
         self.assertEqual(payment.status, Payment.Status.PAID)
-        self.assertEqual(payment.method, Payment.Method.CARD)
-        self.assertEqual(payment.amount, Decimal("400.00"))
-        self.assertEqual(payment.due_date, date(2026, 8, 10))
         self.assertEqual(payment.paid_at, date(2026, 7, 2))
+        self.assertEqual(payment.due_date, date(2026, 8, 10))
+        self.assertEqual(payment.amount, Decimal("400.00"))
+
+    def test_cash_closing_stores_daily_totals(self):
+        user = get_user_model().objects.create_user(username="financeiro-caixa", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        category = ExpenseCategory.objects.get(name="Aluguel")
+        Payment.objects.create(
+            membership=membership,
+            reference_month=date(2026, 7, 1),
+            due_date=date(2026, 7, 10),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PAID,
+            method=Payment.Method.CASH,
+            paid_at=date(2026, 7, 2),
+        )
+        Expense.objects.create(
+            description="Compra teste",
+            category=category,
+            kind=Expense.Kind.VARIABLE,
+            due_date=date(2026, 7, 2),
+            paid_at=date(2026, 7, 2),
+            amount=Decimal("50.00"),
+            status=Expense.Status.PAID,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("billing:cash_closing"),
+            {
+                "date": "2026-07-02",
+                "cash_counted": "390.00",
+                "notes": "Faltou troco.",
+            },
+        )
+
+        self.assertRedirects(response, f"{reverse('billing:cash_closing')}?date=2026-07-02")
+        closing = CashClosing.objects.get(date=date(2026, 7, 2))
+        self.assertEqual(closing.payments_total, Decimal("400.00"))
+        self.assertEqual(closing.expenses_total, Decimal("50.00"))
+        self.assertEqual(closing.cash_expected, Decimal("400.00"))
+        self.assertEqual(closing.cash_difference, Decimal("-10.00"))
 
     def test_expense_delete_deactivate_cancels_expense_and_removes_from_totals(self):
         user = get_user_model().objects.create_user(username="financeiro-exclui-despesa", password="Senha@123")

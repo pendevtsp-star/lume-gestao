@@ -1,6 +1,7 @@
 from decimal import Decimal
 from datetime import date
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
@@ -23,9 +24,26 @@ class ServicePlan(TimeStampedModel):
         RECURRING = "recurring", "Plano recorrente"
         SINGLE = "single", "Servico avulso"
 
+    class DeliveryMode(models.TextChoices):
+        IN_PERSON = "in_person", "Presencial"
+        DIGITAL = "digital", "Digital"
+        HYBRID = "hybrid", "Hibrido"
+
     name = models.CharField("nome do plano", max_length=120)
     category = models.CharField("categoria", max_length=30, choices=Category.choices)
     plan_type = models.CharField("tipo", max_length=20, choices=PlanType.choices, default=PlanType.RECURRING)
+    delivery_mode = models.CharField(
+        "modalidade",
+        max_length=20,
+        choices=DeliveryMode.choices,
+        default=DeliveryMode.IN_PERSON,
+        help_text="Use Digital para planos apenas do Lume em Casa, ou Hibrido para plano presencial com acesso digital.",
+    )
+    grants_homecare_access = models.BooleanField(
+        "Acesso ao Lume em Casa",
+        default=False,
+        help_text="Libera automaticamente o acesso do paciente ao modulo Lume em Casa enquanto o vinculo/plano estiver ativo.",
+    )
     monthly_price = models.DecimalField("valor do ciclo", max_digits=10, decimal_places=2)
     duration_months = models.PositiveSmallIntegerField("duracao do ciclo em meses", default=1)
     sessions_per_week = models.PositiveSmallIntegerField("sessoes por semana", default=2)
@@ -278,6 +296,51 @@ class Expense(TimeStampedModel):
             raise ValidationError({"paid_at": "Informe a data de pagamento."})
         if self.status != self.Status.PAID and self.paid_at:
             raise ValidationError({"paid_at": "Use data de pagamento apenas quando a despesa estiver paga."})
+
+
+class CashClosing(TimeStampedModel):
+    date = models.DateField("data do caixa", unique=True, default=timezone.localdate)
+    payments_total = models.DecimalField("recebimentos", max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    charges_total = models.DecimalField("cobrancas avulsas", max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    expenses_total = models.DecimalField("despesas pagas", max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    cash_expected = models.DecimalField("dinheiro esperado", max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    cash_counted = models.DecimalField("dinheiro conferido", max_digits=10, decimal_places=2, null=True, blank=True)
+    closed_at = models.DateTimeField("fechado em", null=True, blank=True)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cash_closings",
+        verbose_name="fechado por",
+    )
+    notes = models.TextField("observacoes", blank=True)
+
+    class Meta:
+        ordering = ["-date"]
+        verbose_name = "fechamento de caixa"
+        verbose_name_plural = "fechamentos de caixa"
+
+    def __str__(self):
+        return f"Caixa {self.date:%d/%m/%Y}"
+
+    @property
+    def revenue_total(self):
+        return self.payments_total + self.charges_total
+
+    @property
+    def net_total(self):
+        return self.revenue_total - self.expenses_total
+
+    @property
+    def cash_difference(self):
+        if self.cash_counted is None:
+            return None
+        return self.cash_counted - self.cash_expected
+
+    @property
+    def is_closed(self):
+        return self.closed_at is not None
 
 
 class Charge(TimeStampedModel):

@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.models import (
+    Appointment,
+    ProfessionalAvailability,
+    ServicePackage,
+    ServicePackageAdjustment,
+    ServiceUsage,
+)
 
 
 @admin.register(Appointment)
@@ -28,3 +34,10 @@ class ServicePackageAdmin(admin.ModelAdmin):
 class ServiceUsageAdmin(admin.ModelAdmin):
     list_display = ("service_package", "appointment", "units", "registered_by", "registered_at")
     search_fields = ("service_package__membership__patient__full_name", "appointment__patient__full_name")
+
+
+@admin.register(ServicePackageAdjustment)
+class ServicePackageAdjustmentAdmin(admin.ModelAdmin):
+    list_display = ("service_package", "appointment", "delta_sessions", "reason", "created_by", "created_at")
+    list_filter = ("reason", "created_at")
+    search_fields = ("service_package__membership__patient__full_name", "service_package__membership__plan__name", "notes")

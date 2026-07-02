@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Caixa do dia | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Financeiro</p>
+    <h1>Caixa do dia</h1>
+    <p class="page-subtitle">Confira entradas, saidas e dinheiro esperado antes de fechar o caixa.</p>
+  </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="?date={{ previous_day|date:'Y-m-d' }}">Dia anterior</a>
+    <a class="button secondary" href="?date={{ next_day|date:'Y-m-d' }}">Proximo dia</a>
+  </div>
+</section>
+
+<section class="panel report-filter-panel">
+  <form class="toolbar" method="get">
+    <label class="form-field">
+      <span>Data do caixa</span>
+      <input class="field-control" type="date" name="date" value="{{ selected_day|date:'Y-m-d' }}">
+    </label>
+    <button class="button primary" type="submit">Atualizar</button>
+  </form>
+</section>
+
+<section class="metric-grid">
+  <article class="metric">
+    <span>Recebimentos</span>
+    <strong>R$ {{ summary.payments_total|floatformat:2 }}</strong>
+  </article>
+  <article class="metric">
+    <span>Cobrancas avulsas</span>
+    <strong>R$ {{ summary.charges_total|floatformat:2 }}</strong>
+  </article>
+  <article class="metric">
+    <span>Despesas</span>
+    <strong>R$ {{ summary.expenses_total|floatformat:2 }}</strong>
+  </article>
+  <article class="metric">
+    <span>Resultado do dia</span>
+    <strong>R$ {{ summary.net_total|floatformat:2 }}</strong>
+  </article>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Fechamento</h2>
+        <p>{% if closing %}Ultimo fechamento salvo para esta data.{% else %}Nenhum fechamento salvo para esta data.{% endif %}</p>
+      </div>
+      {% if closing %}
+        <span class="badge paid">Fechado</span>
+      {% else %}
+        <span class="badge pending">Aberto</span>
+      {% endif %}
+    </header>
+    <div class="metric-grid compact-metrics">
+      <article class="metric">
+        <span>Dinheiro esperado</span>
+        <strong>R$ {{ summary.cash_expected|floatformat:2 }}</strong>
+      </article>
+      <article class="metric">
+        <span>Dinheiro conferido</span>
+        <strong>{% if closing.cash_counted != None %}R$ {{ closing.cash_counted|floatformat:2 }}{% else %}-{% endif %}</strong>
+      </article>
+      <article class="metric">
+        <span>Diferenca</span>
+        <strong>{% if closing.cash_difference != None %}R$ {{ closing.cash_difference|floatformat:2 }}{% else %}-{% endif %}</strong>
+      </article>
+    </div>
+    {% if closing %}
+      <p class="table-meta">
+        Fechado por {{ closing.closed_by|default:"sistema" }} em {{ closing.closed_at|date:"d/m/Y H:i" }}.
+      </p>
+    {% endif %}
+    <form class="form-grid" method="post">
+      {% csrf_token %}
+      <input type="hidden" name="date" value="{{ selected_day|date:'Y-m-d' }}">
+      <label class="form-field">
+        <span>{{ cash_form.cash_counted.label }}</span>
+        {{ cash_form.cash_counted }}
+      </label>
+      <label class="form-field span-2">
+        <span>{{ cash_form.notes.label }}</span>
+        {{ cash_form.notes }}
+      </label>
+      <button class="button primary" type="submit">{% if closing %}Recalcular fechamento{% else %}Fechar caixa{% endif %}</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Receita por metodo</h2>
+        <p>Ajuda a conferir Pix, cartao, dinheiro e baixas manuais.</p>
+      </div>
+    </header>
+    <div class="bar-list">
+      {% for row in summary.method_rows %}
+        <article class="bar-item">
+          <div class="bar-copy">
+            <strong>{{ row.label }}</strong>
+            <span>{{ row.count }} recebimento(s)</span>
+          </div>
+          <strong class="bar-value">R$ {{ row.total|floatformat:2 }}</strong>
+        </article>
+      {% empty %}
+        <p class="bar-empty">Nenhum recebimento registrado nesta data.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="panel stacked-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Movimentos do dia</h2>
+      <p>Itens usados no calculo do fechamento.</p>
+    </div>
+  </header>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Paciente/descricao</th>
+          <th>Metodo/status</th>
+          <th class="right">Valor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for payment in summary.payments %}
+          <tr>
+            <td>Pagamento</td>
+            <td><strong>{{ payment.patient_display }}</strong><small>{{ payment.item_display }}</small></td>
+            <td>{{ payment.get_method_display }}</td>
+            <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
+          </tr>
+        {% endfor %}
+        {% for charge in summary.charges %}
+          <tr>
+            <td>Cobranca</td>
+            <td><strong>{{ charge.patient.full_name|default:"Sem paciente" }}</strong><small>{{ charge.description }}</small></td>
+            <td>{{ charge.get_status_display }}</td>
+            <td class="right">R$ {{ charge.amount|floatformat:2 }}</td>
+          </tr>
+        {% endfor %}
+        {% for expense in summary.expenses %}
+          <tr>
+            <td>Despesa</td>
+            <td><strong>{{ expense.category.name|default:"Sem categoria" }}</strong><small>{{ expense.description }}</small></td>
+            <td>{{ expense.get_status_display }}</td>
+            <td class="right">- R$ {{ expense.amount|floatformat:2 }}</td>
+          </tr>
+        {% endfor %}
+        {% if not summary.payments and not summary.charges and not summary.expenses %}
+          <tr><td colspan="4" class="empty">Nenhum movimento nesta data.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

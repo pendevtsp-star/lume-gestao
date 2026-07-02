@@ -119,6 +119,25 @@
   </article>
 </section>
 
+<section class="metric-grid">
+  <article class="metric">
+    <span>Recebido + em aberto</span>
+    <strong>R$ {{ expected_receivable_total|floatformat:2 }}</strong>
+  </article>
+  <article class="metric">
+    <span>Taxa de recebimento</span>
+    <strong>{{ collection_rate|floatformat:1 }}%</strong>
+  </article>
+  <article class="metric">
+    <span>Atendimentos realizados</span>
+    <strong>{{ completed_appointment_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Taxa de realizacao</span>
+    <strong>{{ completion_rate|floatformat:1 }}%</strong>
+  </article>
+</section>
+
 <section class="panel report-highlight-panel">
   <header class="panel-header">
     <div>
@@ -246,6 +265,66 @@
         </article>
       {% empty %}
         <p class="bar-empty">Sem recebimentos vinculados a planos neste periodo.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Atendimentos por profissional</h2>
+        <p>Volume operacional no periodo filtrado.</p>
+      </div>
+    </header>
+    <div class="table-wrap">
+      <table class="compact-table">
+        <thead>
+          <tr>
+            <th>Profissional</th>
+            <th class="right">Total</th>
+            <th class="right">Realizados</th>
+            <th class="right">Cancelados</th>
+            <th class="right">Faltas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in appointments_by_professional %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td class="right">{{ row.total }}</td>
+              <td class="right">{{ row.completed }}</td>
+              <td class="right">{{ row.canceled }}</td>
+              <td class="right">{{ row.no_show }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="empty">Nenhum atendimento no periodo.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="panel">
+    <header class="panel-header">
+      <div>
+        <h2>Creditos consumidos por plano</h2>
+        <p>Leitura rapida de demanda por tipo de adesao.</p>
+      </div>
+    </header>
+    <div class="bar-list">
+      {% for row in credit_usage_by_plan %}
+        <article class="bar-item">
+          <div class="bar-copy">
+            <strong>{{ row.label }}</strong>
+            <span>{{ row.count }} baixa(s)</span>
+          </div>
+          <div class="bar-track"><span class="bar-fill is-sage" style="width: {{ row.percentage }}%;"></span></div>
+          <strong class="bar-value">{{ row.total }} credito(s)</strong>
+        </article>
+      {% empty %}
+        <p class="bar-empty">Nenhum credito consumido no periodo.</p>
       {% endfor %}
     </div>
   </article>

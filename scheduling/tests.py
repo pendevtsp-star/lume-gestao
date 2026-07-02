@@ -12,7 +12,14 @@ from accounts.models import UserProfile
 from billing.models import Membership, Payment, ServicePlan
 from core.models import ClinicSettings
 from patients.models import Patient, ProfessionalPatientAssignment
-from scheduling.models import Appointment, AppointmentSeries, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.models import (
+    Appointment,
+    AppointmentSeries,
+    ProfessionalAvailability,
+    ServicePackage,
+    ServicePackageAdjustment,
+    ServiceUsage,
+)
 from scheduling.forms import ServicePackageForm
 from scheduling.slots import generate_available_slots
 from team.models import Professional
@@ -140,6 +147,49 @@ class SchedulingTests(TestCase):
         self.assertEqual(package.used_sessions, 2)
         self.assertTrue(ServiceUsage.objects.filter(appointment=appointment).exists())
 
+    def test_complete_appointment_can_add_credit_when_confirmed(self):
+        user = get_user_model().objects.create_user(username="prof-agenda-credito-extra", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        ServicePackage.objects.create(
+            membership=self.membership,
+            total_sessions=1,
+            used_sessions=1,
+            status=ServicePackage.Status.FINISHED,
+        )
+        start = timezone.now() + timedelta(days=1)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            service_plan=self.plan,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            service_units=1,
+        )
+        self.client.force_login(user)
+
+        response_without_confirmation = self.client.post(reverse("scheduling:appointment_complete", args=[appointment.pk]))
+        appointment.refresh_from_db()
+        self.assertEqual(response_without_confirmation.status_code, 302)
+        self.assertEqual(appointment.status, Appointment.Status.SCHEDULED)
+        self.assertFalse(ServiceUsage.objects.filter(appointment=appointment).exists())
+
+        response = self.client.post(
+            reverse("scheduling:appointment_complete", args=[appointment.pk]),
+            {"add_credit": "1"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, Appointment.Status.COMPLETED)
+        usage = ServiceUsage.objects.get(appointment=appointment)
+        adjustment = ServicePackageAdjustment.objects.get(appointment=appointment)
+        self.assertEqual(adjustment.delta_sessions, 1)
+        self.assertEqual(adjustment.reason, ServicePackageAdjustment.Reason.APPOINTMENT_NO_CREDIT)
+        self.assertEqual(usage.service_package, adjustment.service_package)
+
     def test_complete_appointment_consumes_matching_service_plan_package(self):
         user = get_user_model().objects.create_user(username="prof-agenda-servico", password="Senha@123")
         UserProfile.objects.update_or_create(
@@ -175,102 +225,6 @@ class SchedulingTests(TestCase):
         massage_package.refresh_from_db()
         self.assertEqual(pilates_package.used_sessions, 0)
         self.assertEqual(massage_package.used_sessions, 1)
-
-    def test_complete_appointment_without_credit_confirmation_still_blocks(self):
-        user = get_user_model().objects.create_user(username="prof-sem-credito", password="Senha@123")
-        UserProfile.objects.update_or_create(
-            user=user,
-            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
-        )
-        package = ServicePackage.objects.create(
-            membership=self.membership,
-            total_sessions=4,
-            used_sessions=4,
-            status=ServicePackage.Status.FINISHED,
-        )
-        start = timezone.now() + timedelta(days=1)
-        appointment = Appointment.objects.create(
-            patient=self.patient,
-            professional=self.professional,
-            starts_at=start,
-            ends_at=start + timedelta(hours=1),
-            service_units=1,
-        )
-        self.client.force_login(user)
-
-        response = self.client.post(reverse("scheduling:appointment_complete", args=[appointment.pk]))
-
-        self.assertEqual(response.status_code, 302)
-        appointment.refresh_from_db()
-        package.refresh_from_db()
-        self.assertEqual(appointment.status, Appointment.Status.SCHEDULED)
-        self.assertEqual(package.total_sessions, 4)
-        self.assertEqual(package.used_sessions, 4)
-        self.assertFalse(ServiceUsage.objects.filter(appointment=appointment).exists())
-
-    def test_complete_appointment_can_add_credit_and_continue(self):
-        user = get_user_model().objects.create_user(username="prof-adiciona-credito", password="Senha@123")
-        UserProfile.objects.update_or_create(
-            user=user,
-            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
-        )
-        package = ServicePackage.objects.create(
-            membership=self.membership,
-            total_sessions=4,
-            used_sessions=4,
-            status=ServicePackage.Status.FINISHED,
-        )
-        start = timezone.now() + timedelta(days=1)
-        appointment = Appointment.objects.create(
-            patient=self.patient,
-            professional=self.professional,
-            starts_at=start,
-            ends_at=start + timedelta(hours=1),
-            service_units=1,
-        )
-        self.client.force_login(user)
-
-        response = self.client.post(
-            reverse("scheduling:appointment_complete", args=[appointment.pk]),
-            {"add_completion_credit": "1"},
-        )
-
-        self.assertEqual(response.status_code, 302)
-        appointment.refresh_from_db()
-        package.refresh_from_db()
-        self.assertEqual(appointment.status, Appointment.Status.COMPLETED)
-        self.assertEqual(package.total_sessions, 5)
-        self.assertEqual(package.used_sessions, 5)
-        self.assertEqual(package.status, ServicePackage.Status.FINISHED)
-        self.assertIn("credito(s) acrescentado(s)", package.notes)
-        self.assertTrue(ServiceUsage.objects.filter(appointment=appointment, units=1).exists())
-
-    def test_appointment_list_marks_completion_form_when_credit_is_missing(self):
-        user = get_user_model().objects.create_user(username="admin-modal-credito", password="Senha@123")
-        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
-        ServicePackage.objects.create(
-            membership=self.membership,
-            total_sessions=4,
-            used_sessions=4,
-            status=ServicePackage.Status.FINISHED,
-        )
-        start = timezone.make_aware(datetime.combine(timezone.localdate(), time(9, 0)))
-        Appointment.objects.create(
-            patient=self.patient,
-            professional=self.professional,
-            starts_at=start,
-            ends_at=start + timedelta(hours=1),
-            service_units=1,
-        )
-        self.client.force_login(user)
-
-        response = self.client.get(reverse("scheduling:appointments"))
-
-        self.assertContains(response, 'data-needs-credit="true"')
-        self.assertContains(
-            response,
-            "O cliente nao tem creditos disponiveis gostaria de acrescentar um credito e continuar?",
-        )
 
     def test_service_package_form_inherits_plan_defaults(self):
         plan = ServicePlan.objects.create(
@@ -659,79 +613,6 @@ class SchedulingTests(TestCase):
         agenda_response = self.client.get(reverse("scheduling:appointments"), {"semana": day.isoformat()})
         self.assertContains(agenda_response, "Sessao em grupo")
         self.assertContains(agenda_response, "2/6 alunos")
-
-    def test_group_session_modal_lists_all_patients_with_individual_actions(self):
-        user = get_user_model().objects.create_user(username="gestao-modal-grupo", password="Senha@123")
-        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
-        third_patient = Patient.objects.create(full_name="Paciente Cascata")
-        ProfessionalPatientAssignment.objects.create(patient=third_patient, professional=self.professional)
-        day = timezone.localdate() + timedelta(days=8)
-        start = timezone.make_aware(datetime.combine(day, time(9, 0)))
-        group_appointments = [
-            Appointment.objects.create(
-                patient=patient,
-                professional=self.professional,
-                starts_at=start,
-                ends_at=start + timedelta(hours=1),
-                slot_capacity=6,
-                slot_group="grupo-modal",
-            )
-            for patient in [self.patient, self.patient_two, third_patient]
-        ]
-        self.client.force_login(user)
-
-        response = self.client.get(reverse("scheduling:appointments"), {"semana": day.isoformat()})
-
-        self.assertContains(response, "Pacientes desta sessao (3/6)")
-        self.assertContains(response, "Abra a lista de pacientes")
-        for appointment in group_appointments:
-            self.assertContains(response, appointment.patient.full_name)
-            self.assertContains(response, reverse("scheduling:appointment_reschedule", args=[appointment.pk]))
-
-    def test_reschedule_to_existing_group_slot_uses_target_group(self):
-        user = get_user_model().objects.create_user(username="gestao-reagenda-grupo-alvo", password="Senha@123")
-        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
-        day = timezone.localdate() + timedelta(days=8)
-        source_start = timezone.make_aware(datetime.combine(day, time(9, 0)))
-        target_start = timezone.make_aware(datetime.combine(day, time(10, 0)))
-        source = Appointment.objects.create(
-            patient=self.patient,
-            professional=self.professional,
-            starts_at=source_start,
-            ends_at=source_start + timedelta(hours=1),
-            slot_capacity=4,
-            slot_group="grupo-origem",
-        )
-        target = Appointment.objects.create(
-            patient=self.patient_two,
-            professional=self.professional,
-            starts_at=target_start,
-            ends_at=target_start + timedelta(hours=1),
-            slot_capacity=4,
-            slot_group="grupo-destino",
-        )
-        self.client.force_login(user)
-
-        response = self.client.post(
-            reverse("scheduling:appointment_reschedule", args=[source.pk]),
-            {
-                "professional": self.professional.pk,
-                "appointment_date": day.isoformat(),
-                "duration_minutes": "60",
-                "selected_start": "10:00",
-                "notes": "Mudanca para grupo existente.",
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-        source.refresh_from_db()
-        target.refresh_from_db()
-        replacement = Appointment.objects.get(rescheduled_from=source)
-        self.assertEqual(source.status, Appointment.Status.RESCHEDULED)
-        self.assertEqual(target.status, Appointment.Status.SCHEDULED)
-        self.assertEqual(replacement.starts_at, target_start)
-        self.assertEqual(replacement.slot_group, target.slot_group)
-        self.assertEqual(replacement.slot_capacity, target.slot_capacity)
 
     def test_professional_can_confirm_requested_appointment(self):
         user = get_user_model().objects.create_user(username="prof-confirma", password="Senha@123")

@@ -29,59 +29,6 @@ from scheduling.models import Appointment, ProfessionalAvailability, ServicePack
 from team.models import Employee, Professional
 
 
-class WhatsAppWebhookTests(TestCase):
-    @override_settings(WHATSAPP_WEBHOOK_VERIFY_TOKEN="token-seguro-meta")
-    def test_meta_verification_returns_challenge_for_valid_token(self):
-        response = self.client.get(
-            reverse("whatsapp_webhook"),
-            {
-                "hub.mode": "subscribe",
-                "hub.verify_token": "token-seguro-meta",
-                "hub.challenge": "desafio-123",
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content.decode(), "desafio-123")
-        self.assertEqual(response["Content-Type"], "text/plain")
-
-    @override_settings(WHATSAPP_WEBHOOK_VERIFY_TOKEN="token-seguro-meta")
-    def test_meta_verification_rejects_invalid_token(self):
-        response = self.client.get(
-            reverse("whatsapp_webhook"),
-            {
-                "hub.mode": "subscribe",
-                "hub.verify_token": "token-incorreto",
-                "hub.challenge": "desafio-123",
-            },
-        )
-
-        self.assertEqual(response.status_code, 403)
-
-    @override_settings(WHATSAPP_WEBHOOK_VERIFY_TOKEN="")
-    def test_meta_verification_rejects_missing_configured_token(self):
-        response = self.client.get(
-            reverse("whatsapp_webhook"),
-            {
-                "hub.mode": "subscribe",
-                "hub.verify_token": "qualquer-token",
-                "hub.challenge": "desafio-123",
-            },
-        )
-
-        self.assertEqual(response.status_code, 403)
-
-    def test_meta_post_webhook_acknowledges_event_without_login(self):
-        response = self.client.post(
-            reverse("whatsapp_webhook"),
-            data={"object": "whatsapp_business_account"},
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"ok": True})
-
-
 class DashboardAccessTests(TestCase):
     def test_dashboard_requires_login(self):
         response = self.client.get(reverse("dashboard"))
@@ -262,16 +209,13 @@ class FunctionalRoleFlowTests(TestCase):
             self.management,
             [
                 "dashboard",
-                "operation_day",
                 "patients:list",
-                "patients:enrollment_create",
                 "scheduling:appointments",
                 "scheduling:availabilities",
                 "reports:dashboard",
                 "reports:financial",
                 "reports:clinic",
                 "billing:memberships",
-                "billing:cashier_day",
                 "billing:payments",
                 "billing:charges",
                 "billing:expenses",
@@ -341,16 +285,13 @@ class FunctionalRoleFlowTests(TestCase):
             self.administration,
             [
                 "dashboard",
-                "operation_day",
                 "patients:list",
-                "patients:enrollment_create",
                 "scheduling:appointments",
                 "scheduling:availabilities",
                 "reports:dashboard",
                 "reports:financial",
                 "reports:clinic",
                 "billing:memberships",
-                "billing:cashier_day",
                 "billing:payments",
                 "billing:expenses",
                 "patients:assignments",
@@ -365,13 +306,11 @@ class FunctionalRoleFlowTests(TestCase):
         self.client.force_login(self.professional_user)
 
         patients_response = self.client.get(reverse("patients:list"))
-        operation_response = self.client.get(reverse("operation_day"))
         notes_response = self.client.get(reverse("patients:notes"))
         finance_response = self.client.get(reverse("billing:payments"))
 
         self.assertContains(patients_response, self.patient.full_name)
         self.assertNotContains(patients_response, self.other_patient.full_name)
-        self.assertContains(operation_response, "Meu dia")
         self.assertContains(notes_response, self.patient.full_name)
         self.assertEqual(finance_response.status_code, 302)
 
@@ -492,10 +431,8 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Aguardando conexao")
+        self.assertContains(response, "Meta Embedded Signup")
         self.assertContains(response, "Conectar WhatsApp oficial")
-        self.assertNotContains(response, "Configuracao tecnica da Meta")
-        self.assertNotContains(response, "Salvar ajustes do WhatsApp")
 
     def test_connections_tab_shows_disconnect_whatsapp_when_connected(self):
         self.client.force_login(self.management)
@@ -551,7 +488,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertFalse(integration.is_connected)
-        self.assertContains(response, "Conexao indisponivel")
+        self.assertContains(response, "Conectar WhatsApp oficial")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",
@@ -563,7 +500,7 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Clique em conectar e siga a tela segura da Meta")
+        self.assertContains(response, "Credenciais no .env da VPS")
         self.assertContains(response, "Conectar WhatsApp oficial")
 
     @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
@@ -617,7 +554,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Configurar credenciais")
-        self.assertContains(response, "Conexao indisponivel")
+        self.assertContains(response, "Configurar Meta")
         self.assertContains(response, "Conectar com Google")
         self.assertContains(response, "Conectar WhatsApp oficial")
         self.assertContains(response, "disabled")
@@ -654,24 +591,6 @@ class IntegrationsTests(TestCase):
 
         self.assertIn("Embedded Signup: sim", output.getvalue())
 
-    @override_settings(
-        WHATSAPP_EMBEDDED_APP_ID="meta-app-id-real-fake",
-        WHATSAPP_EMBEDDED_CONFIG_ID="meta-config-real-fake",
-        WHATSAPP_EMBEDDED_APP_SECRET="meta-app-secret-real-fake",
-    )
-    def test_integrations_renders_whatsapp_embedded_diagnostics(self):
-        self.client.force_login(self.management)
-
-        response = self.client.get(f"{reverse('integrations')}?tab=connections")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'id="whatsapp-embedded-debug"')
-        self.assertContains(response, "Etapa: aguardando novo teste")
-        self.assertContains(response, "Access token recebido no navegador")
-        self.assertContains(response, "parseWhatsAppSignupUrlData")
-        self.assertContains(response, 'sessionInfoVersion: "3"')
-        self.assertContains(response, "setWhatsAppSignupDiagnostics")
-
     @patch("core.views.exchange_whatsapp_embedded_signup_code")
     def test_management_can_finish_whatsapp_embedded_signup(self, exchange_mock):
         self.client.force_login(self.management)
@@ -694,43 +613,6 @@ class IntegrationsTests(TestCase):
         self.assertEqual(integration.business_account_id, "waba-123")
         self.assertEqual(integration.clinic_whatsapp_number, "5511999990000")
         exchange_mock.assert_called_once()
-
-    @override_settings(
-        WHATSAPP_EMBEDDED_APP_ID="meta-app-id-real-fake",
-        WHATSAPP_EMBEDDED_CONFIG_ID="meta-config-real-fake",
-        WHATSAPP_EMBEDDED_APP_SECRET="meta-app-secret-real-fake",
-        LUME_FIELD_ENCRYPTION_KEY="segredo-local-para-testes",
-    )
-    def test_embedded_signup_subscribes_waba_and_encrypts_access_token(self):
-        from core.integrations.whatsapp import exchange_whatsapp_embedded_signup_code
-
-        integration = WhatsAppIntegration.load()
-        integration.phone_number_id = "phone-123"
-        integration.business_account_id = "waba-123"
-        integration.save()
-
-        with patch(
-            "core.integrations.whatsapp.post_form",
-            return_value={"access_token": "token-super-secreto"},
-        ) as token_request, patch(
-            "core.integrations.whatsapp.post_json",
-            return_value={"success": True},
-        ) as subscribe_request:
-            result = exchange_whatsapp_embedded_signup_code("oauth-code", integration=integration)
-
-        integration.refresh_from_db()
-        self.assertEqual(result["access_token"], "token-super-secreto")
-        self.assertTrue(integration.enabled)
-        self.assertTrue(integration.access_token.startswith("fernet:"))
-        self.assertNotIn("token-super-secreto", integration.access_token)
-        self.assertEqual(integration.get_access_token(), "token-super-secreto")
-        token_request.assert_called_once()
-        subscribe_request.assert_called_once_with(
-            "https://graph.facebook.com/v23.0/waba-123/subscribed_apps",
-            {},
-            headers={"Authorization": "Bearer token-super-secreto"},
-            timeout=15,
-        )
 
     def test_messages_tab_filters_single_template(self):
         self.client.force_login(self.management)

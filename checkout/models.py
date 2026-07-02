@@ -2,9 +2,98 @@ from decimal import Decimal
 from uuid import uuid4
 
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from core.models import TimeStampedModel
+
+
+class CheckoutMerchantAccount(TimeStampedModel):
+    class Provider(models.TextChoices):
+        ASAAS = "asaas", "Asaas"
+
+    class AccountType(models.TextChoices):
+        OWN_ACCOUNT = "own_account", "Conta propria"
+        SUBACCOUNT = "subaccount", "Subconta comercial"
+
+    class CompanyType(models.TextChoices):
+        INDIVIDUAL = "individual", "Pessoa fisica"
+        MEI = "mei", "MEI"
+        LIMITED = "limited", "LTDA"
+        ASSOCIATION = "association", "Associacao"
+        OTHER = "other", "Outro"
+
+    class Status(models.TextChoices):
+        NOT_STARTED = "not_started", "Nao iniciado"
+        DRAFT = "draft", "Rascunho"
+        PENDING_PROVIDER = "pending_provider", "Em analise"
+        ACTIVE = "active", "Ativa"
+        ACTION_REQUIRED = "action_required", "Acao necessaria"
+        REJECTED = "rejected", "Rejeitada"
+        DISABLED = "disabled", "Desativada"
+
+    provider = models.CharField("provedor", max_length=20, choices=Provider.choices, default=Provider.ASAAS)
+    account_type = models.CharField(
+        "modelo de recebimento",
+        max_length=30,
+        choices=AccountType.choices,
+        default=AccountType.SUBACCOUNT,
+    )
+    status = models.CharField("status", max_length=30, choices=Status.choices, default=Status.NOT_STARTED, db_index=True)
+    legal_name = models.CharField("razao social/nome", max_length=180, blank=True)
+    trade_name = models.CharField("nome fantasia", max_length=180, blank=True)
+    company_type = models.CharField("tipo de pessoa/empresa", max_length=20, choices=CompanyType.choices, blank=True)
+    responsible_name = models.CharField("responsavel financeiro", max_length=180, blank=True)
+    document = models.CharField("CPF/CNPJ", max_length=20, blank=True)
+    birth_date = models.DateField("data de nascimento", null=True, blank=True)
+    monthly_income = models.DecimalField("renda/faturamento mensal", max_digits=12, decimal_places=2, null=True, blank=True)
+    email = models.EmailField("e-mail financeiro", blank=True)
+    phone = models.CharField("telefone financeiro", max_length=30, blank=True)
+    address = models.CharField("endereco", max_length=180, blank=True)
+    address_number = models.CharField("numero", max_length=20, blank=True)
+    complement = models.CharField("complemento", max_length=80, blank=True)
+    neighborhood = models.CharField("bairro", max_length=100, blank=True)
+    city = models.CharField("cidade", max_length=100, blank=True)
+    state = models.CharField("UF", max_length=2, blank=True)
+    postal_code = models.CharField("CEP", max_length=8, blank=True)
+    provider_account_id = models.CharField("conta no provedor", max_length=120, blank=True, db_index=True)
+    provider_wallet_id = models.CharField("wallet/subconta no provedor", max_length=120, blank=True, db_index=True)
+    provider_payload = models.JSONField("metadados do provedor", default=dict, blank=True)
+    onboarding_started_at = models.DateTimeField("cadastro iniciado em", null=True, blank=True)
+    onboarding_completed_at = models.DateTimeField("cadastro concluido em", null=True, blank=True)
+    last_sync_at = models.DateTimeField("ultima sincronizacao", null=True, blank=True)
+    last_error = models.TextField("ultimo erro", blank=True)
+    active = models.BooleanField("ativa para novos pedidos", default=True)
+    notes = models.TextField("observacoes", blank=True)
+
+    class Meta:
+        ordering = ["provider", "-created_at"]
+        verbose_name = "conta recebedora do checkout"
+        verbose_name_plural = "contas recebedoras do checkout"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider"],
+                condition=Q(active=True),
+                name="unique_active_checkout_merchant_provider",
+            )
+        ]
+
+    def __str__(self):
+        label = self.trade_name or self.legal_name or self.get_provider_display()
+        return f"{label} - {self.get_status_display()}"
+
+    @property
+    def is_ready(self):
+        has_provider_receiver = bool(self.provider_wallet_id or self.provider_account_id)
+        return self.active and self.status == self.Status.ACTIVE and has_provider_receiver
+
+    @property
+    def public_receiver_label(self):
+        if self.trade_name:
+            return self.trade_name
+        if self.legal_name:
+            return self.legal_name
+        return self.get_account_type_display()
 
 
 class CheckoutOrder(TimeStampedModel):
@@ -27,6 +116,14 @@ class CheckoutOrder(TimeStampedModel):
     kind = models.CharField("tipo", max_length=30, choices=Kind.choices)
     status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
     provider = models.CharField("provedor", max_length=20, choices=Provider.choices, default=Provider.ASAAS)
+    merchant_account = models.ForeignKey(
+        "checkout.CheckoutMerchantAccount",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="orders",
+        verbose_name="conta recebedora",
+    )
     patient = models.ForeignKey(
         "patients.Patient",
         on_delete=models.SET_NULL,

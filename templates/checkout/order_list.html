@@ -9,7 +9,10 @@
     <h1>Pedidos de checkout</h1>
     <p class="page-subtitle">Acompanhe compras de planos e pagamentos de mensalidades feitos online.</p>
   </div>
-  <a class="button secondary" href="{% url 'checkout:events' %}">Eventos</a>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'checkout:dashboard' %}">Painel</a>
+    <a class="button secondary" href="{% url 'checkout:events' %}">Eventos</a>
+  </div>
 </section>
 
 <form class="filters" method="get">
@@ -26,19 +29,20 @@
 <section class="panel">
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Cliente</th><th>Tipo</th><th>Status</th><th>Referencia</th><th class="right">Valor</th><th>Criado em</th></tr></thead>
+      <thead><tr><th>Cliente</th><th>Tipo</th><th>Status</th><th>Recebedor</th><th>Referencia</th><th class="right">Valor</th><th>Criado em</th></tr></thead>
       <tbody>
         {% for order in orders %}
           <tr>
             <td><strong>{{ order.customer_name }}</strong><div class="table-meta">{{ order.customer_email|default:order.customer_phone|default:"Sem contato" }}</div></td>
             <td>{{ order.get_kind_display }}</td>
             <td><span class="badge {{ order.status }}">{{ order.get_status_display }}</span></td>
+            <td>{{ order.merchant_account.public_receiver_label|default:"-" }}</td>
             <td>{{ order.external_reference }}</td>
             <td class="right">R$ {{ order.amount|floatformat:2 }}</td>
             <td>{{ order.created_at|date:"d/m/Y H:i" }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty">Nenhum pedido encontrado.</td></tr>
+          <tr><td colspan="7" class="empty">Nenhum pedido encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>

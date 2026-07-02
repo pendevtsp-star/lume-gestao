@@ -2,6 +2,8 @@ from django.urls import path
 
 from checkout.views import (
     AsaasCheckoutWebhookView,
+    CheckoutDashboardView,
+    CheckoutMerchantAccountOnboardingView,
     CheckoutOrderListView,
     CheckoutPaymentEventListView,
     CheckoutStatusView,
@@ -13,6 +15,8 @@ from checkout.views import (
 app_name = "checkout"
 
 urlpatterns = [
+    path("", CheckoutDashboardView.as_view(), name="dashboard"),
+    path("conta-recebedora/", CheckoutMerchantAccountOnboardingView.as_view(), name="merchant_onboarding"),
     path("pedidos/", CheckoutOrderListView.as_view(), name="orders"),
     path("eventos/", CheckoutPaymentEventListView.as_view(), name="events"),
     path("planos/<int:pk>/", PublicPlanCheckoutView.as_view(), name="plan"),

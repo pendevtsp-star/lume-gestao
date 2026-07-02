@@ -9,7 +9,10 @@
     <h1>Eventos de pagamento</h1>
     <p class="page-subtitle">Histórico bruto dos webhooks recebidos do provedor.</p>
   </div>
-  <a class="button secondary" href="{% url 'checkout:orders' %}">Pedidos</a>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'checkout:dashboard' %}">Painel</a>
+    <a class="button secondary" href="{% url 'checkout:orders' %}">Pedidos</a>
+  </div>
 </section>
 
 <form class="filters" method="get">

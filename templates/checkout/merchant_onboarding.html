@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Conta recebedora | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Checkout comercial</p>
+    <h1>Conta recebedora da clinica</h1>
+    <p class="page-subtitle">Cadastro financeiro usado para preparar subconta/split e liberar cobrancas online com seguranca.</p>
+  </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'checkout:dashboard' %}">Painel</a>
+    <a class="button secondary" href="{% url 'checkout:orders' %}">Pedidos</a>
+  </div>
+</section>
+
+<section class="panel checkout-onboarding-status">
+  <div class="checkout-health-grid">
+    <article>
+      <span>Status</span>
+      <strong>{% if merchant_account %}{{ merchant_account.get_status_display }}{% else %}Nao iniciado{% endif %}</strong>
+      <small>O checkout comercial exige conta ativa antes de produzir cobrancas remotas.</small>
+    </article>
+    <article>
+      <span>Modelo</span>
+      <strong>{% if merchant_account %}{{ merchant_account.get_account_type_display }}{% else %}Subconta comercial{% endif %}</strong>
+      <small>Preparado para operacao por clinica, com dados isolados por instancia.</small>
+    </article>
+    <article>
+      <span>Recebimento</span>
+      <strong>{% if gateway.merchant_receiver_configured %}Configurado{% else %}Pendente{% endif %}</strong>
+      <small>O identificador do provedor nunca aparece nesta tela.</small>
+    </article>
+    <article>
+      <span>Modo</span>
+      <strong>{{ gateway.mode_label }}</strong>
+      <small>{% if gateway.merchant_required %}Conta recebedora obrigatoria.{% else %}Homologacao local permitida.{% endif %}</small>
+    </article>
+  </div>
+  <div class="checkout-webhook-box">
+    <div>
+      <strong>Proxima etapa tecnica</strong>
+      <span>Depois deste cadastro, sincronizamos com o Asaas sandbox para criar a subconta e receber o walletId.</span>
+    </div>
+    <div class="checkout-merchant-summary">
+      <strong>Seguranca do cadastro</strong>
+      <span>Nao informe senhas, chaves API, dados de cartao ou dados bancarios neste formulario.</span>
+    </div>
+  </div>
+</section>
+
+<form method="post" class="panel form-panel checkout-onboarding-form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="form-errors">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <section class="checkout-form-section">
+    <div>
+      <p class="eyebrow">Identificacao</p>
+      <h2>Dados da clinica</h2>
+    </div>
+    <div class="form-grid">
+      <label class="form-field">
+        <span>{{ form.legal_name.label }}</span>
+        {{ form.legal_name }}
+        {% if form.legal_name.help_text %}<small>{{ form.legal_name.help_text }}</small>{% endif %}
+        {% for error in form.legal_name.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.trade_name.label }}</span>
+        {{ form.trade_name }}
+        {% if form.trade_name.help_text %}<small>{{ form.trade_name.help_text }}</small>{% endif %}
+        {% for error in form.trade_name.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.company_type.label }}</span>
+        {{ form.company_type }}
+        {% for error in form.company_type.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.document.label }}</span>
+        {{ form.document }}
+        {% if form.document.help_text %}<small>{{ form.document.help_text }}</small>{% endif %}
+        {% for error in form.document.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.birth_date.label }}</span>
+        {{ form.birth_date }}
+        {% if form.birth_date.help_text %}<small>{{ form.birth_date.help_text }}</small>{% endif %}
+        {% for error in form.birth_date.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.monthly_income.label }}</span>
+        {{ form.monthly_income }}
+        {% if form.monthly_income.help_text %}<small>{{ form.monthly_income.help_text }}</small>{% endif %}
+        {% for error in form.monthly_income.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+    </div>
+  </section>
+
+  <section class="checkout-form-section">
+    <div>
+      <p class="eyebrow">Contato</p>
+      <h2>Responsavel financeiro</h2>
+    </div>
+    <div class="form-grid">
+      <label class="form-field">
+        <span>{{ form.responsible_name.label }}</span>
+        {{ form.responsible_name }}
+        {% if form.responsible_name.help_text %}<small>{{ form.responsible_name.help_text }}</small>{% endif %}
+        {% for error in form.responsible_name.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.email.label }}</span>
+        {{ form.email }}
+        {% for error in form.email.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.phone.label }}</span>
+        {{ form.phone }}
+        {% if form.phone.help_text %}<small>{{ form.phone.help_text }}</small>{% endif %}
+        {% for error in form.phone.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+    </div>
+  </section>
+
+  <section class="checkout-form-section">
+    <div>
+      <p class="eyebrow">Endereco</p>
+      <h2>Local de cadastro</h2>
+    </div>
+    <div class="form-grid">
+      <label class="form-field">
+        <span>{{ form.address.label }}</span>
+        {{ form.address }}
+        {% for error in form.address.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.address_number.label }}</span>
+        {{ form.address_number }}
+        {% for error in form.address_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.complement.label }}</span>
+        {{ form.complement }}
+        {% for error in form.complement.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.neighborhood.label }}</span>
+        {{ form.neighborhood }}
+        {% for error in form.neighborhood.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.city.label }}</span>
+        {{ form.city }}
+        {% for error in form.city.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.state.label }}</span>
+        {{ form.state }}
+        {% for error in form.state.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+      <label class="form-field">
+        <span>{{ form.postal_code.label }}</span>
+        {{ form.postal_code }}
+        {% if form.postal_code.help_text %}<small>{{ form.postal_code.help_text }}</small>{% endif %}
+        {% for error in form.postal_code.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+    </div>
+  </section>
+
+  <section class="checkout-form-section">
+    <div>
+      <p class="eyebrow">Interno</p>
+      <h2>Observacoes</h2>
+    </div>
+    <div class="form-grid">
+      <label class="form-field full-span">
+        <span>{{ form.notes.label }}</span>
+        {{ form.notes }}
+        {% if form.notes.help_text %}<small>{{ form.notes.help_text }}</small>{% endif %}
+        {% for error in form.notes.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+      </label>
+    </div>
+  </section>
+
+  <div class="form-actions">
+    <a class="button secondary" href="{% url 'checkout:dashboard' %}">Cancelar</a>
+    <button class="button secondary" type="submit" name="save_draft" value="1">Salvar rascunho</button>
+    <button class="button primary" type="submit" name="submit_for_review" value="1">Marcar para analise</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_professional_operation %}Meu dia{% else %}Operacao do dia{% endif %} | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{% if is_professional_operation %}Profissional{% else %}Gestao operacional{% endif %}</p>
+    <h1>{% if is_professional_operation %}Meu dia{% else %}Operacao do dia{% endif %}</h1>
+    <p class="page-subtitle">Agenda, pendencias e acoes principais para {{ today|date:"d/m/Y" }}.</p>
+  </div>
+  <div class="panel-actions">
+    {% if finance_visible %}
+      <a class="button secondary" href="{% url 'billing:cashier_day' %}">Caixa do dia</a>
+      <a class="button primary" href="{% url 'patients:enrollment_create' %}">Nova matricula</a>
+    {% endif %}
+    <a class="button secondary" href="{% url 'scheduling:appointment_create' %}">Novo agendamento</a>
+  </div>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card">
+    <span>Atendimentos hoje</span>
+    <strong>{{ today_appointments_count }}</strong>
+    <small>Agendados, solicitados ou realizados.</small>
+  </article>
+  <article class="stat-card">
+    <span>Pacientes ativos</span>
+    <strong>{{ active_patients_count }}</strong>
+    <small>Dentro do seu perfil de acesso.</small>
+  </article>
+  <article class="stat-card">
+    <span>Pendencias de credito</span>
+    <strong>{{ credit_alerts|length }}</strong>
+    <small>Agendamentos que podem precisar de credito.</small>
+  </article>
+  {% if finance_visible %}
+    <article class="stat-card">
+      <span>Recebido hoje</span>
+      <strong>R$ {{ paid_today_total|floatformat:2 }}</strong>
+      <small>Baixas financeiras registradas hoje.</small>
+    </article>
+  {% endif %}
+</section>
+
+<section class="panel stacked-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Atendimentos de hoje</h2>
+      <p>Baixe, reagende ou abra o painel do paciente sem sair do fluxo.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Horario</th>
+          <th>Paciente</th>
+          <th>Profissional</th>
+          <th>Status</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for appointment in today_appointments %}
+          <tr>
+            <td><strong>{{ appointment.starts_at|date:"H:i" }}</strong><small>ate {{ appointment.ends_at|date:"H:i" }}</small></td>
+            <td>
+              <strong>{{ appointment.patient.full_name }}</strong>
+              <small>{% if appointment.service_plan %}{{ appointment.service_plan.name }}{% else %}Plano nao informado{% endif %}</small>
+            </td>
+            <td>{{ appointment.professional.full_name }}</td>
+            <td><span class="badge {{ appointment.status }}">{{ appointment.get_status_display }}</span></td>
+            <td class="right table-actions">
+              <a class="table-action" href="{% url 'patients:quick_panel' appointment.patient.pk %}">Painel</a>
+              {% if appointment.status == "requested" and request.user.profile.role != "patient" %}
+                <form method="post" action="{% url 'scheduling:appointment_confirm' appointment.pk %}">
+                  {% csrf_token %}
+                  <button class="table-action button-link" type="submit">Confirmar</button>
+                </form>
+              {% endif %}
+              {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" and request.user.profile.role != "patient" %}
+                <a class="table-action" href="{% url 'scheduling:appointment_reschedule' appointment.pk %}">Reagendar</a>
+              {% endif %}
+              {% if request.user.profile.role == "professional" %}
+                <a class="table-action" href="{% url 'patients:note_create' appointment.patient.pk %}?tipo=daily_evolution">Evolucao</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty">Nenhum atendimento para hoje.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel stacked-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Pendencias operacionais</h2>
+      <p>Itens que costumam travar a recepcao ou a baixa do atendimento.</p>
+    </div>
+  </div>
+  <div class="operation-grid">
+    <article class="operation-card">
+      <h3>Solicitacoes de agenda</h3>
+      {% for appointment in request_queue %}
+        <p>
+          <strong>{{ appointment.starts_at|date:"d/m H:i" }}</strong>
+          {{ appointment.patient.full_name }} com {{ appointment.professional.full_name }}
+        </p>
+      {% empty %}
+        <p>Nenhuma solicitacao aguardando confirmacao.</p>
+      {% endfor %}
+      <a class="table-action" href="{% url 'scheduling:appointments' %}">Abrir agenda</a>
+    </article>
+    <article class="operation-card">
+      <h3>Creditos a revisar</h3>
+      {% for appointment in credit_alerts %}
+        <p>
+          <strong>{{ appointment.starts_at|date:"d/m H:i" }}</strong>
+          {{ appointment.patient.full_name }}
+          {% if appointment.service_plan %}<small>{{ appointment.service_plan.name }}</small>{% endif %}
+        </p>
+      {% empty %}
+        <p>Nenhum atendimento proximo com risco de falta de credito.</p>
+      {% endfor %}
+      {% if finance_visible %}
+        <a class="table-action" href="{% url 'scheduling:packages' %}">Ver creditos e planos</a>
+      {% endif %}
+    </article>
+    <article class="operation-card">
+      <h3>Aniversariantes</h3>
+      {% for birthday in birthday_patients %}
+        <p>
+          <strong>{{ birthday.display_date }}</strong>
+          {{ birthday.patient.full_name }}
+          <small>{% if birthday.has_phone %}com telefone{% else %}sem telefone{% endif %}</small>
+        </p>
+      {% empty %}
+        <p>Nenhum aniversariante nos proximos dias.</p>
+      {% endfor %}
+    </article>
+  </div>
+</section>
+
+{% if finance_visible %}
+  <section class="panel stacked-panel">
+    <div class="panel-header">
+      <div>
+        <h2>Financeiro rapido</h2>
+        <p>Use o caixa para receber mensalidade atual ou adiantada.</p>
+      </div>
+      <a class="button primary compact" href="{% url 'billing:cashier_day' %}">Abrir caixa</a>
+    </div>
+    <div class="operation-grid">
+      <article class="operation-card">
+        <h3>Vencidos</h3>
+        {% for payment in overdue_payments %}
+          <p><strong>{{ payment.patient_display }}</strong> {{ payment.due_date|date:"d/m" }} - R$ {{ payment.amount|floatformat:2 }}</p>
+        {% empty %}
+          <p>Nenhum vencido em aberto.</p>
+        {% endfor %}
+      </article>
+      <article class="operation-card">
+        <h3>Vencem em 7 dias</h3>
+        {% for payment in next_payments %}
+          <p><strong>{{ payment.patient_display }}</strong> {{ payment.due_date|date:"d/m" }} - R$ {{ payment.amount|floatformat:2 }}</p>
+        {% empty %}
+          <p>Nenhum vencimento proximo.</p>
+        {% endfor %}
+      </article>
+      <article class="operation-card">
+        <h3>Recebidos hoje</h3>
+        {% for payment in paid_today %}
+          <p><strong>{{ payment.patient_display }}</strong> R$ {{ payment.amount|floatformat:2 }}</p>
+        {% empty %}
+          <p>Nenhum recebimento registrado hoje.</p>
+        {% endfor %}
+      </article>
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

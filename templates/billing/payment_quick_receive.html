@@ -9,7 +9,10 @@
     <h1>Receber mensalidade</h1>
     <p class="page-subtitle">Busque o paciente para baixar mensalidades em aberto ou receber a proxima mensalidade adiantada.</p>
   </div>
-  <a class="button secondary" href="{% url 'billing:payments' %}">Ver pagamentos</a>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'billing:cashier_day' %}">Caixa do dia</a>
+    <a class="button secondary" href="{% url 'billing:payments' %}">Ver pagamentos</a>
+  </div>
 </section>
 
 <section class="panel quick-receive-panel">

@@ -11,12 +11,14 @@ from core.views import (
     HealthCheckView,
     IntegrationsView,
     LegalDocumentView,
+    OperationDayView,
     WhatsAppWebhookView,
 )
 from reports.views import AuditReportView
 
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
+    path("operacao/", OperationDayView.as_view(), name="operation_day"),
     path("health/", HealthCheckView.as_view(), name="health"),
     path("healthz/", HealthCheckView.as_view(), name="healthz"),
     path("webhooks/whatsapp/", WhatsAppWebhookView.as_view(), name="whatsapp_webhook"),

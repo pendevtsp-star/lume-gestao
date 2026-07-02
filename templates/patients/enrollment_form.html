@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Nova matricula | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Cadastro</p>
+    <h1>Nova matricula</h1>
+    <p class="page-subtitle">Cadastre paciente, plano inicial, creditos e primeiro pagamento no mesmo fluxo.</p>
+  </div>
+  <a class="button secondary" href="{{ back_url }}">Voltar</a>
+</section>
+
+<form method="post" class="panel form-panel" {% if form.is_multipart %}enctype="multipart/form-data"{% endif %}>
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="form-errors">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <div class="operation-grid enrollment-grid">
+    <section class="operation-card">
+      <h2>Dados do paciente</h2>
+      <div class="form-grid">
+        {% for field in form %}
+          {% if field.name == "full_name" or field.name == "photo" or field.name == "cpf" or field.name == "birth_date" or field.name == "phone" or field.name == "email" or field.name == "emergency_contact" or field.name == "address" or field.name == "clinical_notes" or field.name == "active" %}
+            <label class="form-field">
+              <span>{{ field.label }}</span>
+              {{ field }}
+              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+              {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+            </label>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="operation-card">
+      <h2>Plano e pagamento</h2>
+      <div class="form-grid">
+        {% for field in form %}
+          {% if field.name == "initial_service_plans" or field.name == "starts_on" or field.name == "payment_mode" or field.name == "payment_method" or field.name == "paid_at" %}
+            <label class="form-field">
+              <span>{{ field.label }}</span>
+              {{ field }}
+              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+              {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+            </label>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <div class="form-actions">
+    <a class="button secondary" href="{{ back_url }}">Cancelar</a>
+    <button class="button primary" type="submit">Criar matricula</button>
+  </div>
+</form>
+{% endblock %}

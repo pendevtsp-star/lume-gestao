@@ -261,6 +261,137 @@ def weekly_birthday_patients(queryset, starts_on=None, days=7):
     return sorted(birthdays, key=lambda birthday: (birthday["date"], birthday["patient"].full_name))
 
 
+def finance_visible_for_user(user, profile=None):
+    if user.is_superuser:
+        return True
+    profile = profile or get_profile(user)
+    return bool(
+        profile
+        and profile.role
+        in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}
+    )
+
+
+def operation_patients_for_user(user, profile=None):
+    queryset = Patient.objects.filter(active=True)
+    if user.is_superuser:
+        return queryset
+    profile = profile or get_profile(user)
+    if not profile:
+        return queryset.none()
+    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
+        return queryset
+    if profile.is_patient and profile.patient_id:
+        return queryset.filter(pk=profile.patient_id)
+    if profile.is_professional and profile.professional_id:
+        return queryset.filter(pk__in=patient_ids_for_professional(profile.professional))
+    return queryset.none()
+
+
+def operation_appointments_for_user(user, profile=None):
+    queryset = Appointment.objects.select_related("patient", "professional", "service_plan")
+    if user.is_superuser:
+        return queryset
+    profile = profile or get_profile(user)
+    if not profile:
+        return queryset.none()
+    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
+        return queryset
+    if profile.is_patient and profile.patient_id:
+        return queryset.filter(patient=profile.patient)
+    if profile.is_professional and profile.professional_id:
+        return queryset.filter(professional=profile.professional)
+    return queryset.none()
+
+
+def appointment_lacks_credit(appointment):
+    if appointment.status in {
+        Appointment.Status.COMPLETED,
+        Appointment.Status.CANCELED,
+        Appointment.Status.RESCHEDULED,
+    }:
+        return False
+    packages = ServicePackage.objects.filter(
+        membership__patient=appointment.patient,
+        status=ServicePackage.Status.ACTIVE,
+    )
+    if appointment.service_plan_id:
+        packages = packages.filter(membership__plan=appointment.service_plan)
+    packages = list(packages.only("total_sessions", "used_sessions"))
+    if not packages:
+        return True
+    return all(package.remaining_sessions < appointment.service_units for package in packages)
+
+
+class OperationDayView(LoginRequiredMixin, TemplateView):
+    template_name = "core/operation_day.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        today = timezone.localdate()
+        profile = get_profile(self.request.user)
+        finance_visible = finance_visible_for_user(self.request.user, profile)
+        patients = operation_patients_for_user(self.request.user, profile)
+        appointments = operation_appointments_for_user(self.request.user, profile)
+        active_appointments = appointments.exclude(
+            status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
+        )
+        today_appointments = active_appointments.filter(starts_at__date=today).order_by("starts_at")
+        upcoming_candidates = list(active_appointments.filter(starts_at__date__gte=today).order_by("starts_at")[:60])
+        credit_alerts = [appointment for appointment in upcoming_candidates if appointment_lacks_credit(appointment)][:8]
+
+        paid_today = Payment.objects.none()
+        overdue_payments = Payment.objects.none()
+        next_payments = Payment.objects.none()
+        pending_total = 0
+        paid_today_total = 0
+        if finance_visible:
+            payment_base = Payment.objects.select_related("patient", "membership__patient", "membership__plan")
+            paid_today = payment_base.filter(status=Payment.Status.PAID, paid_at=today).order_by("-updated_at")[:8]
+            overdue_payments = payment_base.filter(
+                status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
+                due_date__lt=today,
+            ).order_by("due_date")[:8]
+            next_payments = payment_base.filter(
+                status=Payment.Status.PENDING,
+                due_date__gte=today,
+                due_date__lte=today + timedelta(days=7),
+            ).order_by("due_date")[:8]
+            pending_total = (
+                payment_base.filter(status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE]).aggregate(total=Sum("amount"))[
+                    "total"
+                ]
+                or 0
+            )
+            paid_today_total = payment_base.filter(status=Payment.Status.PAID, paid_at=today).aggregate(total=Sum("amount"))[
+                "total"
+            ] or 0
+
+        context.update(
+            {
+                "today": today,
+                "profile": profile,
+                "finance_visible": finance_visible,
+                "is_professional_operation": bool(profile and profile.is_professional),
+                "active_patients_count": patients.count(),
+                "today_appointments": today_appointments,
+                "today_appointments_count": today_appointments.count(),
+                "request_queue": active_appointments.filter(
+                    status=Appointment.Status.REQUESTED,
+                    starts_at__date__gte=today,
+                ).order_by("starts_at")[:8],
+                "credit_alerts": credit_alerts,
+                "paid_today": paid_today,
+                "overdue_payments": overdue_payments,
+                "next_payments": next_payments,
+                "pending_total": pending_total,
+                "paid_today_total": paid_today_total,
+                "birthday_patients": weekly_birthday_patients(patients, today),
+            }
+        )
+        return context
+
+
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = "core/dashboard.html"
 

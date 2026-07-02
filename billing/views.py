@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib import messages
 from django.db.models import Q
 from django.db.models import Case, IntegerField, Sum, When
@@ -5,7 +7,7 @@ from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views.generic import CreateView, DeleteView, FormView, ListView, UpdateView
+from django.views.generic import CreateView, DeleteView, FormView, ListView, TemplateView, UpdateView
 
 from accounts.permissions import FinanceAccessMixin
 from billing.forms import (
@@ -231,6 +233,66 @@ class PaymentListView(FinanceAccessMixin, SearchableListView, ListView):
             )
             .order_by("status_priority", "due_date", "patient__full_name", "membership__patient__full_name")
         )
+
+
+class CashierDayView(FinanceAccessMixin, TemplateView):
+    template_name = "billing/cashier_day.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        today = timezone.localdate()
+        query = self.request.GET.get("q", "").strip()
+        payment_base = Payment.objects.select_related("patient", "membership__patient", "membership__plan")
+        membership_base = Membership.objects.select_related("patient", "plan").filter(status=Membership.Status.ACTIVE)
+        if query:
+            payment_filter = (
+                Q(patient__full_name__icontains=query)
+                | Q(patient__phone__icontains=query)
+                | Q(membership__patient__full_name__icontains=query)
+                | Q(membership__patient__phone__icontains=query)
+                | Q(membership__plan__name__icontains=query)
+                | Q(description__icontains=query)
+            )
+            membership_filter = (
+                Q(patient__full_name__icontains=query)
+                | Q(patient__phone__icontains=query)
+                | Q(patient__cpf__icontains=query)
+                | Q(plan__name__icontains=query)
+            )
+            payment_base = payment_base.filter(payment_filter)
+            membership_base = membership_base.filter(membership_filter)
+
+        paid_today_queryset = payment_base.filter(status=Payment.Status.PAID, paid_at=today)
+        overdue_queryset = payment_base.filter(
+            status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
+            due_date__lt=today,
+        )
+        next_queryset = payment_base.filter(
+            status=Payment.Status.PENDING,
+            due_date__gte=today,
+            due_date__lte=today + timedelta(days=7),
+        )
+        advance_memberships = list(membership_base.order_by("patient__full_name", "plan__name")[:10])
+        for membership in advance_memberships:
+            membership.next_reference_month = next_available_membership_reference(membership)
+            membership.next_due_date = membership_due_date_for_reference(membership, membership.next_reference_month)
+
+        context.update(
+            {
+                "q": query,
+                "today": today,
+                "paid_today_total": paid_today_queryset.aggregate(total=Sum("amount"))["total"] or 0,
+                "paid_today_count": paid_today_queryset.count(),
+                "overdue_total": overdue_queryset.aggregate(total=Sum("amount"))["total"] or 0,
+                "overdue_count": overdue_queryset.count(),
+                "next_total": next_queryset.aggregate(total=Sum("amount"))["total"] or 0,
+                "paid_today": paid_today_queryset.order_by("-updated_at")[:8],
+                "overdue_payments": overdue_queryset.order_by("due_date")[:8],
+                "next_payments": next_queryset.order_by("due_date")[:8],
+                "advance_memberships": advance_memberships,
+            }
+        )
+        return context
 
 
 class PaymentQuickReceiveView(FinanceAccessMixin, SearchableListView, ListView):

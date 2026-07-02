@@ -61,6 +61,44 @@
   color: var(--ink);
 }
 
+.operation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.operation-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+}
+
+.operation-card h2,
+.operation-card h3 {
+  margin: 0;
+}
+
+.operation-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.operation-card p strong,
+.operation-card p small {
+  display: block;
+}
+
+.quick-link-list {
+  display: grid;
+  gap: 10px;
+}
+
+.enrollment-grid {
+  align-items: start;
+}
+
 * {
   box-sizing: border-box;
 }

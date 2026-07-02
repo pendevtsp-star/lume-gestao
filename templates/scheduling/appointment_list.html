@@ -369,7 +369,11 @@
                             </form>
                           {% endif %}
                           {% if request.user.profile.role != "patient" %}
+                            <a class="button secondary" href="{% url 'patients:quick_panel' session.appointment.patient.pk %}">Painel do paciente</a>
                             <a class="button secondary" href="{% url 'scheduling:appointment_update' session.appointment.pk %}">Editar detalhes</a>
+                            {% if request.user.profile.role == "professional" %}
+                              <a class="button secondary" href="{% url 'patients:note_create' session.appointment.patient.pk %}?tipo=daily_evolution">Evolucao</a>
+                            {% endif %}
                           {% endif %}
                         {% endif %}
                       </div>
@@ -405,7 +409,11 @@
                                     </form>
                                   {% endif %}
                                   {% if request.user.profile.role != "patient" %}
+                                    <a class="table-action" href="{% url 'patients:quick_panel' item.patient.pk %}">Painel</a>
                                     <a class="table-action" href="{% url 'scheduling:appointment_update' item.pk %}">Editar</a>
+                                    {% if request.user.profile.role == "professional" %}
+                                      <a class="table-action" href="{% url 'patients:note_create' item.patient.pk %}?tipo=daily_evolution">Evolucao</a>
+                                    {% endif %}
                                   {% endif %}
                                 </div>
                               </article>
@@ -474,6 +482,9 @@
           </span>
         </div>
         <div class="table-actions">
+          {% if request.user.profile.role != "patient" %}
+            <a class="table-action" href="{% url 'patients:quick_panel' appointment.patient.pk %}">Painel</a>
+          {% endif %}
           {% if appointment.status == "requested" and request.user.profile.role != "patient" %}
             <form method="post" action="{% url 'scheduling:appointment_confirm' appointment.pk %}">
               {% csrf_token %}
@@ -486,6 +497,9 @@
               {% csrf_token %}
               <button class="table-action button-link" type="submit">Cancelar</button>
             </form>
+          {% endif %}
+          {% if request.user.profile.role == "professional" %}
+            <a class="table-action" href="{% url 'patients:note_create' appointment.patient.pk %}?tipo=daily_evolution">Evolucao</a>
           {% endif %}
         </div>
       </article>
@@ -535,6 +549,7 @@
                 </form>
               {% endif %}
               {% if request.user.profile.role != "patient" %}
+                <a class="table-action" href="{% url 'patients:quick_panel' appointment.patient.pk %}">Painel</a>
                 <a class="table-action" href="{% url 'scheduling:appointment_update' appointment.pk %}">Editar</a>
               {% endif %}
               {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" %}
@@ -550,6 +565,9 @@
                   <input type="hidden" name="add_completion_credit" value="0">
                   <button class="table-action button-link" type="submit">Baixar</button>
                 </form>
+              {% endif %}
+              {% if request.user.profile.role == "professional" %}
+                <a class="table-action" href="{% url 'patients:note_create' appointment.patient.pk %}?tipo=daily_evolution">Evolucao</a>
               {% endif %}
             </td>
           </tr>

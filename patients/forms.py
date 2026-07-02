@@ -1,7 +1,8 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
-from billing.models import ServicePlan
+from billing.models import Payment, ServicePlan
 from core.forms import StyledModelForm
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
 
@@ -217,6 +218,57 @@ class PatientForm(StyledModelForm):
         if queryset.exists():
             raise forms.ValidationError("Este e-mail ja esta cadastrado.")
         return email
+
+
+class PatientEnrollmentForm(PatientForm):
+    PAYMENT_CHOICES = [
+        ("none", "Nao lancar pagamento agora"),
+        ("pending", "Gerar cobranca do ciclo"),
+        ("paid_now", "Receber valor total agora"),
+    ]
+
+    starts_on = forms.DateField(
+        label="Inicio do plano",
+        initial=timezone.localdate,
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+        help_text="Usado para calcular validade, creditos e referencia financeira do primeiro ciclo.",
+    )
+    payment_mode = forms.ChoiceField(
+        label="Pagamento do primeiro ciclo",
+        choices=PAYMENT_CHOICES,
+        initial="none",
+        required=False,
+    )
+    payment_method = forms.ChoiceField(
+        label="Forma de recebimento",
+        choices=Payment.Method.choices,
+        initial=Payment.Method.PIX,
+        required=False,
+    )
+    paid_at = forms.DateField(
+        label="Recebido em",
+        initial=timezone.localdate,
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["initial_service_plans"].label = "Planos/servicos da matricula"
+        self.fields["initial_service_plans"].help_text = (
+            "Selecione um ou mais planos para criar creditos e mensalidade no mesmo cadastro."
+        )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        selected_plans = cleaned_data.get("initial_service_plans") or []
+        payment_mode = cleaned_data.get("payment_mode") or "none"
+        if payment_mode != "none" and not selected_plans:
+            self.add_error("initial_service_plans", "Selecione ao menos um plano para lancar o primeiro ciclo.")
+        if payment_mode == "paid_now" and not cleaned_data.get("paid_at"):
+            self.add_error("paid_at", "Informe a data do recebimento.")
+        return cleaned_data
 
 
 class ProfessionalPatientAssignmentForm(StyledModelForm):

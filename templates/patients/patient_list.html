@@ -9,7 +9,12 @@
     <h1>Pacientes</h1>
     <p class="page-subtitle">Consulte dados, pacotes, mensalidades e profissionais pelo card do paciente.</p>
   </div>
-  <a class="button primary" href="{% url 'patients:create' %}">Novo paciente</a>
+  {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+    <div class="panel-actions">
+      <a class="button secondary" href="{% url 'patients:create' %}">Novo paciente</a>
+      <a class="button primary" href="{% url 'patients:enrollment_create' %}">Nova matricula</a>
+    </div>
+  {% endif %}
 </section>
 
 <section class="panel">
@@ -104,9 +109,12 @@
             <td>{{ patient.email|default:"-" }}</td>
             <td><span class="badge {% if patient.active %}active{% else %}canceled{% endif %}">{% if patient.active %}Ativo{% else %}Inativo{% endif %}</span></td>
             <td class="right">
-              <a class="table-action" href="{% url 'patients:update' patient.pk %}">Editar</a>
-              {% if patient.active %}
-                <a class="table-action danger-link" href="{% url 'patients:delete' patient.pk %}">Excluir</a>
+              <a class="table-action" href="{% url 'patients:quick_panel' patient.pk %}">Painel</a>
+              {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+                <a class="table-action" href="{% url 'patients:update' patient.pk %}">Editar</a>
+                {% if patient.active %}
+                  <a class="table-action danger-link" href="{% url 'patients:delete' patient.pk %}">Excluir</a>
+                {% endif %}
               {% endif %}
             </td>
           </tr>

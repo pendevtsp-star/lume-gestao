@@ -1084,7 +1084,7 @@ class AppointmentCompleteView(AppointmentAccessMixin, View):
             package.full_clean()
             package.save()
 
-        messages.success(request, "Atendimento baixado e adesao atualizada.")
+        messages.success(request, "Atendimento baixado e adesao atualizada. Use Evolucao para registrar o prontuario do atendimento.")
         return redirect("scheduling:appointments")
 
 

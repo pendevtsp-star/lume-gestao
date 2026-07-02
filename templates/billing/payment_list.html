@@ -10,6 +10,7 @@
     <p class="page-subtitle">Controle recebimentos, vencimentos e status financeiro por paciente.</p>
   </div>
   <div class="panel-actions">
+    <a class="button secondary" href="{% url 'billing:cashier_day' %}">Caixa do dia</a>
     <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Receber mensalidade</a>
     <a class="button primary" href="{% url 'billing:payment_create' %}">Novo pagamento</a>
   </div>

@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}{{ patient.full_name }} | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div class="heading-identity">
+    <span class="avatar avatar-lg">
+      {% if patient.photo %}
+        <img src="{{ patient.photo.url }}" alt="">
+      {% else %}
+        {{ patient.full_name|slice:":1" }}
+      {% endif %}
+    </span>
+    <div>
+      <p class="eyebrow">Paciente</p>
+      <h1>{{ patient.full_name }}</h1>
+      <p class="page-subtitle">{{ patient.phone|default:"Sem telefone" }}{% if patient.email %} &middot; {{ patient.email }}{% endif %}</p>
+    </div>
+  </div>
+  <div class="panel-actions">
+    {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+      <a class="button secondary" href="{% url 'patients:update' patient.pk %}">Editar cadastro</a>
+    {% endif %}
+    <a class="button primary" href="{% url 'scheduling:appointment_create' %}?patient={{ patient.pk }}">Agendar</a>
+  </div>
+</section>
+
+<section class="operation-grid">
+  <article class="panel operation-card">
+    <h2>Acoes rapidas</h2>
+    <div class="quick-link-list">
+      <a class="button secondary full" href="{% url 'scheduling:appointment_create' %}?patient={{ patient.pk }}">Novo agendamento</a>
+      {% if finance_visible %}
+        <a class="button secondary full" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}">Adicionar creditos/plano</a>
+        <a class="button primary full" href="{% url 'billing:payment_quick_receive' %}?q={{ patient.full_name|urlencode }}">Receber mensalidade</a>
+      {% endif %}
+      {% if can_create_note %}
+        <a class="button secondary full" href="{% url 'patients:note_create' patient.pk %}?tipo=daily_evolution">Registrar evolucao</a>
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="panel operation-card">
+    <h2>Creditos e planos</h2>
+    {% for package in packages %}
+      <p>
+        <strong>{{ package.membership.plan.name }}</strong>
+        {{ package.remaining_sessions }}/{{ package.total_sessions }} restantes
+        <small>{{ package.get_status_display }}{% if package.expires_on %} &middot; validade {{ package.expires_on|date:"d/m/Y" }}{% endif %}</small>
+      </p>
+    {% empty %}
+      <p>Nenhum credito/plano ativo encontrado.</p>
+    {% endfor %}
+  </article>
+
+  <article class="panel operation-card">
+    <h2>Proximos atendimentos</h2>
+    {% for appointment in upcoming_appointments %}
+      <p>
+        <strong>{{ appointment.starts_at|date:"d/m H:i" }}</strong>
+        {{ appointment.professional.full_name }}
+        <small>{{ appointment.get_status_display }}{% if appointment.service_plan %} &middot; {{ appointment.service_plan.name }}{% endif %}</small>
+      </p>
+    {% empty %}
+      <p>Nenhum atendimento futuro.</p>
+    {% endfor %}
+  </article>
+</section>
+
+{% if finance_visible %}
+  <section class="panel stacked-panel">
+    <div class="panel-header">
+      <div>
+        <h2>Financeiro do paciente</h2>
+        <p>Recebimentos, vencimentos e ajustes recentes.</p>
+      </div>
+      <a class="button secondary compact" href="{% url 'billing:payments' %}?q={{ patient.full_name|urlencode }}">Ver todos</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Referencia</th>
+            <th>Vencimento</th>
+            <th>Status</th>
+            <th class="right">Valor</th>
+            <th class="right">Acao</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for payment in payments %}
+            <tr>
+              <td>{{ payment.item_display }}</td>
+              <td>{{ payment.reference_month|date:"m/Y" }}</td>
+              <td>{{ payment.due_date|date:"d/m/Y" }}</td>
+              <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
+              <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
+              <td class="right table-actions">
+                {% if payment.status == "pending" or payment.status == "overdue" %}
+                  <a class="table-action" href="{% url 'billing:payment_receive' payment.pk %}">Receber</a>
+                {% endif %}
+                <a class="table-action" href="{% url 'billing:payment_update' payment.pk %}">Editar</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="empty">Nenhum pagamento localizado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+
+<section class="operation-grid">
+  <article class="panel operation-card">
+    <h2>Historico recente</h2>
+    {% for appointment in recent_appointments %}
+      <p>
+        <strong>{{ appointment.starts_at|date:"d/m/Y H:i" }}</strong>
+        {{ appointment.get_status_display }} com {{ appointment.professional.full_name }}
+      </p>
+    {% empty %}
+      <p>Nenhum atendimento registrado.</p>
+    {% endfor %}
+  </article>
+
+  {% if can_create_note %}
+    <article class="panel operation-card">
+      <h2>Evolucoes recentes</h2>
+      {% for note in recent_notes %}
+        <p>
+          <strong>{{ note.created_at|date:"d/m/Y" }}</strong>
+          {{ note.title }}
+        </p>
+      {% empty %}
+        <p>Nenhuma evolucao registrada por voce.</p>
+      {% endfor %}
+    </article>
+  {% endif %}
+</section>
+{% endblock %}

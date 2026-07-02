@@ -200,6 +200,18 @@ class AppointmentSlotSearchForm(StyledForm):
             if profile and profile.is_professional and profile.professional_id:
                 self.fields["professional"].initial = profile.professional
                 self.fields["professional"].widget = forms.HiddenInput()
+            if self.request.method == "GET":
+                patient_values = self.request.GET.getlist("patient")
+                patient_values = patient_values or ([self.request.GET.get("patient")] if self.request.GET.get("patient") else [])
+                patient_values = [
+                    value for value in patient_values if self.fields["patients"].queryset.filter(pk=value).exists()
+                ]
+                if patient_values and not (profile and profile.is_patient):
+                    self.fields["patients"].initial = patient_values
+
+                plan_value = self.request.GET.get("plan")
+                if plan_value and self.fields["service_plan"].queryset.filter(pk=plan_value).exists():
+                    self.fields["service_plan"].initial = plan_value
 
     def clean_duration_minutes(self):
         return int(self.cleaned_data["duration_minutes"])

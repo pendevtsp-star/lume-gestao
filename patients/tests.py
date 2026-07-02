@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import UserProfile
-from billing.models import Membership, ServicePlan
+from billing.models import Membership, Payment, ServicePlan
 from patients.forms import PatientForm
 from patients.models import Patient
 from patients.models import ProfessionalNote
@@ -71,6 +71,48 @@ class PatientAccessTests(TestCase):
         self.assertEqual(patient.user_profile.user.email, "maria@lume.local")
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn(patient.user_profile.user.username, mail.outbox[0].body)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_enrollment_creates_patient_package_and_paid_cycle(self):
+        user = get_user_model().objects.create_user(username="gestao-matricula", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        plan = ServicePlan.objects.create(
+            name="Plano Matricula",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=350,
+            included_sessions=8,
+        )
+        self.client.force_login(user)
+        today = timezone.localdate()
+
+        response = self.client.post(
+            reverse("patients:enrollment_create"),
+            {
+                "full_name": "Paciente Matricula",
+                "cpf": "",
+                "birth_date": "",
+                "phone": "11988887777",
+                "email": "matricula@lume.local",
+                "emergency_contact": "",
+                "address": "",
+                "clinical_notes": "",
+                "active": "on",
+                "initial_service_plans": [str(plan.pk)],
+                "starts_on": today.isoformat(),
+                "payment_mode": "paid_now",
+                "payment_method": Payment.Method.PIX,
+                "paid_at": today.isoformat(),
+            },
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        patient = Patient.objects.get(full_name="Paciente Matricula")
+        self.assertRedirects(response, reverse("patients:quick_panel", args=[patient.pk]))
+        self.assertTrue(ServicePackage.objects.filter(membership__patient=patient, membership__plan=plan).exists())
+        payment = Payment.objects.get(membership__patient=patient, membership__plan=plan)
+        self.assertEqual(payment.status, Payment.Status.PAID)
+        self.assertEqual(payment.method, Payment.Method.PIX)
 
     def test_professional_only_sees_assigned_patients(self):
         professional = Professional.objects.create(full_name="Dra. Teste", specialty=Professional.Specialty.PILATES)

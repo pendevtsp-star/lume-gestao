@@ -1,25 +1,27 @@
 from django import forms
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views import View
-from django.views.generic import CreateView, DeleteView, ListView, UpdateView
+from django.views.generic import CreateView, DeleteView, ListView, TemplateView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.onboarding import ensure_patient_user
 from accounts.permissions import RoleRequiredMixin, get_profile
-from billing.models import Membership
+from billing.models import Membership, Payment
 from core.deletion import DeletionDecisionMixin, hard_delete_patient, mark_active_object_for_deletion, set_patient_user_active
 from core.exports import pdf_response, xlsx_response
 from core.views import FormContextMixin, SearchableListView
-from patients.forms import PatientForm, ProfessionalNoteForm, ProfessionalPatientAssignmentForm, note_type_options
+from patients.forms import PatientEnrollmentForm, PatientForm, ProfessionalNoteForm, ProfessionalPatientAssignmentForm, note_type_options
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
 from patients.services import deactivate_patient_relationships, patient_ids_for_professional
 from scheduling.models import Appointment, ServicePackage
-from scheduling.services import create_service_package_for_plan
+from scheduling.services import create_service_package_for_plan, register_membership_cycle_payment
 
 
 class PatientAccessMixin(RoleRequiredMixin):
@@ -45,6 +47,17 @@ def patients_for_user(user):
     if profile.is_professional and profile.professional_id:
         return queryset.filter(pk__in=patient_ids_for_professional(profile.professional))
     return queryset.none()
+
+
+def finance_visible_for_user(user):
+    if user.is_superuser:
+        return True
+    profile = get_profile(user)
+    return bool(
+        profile
+        and profile.role
+        in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}
+    )
 
 
 class PatientListView(PatientAccessMixin, SearchableListView, ListView):
@@ -163,6 +176,136 @@ class PatientCreateView(FormContextMixin, RoleRequiredMixin, CreateView):
                 f" Adesoes criadas: {created_adhesions}.{detail}",
             )
         return response
+
+
+class PatientEnrollmentCreateView(FormContextMixin, RoleRequiredMixin, CreateView):
+    allowed_roles = [UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT]
+    model = Patient
+    form_class = PatientEnrollmentForm
+    template_name = "patients/enrollment_form.html"
+    page_title = "Nova matricula"
+    section_label = "Cadastro"
+    back_url_name = "patients:list"
+
+    def get_success_url(self):
+        return reverse("patients:quick_panel", args=[self.object.pk])
+
+    def form_valid(self, form):
+        with transaction.atomic():
+            self.object = form.save()
+            selected_plans = form.cleaned_data.get("initial_service_plans") or []
+            starts_on = form.cleaned_data.get("starts_on") or timezone.localdate()
+            payment_mode = form.cleaned_data.get("payment_mode") or "none"
+            created_packages = []
+            created_payments = []
+
+            for plan in selected_plans:
+                package = create_service_package_for_plan(
+                    self.object,
+                    plan,
+                    starts_on=starts_on,
+                    notes="Adesao criada pela nova matricula.",
+                )
+                created_packages.append(package)
+                if payment_mode != "none":
+                    created_payments.append(
+                        register_membership_cycle_payment(
+                            package.membership,
+                            starts_on=starts_on,
+                            mode=payment_mode,
+                            method=form.cleaned_data.get("payment_method") or Payment.Method.PIX,
+                            paid_at=form.cleaned_data.get("paid_at") or timezone.localdate(),
+                            notes="Pagamento lancado pela nova matricula.",
+                        )
+                    )
+
+            result = ensure_patient_user(self.object, request=self.request, send_notifications=True)
+
+        if result.delivered:
+            channel = "e-mail" if result.delivery_channel == "email" else "WhatsApp"
+            access_message = f"Acesso criado e enviado por {channel}."
+        else:
+            detail = f" Motivo: {result.delivery_error}" if result.delivery_error else ""
+            access_message = (
+                "Acesso criado, mas a senha temporaria precisa ser informada manualmente. "
+                f"Login: {result.username} | Senha temporaria: {result.temporary_password}.{detail}"
+            )
+        messages.success(
+            self.request,
+            (
+                f"Matricula criada para {self.object.full_name}. "
+                f"Creditos/planos criados: {len(created_packages)}. "
+                f"Pagamentos lancados: {len(created_payments)}. "
+                f"{access_message}"
+            ),
+        )
+        return redirect(self.get_success_url())
+
+
+class PatientQuickPanelView(PatientAccessMixin, TemplateView):
+    template_name = "patients/patient_quick_panel.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.patient = get_object_or_404(patients_for_user(request.user), pk=kwargs["pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        profile = get_profile(self.request.user)
+        finance_visible = finance_visible_for_user(self.request.user)
+        memberships = (
+            Membership.objects.select_related("plan")
+            .filter(patient=self.patient)
+            .order_by("-status", "plan__name", "-start_date")
+        )
+        packages = (
+            ServicePackage.objects.select_related("membership__plan")
+            .filter(membership__patient=self.patient)
+            .exclude(status=ServicePackage.Status.CANCELED)
+            .order_by("status", "expires_on", "-starts_on")
+        )
+        upcoming_appointments = (
+            Appointment.objects.select_related("professional", "service_plan")
+            .filter(patient=self.patient, starts_at__date__gte=timezone.localdate())
+            .exclude(status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED])
+            .order_by("starts_at")[:8]
+        )
+        recent_appointments = (
+            Appointment.objects.select_related("professional", "service_plan")
+            .filter(patient=self.patient)
+            .order_by("-starts_at")[:6]
+        )
+        payments = Payment.objects.none()
+        if finance_visible:
+            payments = (
+                Payment.objects.select_related("patient", "membership__patient", "membership__plan")
+                .filter(Q(patient=self.patient) | Q(membership__patient=self.patient))
+                .distinct()
+                .order_by("status", "due_date")[:8]
+            )
+
+        can_create_note = bool(profile and profile.is_professional and profile.professional_id)
+        recent_notes = ProfessionalNote.objects.none()
+        if can_create_note:
+            recent_notes = ProfessionalNote.objects.filter(
+                patient=self.patient,
+                professional=profile.professional,
+            ).order_by("-created_at")[:4]
+
+        context.update(
+            {
+                "patient": self.patient,
+                "finance_visible": finance_visible,
+                "can_create_note": can_create_note,
+                "memberships": memberships,
+                "packages": packages,
+                "upcoming_appointments": upcoming_appointments,
+                "recent_appointments": recent_appointments,
+                "payments": payments,
+                "recent_notes": recent_notes,
+            }
+        )
+        return context
 
 
 class PatientUpdateView(FormContextMixin, PatientAccessMixin, UpdateView):

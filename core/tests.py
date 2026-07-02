@@ -262,13 +262,16 @@ class FunctionalRoleFlowTests(TestCase):
             self.management,
             [
                 "dashboard",
+                "operation_day",
                 "patients:list",
+                "patients:enrollment_create",
                 "scheduling:appointments",
                 "scheduling:availabilities",
                 "reports:dashboard",
                 "reports:financial",
                 "reports:clinic",
                 "billing:memberships",
+                "billing:cashier_day",
                 "billing:payments",
                 "billing:charges",
                 "billing:expenses",
@@ -338,13 +341,16 @@ class FunctionalRoleFlowTests(TestCase):
             self.administration,
             [
                 "dashboard",
+                "operation_day",
                 "patients:list",
+                "patients:enrollment_create",
                 "scheduling:appointments",
                 "scheduling:availabilities",
                 "reports:dashboard",
                 "reports:financial",
                 "reports:clinic",
                 "billing:memberships",
+                "billing:cashier_day",
                 "billing:payments",
                 "billing:expenses",
                 "patients:assignments",
@@ -359,11 +365,13 @@ class FunctionalRoleFlowTests(TestCase):
         self.client.force_login(self.professional_user)
 
         patients_response = self.client.get(reverse("patients:list"))
+        operation_response = self.client.get(reverse("operation_day"))
         notes_response = self.client.get(reverse("patients:notes"))
         finance_response = self.client.get(reverse("billing:payments"))
 
         self.assertContains(patients_response, self.patient.full_name)
         self.assertNotContains(patients_response, self.other_patient.full_name)
+        self.assertContains(operation_response, "Meu dia")
         self.assertContains(notes_response, self.patient.full_name)
         self.assertEqual(finance_response.status_code, 302)
 

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from billing.views import (
+    CashierDayView,
     ChargeCreateView,
     ChargeListView,
     ChargeUpdateView,
@@ -39,6 +40,7 @@ urlpatterns = [
     path("mensalidades/nova/", MembershipCreateView.as_view(), name="membership_create"),
     path("mensalidades/<int:pk>/editar/", MembershipUpdateView.as_view(), name="membership_update"),
     path("mensalidades/<int:pk>/excluir/", MembershipDeleteView.as_view(), name="membership_delete"),
+    path("caixa/", CashierDayView.as_view(), name="cashier_day"),
     path("pagamentos/", PaymentListView.as_view(), name="payments"),
     path("pagamentos/novo/", PaymentCreateView.as_view(), name="payment_create"),
     path("pagamentos/receber/", PaymentQuickReceiveView.as_view(), name="payment_quick_receive"),

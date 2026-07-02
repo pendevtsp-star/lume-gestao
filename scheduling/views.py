@@ -23,6 +23,7 @@ from django.views.generic import CreateView, DeleteView, FormView, ListView, Upd
 
 from accounts.models import UserProfile
 from accounts.permissions import FinanceAccessMixin, RoleRequiredMixin, get_profile
+from billing.models import Membership
 from core.deletion import (
     DELETE_ACTION_NOW,
     DeletionDecisionMixin,
@@ -43,6 +44,7 @@ from scheduling.forms import (
     ServicePackageForm,
 )
 from scheduling.models import Appointment, AppointmentSeries, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.services import append_note, package_defaults_for_plan
 from scheduling.slots import (
     availability_capacity_for_slot,
     generate_available_slots,
@@ -53,6 +55,7 @@ from scheduling.slots import (
 
 
 ACTIVE_APPOINTMENT_STATUSES = [Appointment.Status.REQUESTED, Appointment.Status.SCHEDULED]
+ADD_COMPLETION_CREDIT_FIELD = "add_completion_credit"
 
 
 class AppointmentAccessMixin(RoleRequiredMixin):
@@ -109,6 +112,110 @@ def add_model_validation_errors(form, error):
         return
     for message in error.messages:
         form.add_error(None, message)
+
+
+def completion_package_queryset(appointment, *, with_available_credit=True, lock=False):
+    queryset = ServicePackage.objects.filter(membership__patient=appointment.patient)
+    if lock:
+        queryset = queryset.select_for_update()
+    if with_available_credit:
+        queryset = queryset.filter(status=ServicePackage.Status.ACTIVE, used_sessions__lt=F("total_sessions"))
+    else:
+        queryset = queryset.filter(status__in=[ServicePackage.Status.ACTIVE, ServicePackage.Status.FINISHED])
+    if appointment.service_plan_id:
+        queryset = queryset.filter(membership__plan_id=appointment.service_plan_id)
+    return queryset
+
+
+def completion_package_plan_count(appointment, *, with_available_credit):
+    return (
+        completion_package_queryset(appointment, with_available_credit=with_available_credit, lock=False)
+        .values("membership__plan_id")
+        .distinct()
+        .count()
+    )
+
+
+def completion_available_package(appointment, *, lock=False):
+    queryset = completion_package_queryset(appointment, with_available_credit=True, lock=lock).order_by(
+        "expires_on", "created_at"
+    )
+    if not appointment.service_plan_id and completion_package_plan_count(appointment, with_available_credit=True) > 1:
+        return None, "ambiguous"
+    return queryset.first(), ""
+
+
+def completion_credit_target_package(appointment, *, lock=False, create_missing=False):
+    queryset = completion_package_queryset(appointment, with_available_credit=False, lock=lock).order_by(
+        "-starts_on", "-created_at"
+    )
+    if not appointment.service_plan_id and completion_package_plan_count(appointment, with_available_credit=False) > 1:
+        return None, "ambiguous"
+
+    package = queryset.first()
+    if package:
+        return package, ""
+
+    memberships = Membership.objects.filter(patient=appointment.patient, status=Membership.Status.ACTIVE)
+    if appointment.service_plan_id:
+        memberships = memberships.filter(plan_id=appointment.service_plan_id)
+    if not appointment.service_plan_id and memberships.values("plan_id").distinct().count() > 1:
+        return None, "ambiguous"
+
+    membership = memberships.select_related("plan").first()
+    if not membership:
+        return None, "missing_membership"
+    if not create_missing:
+        return None, "can_create_package"
+
+    starts_on = timezone.localdate()
+    defaults = package_defaults_for_plan(membership.plan, starts_on)
+    package = ServicePackage(
+        membership=membership,
+        total_sessions=max(appointment.service_units, 1),
+        used_sessions=0,
+        starts_on=starts_on,
+        expires_on=defaults["expires_on"],
+        status=ServicePackage.Status.ACTIVE,
+        notes="Pacote criado automaticamente durante baixa de atendimento sem credito disponivel.",
+    )
+    package.full_clean()
+    package.save()
+    return package, "created_package"
+
+
+def add_completion_credit(package, appointment, user):
+    missing_units = max(appointment.service_units - package.remaining_sessions, 1)
+    package.total_sessions += missing_units
+    package.status = ServicePackage.Status.ACTIVE
+    package.notes = append_note(
+        package.notes,
+        (
+            f"{missing_units} credito(s) acrescentado(s) durante baixa do atendimento "
+            f"{appointment.pk} por {user.get_username()}."
+        ),
+    )
+    package.full_clean()
+    package.save(update_fields=["total_sessions", "status", "notes", "updated_at"])
+    return package
+
+
+def appointment_needs_completion_credit_prompt(appointment):
+    if appointment.status in {Appointment.Status.COMPLETED, Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED}:
+        return False
+    package, reason = completion_available_package(appointment)
+    if reason == "ambiguous":
+        return False
+    if package and package.remaining_sessions >= appointment.service_units:
+        return False
+    target_package, target_reason = completion_credit_target_package(appointment)
+    return bool((target_package or target_reason == "can_create_package") and target_reason != "ambiguous")
+
+
+def decorate_completion_credit_prompts(appointments):
+    for appointment in appointments:
+        appointment.needs_completion_credit_prompt = appointment_needs_completion_credit_prompt(appointment)
+    return appointments
 
 
 def filter_appointment_search(queryset, query):
@@ -329,6 +436,7 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        decorate_completion_credit_prompts(context.get("appointments", []))
         week_start = calendar_week_start(self.request)
         week_end = week_start + timedelta(days=6)
         selected_day = parse_date(self.request.GET.get("dia", "")) or timezone.localdate()
@@ -336,13 +444,14 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
             selected_day = week_start
         week_days = [week_start + timedelta(days=offset) for offset in range(7)]
         hour_slots = range(6, 21)
-        calendar_queryset = (
+        calendar_appointments = list(
             self.get_queryset()
             .filter(starts_at__date__gte=week_start, starts_at__date__lte=week_end)
             .exclude(status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED])
         )
+        decorate_completion_credit_prompts(calendar_appointments)
         events_by_day_hour = {day: {hour: [] for hour in hour_slots} for day in week_days}
-        for appointment in calendar_queryset:
+        for appointment in calendar_appointments:
             local_start = timezone.localtime(appointment.starts_at)
             day = local_start.date()
             hour = local_start.hour
@@ -379,7 +488,14 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
                 "selected_day": selected_day,
                 "week_days": week_days,
                 "calendar_rows": calendar_rows,
-                "day_appointments": calendar_queryset.filter(starts_at__date=selected_day).order_by("starts_at"),
+                "day_appointments": sorted(
+                    [
+                        appointment
+                        for appointment in calendar_appointments
+                        if timezone.localtime(appointment.starts_at).date() == selected_day
+                    ],
+                    key=lambda appointment: appointment.starts_at,
+                ),
                 "today_total": base_queryset.filter(starts_at__date=today).exclude(
                     status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
                 ).count(),
@@ -920,30 +1036,37 @@ class AppointmentCompleteView(AppointmentAccessMixin, View):
                 messages.error(request, "Este atendimento ja foi baixado.")
                 return redirect("scheduling:appointments")
 
-            package = (
-                ServicePackage.objects.select_for_update()
-                .filter(
-                    membership__patient=appointment.patient,
-                    status=ServicePackage.Status.ACTIVE,
-                    used_sessions__lt=F("total_sessions"),
-                )
-                .order_by("expires_on", "created_at")
-            )
-            if appointment.service_plan_id:
-                package = package.filter(membership__plan_id=appointment.service_plan_id)
-            elif package.values("membership__plan_id").distinct().count() > 1:
+            package, package_reason = completion_available_package(appointment, lock=True)
+            if package_reason == "ambiguous":
                 messages.error(
                     request,
                     "Este paciente possui mais de uma adesao ativa. Edite o agendamento e informe o plano/servico antes da baixa.",
                 )
                 return redirect("scheduling:appointments")
-            package = package.first()
-            if not package:
-                messages.error(request, "Nao ha adesao ativa com saldo para este paciente e plano/servico.")
-                return redirect("scheduling:appointments")
-            if package.remaining_sessions < appointment.service_units:
-                messages.error(request, "A adesao nao possui saldo suficiente.")
-                return redirect("scheduling:appointments")
+            if not package or package.remaining_sessions < appointment.service_units:
+                if request.POST.get(ADD_COMPLETION_CREDIT_FIELD) == "1":
+                    package, target_reason = completion_credit_target_package(
+                        appointment,
+                        lock=True,
+                        create_missing=True,
+                    )
+                    if target_reason == "ambiguous":
+                        messages.error(
+                            request,
+                            "Este paciente possui mais de uma adesao ativa. Edite o agendamento e informe o plano/servico antes da baixa.",
+                        )
+                        return redirect("scheduling:appointments")
+                    if not package:
+                        messages.error(request, "Nao ha adesao ativa para adicionar credito neste paciente e plano/servico.")
+                        return redirect("scheduling:appointments")
+                    if target_reason != "created_package":
+                        package = add_completion_credit(package, appointment, request.user)
+                elif not package:
+                    messages.error(request, "Nao ha adesao ativa com saldo para este paciente e plano/servico.")
+                    return redirect("scheduling:appointments")
+                else:
+                    messages.error(request, "A adesao nao possui saldo suficiente.")
+                    return redirect("scheduling:appointments")
             appointment.status = Appointment.Status.COMPLETED
             appointment.completed_by = request.user
             appointment.completed_at = timezone.now()

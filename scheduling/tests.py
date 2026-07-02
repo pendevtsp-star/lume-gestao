@@ -176,6 +176,102 @@ class SchedulingTests(TestCase):
         self.assertEqual(pilates_package.used_sessions, 0)
         self.assertEqual(massage_package.used_sessions, 1)
 
+    def test_complete_appointment_without_credit_confirmation_still_blocks(self):
+        user = get_user_model().objects.create_user(username="prof-sem-credito", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        package = ServicePackage.objects.create(
+            membership=self.membership,
+            total_sessions=4,
+            used_sessions=4,
+            status=ServicePackage.Status.FINISHED,
+        )
+        start = timezone.now() + timedelta(days=1)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            service_units=1,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("scheduling:appointment_complete", args=[appointment.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        appointment.refresh_from_db()
+        package.refresh_from_db()
+        self.assertEqual(appointment.status, Appointment.Status.SCHEDULED)
+        self.assertEqual(package.total_sessions, 4)
+        self.assertEqual(package.used_sessions, 4)
+        self.assertFalse(ServiceUsage.objects.filter(appointment=appointment).exists())
+
+    def test_complete_appointment_can_add_credit_and_continue(self):
+        user = get_user_model().objects.create_user(username="prof-adiciona-credito", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        package = ServicePackage.objects.create(
+            membership=self.membership,
+            total_sessions=4,
+            used_sessions=4,
+            status=ServicePackage.Status.FINISHED,
+        )
+        start = timezone.now() + timedelta(days=1)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            service_units=1,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:appointment_complete", args=[appointment.pk]),
+            {"add_completion_credit": "1"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        appointment.refresh_from_db()
+        package.refresh_from_db()
+        self.assertEqual(appointment.status, Appointment.Status.COMPLETED)
+        self.assertEqual(package.total_sessions, 5)
+        self.assertEqual(package.used_sessions, 5)
+        self.assertEqual(package.status, ServicePackage.Status.FINISHED)
+        self.assertIn("credito(s) acrescentado(s)", package.notes)
+        self.assertTrue(ServiceUsage.objects.filter(appointment=appointment, units=1).exists())
+
+    def test_appointment_list_marks_completion_form_when_credit_is_missing(self):
+        user = get_user_model().objects.create_user(username="admin-modal-credito", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        ServicePackage.objects.create(
+            membership=self.membership,
+            total_sessions=4,
+            used_sessions=4,
+            status=ServicePackage.Status.FINISHED,
+        )
+        start = timezone.make_aware(datetime.combine(timezone.localdate(), time(9, 0)))
+        Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            service_units=1,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("scheduling:appointments"))
+
+        self.assertContains(response, 'data-needs-credit="true"')
+        self.assertContains(
+            response,
+            "O cliente nao tem creditos disponiveis gostaria de acrescentar um credito e continuar?",
+        )
+
     def test_service_package_form_inherits_plan_defaults(self):
         plan = ServicePlan.objects.create(
             name="Pilates Trimestral",

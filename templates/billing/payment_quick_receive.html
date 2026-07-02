@@ -7,7 +7,7 @@
   <div>
     <p class="eyebrow">Financeiro</p>
     <h1>Receber mensalidade</h1>
-    <p class="page-subtitle">Busque o paciente e baixe rapidamente mensalidades pendentes ou vencidas.</p>
+    <p class="page-subtitle">Busque o paciente para baixar mensalidades em aberto ou receber a proxima mensalidade adiantada.</p>
   </div>
   <a class="button secondary" href="{% url 'billing:payments' %}">Ver pagamentos</a>
 </section>
@@ -28,6 +28,13 @@
   <div class="quick-receive-summary">
     <strong>{{ pending_receive_count }}</strong>
     <span>mensalidade{{ pending_receive_count|pluralize }} pronta{{ pending_receive_count|pluralize }} para baixa</span>
+  </div>
+
+  <div class="panel-header">
+    <div>
+      <h3>Mensalidades em aberto</h3>
+      <p>Receba vencimentos pendentes ou vencidos ja lancados no financeiro.</p>
+    </div>
   </div>
 
   <div class="table-wrap">
@@ -62,7 +69,7 @@
         {% empty %}
           <tr>
             <td colspan="7" class="empty">
-              Nenhuma mensalidade pendente encontrada. Ajuste a busca ou confira a lista completa de pagamentos.
+              Nenhuma mensalidade pendente encontrada. Use a lista de adiantamento abaixo para receber a proxima mensalidade.
             </td>
           </tr>
         {% endfor %}
@@ -70,5 +77,53 @@
     </table>
   </div>
   {% include "core/pagination.html" %}
+</section>
+
+<section class="panel quick-receive-panel">
+  <div class="panel-header">
+    <div>
+      <h3>Receber mensalidade adiantada</h3>
+      <p>Crie e baixe o proximo ciclo de uma mensalidade ativa quando o paciente quiser pagar antes do vencimento.</p>
+    </div>
+    <span class="badge pending">{{ advance_membership_count }} ativa{{ advance_membership_count|pluralize }}</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Plano/servico</th>
+          <th>Proxima referencia</th>
+          <th>Vencimento sugerido</th>
+          <th class="right">Valor</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for membership in advance_memberships %}
+          <tr>
+            <td>
+              <strong>{{ membership.patient.full_name }}</strong>
+              <small>{{ membership.patient.phone|default:"Sem telefone" }}</small>
+            </td>
+            <td>{{ membership.plan.name }}</td>
+            <td>{{ membership.next_reference_month|date:"m/Y" }}</td>
+            <td>{{ membership.next_due_date|date:"d/m/Y" }}</td>
+            <td class="right">R$ {{ membership.monthly_amount|floatformat:2 }}</td>
+            <td class="right">
+              <a class="button primary compact" href="{% url 'billing:payment_advance_receive' membership.pk %}">Receber adiantado</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="empty">
+              Nenhuma mensalidade ativa encontrada para adiantamento. Ajuste a busca ou cadastre uma mensalidade ativa.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 {% endblock %}

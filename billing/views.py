@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.db.models import Q
 from django.db.models import Case, IntegerField, Sum, When
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
@@ -12,15 +13,17 @@ from billing.forms import (
     ExpenseCategoryForm,
     ExpenseForm,
     MembershipForm,
+    PaymentAdvanceReceiveForm,
     PaymentForm,
     PaymentReceiveForm,
     ServicePlanForm,
 )
-from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
+from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan, add_months
 from core.deletion import (
     DELETE_ACTION_DEACTIVATE,
     DELETE_ACTION_NOW,
     DeletionDecisionMixin,
+    append_deletion_note,
     hard_delete_expense,
     hard_delete_membership,
     hard_delete_service_plan,
@@ -31,6 +34,20 @@ from core.deletion import (
     service_plan_has_pending_obligations,
 )
 from core.views import FormContextMixin, SearchableListView
+
+
+def membership_due_date_for_reference(membership, reference_month):
+    return reference_month.replace(day=min(membership.due_day, 28))
+
+
+def next_available_membership_reference(membership, starts_on=None):
+    reference = (starts_on or timezone.localdate()).replace(day=1)
+    used_references = set(
+        Payment.objects.filter(membership=membership).values_list("reference_month", flat=True)
+    )
+    while reference in used_references:
+        reference = add_months(reference, 1)
+    return reference
 
 
 class ServicePlanListView(FinanceAccessMixin, SearchableListView, ListView):
@@ -251,7 +268,30 @@ class PaymentQuickReceiveView(FinanceAccessMixin, SearchableListView, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["pending_receive_count"] = context["paginator"].count if context.get("paginator") else len(context["payments"])
+        advance_queryset = self.get_advance_memberships()
+        advance_memberships = list(advance_queryset[:12])
+        for membership in advance_memberships:
+            membership.next_reference_month = next_available_membership_reference(membership)
+            membership.next_due_date = membership_due_date_for_reference(membership, membership.next_reference_month)
+        context["advance_memberships"] = advance_memberships
+        context["advance_membership_count"] = advance_queryset.count()
         return context
+
+    def get_advance_memberships(self):
+        query = self.request.GET.get("q", "").strip()
+        queryset = (
+            Membership.objects.select_related("patient", "plan")
+            .filter(status=Membership.Status.ACTIVE)
+            .order_by("patient__full_name", "plan__name")
+        )
+        if query:
+            queryset = queryset.filter(
+                Q(patient__full_name__icontains=query)
+                | Q(patient__phone__icontains=query)
+                | Q(patient__cpf__icontains=query)
+                | Q(plan__name__icontains=query)
+            )
+        return queryset
 
 
 class PaymentCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
@@ -280,6 +320,117 @@ class PaymentUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Pagamento atualizado com sucesso.")
         return super().form_valid(form)
+
+
+class PaymentDeleteView(DeletionDecisionMixin, FormContextMixin, FinanceAccessMixin, DeleteView):
+    model = Payment
+    template_name = "core/confirm_deactivate.html"
+    success_url = reverse_lazy("billing:payments")
+    page_title = "Excluir pagamento"
+    section_label = "Financeiro"
+    back_url_name = "billing:payments"
+    entity_label = "pagamento"
+    default_delete_action = DELETE_ACTION_DEACTIVATE
+    deactivate_button_label = "Cancelar pagamento"
+    deactivate_explanation = "Marca o pagamento como cancelado para que ele nao componha a rotina financeira."
+    delete_now_explanation = (
+        "Remove definitivamente este recebimento. Use apenas para lancamentos duplicados ou criados por engano."
+    )
+
+    def get_queryset(self):
+        return Payment.objects.select_related("patient", "membership__patient", "membership__plan")
+
+    def perform_deactivate(self):
+        self.object.status = Payment.Status.CANCELED
+        self.object.paid_at = None
+        self.object.notes = append_deletion_note(self.object.notes)
+        self.object.full_clean()
+        self.object.save(update_fields=["status", "paid_at", "notes", "updated_at"])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "object_name": f"{self.object.patient_display} - {self.object.reference_month:%m/%Y}",
+                "delete_explanation": (
+                    "Escolha se deseja cancelar o pagamento para preservar historico ou excluir definitivamente."
+                ),
+            }
+        )
+        return context
+
+    def get_deactivate_success_message(self):
+        return "Pagamento cancelado."
+
+
+class PaymentAdvanceReceiveView(FormContextMixin, FinanceAccessMixin, FormView):
+    form_class = PaymentAdvanceReceiveForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("billing:payment_quick_receive")
+    page_title = "Receber mensalidade adiantada"
+    section_label = "Financeiro"
+    back_url_name = "billing:payment_quick_receive"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.membership = get_object_or_404(
+            Membership.objects.select_related("patient", "plan"),
+            pk=kwargs["membership_pk"],
+            status=Membership.Status.ACTIVE,
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_initial(self):
+        initial = super().get_initial()
+        reference_month = next_available_membership_reference(self.membership)
+        initial.update(
+            {
+                "reference_month": reference_month,
+                "due_date": membership_due_date_for_reference(self.membership, reference_month),
+                "amount": self.membership.monthly_amount,
+                "method": Payment.Method.PIX,
+                "paid_at": timezone.localdate(),
+            }
+        )
+        return initial
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Receber mensalidade de {self.membership.patient.full_name}"
+        return context
+
+    def form_valid(self, form):
+        reference_month = form.cleaned_data["reference_month"]
+        existing_payment = Payment.objects.filter(
+            membership=self.membership,
+            reference_month=reference_month,
+        ).first()
+        if existing_payment:
+            if existing_payment.status in {Payment.Status.PENDING, Payment.Status.OVERDUE}:
+                messages.info(self.request, "Esta mensalidade ja esta em aberto. Baixe o pagamento existente.")
+                return redirect("billing:payment_receive", pk=existing_payment.pk)
+            messages.error(self.request, "Ja existe pagamento lancado para essa mensalidade.")
+            return redirect("billing:payment_quick_receive")
+
+        payment = Payment(
+            patient=self.membership.patient,
+            membership=self.membership,
+            item_type=Payment.ItemType.MEMBERSHIP,
+            description=self.membership.plan.name,
+            reference_month=reference_month,
+            due_date=form.cleaned_data["due_date"],
+            amount=form.cleaned_data["amount"],
+            status=Payment.Status.PAID,
+            method=form.cleaned_data["method"],
+            paid_at=form.cleaned_data["paid_at"],
+            notes=form.cleaned_data.get("notes", ""),
+        )
+        payment.full_clean()
+        payment.save()
+        messages.success(
+            self.request,
+            f"Mensalidade {payment.reference_month:%m/%Y} de {payment.patient_display} recebida com sucesso.",
+        )
+        return redirect("billing:payments")
 
 
 class PaymentReceiveView(FormContextMixin, FinanceAccessMixin, FormView):

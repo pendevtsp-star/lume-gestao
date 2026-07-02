@@ -5,7 +5,7 @@ from django import forms
 from django.utils import timezone
 
 from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
-from core.forms import StyledModelForm
+from core.forms import StyledForm, StyledModelForm
 
 
 class ServicePlanForm(StyledModelForm):
@@ -166,6 +166,52 @@ class PaymentForm(StyledModelForm):
             instance.save()
             self.save_m2m()
         return instance
+
+
+class PaymentAdvanceReceiveForm(StyledForm):
+    reference_month_number = forms.ChoiceField(label="Mes de referencia", choices=PaymentForm.MONTH_CHOICES)
+    reference_year = forms.IntegerField(label="Ano de referencia", min_value=2020, max_value=2100)
+    due_date = forms.DateField(label="Vencimento", widget=forms.DateInput(attrs={"type": "date"}))
+    amount = forms.CharField(
+        label="Valor recebido",
+        widget=forms.TextInput(attrs={"inputmode": "decimal", "placeholder": "R$ 0,00"}),
+        help_text="O valor vem da mensalidade, mas pode ser ajustado se houver acordo no atendimento.",
+    )
+    method = forms.ChoiceField(label="Metodo", choices=Payment.Method.choices, initial=Payment.Method.PIX)
+    paid_at = forms.DateField(label="Recebido em", widget=forms.DateInput(attrs={"type": "date"}))
+    notes = forms.CharField(
+        label="Observacoes",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3}),
+        help_text="Opcional. Use para registrar recibo, caixa ou detalhe do pagamento antecipado.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        reference = self.initial.get("reference_month") or timezone.localdate().replace(day=1)
+        self.fields["reference_month_number"].initial = reference.month
+        self.fields["reference_year"].initial = reference.year
+        self.fields["paid_at"].initial = self.initial.get("paid_at") or timezone.localdate()
+        if self.initial.get("amount") is not None:
+            self.fields["amount"].initial = f"{self.initial['amount']:.2f}".replace(".", ",")
+
+    def clean_amount(self):
+        raw_value = str(self.cleaned_data.get("amount") or "").strip()
+        normalized = raw_value.replace("R$", "").replace(" ", "")
+        if "," in normalized:
+            normalized = normalized.replace(".", "").replace(",", ".")
+        try:
+            return Decimal(normalized)
+        except (InvalidOperation, ValueError):
+            raise forms.ValidationError("Informe um valor valido em reais. Ex.: 150,00.")
+
+    def clean(self):
+        cleaned_data = super().clean()
+        month = cleaned_data.get("reference_month_number")
+        year = cleaned_data.get("reference_year")
+        if month and year:
+            cleaned_data["reference_month"] = date(int(year), int(month), 1)
+        return cleaned_data
 
 
 class PaymentReceiveForm(StyledModelForm):

@@ -52,6 +52,7 @@
                 <a class="table-action" href="{% url 'billing:payment_receive' payment.pk %}">Receber</a>
               {% endif %}
               <a class="table-action" href="{% url 'billing:payment_update' payment.pk %}">Editar</a>
+              <a class="table-action danger-link" href="{% url 'billing:payment_delete' payment.pk %}">Excluir</a>
             </td>
           </tr>
         {% empty %}

@@ -239,6 +239,50 @@ class BillingModelTests(TestCase):
         self.assertEqual(payment.method, Payment.Method.CASH)
         self.assertEqual(payment.paid_at, date(2026, 6, 12))
 
+    def test_payment_list_links_to_delete_payment(self):
+        user = get_user_model().objects.create_user(username="financeiro-lista-excluir", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        payment = Payment.objects.create(
+            membership=membership,
+            reference_month=date(2026, 6, 1),
+            due_date=date(2026, 6, 10),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PENDING,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("billing:payments"))
+
+        self.assertContains(response, reverse("billing:payment_delete", args=[payment.pk]))
+        self.assertContains(response, "Excluir")
+
+    def test_payment_delete_deactivate_cancels_payment(self):
+        user = get_user_model().objects.create_user(username="financeiro-exclui-pagamento", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        payment = Payment.objects.create(
+            membership=membership,
+            reference_month=date(2026, 6, 1),
+            due_date=date(2026, 6, 10),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PAID,
+            method=Payment.Method.PIX,
+            paid_at=date(2026, 6, 8),
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("billing:payment_delete", args=[payment.pk]),
+            {"delete_action": "deactivate"},
+        )
+
+        self.assertRedirects(response, reverse("billing:payments"))
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, Payment.Status.CANCELED)
+        self.assertIsNone(payment.paid_at)
+        self.assertIn("Cancelado", payment.notes)
+
     def test_payment_quick_receive_lists_only_open_payments(self):
         user = get_user_model().objects.create_user(username="financeiro-recebimento-rapido", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
@@ -275,6 +319,45 @@ class BillingModelTests(TestCase):
         self.assertContains(response, reverse("billing:payment_receive", args=[pending.pk]))
         self.assertNotContains(response, "07/2026")
         self.assertNotContains(response, "Massagem avulsa")
+
+    def test_quick_receive_suggests_advance_membership_payment(self):
+        user = get_user_model().objects.create_user(username="financeiro-adianta-lista", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("billing:payment_quick_receive"), {"q": "Paciente"})
+
+        self.assertContains(response, "Receber mensalidade adiantada")
+        self.assertContains(response, reverse("billing:payment_advance_receive", args=[membership.pk]))
+        self.assertContains(response, "Receber adiantado")
+
+    def test_advance_receive_creates_paid_membership_payment(self):
+        user = get_user_model().objects.create_user(username="financeiro-adianta-recebe", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("billing:payment_advance_receive", args=[membership.pk]),
+            {
+                "reference_month_number": "8",
+                "reference_year": "2026",
+                "due_date": "2026-08-10",
+                "amount": "400,00",
+                "method": Payment.Method.CARD,
+                "paid_at": "2026-07-02",
+                "notes": "Paciente adiantou a mensalidade.",
+            },
+        )
+
+        self.assertRedirects(response, reverse("billing:payments"))
+        payment = Payment.objects.get(membership=membership, reference_month=date(2026, 8, 1))
+        self.assertEqual(payment.status, Payment.Status.PAID)
+        self.assertEqual(payment.method, Payment.Method.CARD)
+        self.assertEqual(payment.amount, Decimal("400.00"))
+        self.assertEqual(payment.due_date, date(2026, 8, 10))
+        self.assertEqual(payment.paid_at, date(2026, 7, 2))
 
     def test_expense_delete_deactivate_cancels_expense_and_removes_from_totals(self):
         user = get_user_model().objects.create_user(username="financeiro-exclui-despesa", password="Senha@123")

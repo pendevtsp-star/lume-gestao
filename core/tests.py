@@ -432,7 +432,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Conectar WhatsApp oficial")
-        self.assertContains(response, "Conectar WhatsApp oficial")
+        self.assertContains(response, 'featureType: "whatsapp_business_app_onboarding"')
 
     def test_connections_tab_shows_disconnect_whatsapp_when_connected(self):
         self.client.force_login(self.management)

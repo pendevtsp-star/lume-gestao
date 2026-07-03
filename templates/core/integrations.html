@@ -620,6 +620,7 @@
       title.textContent = "Diagnostico da conexao Meta";
       debug.appendChild(title);
       [
+        "Modo: Coexistencia WhatsApp Business App + Cloud API",
         "Etapa: " + (whatsappSignupState.lastStep || "-"),
         "OAuth code recebido: " + (whatsappSignupState.code ? "sim" : "nao"),
         "Evento Embedded Signup: " + (whatsappSignupState.eventName || "nao recebido"),
@@ -786,8 +787,8 @@
       if (button) {
         button.disabled = true;
       }
-      setWhatsAppSignupStatus("Aguardando autorizacao da Meta.");
-      setWhatsAppSignupDiagnostics("fluxo iniciado");
+      setWhatsAppSignupStatus("Aguardando autorizacao da Meta em modo coexistencia.");
+      setWhatsAppSignupDiagnostics("fluxo de coexistencia iniciado");
       FB.login(function(response) {
         whatsappSignupState.authStatus = response.status || "";
         whatsappSignupState.accessToken = response.authResponse && response.authResponse.accessToken ? response.authResponse.accessToken : "";
@@ -811,6 +812,7 @@
         override_default_response_type: true,
         extras: {
           setup: {},
+          featureType: "whatsapp_business_app_onboarding",
           sessionInfoVersion: "3"
         }
       });

@@ -398,6 +398,7 @@
               <input type="hidden" name="action" value="finish_whatsapp_embedded">
               <input type="hidden" name="tab" value="connections">
               <input type="hidden" name="embedded_code" id="embedded-code">
+              <input type="hidden" name="embedded_access_token" id="embedded-access-token">
               <input type="hidden" name="embedded_phone_number_id" id="embedded-phone-number-id">
               <input type="hidden" name="embedded_business_account_id" id="embedded-business-account-id">
               <input type="hidden" name="embedded_clinic_number" id="embedded-clinic-number">
@@ -696,9 +697,9 @@
       if (whatsappSignupState.submitted) {
         return;
       }
-      if (!whatsappSignupState.code) {
+      if (!whatsappSignupState.code && !whatsappSignupState.accessToken) {
         setWhatsAppSignupStatus("Aguardando autorizacao da Meta.");
-        setWhatsAppSignupDiagnostics("aguardando OAuth code");
+        setWhatsAppSignupDiagnostics("aguardando OAuth code ou token");
         return;
       }
       if (!whatsappSignupState.businessAccountId || !whatsappSignupState.phoneNumberId) {
@@ -709,6 +710,7 @@
 
       whatsappSignupState.submitted = true;
       document.getElementById("embedded-code").value = whatsappSignupState.code;
+      document.getElementById("embedded-access-token").value = whatsappSignupState.accessToken || "";
       document.getElementById("embedded-phone-number-id").value = whatsappSignupState.phoneNumberId;
       document.getElementById("embedded-business-account-id").value = whatsappSignupState.businessAccountId;
       document.getElementById("embedded-clinic-number").value = whatsappSignupState.clinicNumber;
@@ -776,6 +778,7 @@
         eventKeys: "",
         errorCode: "",
         errorMessage: "",
+        accessToken: "",
         accessTokenPresent: false,
         lastStep: "",
         submitted: false
@@ -787,8 +790,9 @@
       setWhatsAppSignupDiagnostics("fluxo iniciado");
       FB.login(function(response) {
         whatsappSignupState.authStatus = response.status || "";
-        whatsappSignupState.accessTokenPresent = Boolean(response.authResponse && response.authResponse.accessToken);
-        if (!response.authResponse || !response.authResponse.code) {
+        whatsappSignupState.accessToken = response.authResponse && response.authResponse.accessToken ? response.authResponse.accessToken : "";
+        whatsappSignupState.accessTokenPresent = Boolean(whatsappSignupState.accessToken);
+        if (!response.authResponse || (!response.authResponse.code && !whatsappSignupState.accessToken)) {
           if (button) {
             button.disabled = false;
           }
@@ -798,8 +802,8 @@
           setWhatsAppSignupDiagnostics("OAuth sem code");
           return;
         }
-        whatsappSignupState.code = response.authResponse.code;
-        setWhatsAppSignupDiagnostics("OAuth code recebido");
+        whatsappSignupState.code = response.authResponse.code || "";
+        setWhatsAppSignupDiagnostics(whatsappSignupState.code ? "OAuth code recebido" : "OAuth token recebido");
         submitWhatsAppSignupWhenReady();
       }, {
         config_id: "{{ whatsapp_embedded_config_id|escapejs }}",

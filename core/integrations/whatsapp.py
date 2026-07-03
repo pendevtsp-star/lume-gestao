@@ -87,6 +87,27 @@ def exchange_whatsapp_embedded_signup_code(code, integration=None):
     return token_data
 
 
+def connect_whatsapp_embedded_signup(*, code="", browser_access_token="", integration=None):
+    integration = integration or WhatsAppIntegration.load()
+    code = str(code or "").strip()
+    browser_access_token = str(browser_access_token or "").strip()
+    if code:
+        return exchange_whatsapp_embedded_signup_code(code, integration=integration)
+    if not browser_access_token:
+        raise IntegrationError("A Meta nao retornou o codigo de autorizacao nem um token de acesso.")
+
+    subscribe_whatsapp_business_account(integration.business_account_id, browser_access_token)
+    try:
+        integration.set_access_token(browser_access_token)
+    except ValueError as exc:
+        raise IntegrationError(str(exc)) from exc
+    integration.enabled = True
+    integration.connected_at = timezone.now()
+    integration.last_error = ""
+    integration.save(update_fields=["access_token", "enabled", "connected_at", "last_error", "updated_at"])
+    return {"access_token": browser_access_token}
+
+
 def send_whatsapp_text(to_number, message, integration=None):
     integration = integration or WhatsAppIntegration.load()
     target = normalize_whatsapp_number(to_number, integration.default_country_code)

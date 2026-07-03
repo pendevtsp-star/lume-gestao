@@ -40,7 +40,7 @@ from core.integrations.google_calendar import (
 )
 from core.integrations.http import IntegrationError
 from core.integrations.whatsapp import (
-    exchange_whatsapp_embedded_signup_code,
+    connect_whatsapp_embedded_signup,
     format_whatsapp_currency,
     meta_template_parameters,
     process_scheduled_whatsapp_messages,
@@ -1065,6 +1065,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         elif action == "finish_whatsapp_embedded":
             integration = WhatsAppIntegration.load()
             code = request.POST.get("embedded_code", "")
+            browser_access_token = request.POST.get("embedded_access_token", "")
             phone_number_id = request.POST.get("embedded_phone_number_id", "").strip()
             business_account_id = request.POST.get("embedded_business_account_id", "").strip()
             clinic_number = request.POST.get("embedded_clinic_number", "").strip()
@@ -1075,7 +1076,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             if clinic_number:
                 integration.clinic_whatsapp_number = clinic_number
             try:
-                exchange_whatsapp_embedded_signup_code(code, integration=integration)
+                connect_whatsapp_embedded_signup(code=code, browser_access_token=browser_access_token, integration=integration)
             except IntegrationError as exc:
                 integration.last_error = str(exc)
                 integration.save(update_fields=["phone_number_id", "business_account_id", "clinic_whatsapp_number", "last_error", "updated_at"])

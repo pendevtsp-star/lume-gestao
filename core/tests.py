@@ -431,7 +431,7 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Meta Embedded Signup")
+        self.assertContains(response, "Conectar WhatsApp oficial")
         self.assertContains(response, "Conectar WhatsApp oficial")
 
     def test_connections_tab_shows_disconnect_whatsapp_when_connected(self):
@@ -591,10 +591,10 @@ class IntegrationsTests(TestCase):
 
         self.assertIn("Embedded Signup: sim", output.getvalue())
 
-    @patch("core.views.exchange_whatsapp_embedded_signup_code")
-    def test_management_can_finish_whatsapp_embedded_signup(self, exchange_mock):
+    @patch("core.views.connect_whatsapp_embedded_signup")
+    def test_management_can_finish_whatsapp_embedded_signup(self, connect_mock):
         self.client.force_login(self.management)
-        exchange_mock.return_value = {"access_token": "token"}
+        connect_mock.return_value = {"access_token": "token"}
 
         response = self.client.post(
             reverse("integrations"),
@@ -612,7 +612,27 @@ class IntegrationsTests(TestCase):
         self.assertEqual(integration.phone_number_id, "phone-123")
         self.assertEqual(integration.business_account_id, "waba-123")
         self.assertEqual(integration.clinic_whatsapp_number, "5511999990000")
-        exchange_mock.assert_called_once()
+        connect_mock.assert_called_once()
+
+    @patch("core.views.connect_whatsapp_embedded_signup")
+    def test_management_can_finish_whatsapp_embedded_signup_with_browser_token(self, connect_mock):
+        self.client.force_login(self.management)
+        connect_mock.return_value = {"access_token": "browser-token", "source": "browser_auth_response"}
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "finish_whatsapp_embedded",
+                "embedded_access_token": "browser-token",
+                "embedded_phone_number_id": "phone-123",
+                "embedded_business_account_id": "waba-123",
+                "embedded_clinic_number": "5511999990000",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        connect_mock.assert_called_once()
+        self.assertEqual(connect_mock.call_args.kwargs["browser_access_token"], "browser-token")
 
     def test_messages_tab_filters_single_template(self):
         self.client.force_login(self.management)

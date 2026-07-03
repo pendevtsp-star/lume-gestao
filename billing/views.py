@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.contrib import messages
+from django.db.models.deletion import ProtectedError
 from django.db.models import Case, IntegerField, Sum, When
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
@@ -350,6 +351,37 @@ class PaymentUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Pagamento atualizado com sucesso.")
         return super().form_valid(form)
+
+
+class PaymentDeleteView(FormContextMixin, FinanceAccessMixin, DeleteView):
+    model = Payment
+    template_name = "billing/payment_confirm_delete.html"
+    success_url = reverse_lazy("billing:payments")
+    page_title = "Excluir pagamento"
+    section_label = "Financeiro"
+    back_url_name = "billing:payments"
+
+    def get_queryset(self):
+        return Payment.objects.select_related("patient", "membership__patient", "membership__plan")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["object_name"] = f"{self.object.patient_display} - {self.object.item_display}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        payment_name = f"{self.object.patient_display} - {self.object.item_display}"
+        try:
+            self.object.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                "Nao foi possivel excluir este pagamento porque existe um pedido de checkout vinculado ao lancamento.",
+            )
+            return redirect(self.success_url)
+        messages.success(request, f"Pagamento {payment_name} excluido definitivamente.")
+        return redirect(self.success_url)
 
 
 class PaymentReceiveView(FormContextMixin, FinanceAccessMixin, FormView):

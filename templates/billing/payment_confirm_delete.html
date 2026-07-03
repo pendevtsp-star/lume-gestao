@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Excluir pagamento | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ section_label }}</p>
+    <h1>{{ page_title }}</h1>
+  </div>
+  <a class="button secondary" href="{{ back_url }}">Voltar</a>
+</section>
+
+<form method="post" class="panel form-panel">
+  {% csrf_token %}
+  <h2>{{ object_name }}</h2>
+  <p class="confirm-copy">
+    Tem certeza que deseja excluir este pagamento definitivamente?
+  </p>
+  <p class="confirm-copy">
+    Esta acao remove o lancamento da lista de pagamentos, dos relatorios financeiros e do caixa do dia quando o pagamento ja estiver marcado como recebido.
+  </p>
+  <dl class="detail-list">
+    <div>
+      <dt>Paciente</dt>
+      <dd>{{ object.patient_display }}</dd>
+    </div>
+    <div>
+      <dt>Referencia</dt>
+      <dd>{{ object.reference_month|date:"m/Y" }}</dd>
+    </div>
+    <div>
+      <dt>Vencimento</dt>
+      <dd>{{ object.due_date|date:"d/m/Y" }}</dd>
+    </div>
+    <div>
+      <dt>Status</dt>
+      <dd>{{ object.get_status_display }}</dd>
+    </div>
+    <div>
+      <dt>Valor</dt>
+      <dd>R$ {{ object.amount|floatformat:2 }}</dd>
+    </div>
+  </dl>
+  <div class="form-actions">
+    <a class="button secondary" href="{{ back_url }}">Cancelar</a>
+    <button class="button danger" type="submit">Excluir pagamento</button>
+  </div>
+</form>
+{% endblock %}

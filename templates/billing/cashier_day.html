@@ -37,7 +37,7 @@
   <form class="toolbar" method="get">
     <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar paciente, telefone, CPF ou plano" autofocus>
     <button class="button primary" type="submit">Buscar</button>
-    {% if q %}<a class="button secondary" href="{% url 'billing:cashier_day' %}">Limpar</a>{% endif %}
+    {% if q %}<a class="button secondary" href="{% url 'billing:cash_closing' %}">Limpar</a>{% endif %}
   </form>
 </section>
 

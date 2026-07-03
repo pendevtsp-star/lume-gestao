@@ -11,7 +11,7 @@
   </div>
   <div class="panel-actions">
     {% if finance_visible %}
-      <a class="button secondary" href="{% url 'billing:cashier_day' %}">Caixa do dia</a>
+      <a class="button secondary" href="{% url 'billing:cash_closing' %}">Caixa do dia</a>
       <a class="button primary" href="{% url 'patients:enrollment_create' %}">Nova matricula</a>
     {% endif %}
     <a class="button secondary" href="{% url 'scheduling:appointment_create' %}">Novo agendamento</a>
@@ -152,7 +152,7 @@
         <h2>Financeiro rapido</h2>
         <p>Use o caixa para receber mensalidade atual ou adiantada.</p>
       </div>
-      <a class="button primary compact" href="{% url 'billing:cashier_day' %}">Abrir caixa</a>
+      <a class="button primary compact" href="{% url 'billing:cash_closing' %}">Abrir caixa</a>
     </div>
     <div class="operation-grid">
       <article class="operation-card">

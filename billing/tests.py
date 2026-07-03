@@ -343,6 +343,45 @@ class BillingModelTests(TestCase):
         self.assertEqual(payment.due_date, date(2026, 8, 10))
         self.assertEqual(payment.amount, Decimal("400.00"))
 
+    def test_payment_list_renders_cash_and_delete_links(self):
+        user = get_user_model().objects.create_user(username="financeiro-lista-pagamentos", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMINISTRATION})
+        payment = Payment.objects.create(
+            patient=self.patient,
+            item_type=Payment.ItemType.SERVICE,
+            description="Sessao avulsa duplicada",
+            reference_month=date(2026, 7, 1),
+            due_date=date(2026, 7, 2),
+            amount=Decimal("150.00"),
+            status=Payment.Status.PENDING,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("billing:payments"))
+
+        self.assertContains(response, "Sessao avulsa duplicada")
+        self.assertContains(response, reverse("billing:cash_closing"))
+        self.assertContains(response, reverse("billing:payment_delete", args=[payment.pk]))
+
+    def test_payment_delete_removes_standalone_payment(self):
+        user = get_user_model().objects.create_user(username="financeiro-exclui-pagamento", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        payment = Payment.objects.create(
+            patient=self.patient,
+            item_type=Payment.ItemType.SERVICE,
+            description="Lancamento errado",
+            reference_month=date(2026, 7, 1),
+            due_date=date(2026, 7, 2),
+            amount=Decimal("150.00"),
+            status=Payment.Status.PENDING,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("billing:payment_delete", args=[payment.pk]))
+
+        self.assertRedirects(response, reverse("billing:payments"))
+        self.assertFalse(Payment.objects.filter(pk=payment.pk).exists())
+
     def test_cash_closing_stores_daily_totals(self):
         user = get_user_model().objects.create_user(username="financeiro-caixa", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})

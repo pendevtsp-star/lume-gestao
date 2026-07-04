@@ -1,5 +1,6 @@
 import json
 from datetime import date
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from django.conf import settings
 from django.contrib import messages
@@ -19,34 +20,67 @@ from website.models import WebsiteFAQ, WebsiteSettings, WebsiteTestimonial
 
 
 class WebsitePublicContextMixin:
+    landing_hero_title = "Alivie dores, recupere movimentos e viva melhor."
+    landing_hero_subtitle = (
+        "Pilates, fisioterapia, massagem e terapias de bem-estar em um atendimento acolhedor, "
+        "humano e pensado para a sua rotina."
+    )
     service_cards = [
         {
             "title": "Pilates",
-            "description": "Aulas com foco em postura, fortalecimento, respiração e consciência corporal.",
+            "description": "Aulas para fortalecer, melhorar postura e ampliar consciência corporal com orientação próxima.",
         },
         {
             "title": "Fisioterapia",
-            "description": "Reabilitação individualizada para dor, lesões, limitações funcionais e prevenção.",
+            "description": "Acompanhamento individualizado para dor, lesões, limitações funcionais e prevenção.",
         },
         {
             "title": "Massagem",
-            "description": "Alívio muscular e relaxamento para renovar energia e bem-estar.",
+            "description": "Cuidado corporal para relaxamento, alívio de tensões e bem-estar na rotina.",
         },
         {
             "title": "Reiki",
-            "description": "Um cuidado complementar para equilíbrio, relaxamento e reconexão.",
+            "description": "Terapia complementar para pausa, relaxamento e equilíbrio, respeitando seu momento.",
         },
     ]
     journey_steps = [
-        "Você entra em contato pelo WhatsApp e conta seu objetivo ou necessidade.",
-        "Nossa equipe orienta o melhor atendimento, plano ou combinação de serviços.",
-        "Você agenda com rapidez e inicia um cuidado contínuo com acompanhamento humano.",
+        "Você entra em contato pelo WhatsApp e conta sua necessidade.",
+        "A equipe orienta o atendimento, plano ou combinação mais adequada.",
+        "Você agenda com praticidade e inicia o acompanhamento.",
     ]
     quick_benefits = [
         "Atendimento acolhedor",
         "Agendamento pelo WhatsApp",
-        "Studio em Penedo/AL",
+        "Estúdio em Penedo/AL",
     ]
+    default_faqs = [
+        {
+            "question": "Quais atendimentos vocês oferecem?",
+            "answer": "A Lume apresenta Pilates, fisioterapia, massagem e Reiki. Pelo WhatsApp, a equipe orienta qual caminho combina melhor com sua necessidade.",
+        },
+        {
+            "question": "Como faço para agendar?",
+            "answer": "O agendamento começa pelo WhatsApp. Você conta o que procura e a equipe combina o melhor horário disponível.",
+        },
+        {
+            "question": "Como funcionam os planos?",
+            "answer": "Os planos variam pela frequência semanal. Confirme disponibilidade, valores e melhor opção diretamente com a equipe.",
+        },
+        {
+            "question": "Onde fica o studio?",
+            "answer": "O studio fica em Penedo/AL, no endereço exibido nesta página.",
+        },
+        {
+            "question": "Vocês atendem pelo WhatsApp?",
+            "answer": "Sim. O WhatsApp é o principal caminho para tirar dúvidas e iniciar o agendamento.",
+        },
+    ]
+    whatsapp_messages = {
+        "general": "Olá, equipe Lume. Quero agendar um atendimento.",
+        "services": "Olá, equipe Lume. Não sei qual atendimento escolher e gostaria de orientação.",
+        "homecare": "Olá, equipe Lume. Quero conhecer o Lume em casa.",
+        "contact": "Olá, equipe Lume. Quero falar com a equipe e receber orientação.",
+    }
 
     def build_canonical_url(self, path):
         base_url = settings.WEBSITE_BASE_URL.rstrip("/")
@@ -80,20 +114,27 @@ class WebsitePublicContextMixin:
             business_schema["telephone"] = contact_phone
         graph = [business_schema]
         if faqs:
+            def faq_value(faq, key):
+                return faq[key] if isinstance(faq, dict) else getattr(faq, key)
+
             graph.append(
                 {
                     "@type": "FAQPage",
                     "mainEntity": [
                         {
                             "@type": "Question",
-                            "name": faq.question,
-                            "acceptedAnswer": {"@type": "Answer", "text": faq.answer},
+                            "name": faq_value(faq, "question"),
+                            "acceptedAnswer": {"@type": "Answer", "text": faq_value(faq, "answer")},
                         }
                         for faq in faqs
                     ],
                 }
             )
         return json.dumps({"@context": "https://schema.org", "@graph": graph}, ensure_ascii=False)
+
+    def whatsapp_redirect_url(self, message_key="general", message=None):
+        message_text = message or self.whatsapp_messages.get(message_key, self.whatsapp_messages["general"])
+        return f"{reverse('website_whatsapp_redirect')}?{urlencode({'message': message_text})}"
 
 
 class WebsiteHomeView(WebsitePublicContextMixin, TemplateView):
@@ -108,6 +149,7 @@ class WebsiteHomeView(WebsitePublicContextMixin, TemplateView):
             )[:4]
         )
         faqs = list(WebsiteFAQ.objects.filter(active=True)[:6])
+        public_faqs = faqs or self.default_faqs
         testimonials = list(WebsiteTestimonial.objects.filter(active=True)[:3])
         assistant_questions = [faq.question for faq in faqs[:3]] or [
             "Quais atendimentos vocês oferecem?",
@@ -123,19 +165,31 @@ class WebsiteHomeView(WebsitePublicContextMixin, TemplateView):
                 "meta_description": website_settings.seo_description,
                 "canonical_url": self.build_canonical_url(self.request.path),
                 "plans": plans,
+                "landing_hero_title": self.landing_hero_title,
+                "landing_hero_subtitle": self.landing_hero_subtitle,
                 "service_cards": self.service_cards,
                 "journey_steps": self.journey_steps,
                 "quick_benefits": self.quick_benefits,
-                "faqs": faqs,
+                "faqs": public_faqs,
                 "testimonials": testimonials,
                 "assistant_questions": assistant_questions,
                 "assistant_faq_map_json": assistant_answers,
                 "reel_features": REEL_FEATURES,
                 "instagram_highlights": INSTAGRAM_HIGHLIGHTS,
-                "structured_data_json": self.build_structured_data(website_settings, faqs),
+                "whatsapp_general_url": self.whatsapp_redirect_url("general"),
+                "whatsapp_services_url": self.whatsapp_redirect_url("services"),
+                "whatsapp_homecare_url": self.whatsapp_redirect_url("homecare"),
+                "whatsapp_contact_url": self.whatsapp_redirect_url("contact"),
+                "structured_data_json": self.build_structured_data(website_settings, public_faqs),
                 "current_year": date.today().year,
             }
         )
+        for plan in plans:
+            sessions_text = "1 sessão por semana" if plan.sessions_per_week == 1 else f"{plan.sessions_per_week} sessões por semana"
+            plan.whatsapp_sessions_text = sessions_text
+            plan.whatsapp_url = self.whatsapp_redirect_url(
+                message=f"Olá, equipe Lume. Tenho interesse no plano {plan.name} ({sessions_text})."
+            )
         return context
 
 
@@ -165,7 +219,14 @@ class WebsiteTrackedRedirectView(View):
         website_settings = WebsiteSettings.load()
         if self.counter_field == "system_clicks":
             return website_settings.resolved_system_url
-        return website_settings.resolved_whatsapp_url
+        target_url = website_settings.resolved_whatsapp_url
+        message = (self.request.GET.get("message") or "").strip()
+        if self.counter_field == "whatsapp_clicks" and message:
+            parsed_url = urlparse(target_url)
+            query_items = dict(parse_qsl(parsed_url.query, keep_blank_values=True))
+            query_items["text"] = message
+            target_url = urlunparse(parsed_url._replace(query=urlencode(query_items)))
+        return target_url
 
     def get(self, request):
         if self.counter_field:

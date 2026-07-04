@@ -1,7 +1,7 @@
 REEL_FEATURES = [
     {
-        "title": "Como chegar na Lume",
-        "summary": "Um reel com a chegada ao studio e o clima do espaço, ideal para reduzir a fricção da primeira visita.",
+        "title": "Como chegar à Lume",
+        "summary": "Um reel com a chegada ao estúdio e o clima do espaço, ideal para reduzir a fricção da primeira visita.",
         "href": "https://www.instagram.com/lumestudiofisio/reel/DVi17hPjePG/",
         "image_path": "images/website/reel-localizacao.jpg",
         "tag": "Localização",
@@ -35,7 +35,7 @@ INSTAGRAM_HIGHLIGHTS = [
     },
     {
         "title": "Localização",
-        "summary": "Mostra acesso e orientação para chegar ao studio em Penedo/AL.",
+        "summary": "Mostra acesso e orientação para chegar ao estúdio em Penedo/AL.",
         "href": "https://www.instagram.com/stories/highlights/18194971264310983/",
     },
     {

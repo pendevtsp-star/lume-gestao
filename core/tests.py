@@ -500,7 +500,7 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Credenciais no .env da VPS")
+        self.assertContains(response, "Clique em conectar e siga a tela segura da Meta.")
         self.assertContains(response, "Conectar WhatsApp oficial")
 
     @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
@@ -554,7 +554,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Configurar credenciais")
-        self.assertContains(response, "Configurar Meta")
+        self.assertContains(response, "Configuracao tecnica pendente")
         self.assertContains(response, "Conectar com Google")
         self.assertContains(response, "Conectar WhatsApp oficial")
         self.assertContains(response, "disabled")

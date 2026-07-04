@@ -244,12 +244,11 @@ def build_occurrence_payloads(
         starts_at = make_local_datetime(current_date, selected_start)
         ends_at = starts_at + duration
         exclude_ids = exclude_ids_by_date.get(current_date.isoformat(), [])
-        exclude_appointment_id = exclude_ids[0] if len(exclude_ids) == 1 else None
         snapshot = slot_capacity_snapshot(
             professional.pk,
             starts_at,
             ends_at,
-            exclude_appointment_id=exclude_appointment_id,
+            exclude_appointment_ids=exclude_ids,
         )
         if snapshot["partial_overlap"]:
             raise ValidationError(f"{current_date:%d/%m/%Y}: o profissional ja possui atendimento nesse horario.")
@@ -308,6 +307,7 @@ def build_calendar_session_groups(appointments):
         sessions.append(
             {
                 "appointment": first,
+                "appointments": group_appointments,
                 "starts_at": first.starts_at,
                 "ends_at": first.ends_at,
                 "professional": first.professional,
@@ -797,34 +797,43 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
 
     def reschedule_current_only(self, form, starts_at, ends_at, new_status, slots, booking_values):
         profile = get_profile(self.request.user)
-        with transaction.atomic():
-            original = Appointment.objects.select_for_update().get(pk=self.original_appointment.pk)
-            original.status = Appointment.Status.RESCHEDULED
-            original.full_clean()
-            original.save(update_fields=["status", "updated_at"])
-            new_appointment = Appointment(
-                patient=original.patient,
-                professional=form.cleaned_data["professional"],
-                service_plan=original.service_plan,
-                starts_at=starts_at,
-                ends_at=ends_at,
-                status=new_status,
-                booking_source=profile_booking_source(profile),
-                booked_by=self.request.user,
-                rescheduled_from=original,
-                series=original.series,
-                slot_group=original.slot_group if original.slot_capacity > 1 else "",
-                slot_capacity=original.slot_capacity,
-                service_units=original.service_units,
-                notes=form.cleaned_data.get("notes", ""),
-            )
-            try:
+        try:
+            with transaction.atomic():
+                original = Appointment.objects.select_for_update().get(pk=self.original_appointment.pk)
+                original.status = Appointment.Status.RESCHEDULED
+                original.full_clean()
+                original.save(update_fields=["status", "updated_at"])
+                target_day = timezone.localtime(starts_at).date()
+                payload = build_occurrence_payloads(
+                    professional=form.cleaned_data["professional"],
+                    patient_ids=[original.patient_id],
+                    dates=[target_day],
+                    selected_start=timezone.localtime(starts_at).time(),
+                    duration_minutes=form.cleaned_data["duration_minutes"],
+                    requested_capacity=original.slot_capacity,
+                    exclude_ids_by_date={target_day.isoformat(): [original.pk]},
+                )[0]
+                new_appointment = Appointment(
+                    patient=original.patient,
+                    professional=form.cleaned_data["professional"],
+                    service_plan=original.service_plan,
+                    starts_at=payload["starts_at"],
+                    ends_at=payload["ends_at"],
+                    status=new_status,
+                    booking_source=profile_booking_source(profile),
+                    booked_by=self.request.user,
+                    rescheduled_from=original,
+                    series=original.series,
+                    slot_group=payload["slot_group"],
+                    slot_capacity=payload["slot_capacity"],
+                    service_units=original.service_units,
+                    notes=form.cleaned_data.get("notes", ""),
+                )
                 new_appointment.full_clean()
                 new_appointment.save()
-            except ValidationError as error:
-                add_model_validation_errors(form, error)
-                transaction.set_rollback(True)
-                return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+        except ValidationError as error:
+            add_model_validation_errors(form, error)
+            return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
         messages.success(self.request, "Agendamento reagendado sem consumo de credito.")
         return agenda_redirect_for_date(timezone.localtime(new_appointment.starts_at).date())
@@ -832,41 +841,41 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
     def reschedule_current_and_future(self, form, starts_at, ends_at, new_status, slots, booking_values):
         profile = get_profile(self.request.user)
         delta = starts_at - self.original_appointment.starts_at
-        with transaction.atomic():
-            sources = list(
-                self.original_appointment.series.appointments.select_for_update()
-                .filter(
-                    status__in=ACTIVE_APPOINTMENT_STATUSES,
-                    starts_at__gte=self.original_appointment.starts_at,
+        first_replacement_day = None
+        try:
+            with transaction.atomic():
+                sources = list(
+                    self.original_appointment.series.appointments.select_for_update()
+                    .filter(
+                        status__in=ACTIVE_APPOINTMENT_STATUSES,
+                        starts_at__gte=self.original_appointment.starts_at,
+                    )
+                    .order_by("starts_at")
                 )
-                .order_by("starts_at")
-            )
-            if not sources:
-                messages.error(self.request, "Nao ha sessoes futuras disponiveis para reagendar.")
-                return redirect(self.success_url)
+                if not sources:
+                    messages.error(self.request, "Nao ha sessoes futuras disponiveis para reagendar.")
+                    return redirect(self.success_url)
 
-            occurrences = []
-            first_replacement_day = None
-            for source in sources:
-                shifted_start = source.starts_at + delta
-                occurrences.append(
-                    {
-                        "source": source,
-                        "date": timezone.localtime(shifted_start).date(),
-                        "starts_at": shifted_start,
-                        "ends_at": source.ends_at + delta,
-                    }
-                )
+                occurrences = []
+                for source in sources:
+                    shifted_start = source.starts_at + delta
+                    occurrences.append(
+                        {
+                            "source": source,
+                            "date": timezone.localtime(shifted_start).date(),
+                            "starts_at": shifted_start,
+                            "ends_at": source.ends_at + delta,
+                        }
+                    )
 
-            grouped_occurrences = {}
-            for item in occurrences:
-                grouped_occurrences.setdefault(item["date"], []).append(item)
+                grouped_occurrences = {}
+                for item in occurrences:
+                    grouped_occurrences.setdefault(item["date"], []).append(item)
 
-            payload_by_date = {}
-            for current_date, items in grouped_occurrences.items():
-                patient_ids = [item["source"].patient_id for item in items]
-                exclude_ids_by_date = {current_date.isoformat(): [item["source"].pk for item in items]}
-                try:
+                payload_by_date = {}
+                for current_date, items in grouped_occurrences.items():
+                    patient_ids = [item["source"].patient_id for item in items]
+                    exclude_ids_by_date = {current_date.isoformat(): [item["source"].pk for item in items]}
                     payload = build_occurrence_payloads(
                         professional=form.cleaned_data["professional"],
                         patient_ids=patient_ids,
@@ -876,50 +885,44 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                         requested_capacity=max(item["source"].slot_capacity for item in items),
                         exclude_ids_by_date=exclude_ids_by_date,
                     )[0]
-                except ValidationError as error:
-                    add_model_validation_errors(form, error)
-                    transaction.set_rollback(True)
-                    return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
-                payload_by_date[current_date] = payload
+                    payload_by_date[current_date] = payload
 
-            new_series = AppointmentSeries.objects.create(
-                created_by=self.request.user,
-                repeat_type=AppointmentSeries.RepeatType.WEEKLY,
-                interval_weeks=self.original_appointment.series.interval_weeks,
-                repeat_until=max(payload_by_date) if payload_by_date else None,
-                occurrences_count=len(payload_by_date),
-                notes=f"Serie ajustada a partir de {timezone.localtime(starts_at):%d/%m/%Y}",
-            )
-            for source in sources:
-                source.status = Appointment.Status.RESCHEDULED
-                source.full_clean()
-                source.save(update_fields=["status", "updated_at"])
-                shifted_date = timezone.localtime(source.starts_at + delta).date()
-                payload = payload_by_date[shifted_date]
-                replacement = Appointment(
-                    patient=source.patient,
-                    professional=form.cleaned_data["professional"],
-                    service_plan=source.service_plan,
-                    starts_at=source.starts_at + delta,
-                    ends_at=source.ends_at + delta,
-                    status=new_status,
-                    booking_source=profile_booking_source(profile),
-                    booked_by=self.request.user,
-                    rescheduled_from=source,
-                    series=new_series,
-                    slot_group=payload["slot_group"],
-                    slot_capacity=payload["slot_capacity"],
-                    service_units=source.service_units,
-                    notes=form.cleaned_data.get("notes", "") or source.notes,
+                new_series = AppointmentSeries.objects.create(
+                    created_by=self.request.user,
+                    repeat_type=AppointmentSeries.RepeatType.WEEKLY,
+                    interval_weeks=self.original_appointment.series.interval_weeks,
+                    repeat_until=max(payload_by_date) if payload_by_date else None,
+                    occurrences_count=len(payload_by_date),
+                    notes=f"Serie ajustada a partir de {timezone.localtime(starts_at):%d/%m/%Y}",
                 )
-                try:
+                for source in sources:
+                    source.status = Appointment.Status.RESCHEDULED
+                    source.full_clean()
+                    source.save(update_fields=["status", "updated_at"])
+                    shifted_date = timezone.localtime(source.starts_at + delta).date()
+                    payload = payload_by_date[shifted_date]
+                    replacement = Appointment(
+                        patient=source.patient,
+                        professional=form.cleaned_data["professional"],
+                        service_plan=source.service_plan,
+                        starts_at=source.starts_at + delta,
+                        ends_at=source.ends_at + delta,
+                        status=new_status,
+                        booking_source=profile_booking_source(profile),
+                        booked_by=self.request.user,
+                        rescheduled_from=source,
+                        series=new_series,
+                        slot_group=payload["slot_group"],
+                        slot_capacity=payload["slot_capacity"],
+                        service_units=source.service_units,
+                        notes=form.cleaned_data.get("notes", "") or source.notes,
+                    )
                     replacement.full_clean()
                     replacement.save()
                     first_replacement_day = first_replacement_day or timezone.localtime(replacement.starts_at).date()
-                except ValidationError as error:
-                    add_model_validation_errors(form, error)
-                    transaction.set_rollback(True)
-                    return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
+        except ValidationError as error:
+            add_model_validation_errors(form, error)
+            return self.render_slot_page(form, slots=slots, searched=True, booking_values=booking_values)
 
         messages.success(self.request, "Sessao atual e proximas reagendadas com sucesso.")
         return agenda_redirect_for_date(first_replacement_day or timezone.localdate())

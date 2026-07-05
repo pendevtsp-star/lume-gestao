@@ -36,7 +36,7 @@ from core.integrations.google_calendar import (
 )
 from core.integrations.http import IntegrationError
 from core.integrations.whatsapp import (
-    exchange_whatsapp_embedded_signup_code,
+    connect_whatsapp_embedded_signup,
     format_whatsapp_currency,
     meta_template_parameters,
     process_scheduled_whatsapp_messages,
@@ -44,8 +44,10 @@ from core.integrations.whatsapp import (
     render_whatsapp_template,
     send_whatsapp_template,
     send_whatsapp_text,
+    subscribe_whatsapp_business_account,
     whatsapp_embedded_signup_credentials,
     whatsapp_embedded_signup_configured,
+    whatsapp_runtime_state,
 )
 from core.models import (
     AuditLog,
@@ -608,10 +610,22 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             for template in templates.values()
             if template.active
         )
+        whatsapp_status = whatsapp_runtime_state(whatsapp_integration, templates.values())
+        whatsapp_template_readiness = [
+            {
+                "template": template,
+                "ready": bool(template.meta_template_name),
+                "status": "Pronto" if template.meta_template_name else "Nome Meta pendente",
+            }
+            for template in templates.values()
+            if template.active
+        ]
         diagnostics = [
             ("WhatsApp configurado", "Sim" if whatsapp_embedded_signup_configured(whatsapp_integration) else "Nao"),
-            ("WhatsApp conectado", "Sim" if whatsapp_integration.is_connected else "Nao"),
-            ("Modo teste WhatsApp", "Sim" if whatsapp_integration.dry_run or settings.WHATSAPP_DRY_RUN else "Nao"),
+            ("Status WhatsApp", whatsapp_status["label"]),
+            ("Phone Number ID", "Sim" if whatsapp_status["phone_number_id_configured"] else "Nao"),
+            ("Token Meta", "Sim" if whatsapp_status["access_token_configured"] else "Nao"),
+            ("Modo teste WhatsApp", "Sim" if whatsapp_status["dry_run"] else "Nao"),
             ("Templates Meta", "Sim" if whatsapp_templates_ready else "Pendente"),
             ("Google OAuth configurado", "Sim" if google_calendar_configured() else "Nao"),
             ("Google conectado", "Sim" if google_integration.is_connected else "Nao"),
@@ -623,6 +637,8 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             "whatsapp_form": whatsapp_form or WhatsAppIntegrationForm(prefix="whatsapp", instance=whatsapp_integration),
             "google": google_integration,
             "whatsapp": whatsapp_integration,
+            "whatsapp_status": whatsapp_status,
+            "whatsapp_template_readiness": whatsapp_template_readiness,
             "google_configured": google_calendar_configured(),
             "google_callback_url": google_redirect_uri(self.request),
             "google_ics_url": google_ics_url,
@@ -913,6 +929,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         elif action == "finish_whatsapp_embedded":
             integration = WhatsAppIntegration.load()
             code = request.POST.get("embedded_code", "")
+            browser_access_token = request.POST.get("embedded_access_token", "")
             phone_number_id = request.POST.get("embedded_phone_number_id", "").strip()
             business_account_id = request.POST.get("embedded_business_account_id", "").strip()
             clinic_number = request.POST.get("embedded_clinic_number", "").strip()
@@ -923,7 +940,9 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             if clinic_number:
                 integration.clinic_whatsapp_number = clinic_number
             try:
-                exchange_whatsapp_embedded_signup_code(code, integration=integration)
+                connect_whatsapp_embedded_signup(code=code, browser_access_token=browser_access_token, integration=integration)
+                if integration.business_account_id:
+                    subscribe_whatsapp_business_account(integration)
             except IntegrationError as exc:
                 integration.last_error = str(exc)
                 integration.save(update_fields=["phone_number_id", "business_account_id", "clinic_whatsapp_number", "last_error", "updated_at"])
@@ -935,8 +954,16 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         elif action == "test_whatsapp":
             number = request.POST.get("test_number", "")
             message = request.POST.get("test_message", "Teste de mensagem do Lume Gestao.")
+            integration = WhatsAppIntegration.load()
+            status = whatsapp_runtime_state(integration)
+            if not status["dry_run"] and request.POST.get("confirm_live_test") != "on":
+                messages.error(
+                    request,
+                    "Confirme o envio real controlado antes de disparar teste fora do modo seguro.",
+                )
+                return redirect(f"{reverse('integrations')}?tab=connections")
             try:
-                result = send_whatsapp_text(number, message)
+                result = send_whatsapp_text(number, message, integration=integration)
             except IntegrationError as exc:
                 WhatsAppIntegration.objects.filter(pk=1).update(last_error=str(exc))
                 messages.error(request, str(exc))

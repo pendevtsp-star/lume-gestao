@@ -326,4 +326,42 @@ class ServiceUsage(TimeStampedModel):
         if self.service_package_id and self.service_package.remaining_sessions < self.units:
             raise ValidationError({"units": "O pacote nao possui saldo suficiente."})
 
+
+class ServicePackageAdjustment(TimeStampedModel):
+    class Reason(models.TextChoices):
+        APPOINTMENT_NO_CREDIT = "appointment_no_credit", "Credito adicionado na baixa"
+        MANUAL_CORRECTION = "manual_correction", "Correcao manual"
+
+    service_package = models.ForeignKey(ServicePackage, on_delete=models.PROTECT, related_name="adjustments")
+    appointment = models.ForeignKey(
+        Appointment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="credit_adjustments",
+    )
+    delta_sessions = models.SmallIntegerField("ajuste de creditos")
+    reason = models.CharField("motivo", max_length=40, choices=Reason.choices, default=Reason.MANUAL_CORRECTION)
+    notes = models.TextField("observacoes", blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="service_package_adjustments",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "ajuste de credito"
+        verbose_name_plural = "ajustes de credito"
+
+    def __str__(self):
+        return f"{self.service_package} ({self.delta_sessions:+d})"
+
+    def clean(self):
+        super().clean()
+        if self.delta_sessions == 0:
+            raise ValidationError({"delta_sessions": "O ajuste precisa alterar ao menos 1 credito."})
+
 # Create your models here.

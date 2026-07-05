@@ -73,6 +73,7 @@
             <label class="form-field">
               <span>{{ field.label }}</span>
               {{ field }}
+              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
               {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
             </label>
           {% endfor %}

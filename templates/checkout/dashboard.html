@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Checkout | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Pagamentos</p>
+    <h1>Checkout Asaas</h1>
+    <p class="page-subtitle">Centro operacional para vendas de planos e pagamento online de mensalidades.</p>
+  </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'checkout:merchant_onboarding' %}">Conta recebedora</a>
+    <a class="button secondary" href="{% url 'checkout:orders' %}">Pedidos</a>
+    <a class="button secondary" href="{% url 'checkout:events' %}">Eventos</a>
+  </div>
+</section>
+
+<section class="metric-grid">
+  <article class="metric"><span>Pedidos</span><strong>{{ order_count }}</strong></article>
+  <article class="metric"><span>Aguardando</span><strong>{{ pending_order_count }}</strong></article>
+  <article class="metric"><span>Pagos</span><strong>{{ paid_order_count }}</strong></article>
+  <article class="metric"><span>Falhas/cancelados</span><strong>{{ failed_order_count }}</strong></article>
+</section>
+
+<section class="panel checkout-health-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Status do provedor</h2>
+      <p>Diagnostico seguro da integracao. Chaves e tokens nunca aparecem nesta tela.</p>
+    </div>
+    <span class="storage-status {% if gateway.readiness == 'ready' %}ok{% elif gateway.readiness == 'dry_run' %}warning{% else %}critical{% endif %}">
+      {{ gateway.mode_label }}
+    </span>
+  </div>
+  <div class="checkout-health-grid">
+    <article>
+      <span>Provedor ativo</span>
+      <strong>{% if gateway.provider %}{{ gateway.provider.name }}{% else %}{{ gateway.provider_code }}{% endif %}</strong>
+      <small>{% if gateway.provider_supported %}Suportado para a fase inicial{% else %}Nao suportado no checkout atual{% endif %}</small>
+    </article>
+    <article>
+      <span>Checkout</span>
+      <strong>{% if gateway.checkout_enabled %}Habilitado{% else %}Desabilitado{% endif %}</strong>
+      <small>Publico: {{ gateway.public_enabled|yesno:"sim,nao" }} | Paciente: {{ gateway.patient_enabled|yesno:"sim,nao" }}</small>
+    </article>
+    <article>
+      <span>API Asaas</span>
+      <strong>{% if gateway.api_key_configured %}Configurada{% else %}Pendente{% endif %}</strong>
+      <small>{{ gateway.asaas_base_url }}</small>
+    </article>
+    <article>
+      <span>Webhook</span>
+      <strong>{% if gateway.can_receive_webhook %}Pronto{% elif gateway.webhook_enabled %}Token pendente{% else %}Desabilitado{% endif %}</strong>
+      <small>Token: {{ gateway.webhook_token_configured|yesno:"configurado,pendente" }}</small>
+    </article>
+  </div>
+  <div class="checkout-webhook-box">
+    <div>
+      <strong>URL do webhook Asaas</strong>
+      <span>Use esta rota quando formos para sandbox real ou producao.</span>
+    </div>
+    <code>{{ gateway.webhook_url }}</code>
+  </div>
+  <div class="checkout-webhook-box checkout-merchant-box">
+    <div>
+      <strong>Conta recebedora da clinica</strong>
+      <span>
+        {% if gateway.merchant_required %}
+          Obrigatoria para cobrancas remotas no fluxo comercial.
+        {% else %}
+          Preparada para o fluxo comercial com subconta/split.
+        {% endif %}
+      </span>
+    </div>
+    <div class="checkout-merchant-summary">
+      <strong>{{ gateway.merchant_account_label }}</strong>
+      <span>{{ gateway.merchant_account_type_label }} | {{ gateway.merchant_status_label }}</span>
+      <span>Recebimento: {% if gateway.merchant_receiver_configured %}configurado{% else %}pendente{% endif %}</span>
+      <a class="button secondary compact" href="{% url 'checkout:merchant_onboarding' %}">Editar cadastro</a>
+    </div>
+  </div>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Operacao financeira</h2>
+        <p>Visao rapida dos valores em pedidos online.</p>
+      </div>
+    </div>
+    <div class="finance-totals">
+      <div><span>Valor aguardando</span><strong>R$ {{ pending_amount|floatformat:2 }}</strong></div>
+      <div><span>Valor confirmado</span><strong>R$ {{ paid_amount|floatformat:2 }}</strong></div>
+      <div><span>Mensalidades pendentes</span><strong>{{ pending_patient_payments }}</strong></div>
+      <div><span>Planos publicos</span><strong>{{ public_plan_count }}</strong></div>
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Plano de execucao</h2>
+        <p>Sequencia segura para ativar pagamentos reais.</p>
+      </div>
+    </div>
+    <ol class="checkout-step-list">
+      <li><strong>Agora:</strong> consolidar conta recebedora da clinica no checkout comercial.</li>
+      <li><strong>Depois:</strong> criar onboarding financeiro guiado e homologar sandbox Asaas.</li>
+      <li><strong>Antes de produzir:</strong> validar webhook, idempotencia, logs e conciliacao.</li>
+      <li><strong>Producao:</strong> ativar por feature flag, com backup e rollback.</li>
+    </ol>
+  </article>
+</section>
+
+<section class="split-grid">
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Pedidos recentes</h2>
+        <p>Compras de planos e mensalidades iniciadas pelo checkout.</p>
+      </div>
+      <a class="button secondary compact" href="{% url 'checkout:orders' %}">Ver pedidos</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Cliente</th><th>Status</th><th class="right">Valor</th></tr></thead>
+        <tbody>
+          {% for order in recent_orders %}
+            <tr>
+              <td><strong>{{ order.customer_name }}</strong><div class="table-meta">{{ order.get_kind_display }}</div></td>
+              <td><span class="badge {{ order.status }}">{{ order.get_status_display }}</span></td>
+              <td class="right">R$ {{ order.amount|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="empty">Nenhum pedido registrado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Eventos recentes</h2>
+        <p>Ultimos webhooks recebidos do provedor.</p>
+      </div>
+      <a class="button secondary compact" href="{% url 'checkout:events' %}">Ver eventos</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Evento</th><th>Token</th><th>Processado</th></tr></thead>
+        <tbody>
+          {% for event in recent_events %}
+            <tr>
+              <td><strong>{{ event.event_type }}</strong><div class="table-meta">{{ event.provider_payment_id|default:event.external_reference|default:"-" }}</div></td>
+              <td><span class="badge {% if event.access_token_valid %}active{% else %}canceled{% endif %}">{% if event.access_token_valid %}Valido{% else %}Nao validado{% endif %}</span></td>
+              <td>{% if event.processed_at %}{{ event.processed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="empty">Nenhum webhook recebido.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+{% endblock %}

@@ -20,6 +20,57 @@
   <article class="metric"><span>Assinaturas ativas</span><strong>{{ active_subscriptions }}</strong></article>
 </section>
 
+<section class="panel homecare-storage-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Uso de armazenamento</h2>
+      <p>Acompanhe o consumo de videos locais antes de ampliar a biblioteca.</p>
+    </div>
+    <span class="storage-status {{ storage_usage.status }}">
+      {% if storage_usage.status == "critical" %}Critico{% elif storage_usage.status == "warning" %}Atenção{% else %}Saudavel{% endif %}
+    </span>
+  </div>
+  <div class="storage-overview">
+    <div class="storage-main">
+      <span>Total do Lume em casa</span>
+      <strong>{{ storage_usage.module_bytes|filesizeformat }}</strong>
+      <div class="storage-meter" aria-hidden="true">
+        <i style="width: {{ storage_usage.module_percent|floatformat:2 }}%"></i>
+      </div>
+      <small>{{ storage_usage.module_percent|floatformat:3 }}% do disco disponivel para midias.</small>
+    </div>
+    <dl class="storage-breakdown">
+      <div>
+        <dt>Videos protegidos</dt>
+        <dd>{{ storage_usage.local_video_bytes|filesizeformat }} <small>{{ storage_usage.local_video_count }} arquivo(s)</small></dd>
+      </div>
+      <div>
+        <dt>Uploads temporarios</dt>
+        <dd>{{ storage_usage.temporary_bytes|filesizeformat }} <small>{{ storage_usage.temporary_count }} pendente(s)</small></dd>
+      </div>
+      <div>
+        <dt>Capas</dt>
+        <dd>{{ storage_usage.thumbnail_bytes|filesizeformat }} <small>{{ storage_usage.thumbnail_count }} imagem(ns)</small></dd>
+      </div>
+      <div>
+        <dt>Espaco livre na VPS</dt>
+        <dd>{{ storage_usage.disk_free_bytes|filesizeformat }} <small>{{ storage_usage.disk_used_percent|floatformat:1 }}% usado</small></dd>
+      </div>
+    </dl>
+  </div>
+  <div class="storage-footnotes">
+    <span>Provedor atual: {{ storage_usage.provider|upper }}</span>
+    {% if storage_usage.estimated_new_videos %}
+      <span>Estimativa conservadora: cerca de {{ storage_usage.estimated_new_videos }} novo(s) video(s) com a media atual.</span>
+    {% else %}
+      <span>A estimativa sera calculada apos o primeiro video local processado.</span>
+    {% endif %}
+    {% if storage_usage.missing_files %}
+      <span class="storage-alert">{{ storage_usage.missing_files }} referencia(s) sem arquivo encontrado.</span>
+    {% endif %}
+  </div>
+</section>
+
 <section class="split-grid">
   <article class="panel">
     <div class="panel-header">

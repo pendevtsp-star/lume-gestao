@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Caixa do dia | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Financeiro</p>
+    <h1>Caixa do dia</h1>
+    <p class="page-subtitle">Recebimentos de {{ today|date:"d/m/Y" }}, vencidos, proximos vencimentos e adiantamentos.</p>
+  </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Receber mensalidade</a>
+    <a class="button primary" href="{% url 'billing:payment_create' %}">Novo pagamento</a>
+  </div>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card">
+    <span>Recebido hoje</span>
+    <strong>R$ {{ paid_today_total|floatformat:2 }}</strong>
+    <small>{{ paid_today_count }} baixa{{ paid_today_count|pluralize }} registrada{{ paid_today_count|pluralize }}.</small>
+  </article>
+  <article class="stat-card">
+    <span>Vencidos</span>
+    <strong>R$ {{ overdue_total|floatformat:2 }}</strong>
+    <small>{{ overdue_count }} pagamento{{ overdue_count|pluralize }} em atraso.</small>
+  </article>
+  <article class="stat-card">
+    <span>Proximos 7 dias</span>
+    <strong>R$ {{ next_total|floatformat:2 }}</strong>
+    <small>Mensalidades a receber em breve.</small>
+  </article>
+</section>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar paciente, telefone, CPF ou plano" autofocus>
+    <button class="button primary" type="submit">Buscar</button>
+    {% if q %}<a class="button secondary" href="{% url 'billing:cash_closing' %}">Limpar</a>{% endif %}
+  </form>
+</section>
+
+<section class="operation-grid">
+  <article class="panel operation-card">
+    <h2>Recebidos hoje</h2>
+    {% for payment in paid_today %}
+      <p><strong>{{ payment.patient_display }}</strong> {{ payment.item_display }} <small>R$ {{ payment.amount|floatformat:2 }}</small></p>
+    {% empty %}
+      <p>Nenhum recebimento registrado hoje.</p>
+    {% endfor %}
+  </article>
+  <article class="panel operation-card">
+    <h2>Vencidos</h2>
+    {% for payment in overdue_payments %}
+      <p>
+        <strong>{{ payment.patient_display }}</strong>
+        {{ payment.due_date|date:"d/m/Y" }}
+        <small>R$ {{ payment.amount|floatformat:2 }}</small>
+        <a class="table-action" href="{% url 'billing:payment_receive' payment.pk %}">Receber</a>
+      </p>
+    {% empty %}
+      <p>Nenhum pagamento vencido.</p>
+    {% endfor %}
+  </article>
+  <article class="panel operation-card">
+    <h2>Vencem em breve</h2>
+    {% for payment in next_payments %}
+      <p>
+        <strong>{{ payment.patient_display }}</strong>
+        {{ payment.due_date|date:"d/m/Y" }}
+        <small>R$ {{ payment.amount|floatformat:2 }}</small>
+        <a class="table-action" href="{% url 'billing:payment_receive' payment.pk %}">Receber</a>
+      </p>
+    {% empty %}
+      <p>Nenhum vencimento nos proximos 7 dias.</p>
+    {% endfor %}
+  </article>
+</section>
+
+<section class="panel stacked-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Receber mensalidade adiantada</h2>
+      <p>Use quando o paciente quiser pagar o proximo ciclo antes de aparecer como vencimento.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Plano/servico</th>
+          <th>Proxima referencia</th>
+          <th>Vencimento sugerido</th>
+          <th class="right">Valor</th>
+          <th class="right">Acao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for membership in advance_memberships %}
+          <tr>
+            <td><strong>{{ membership.patient.full_name }}</strong><small>{{ membership.patient.phone|default:"Sem telefone" }}</small></td>
+            <td>{{ membership.plan.name }}</td>
+            <td>{{ membership.next_reference_month|date:"m/Y" }}</td>
+            <td>{{ membership.next_due_date|date:"d/m/Y" }}</td>
+            <td class="right">R$ {{ membership.monthly_amount|floatformat:2 }}</td>
+            <td class="right"><a class="button primary compact" href="{% url 'billing:payment_advance_receive' membership.pk %}">Receber adiantado</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">Nenhuma mensalidade ativa encontrada para adiantamento.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

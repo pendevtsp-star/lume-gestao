@@ -15,7 +15,7 @@ from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment
 from core.exports import br_currency, pdf_response, xlsx_response
 from core.models import AuditLog
 from patients.models import Patient, ProfessionalPatientAssignment
-from scheduling.models import Appointment
+from scheduling.models import Appointment, ServiceUsage
 from team.models import Professional
 
 
@@ -452,6 +452,54 @@ class FinancialReportView(PeriodReportMixin, RoleRequiredMixin, TemplateView):
             ]
         )
         receivable_alerts = sorted(receivable_alerts, key=lambda row: row["due_date"])[:10]
+        expected_receivable_total = revenue_total + pending_total
+        collection_rate = percent(revenue_total, expected_receivable_total)
+
+        appointments = Appointment.objects.filter(starts_at__date__gte=start, starts_at__date__lte=end)
+        credit_usages = ServiceUsage.objects.filter(
+            registered_at__date__gte=start,
+            registered_at__date__lte=end,
+        ).select_related("service_package__membership__plan", "appointment__professional")
+        if filters["plan"]:
+            appointments = appointments.filter(service_plan_id=filters["plan"])
+            credit_usages = credit_usages.filter(service_package__membership__plan_id=filters["plan"])
+
+        operational_appointments = appointments.exclude(status=Appointment.Status.REQUESTED)
+        completed_appointments = operational_appointments.filter(status=Appointment.Status.COMPLETED)
+        canceled_appointments = operational_appointments.filter(status=Appointment.Status.CANCELED)
+        no_show_appointments = operational_appointments.filter(status=Appointment.Status.NO_SHOW)
+        completion_rate = percent(completed_appointments.count(), operational_appointments.count())
+
+        appointments_by_professional = [
+            {
+                "label": row["professional__full_name"] or "Sem profissional",
+                "total": row["total"],
+                "completed": row["completed"],
+                "canceled": row["canceled"],
+                "no_show": row["no_show"],
+                "percentage": percent_int(row["completed"], row["total"]),
+            }
+            for row in operational_appointments.values("professional__full_name")
+            .annotate(
+                total=Count("id"),
+                completed=Count("id", filter=Q(status=Appointment.Status.COMPLETED)),
+                canceled=Count("id", filter=Q(status=Appointment.Status.CANCELED)),
+                no_show=Count("id", filter=Q(status=Appointment.Status.NO_SHOW)),
+            )
+            .order_by("-total", "professional__full_name")[:8]
+        ]
+        credit_usage_total = credit_usages.aggregate(total=Sum("units"))["total"] or 0
+        credit_usage_by_plan = [
+            {
+                "label": row["service_package__membership__plan__name"] or "Sem plano",
+                "total": row["total"] or 0,
+                "count": row["count"],
+                "percentage": percent_int(row["total"] or 0, credit_usage_total),
+            }
+            for row in credit_usages.values("service_package__membership__plan__name")
+            .annotate(total=Sum("units"), count=Count("id"))
+            .order_by("-total", "service_package__membership__plan__name")[:8]
+        ]
 
         return {
             "report_section": "financial",
@@ -474,9 +522,17 @@ class FinancialReportView(PeriodReportMixin, RoleRequiredMixin, TemplateView):
             "net_result": net_result,
             "pending_total": pending_total,
             "overdue_total": overdue_total,
+            "expected_receivable_total": expected_receivable_total,
+            "collection_rate": collection_rate,
             "margin": margin,
             "expense_ratio": expense_ratio,
             "overdue_ratio": overdue_ratio,
+            "appointment_total": operational_appointments.count(),
+            "completed_appointment_total": completed_appointments.count(),
+            "canceled_appointment_total": canceled_appointments.count(),
+            "no_show_appointment_total": no_show_appointments.count(),
+            "credit_usage_total": credit_usage_total,
+            "completion_rate": completion_rate,
             "health_label": health_label,
             "health_tone": health_tone,
             "health_summary": health_summary,
@@ -484,6 +540,8 @@ class FinancialReportView(PeriodReportMixin, RoleRequiredMixin, TemplateView):
             "revenue_by_source": revenue_by_source,
             "expenses_by_category": expenses_by_category,
             "revenue_by_plan": revenue_by_plan,
+            "appointments_by_professional": appointments_by_professional,
+            "credit_usage_by_plan": credit_usage_by_plan,
             "receivable_alerts": receivable_alerts,
             "payments_count": paid_payments.count(),
             "received_charges_count": received_charges.count(),

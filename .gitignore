@@ -36,5 +36,7 @@ apps/**/android/hs_err_pid*.log
 apps/**/ios/Pods/
 apps/**/ios/.symlinks/
 .codex-tmp/
+.codex-remote-attachments/
+docs/meta_review/screencasts/frames/
 deploy/nginx/certs/*
 !deploy/nginx/certs/.gitkeep

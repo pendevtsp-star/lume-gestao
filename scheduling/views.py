@@ -8,7 +8,6 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count
-from django.db.models import F
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -42,7 +41,19 @@ from scheduling.forms import (
     ProfessionalAvailabilityBatchForm,
     ServicePackageForm,
 )
-from scheduling.models import Appointment, AppointmentSeries, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.models import (
+    Appointment,
+    AppointmentSeries,
+    ProfessionalAvailability,
+    ServicePackage,
+    ServicePackageAdjustment,
+    ServiceUsage,
+)
+from scheduling.services import (
+    completion_needs_credit_adjustment,
+    completion_package_for_appointment,
+    ensure_credit_for_appointment,
+)
 from scheduling.slots import (
     availability_capacity_for_slot,
     generate_available_slots,
@@ -316,6 +327,12 @@ def build_calendar_session_groups(appointments):
     return sorted(sessions, key=lambda session: (session["starts_at"], session["professional"].full_name))
 
 
+def annotate_credit_adjustment_flags(appointments):
+    for appointment in appointments:
+        appointment.needs_credit_adjustment = completion_needs_credit_adjustment(appointment)
+    return appointments
+
+
 class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
     model = Appointment
     template_name = "scheduling/appointment_list.html"
@@ -329,6 +346,7 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        annotate_credit_adjustment_flags(context["appointments"])
         week_start = calendar_week_start(self.request)
         week_end = week_start + timedelta(days=6)
         selected_day = parse_date(self.request.GET.get("dia", "")) or timezone.localdate()
@@ -336,11 +354,12 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
             selected_day = week_start
         week_days = [week_start + timedelta(days=offset) for offset in range(7)]
         hour_slots = range(6, 21)
-        calendar_queryset = (
+        calendar_queryset = list(
             self.get_queryset()
             .filter(starts_at__date__gte=week_start, starts_at__date__lte=week_end)
             .exclude(status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED])
         )
+        annotate_credit_adjustment_flags(calendar_queryset)
         events_by_day_hour = {day: {hour: [] for hour in hour_slots} for day in week_days}
         for appointment in calendar_queryset:
             local_start = timezone.localtime(appointment.starts_at)
@@ -379,7 +398,11 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
                 "selected_day": selected_day,
                 "week_days": week_days,
                 "calendar_rows": calendar_rows,
-                "day_appointments": calendar_queryset.filter(starts_at__date=selected_day).order_by("starts_at"),
+                "day_appointments": [
+                    appointment
+                    for appointment in calendar_queryset
+                    if timezone.localtime(appointment.starts_at).date() == selected_day
+                ],
                 "today_total": base_queryset.filter(starts_at__date=today).exclude(
                     status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
                 ).count(),
@@ -917,30 +940,24 @@ class AppointmentCompleteView(AppointmentAccessMixin, View):
                 messages.error(request, "Este atendimento ja foi baixado.")
                 return redirect("scheduling:appointments")
 
-            package = (
-                ServicePackage.objects.select_for_update()
-                .filter(
-                    membership__patient=appointment.patient,
-                    status=ServicePackage.Status.ACTIVE,
-                    used_sessions__lt=F("total_sessions"),
-                )
-                .order_by("expires_on", "created_at")
-            )
-            if appointment.service_plan_id:
-                package = package.filter(membership__plan_id=appointment.service_plan_id)
-            elif package.values("membership__plan_id").distinct().count() > 1:
-                messages.error(
-                    request,
-                    "Este paciente possui mais de uma adesao ativa. Edite o agendamento e informe o plano/servico antes da baixa.",
-                )
+            try:
+                package = completion_package_for_appointment(appointment, lock=True)
+            except ValidationError as error:
+                messages.error(request, error.messages[0])
                 return redirect("scheduling:appointments")
-            package = package.first()
-            if not package:
-                messages.error(request, "Nao ha adesao ativa com saldo para este paciente e plano/servico.")
-                return redirect("scheduling:appointments")
-            if package.remaining_sessions < appointment.service_units:
-                messages.error(request, "A adesao nao possui saldo suficiente.")
-                return redirect("scheduling:appointments")
+            needs_credit = not package or package.remaining_sessions < appointment.service_units
+            if needs_credit:
+                if request.POST.get("add_credit") != "1":
+                    messages.error(
+                        request,
+                        "O cliente nao tem creditos disponiveis. Confirme no botao de baixa para adicionar 1 credito e continuar.",
+                    )
+                    return redirect("scheduling:appointments")
+                try:
+                    package = ensure_credit_for_appointment(appointment, request.user)
+                except ValidationError as error:
+                    messages.error(request, error.messages[0])
+                    return redirect("scheduling:appointments")
             appointment.status = Appointment.Status.COMPLETED
             appointment.completed_by = request.user
             appointment.completed_at = timezone.now()
@@ -1172,6 +1189,31 @@ class ServicePackageListView(FinanceAccessMixin, SearchableListView, ListView):
             .get_queryset()
             .select_related("membership__patient", "membership__plan")
             .exclude(status=ServicePackage.Status.CANCELED)
+        )
+
+
+class ServicePackageAdjustmentListView(FinanceAccessMixin, SearchableListView, ListView):
+    model = ServicePackageAdjustment
+    template_name = "scheduling/package_adjustment_list.html"
+    context_object_name = "adjustments"
+    paginate_by = 20
+    search_fields = [
+        "service_package__membership__patient__full_name",
+        "service_package__membership__plan__name",
+        "reason",
+        "notes",
+    ]
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .select_related(
+                "service_package__membership__patient",
+                "service_package__membership__plan",
+                "appointment",
+                "created_by",
+            )
         )
 
 

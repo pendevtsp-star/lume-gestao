@@ -54,7 +54,7 @@
       </div>
       <div class="integration-status-row">
         <span class="status-pill {% if whatsapp.is_connected %}is-success{% else %}is-muted{% endif %}">
-          WhatsApp {% if whatsapp.is_connected %}conectado{% else %}pendente{% endif %}
+          WhatsApp {{ whatsapp_status.label }}
         </span>
         <span class="status-pill {% if google.is_connected %}is-success{% else %}is-muted{% endif %}">
           Google {% if google.is_connected %}conectado{% else %}pendente{% endif %}
@@ -323,31 +323,23 @@
           <div class="connection-hero-top">
             <div>
               <p class="eyebrow">WhatsApp oficial</p>
-              <h3>{% if whatsapp.is_connected %}WhatsApp conectado{% elif whatsapp_embedded_configured %}Pronto para conectar pela Meta{% else %}Configurar Meta Embedded Signup{% endif %}</h3>
-              <p>O WhatsApp usa a conta oficial da Meta para lembretes, aniversarios, cobrancas e fila automatica.</p>
+              <h3>{{ whatsapp_status.label }}</h3>
+              <p>Conecte a conta oficial da clinica para enviar lembretes, cobrancas e avisos automaticos.</p>
             </div>
-            <span class="status-pill {% if whatsapp.is_connected %}is-success{% elif whatsapp_embedded_configured %}is-warning{% else %}is-muted{% endif %}">
-              {% if whatsapp.is_connected %}Conectado{% elif whatsapp_embedded_configured %}Pronto para conectar{% else %}Configurar Meta{% endif %}
+            <span class="status-pill {% if whatsapp_status.code == 'ready_live' or whatsapp_status.code == 'connected_test' %}is-success{% elif whatsapp_embedded_configured %}is-warning{% else %}is-muted{% endif %}">
+              {{ whatsapp_status.label }}
             </span>
           </div>
 
           <div class="connection-next-step">
             <span>Proximo passo</span>
-            {% if whatsapp.is_connected %}
-              <strong>Envie uma mensagem de teste antes de usar com pacientes.</strong>
-              <p>{% if whatsapp.dry_run %}O modo teste esta ativo, entao os disparos sao simulados.{% else %}Envio real ativo pela API Meta.{% endif %}</p>
-            {% elif whatsapp_embedded_configured %}
-              <strong>Clique em conectar WhatsApp oficial e siga a tela da Meta.</strong>
-              <p>{% if whatsapp_uses_env_credentials %}Credenciais no .env da VPS.{% else %}Credenciais salvas na tela.{% endif %} Meta Embedded Signup pronto.</p>
-            {% else %}
-              <strong>Configure App ID, Configuration ID e App Secret da Meta.</strong>
-              <p>Preferencialmente coloque esses dados no `.env` da VPS para o usuario final ver apenas o botao de conexao.</p>
-            {% endif %}
+            <strong>{{ whatsapp_status.next_step }}</strong>
+            <p>{{ whatsapp_status.detail }}</p>
           </div>
 
           <div class="connection-main-actions">
             {% if whatsapp_embedded_configured %}
-              <button class="button primary" type="button" onclick="launchWhatsAppSignup()">
+              <button class="button primary" id="whatsapp-connect-button" type="button" onclick="launchWhatsAppSignup()">
                 {% if whatsapp.is_connected %}Trocar WhatsApp Meta{% else %}Conectar WhatsApp oficial{% endif %}
               </button>
             {% else %}
@@ -362,19 +354,33 @@
               </form>
             {% endif %}
           </div>
+          <div class="setup-note" id="whatsapp-embedded-status" hidden></div>
+          <div class="setup-note" id="whatsapp-embedded-debug" style="display: grid; gap: 4px; overflow-wrap: anywhere;">
+            <strong>Diagnostico da conexao Meta</strong>
+            <span>Etapa: aguardando novo teste</span>
+            <span>OAuth code recebido: nao</span>
+            <span>Evento Embedded Signup: nao recebido</span>
+            <span>WABA ID: nao</span>
+            <span>Phone Number ID: nao</span>
+            <span>Erro Meta: -</span>
+          </div>
 
           <div class="connection-summary-strip">
             <div>
-              <span>Numero</span>
+              <span>Numero conectado</span>
               <strong>{{ whatsapp.clinic_whatsapp_number|default:"Nao informado" }}</strong>
             </div>
             <div>
-              <span>Meta Embedded Signup</span>
-              <strong>{% if whatsapp_embedded_configured %}Configurado{% else %}Pendente{% endif %}</strong>
+              <span>Status</span>
+              <strong>{{ whatsapp_status.label }}</strong>
             </div>
             <div>
-              <span>Modo</span>
-              <strong>{% if whatsapp.dry_run %}Teste{% else %}Envio real{% endif %}</strong>
+              <span>Envio</span>
+              <strong>{% if whatsapp_status.dry_run %}Teste{% else %}Real{% endif %}</strong>
+            </div>
+            <div>
+              <span>Ultimo teste</span>
+              <strong>{{ whatsapp.last_test_at|date:"d/m/Y H:i"|default:"-" }}</strong>
             </div>
           </div>
 
@@ -384,90 +390,31 @@
               <input type="hidden" name="action" value="finish_whatsapp_embedded">
               <input type="hidden" name="tab" value="connections">
               <input type="hidden" name="embedded_code" id="embedded-code">
+              <input type="hidden" name="embedded_access_token" id="embedded-access-token">
               <input type="hidden" name="embedded_phone_number_id" id="embedded-phone-number-id">
               <input type="hidden" name="embedded_business_account_id" id="embedded-business-account-id">
               <input type="hidden" name="embedded_clinic_number" id="embedded-clinic-number">
             </form>
           {% else %}
             <div class="google-setup-guide">
-              <strong>Falta a configuracao inicial da Meta.</strong>
-              <span>Use a Meta for Developers para gerar App ID, Configuration ID e App Secret.</span>
-              <span>Preferencia para producao: preencher esses valores no `.env` da VPS e manter a tela limpa.</span>
+              <strong>Conexao ainda nao liberada.</strong>
+              <span>O suporte precisa finalizar a configuracao segura antes do primeiro uso.</span>
             </div>
           {% endif %}
 
-          <form method="post" class="integration-body compact-integration-body quick-settings-form">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="save_whatsapp">
-            <input type="hidden" name="tab" value="connections">
-            <div class="friendly-form-grid">
-              <label class="form-field">
-                <span>{{ whatsapp_form.clinic_whatsapp_number.label }}</span>
-                {{ whatsapp_form.clinic_whatsapp_number }}
-                {% for error in whatsapp_form.clinic_whatsapp_number.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-              </label>
-              <label class="form-field">
-                <span>{{ whatsapp_form.default_country_code.label }}</span>
-                {{ whatsapp_form.default_country_code }}
-                {% for error in whatsapp_form.default_country_code.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-              </label>
-              <label class="form-field toggle-card">
-                {{ whatsapp_form.enabled }}
-                <span>{{ whatsapp_form.enabled.label }}</span>
-              </label>
-              <label class="form-field toggle-card">
-                {{ whatsapp_form.dry_run }}
-                <span>{{ whatsapp_form.dry_run.label }}</span>
-              </label>
+          {% if whatsapp.last_error %}
+            <div class="setup-note">
+              Ultimo erro: {{ whatsapp.last_error }}
             </div>
-
-            <dl class="integration-facts compact-facts compact-facts-soft">
-              <div><dt>Conectado em</dt><dd>{{ whatsapp.connected_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
-              <div><dt>Phone Number ID</dt><dd>{{ whatsapp.phone_number_id|default:"-" }}</dd></div>
-              <div><dt>Ultimo teste</dt><dd>{{ whatsapp.last_test_at|date:"d/m/Y H:i"|default:"-" }}</dd></div>
-              <div><dt>Ultimo erro</dt><dd>{{ whatsapp.last_error|default:"-" }}</dd></div>
-            </dl>
-
-            <details class="template-advanced connection-advanced slim-advanced">
-              <summary>Configuracao tecnica da Meta</summary>
-              <div class="setup-note">
-                Use estes campos apenas se nao for configurar a Meta pelo `.env` da VPS. Tokens e segredos reais nao devem ir para o Git.
-              </div>
-              <div class="form-grid compact-form-grid">
-                <label class="form-field">
-                  <span>{{ whatsapp_form.provider.label }}</span>
-                  {{ whatsapp_form.provider }}
-                </label>
-                <label class="form-field">
-                  <span>{{ whatsapp_form.phone_number_id.label }}</span>
-                  {{ whatsapp_form.phone_number_id }}
-                </label>
-                <label class="form-field">
-                  <span>{{ whatsapp_form.business_account_id.label }}</span>
-                  {{ whatsapp_form.business_account_id }}
-                </label>
-                <label class="form-field">
-                  <span>{{ whatsapp_form.embedded_app_id.label }}</span>
-                  {{ whatsapp_form.embedded_app_id }}
-                  {% if whatsapp_form.embedded_app_id.help_text %}<small>{{ whatsapp_form.embedded_app_id.help_text }}</small>{% endif %}
-                </label>
-                <label class="form-field">
-                  <span>{{ whatsapp_form.embedded_config_id.label }}</span>
-                  {{ whatsapp_form.embedded_config_id }}
-                  {% if whatsapp_form.embedded_config_id.help_text %}<small>{{ whatsapp_form.embedded_config_id.help_text }}</small>{% endif %}
-                </label>
-                <label class="form-field">
-                  <span>{{ whatsapp_form.embedded_app_secret.label }}</span>
-                  {{ whatsapp_form.embedded_app_secret }}
-                  {% if whatsapp_form.embedded_app_secret.help_text %}<small>{{ whatsapp_form.embedded_app_secret.help_text }}</small>{% endif %}
-                </label>
-              </div>
-            </details>
-
-            <div class="form-actions compact-actions">
-              <button class="button secondary" type="submit">Salvar ajustes do WhatsApp</button>
+          {% endif %}
+          {% if whatsapp_template_readiness %}
+            <div class="setup-note">
+              <strong>Templates Meta</strong>
+              {% for item in whatsapp_template_readiness %}
+                <span>{{ item.template.title }}: {{ item.status }}</span>
+              {% endfor %}
             </div>
-          </form>
+          {% endif %}
         </section>
 
         <section class="panel connection-card connection-card-feature integration-wizard-card connection-hero-card">
@@ -517,33 +464,41 @@
           </div>
         </section>
 
-        <section class="panel connection-card test-card">
-          <div class="connection-card-head">
-            <div>
-              <p class="eyebrow">Teste rapido</p>
-              <h3>Enviar mensagem de teste</h3>
-              <p>Valide se o numero e a API estao respondendo antes de usar com pacientes.</p>
+        {% if whatsapp.is_connected %}
+          <section class="panel connection-card test-card">
+            <div class="connection-card-head">
+              <div>
+                <p class="eyebrow">Teste rapido</p>
+                <h3>Enviar mensagem de teste</h3>
+                <p>Valide se o numero e a API estao respondendo antes de usar com pacientes.</p>
+              </div>
             </div>
-          </div>
-          <form method="post" class="integration-body compact-integration-body">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="test_whatsapp">
-            <input type="hidden" name="tab" value="connections">
-            <div class="friendly-form-grid test-form-grid">
-              <label class="form-field">
-                <span>Numero para teste</span>
-                <input class="field-control" name="test_number" placeholder="11999990000">
-              </label>
-              <label class="form-field">
-                <span>Mensagem</span>
-                <textarea class="field-control" name="test_message" rows="3">Teste de mensagem do Lume Gestao.</textarea>
-              </label>
-            </div>
-            <div class="form-actions compact-actions">
-              <button class="button secondary" type="submit">Testar WhatsApp</button>
-            </div>
-          </form>
-        </section>
+            <form method="post" class="integration-body compact-integration-body">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="test_whatsapp">
+              <input type="hidden" name="tab" value="connections">
+              <div class="friendly-form-grid test-form-grid">
+                <label class="form-field">
+                  <span>Numero para teste</span>
+                  <input class="field-control" name="test_number" placeholder="11999990000">
+                </label>
+                <label class="form-field">
+                  <span>Mensagem</span>
+                  <textarea class="field-control" name="test_message" rows="3">Teste de mensagem do Lume Gestao.</textarea>
+                </label>
+              </div>
+              {% if not whatsapp_status.dry_run %}
+                <label class="form-field toggle-card">
+                  <input class="checkbox" type="checkbox" name="confirm_live_test">
+                  <span>Confirmo que este e um envio real controlado para numero autorizado.</span>
+                </label>
+              {% endif %}
+              <div class="form-actions compact-actions">
+                <button class="button secondary" type="submit">Testar WhatsApp</button>
+              </div>
+            </form>
+          </section>
+        {% endif %}
       </div>
     {% else %}
       <div class="zap-message-list">
@@ -602,6 +557,23 @@
           </form>
         </section>
 
+        <section class="panel zap-log-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Checklist para producao</h3>
+              <p>Antes de desligar o modo teste, todos os modelos ativos precisam apontar para um template aprovado na Meta.</p>
+            </div>
+          </div>
+          <div class="diagnostic-grid">
+            {% for item in whatsapp_template_readiness %}
+              <article class="diagnostic-item">
+                <span>{{ item.template.title }}</span>
+                <strong>{{ item.status }}</strong>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+
         {% if active_message_type == "appointment" %}
           {% with template=whatsapp_templates.appointment form=template_forms.appointment send_form=send_forms.appointment preview=preview_messages.appointment send_kind="appointment" %}
             {% include "core/partials/whatsapp_template_card.html" %}
@@ -622,6 +594,154 @@
 {% if active_tab == "connections" and whatsapp_embedded_configured %}
   <script async defer crossorigin="anonymous" src="https://connect.facebook.net/pt_BR/sdk.js"></script>
   <script>
+    var whatsappSignupState = {
+      code: "",
+      phoneNumberId: "",
+      businessAccountId: "",
+      clinicNumber: "",
+      authStatus: "",
+      eventName: "",
+      eventType: "",
+      eventOrigin: "",
+      eventKeys: "",
+      errorCode: "",
+      errorMessage: "",
+      accessTokenPresent: false,
+      lastStep: "",
+      submitted: false
+    };
+
+    function setWhatsAppSignupStatus(message) {
+      var status = document.getElementById("whatsapp-embedded-status");
+      if (!status) {
+        return;
+      }
+      status.hidden = !message;
+      status.textContent = message || "";
+    }
+
+    function maskWhatsAppSignupValue(value) {
+      if (!value) {
+        return "nao";
+      }
+      var text = String(value);
+      if (text.length <= 8) {
+        return "sim (" + text.replace(/./g, "*") + ")";
+      }
+      return "sim (" + text.slice(0, 4) + "..." + text.slice(-4) + ")";
+    }
+
+    function setWhatsAppSignupDiagnostics(step) {
+      var debug = document.getElementById("whatsapp-embedded-debug");
+      if (!debug) {
+        return;
+      }
+      whatsappSignupState.lastStep = step || whatsappSignupState.lastStep;
+      debug.hidden = false;
+      debug.replaceChildren();
+      var title = document.createElement("strong");
+      title.textContent = "Diagnostico da conexao Meta";
+      debug.appendChild(title);
+      [
+        "Etapa: " + (whatsappSignupState.lastStep || "-"),
+        "OAuth code recebido: " + (whatsappSignupState.code ? "sim" : "nao"),
+        "Evento Embedded Signup: " + (whatsappSignupState.eventName || "nao recebido"),
+        "Tipo do evento: " + (whatsappSignupState.eventType || "-"),
+        "WABA ID: " + maskWhatsAppSignupValue(whatsappSignupState.businessAccountId),
+        "Phone Number ID: " + maskWhatsAppSignupValue(whatsappSignupState.phoneNumberId),
+        "Numero retornado: " + maskWhatsAppSignupValue(whatsappSignupState.clinicNumber),
+        "Status do login: " + (whatsappSignupState.authStatus || "-"),
+        "Access token recebido no navegador: " + (whatsappSignupState.accessTokenPresent ? "sim" : "nao"),
+        "Origem do evento: " + (whatsappSignupState.eventOrigin || "-"),
+        "Campos recebidos: " + (whatsappSignupState.eventKeys || "-"),
+        "Erro Meta: " + (whatsappSignupState.errorMessage || whatsappSignupState.errorCode || "-")
+      ].forEach(function(line) {
+        var item = document.createElement("span");
+        item.textContent = line;
+        debug.appendChild(item);
+      });
+    }
+
+    function parseWhatsAppSignupData(rawData) {
+      if (!rawData) {
+        return null;
+      }
+      if (typeof rawData === "object") {
+        return rawData;
+      }
+      if (typeof rawData !== "string") {
+        return null;
+      }
+      try {
+        return JSON.parse(rawData);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function parseWhatsAppSignupUrlData(rawData) {
+      if (typeof rawData !== "string" || !rawData) {
+        return null;
+      }
+      var candidates = [rawData];
+      try {
+        var params = new URLSearchParams(rawData);
+        var nestedData = params.get("data");
+        if (nestedData) {
+          candidates.push(nestedData);
+        }
+        if (params.get("code")) {
+          return {
+            type: "FACEBOOK_LOGIN_CODE",
+            event: "CODE",
+            data: { code: params.get("code") },
+            keys: Array.from(params.keys()).sort().join(", ")
+          };
+        }
+      } catch (error) {
+        // Continua para a tentativa de JSON abaixo.
+      }
+      for (var index = 0; index < candidates.length; index += 1) {
+        try {
+          return JSON.parse(candidates[index]);
+        } catch (error) {
+          continue;
+        }
+      }
+      return {
+        type: "FACEBOOK_MESSAGE",
+        event: "NON_JSON",
+        data: {},
+        keys: rawData.slice(0, 80)
+      };
+    }
+
+    function submitWhatsAppSignupWhenReady() {
+      if (whatsappSignupState.submitted) {
+        return;
+      }
+      if (!whatsappSignupState.code && !whatsappSignupState.accessToken) {
+        setWhatsAppSignupStatus("Aguardando autorizacao da Meta.");
+        setWhatsAppSignupDiagnostics("aguardando OAuth code ou token");
+        return;
+      }
+      if (!whatsappSignupState.businessAccountId || !whatsappSignupState.phoneNumberId) {
+        setWhatsAppSignupStatus("Aguardando dados do WhatsApp retornados pela Meta.");
+        setWhatsAppSignupDiagnostics("aguardando WABA e Phone Number ID");
+        return;
+      }
+
+      whatsappSignupState.submitted = true;
+      document.getElementById("embedded-code").value = whatsappSignupState.code;
+      document.getElementById("embedded-access-token").value = whatsappSignupState.accessToken || "";
+      document.getElementById("embedded-phone-number-id").value = whatsappSignupState.phoneNumberId;
+      document.getElementById("embedded-business-account-id").value = whatsappSignupState.businessAccountId;
+      document.getElementById("embedded-clinic-number").value = whatsappSignupState.clinicNumber;
+      setWhatsAppSignupStatus("Finalizando conexao do WhatsApp.");
+      setWhatsAppSignupDiagnostics("enviando dados ao backend");
+      document.getElementById("whatsapp-embedded-form").submit();
+    }
+
     window.fbAsyncInit = function() {
       FB.init({
         appId: "{{ whatsapp_embedded_app_id|escapejs }}",
@@ -632,40 +752,96 @@
     };
 
     window.addEventListener("message", function(event) {
-      if (!event.origin.endsWith("facebook.com")) {
+      if (!event.origin || !event.origin.endsWith("facebook.com")) {
         return;
       }
-      try {
-        var data = JSON.parse(event.data);
-        if (data.type !== "WA_EMBEDDED_SIGNUP") {
-          return;
-        }
-        if (data.event === "FINISH" || data.event === "FINISH_ONLY_WABA") {
-          var payload = data.data || {};
-          document.getElementById("embedded-phone-number-id").value = payload.phone_number_id || "";
-          document.getElementById("embedded-business-account-id").value = payload.waba_id || "";
-          document.getElementById("embedded-clinic-number").value = payload.phone_number || "";
-        }
-      } catch (error) {
+      var data = parseWhatsAppSignupData(event.data);
+      if (!data || data.type !== "WA_EMBEDDED_SIGNUP") {
+        data = parseWhatsAppSignupUrlData(event.data);
+      }
+      if (!data) {
         return;
+      }
+      whatsappSignupState.eventOrigin = event.origin;
+      whatsappSignupState.eventType = data.type || "";
+      whatsappSignupState.eventName = data.event || "";
+      whatsappSignupState.eventKeys = data.keys || (data.data ? Object.keys(data.data).sort().join(", ") : "");
+      if (data.data && data.data.code) {
+        whatsappSignupState.code = data.data.code;
+      }
+      if (data.event === "FINISH" || data.event === "FINISH_ONLY_WABA") {
+        var payload = data.data || {};
+        whatsappSignupState.phoneNumberId = payload.phone_number_id || whatsappSignupState.phoneNumberId;
+        whatsappSignupState.businessAccountId = payload.waba_id || whatsappSignupState.businessAccountId;
+        whatsappSignupState.clinicNumber = payload.phone_number || whatsappSignupState.clinicNumber;
+        setWhatsAppSignupDiagnostics("evento de conclusao recebido");
+        submitWhatsAppSignupWhenReady();
+      } else if (data.event === "CODE") {
+        setWhatsAppSignupDiagnostics("OAuth code recebido por mensagem Facebook");
+        submitWhatsAppSignupWhenReady();
+      } else {
+        whatsappSignupState.errorCode = data.error_code || (data.data && data.data.error_code) || "";
+        whatsappSignupState.errorMessage = data.error_message || data.message || (data.data && data.data.error_message) || "";
+        setWhatsAppSignupStatus("A Meta retornou um evento sem conclusao da conexao.");
+        setWhatsAppSignupDiagnostics(data.event === "NON_JSON" ? "mensagem Facebook sem JSON recebida" : "evento sem conclusao recebido");
       }
     });
 
     function launchWhatsAppSignup() {
+      var button = document.getElementById("whatsapp-connect-button");
+      whatsappSignupState = {
+        code: "",
+        phoneNumberId: "",
+        businessAccountId: "",
+        clinicNumber: "",
+        authStatus: "",
+        eventName: "",
+        eventType: "",
+        eventOrigin: "",
+        eventKeys: "",
+        errorCode: "",
+        errorMessage: "",
+        accessToken: "",
+        accessTokenPresent: false,
+        lastStep: "",
+        submitted: false
+      };
+      if (button) {
+        button.disabled = true;
+      }
+      setWhatsAppSignupStatus("Aguardando autorizacao da Meta.");
+      setWhatsAppSignupDiagnostics("fluxo iniciado");
       FB.login(function(response) {
-        if (!response.authResponse || !response.authResponse.code) {
+        whatsappSignupState.authStatus = response.status || "";
+        whatsappSignupState.accessToken = response.authResponse && response.authResponse.accessToken ? response.authResponse.accessToken : "";
+        whatsappSignupState.accessTokenPresent = Boolean(whatsappSignupState.accessToken);
+        if (!response.authResponse || (!response.authResponse.code && !whatsappSignupState.accessToken)) {
+          if (button) {
+            button.disabled = false;
+          }
+          whatsappSignupState.errorCode = response.error_code || "";
+          whatsappSignupState.errorMessage = response.error_message || "";
+          setWhatsAppSignupStatus("A conexao nao foi concluida na Meta.");
+          setWhatsAppSignupDiagnostics("OAuth sem code");
           return;
         }
-        document.getElementById("embedded-code").value = response.authResponse.code;
-        document.getElementById("whatsapp-embedded-form").submit();
+        whatsappSignupState.code = response.authResponse.code || "";
+        setWhatsAppSignupDiagnostics(whatsappSignupState.code ? "OAuth code recebido" : "OAuth token recebido");
+        submitWhatsAppSignupWhenReady();
       }, {
         config_id: "{{ whatsapp_embedded_config_id|escapejs }}",
         response_type: "code",
         override_default_response_type: true,
         extras: {
-          sessionInfoVersion: 3
+          setup: {},
+          sessionInfoVersion: "3"
         }
       });
+      window.setTimeout(function() {
+        if (!whatsappSignupState.submitted && button) {
+          button.disabled = false;
+        }
+      }, 45000);
     }
   </script>
 {% endif %}

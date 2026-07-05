@@ -291,7 +291,7 @@ WHATSAPP_WEBHOOK_VERIFY_TOKEN = config("WHATSAPP_WEBHOOK_VERIFY_TOKEN", default=
 WHATSAPP_TIMEOUT = config("WHATSAPP_TIMEOUT", default=15, cast=int)
 LUME_FIELD_ENCRYPTION_KEY = config("LUME_FIELD_ENCRYPTION_KEY", default="")
 ASAAS_DRY_RUN = config("ASAAS_DRY_RUN", default=True, cast=bool)
-ASAAS_BASE_URL = config("ASAAS_BASE_URL", default="https://sandbox.asaas.com/api/v3")
+ASAAS_BASE_URL = config("ASAAS_BASE_URL", default="https://api-sandbox.asaas.com/v3")
 ASAAS_API_KEY = config("ASAAS_API_KEY", default="")
 ASAAS_WEBHOOK_TOKEN = config("ASAAS_WEBHOOK_TOKEN", default="")
 ASAAS_TIMEOUT = config("ASAAS_TIMEOUT", default=20, cast=int)
@@ -299,7 +299,8 @@ CHECKOUT_ENABLED = config("CHECKOUT_ENABLED", default=False, cast=bool)
 CHECKOUT_PUBLIC_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_PUBLIC_ENABLED", default=False, cast=bool)
 CHECKOUT_PATIENT_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_PATIENT_ENABLED", default=False, cast=bool)
 CHECKOUT_WEBHOOK_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_WEBHOOK_ENABLED", default=CHECKOUT_ENABLED, cast=bool)
-CHECKOUT_PAYMENT_PROVIDER = config("CHECKOUT_PAYMENT_PROVIDER", default="asaas")
+CHECKOUT_PAYMENT_PROVIDER = config("CHECKOUT_PAYMENT_PROVIDER", default="asaas").lower()
+CHECKOUT_REQUIRE_MERCHANT_ACCOUNT = config("CHECKOUT_REQUIRE_MERCHANT_ACCOUNT", default=False, cast=bool)
 HOMECARE_ENABLED = config("HOMECARE_ENABLED", default=False, cast=bool)
 HOMECARE_INTERNAL_ENABLED = HOMECARE_ENABLED and config("HOMECARE_INTERNAL_ENABLED", default=HOMECARE_ENABLED, cast=bool)
 HOMECARE_PUBLIC_ENABLED = HOMECARE_ENABLED and config("HOMECARE_PUBLIC_ENABLED", default=False, cast=bool)
@@ -310,7 +311,7 @@ HOMECARE_UPLOAD_WORKER_ENABLED = HOMECARE_INTERNAL_ENABLED and config(
     default=HOMECARE_INTERNAL_ENABLED,
     cast=bool,
 )
-HOMECARE_PAYMENT_PROVIDER = config("HOMECARE_PAYMENT_PROVIDER", default="asaas")
+HOMECARE_PAYMENT_PROVIDER = config("HOMECARE_PAYMENT_PROVIDER", default="asaas").lower()
 HOMECARE_VIDEO_PROVIDER = config("HOMECARE_VIDEO_PROVIDER", default="local").lower()
 HOMECARE_MAX_UPLOAD_MB = config("HOMECARE_MAX_UPLOAD_MB", default=1024, cast=int)
 HOMECARE_UPLOAD_BATCH_SIZE = config("HOMECARE_UPLOAD_BATCH_SIZE", default=3, cast=int)
@@ -323,12 +324,16 @@ BUNNY_STREAM_LIBRARY_ID = config("BUNNY_STREAM_LIBRARY_ID", default="")
 BUNNY_STREAM_TIMEOUT = config("BUNNY_STREAM_TIMEOUT", default=30, cast=int)
 if LUME_STRICT_PRODUCTION and IS_PRODUCTION and CHECKOUT_ENABLED:
     checkout_errors = []
+    if CHECKOUT_PAYMENT_PROVIDER != "asaas":
+        checkout_errors.append("CHECKOUT_PAYMENT_PROVIDER deve ser asaas nesta fase.")
     if ASAAS_DRY_RUN:
         checkout_errors.append("CHECKOUT_ENABLED nao deve ficar ativo com ASAAS_DRY_RUN=True em producao.")
     if _looks_like_placeholder(ASAAS_API_KEY):
         checkout_errors.append("ASAAS_API_KEY precisa estar configurado para checkout em producao.")
     if _looks_like_placeholder(ASAAS_WEBHOOK_TOKEN):
         checkout_errors.append("ASAAS_WEBHOOK_TOKEN precisa estar configurado para checkout em producao.")
+    if not CHECKOUT_REQUIRE_MERCHANT_ACCOUNT:
+        checkout_errors.append("CHECKOUT_REQUIRE_MERCHANT_ACCOUNT=True deve ser usado no fluxo comercial.")
     if checkout_errors:
         raise ImproperlyConfigured("Configuracao Checkout invalida: " + " ".join(checkout_errors))
 if LUME_STRICT_PRODUCTION and IS_PRODUCTION and HOMECARE_ENABLED:
@@ -337,6 +342,8 @@ if LUME_STRICT_PRODUCTION and IS_PRODUCTION and HOMECARE_ENABLED:
         homecare_errors.append("HOMECARE_VIDEO_PROVIDER deve ser local ou bunny.")
     if HOMECARE_CHECKOUT_ENABLED and ASAAS_DRY_RUN:
         homecare_errors.append("HOMECARE_CHECKOUT_ENABLED nao deve ficar ativo com ASAAS_DRY_RUN=True em producao.")
+    if HOMECARE_CHECKOUT_ENABLED and HOMECARE_PAYMENT_PROVIDER != "asaas":
+        homecare_errors.append("HOMECARE_PAYMENT_PROVIDER deve ser asaas nesta fase.")
     if HOMECARE_VIDEO_PROVIDER == "bunny" and not BUNNY_STREAM_DRY_RUN and _looks_like_placeholder(BUNNY_STREAM_API_KEY):
         homecare_errors.append("BUNNY_STREAM_API_KEY precisa estar configurado quando Bunny sair do dry-run.")
     if HOMECARE_VIDEO_PROVIDER == "bunny" and not BUNNY_STREAM_DRY_RUN and _looks_like_placeholder(BUNNY_STREAM_LIBRARY_ID):

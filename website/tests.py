@@ -51,7 +51,8 @@ class WebsitePublicTests(TestCase):
         response = self.client.get("/", HTTP_HOST="clinicafisiolume.com.br")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Movimento consciente")
+        self.assertContains(response, "Alivie dores, recupere movimentos e viva melhor.")
+        self.assertContains(response, "Agendar pelo WhatsApp")
         self.assertContains(response, "Plano Pilates Essencial")
         self.assertNotContains(response, "Plano Oculto")
 
@@ -68,6 +69,16 @@ class WebsitePublicTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], website_settings.resolved_whatsapp_url)
         self.assertEqual(website_settings.whatsapp_clicks, 1)
+
+        response = self.client.get(
+            "/ir/whatsapp/?message=Quero%20este%20plano",
+            HTTP_HOST="clinicafisiolume.com.br",
+        )
+        website_settings.refresh_from_db()
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("text=Quero+este+plano", response["Location"])
+        self.assertEqual(website_settings.whatsapp_clicks, 2)
 
         response = self.client.get("/ir/sistema/", HTTP_HOST="clinicafisiolume.com.br")
         website_settings.refresh_from_db()

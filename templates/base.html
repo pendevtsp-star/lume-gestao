@@ -7,7 +7,7 @@
   <title>{% block title %}Lume Gestao{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-local-video">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260702-operational-flow">
   <link rel="stylesheet" href="{% static 'css/quick-actions.css' %}?v=20260630-quick-actions-compact">
 </head>
 <body>
@@ -29,26 +29,58 @@
 
       <nav class="nav">
         <a href="{% url 'dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Dashboard</span></a>
-        <a href="{% url 'lume_connect:feed' %}"><span class="nav-icon icon-connect" aria-hidden="true"></span><span>Lume Connect</span></a>
-        {% if homecare_public_enabled %}
-          <a href="{% url 'homecare_public:library' %}"><span class="nav-icon icon-video" aria-hidden="true"></span><span>Lume em casa</span></a>
-        {% endif %}
-        {% if request.user.profile.role != "patient" %}
-          <a href="{% url 'patients:list' %}"><span class="nav-icon icon-patients" aria-hidden="true"></span><span>Pacientes</span></a>
-        {% endif %}
-        <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Agenda</span></a>
-        {% if request.user.profile.role == "patient" and checkout_patient_enabled %}
-          <a href="{% url 'checkout:patient_payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Minhas mensalidades</span></a>
-        {% endif %}
-        {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
-          <a href="{% url 'scheduling:availabilities' %}"><span class="nav-icon icon-clock" aria-hidden="true"></span><span>Disponibilidade</span></a>
-        {% endif %}
-        {% if request.user.profile.role == "professional" %}
-          <a href="{% url 'patients:notes' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Prontuario</span></a>
-          {% if homecare_internal_enabled %}
-            <a href="{% url 'homecare:videos' %}"><span class="nav-icon icon-video" aria-hidden="true"></span><span>Videos Lume em casa</span></a>
+
+        {% if request.user.profile.role == "patient" %}
+          <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Agenda</span></a>
+          {% if checkout_patient_enabled %}
+            <a href="{% url 'checkout:patient_payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Meu financeiro</span></a>
+          {% endif %}
+          <a href="{% url 'lume_connect:feed' %}"><span class="nav-icon icon-connect" aria-hidden="true"></span><span>Lume Connect</span></a>
+          {% if homecare_public_enabled %}
+            <a href="{% url 'homecare_public:library' %}"><span class="nav-icon icon-video" aria-hidden="true"></span><span>Lume em casa</span></a>
+          {% endif %}
+        {% else %}
+          <details class="nav-menu" {% if request.resolver_match.app_name == "scheduling" or request.resolver_match.app_name == "patients" %}open{% endif %}>
+            <summary>
+              <span class="nav-icon icon-calendar" aria-hidden="true"></span>
+              <span>Operacao</span>
+            </summary>
+            <div class="nav-submenu">
+              <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Agenda</span></a>
+              <a href="{% url 'patients:list' %}"><span class="nav-icon icon-patients" aria-hidden="true"></span><span>Pacientes</span></a>
+              {% if request.user.profile.role == "professional" %}
+                <a href="{% url 'patients:notes' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Prontuario</span></a>
+              {% endif %}
+              {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
+                <a href="{% url 'scheduling:availabilities' %}"><span class="nav-icon icon-clock" aria-hidden="true"></span><span>Disponibilidade</span></a>
+              {% endif %}
+              {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+                <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Adesoes</span></a>
+                <a href="{% url 'scheduling:package_adjustments' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Ajustes de credito</span></a>
+              {% endif %}
+            </div>
+          </details>
+          {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+            <details class="nav-menu" {% if request.resolver_match.app_name == "billing" and request.resolver_match.url_name != "plans" and request.resolver_match.url_name != "plan_create" and request.resolver_match.url_name != "plan_update" and request.resolver_match.url_name != "plan_delete" or request.resolver_match.app_name == "checkout" or request.resolver_match.app_name == "fiscal" %}open{% endif %}>
+              <summary>
+                <span class="nav-icon icon-finance" aria-hidden="true"></span>
+                <span>Financeiro</span>
+              </summary>
+              <div class="nav-submenu">
+                <a href="{% url 'billing:cash_closing' %}"><span class="nav-icon icon-finance" aria-hidden="true"></span><span>Caixa do dia</span></a>
+                <a href="{% url 'billing:payment_quick_receive' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Receber mensalidade</span></a>
+                <a href="{% url 'billing:memberships' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Mensalidades</span></a>
+                <a href="{% url 'billing:payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Pagamentos</span></a>
+                <a href="{% url 'billing:expenses' %}"><span class="nav-icon icon-expenses" aria-hidden="true"></span><span>Despesas</span></a>
+                {% if checkout_enabled %}
+                  <a href="{% url 'checkout:dashboard' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Checkout</span></a>
+                {% endif %}
+                <a href="{% url 'fiscal:dashboard' %}"><span class="nav-icon icon-finance" aria-hidden="true"></span><span>Fiscal</span></a>
+              </div>
+            </details>
           {% endif %}
         {% endif %}
+
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
           <details class="nav-menu" {% if request.resolver_match.app_name == "reports" or request.resolver_match.url_name == "audit" %}open{% endif %}>
             <summary>
@@ -64,22 +96,27 @@
               {% endif %}
             </div>
           </details>
-          <details class="nav-menu" {% if request.resolver_match.app_name == "billing" and request.resolver_match.url_name != "plans" and request.resolver_match.url_name != "plan_create" and request.resolver_match.url_name != "plan_update" and request.resolver_match.url_name != "plan_delete" %}open{% endif %}>
+        {% endif %}
+
+        {% if request.user.profile.role != "patient" %}
+          <details class="nav-menu" {% if request.resolver_match.app_name == "lume_connect" or request.resolver_match.app_name == "homecare" or request.resolver_match.app_name == "homecare_public" %}open{% endif %}>
             <summary>
-              <span class="nav-icon icon-finance" aria-hidden="true"></span>
-              <span>Financeiro</span>
+              <span class="nav-icon icon-connect" aria-hidden="true"></span>
+              <span>Conteudo</span>
             </summary>
             <div class="nav-submenu">
-              <a href="{% url 'billing:memberships' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Mensalidades</span></a>
-              <a href="{% url 'billing:payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Pagamentos</span></a>
-              <a href="{% url 'billing:expenses' %}"><span class="nav-icon icon-expenses" aria-hidden="true"></span><span>Despesas</span></a>
-              {% if checkout_enabled %}
-                <a href="{% url 'checkout:orders' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Checkout</span></a>
+              <a href="{% url 'lume_connect:feed' %}"><span class="nav-icon icon-connect" aria-hidden="true"></span><span>Lume Connect</span></a>
+              {% if homecare_public_enabled %}
+                <a href="{% url 'homecare_public:library' %}"><span class="nav-icon icon-video" aria-hidden="true"></span><span>Lume em casa</span></a>
+              {% endif %}
+              {% if request.user.profile.role == "professional" and homecare_internal_enabled %}
+                <a href="{% url 'homecare:videos' %}"><span class="nav-icon icon-video" aria-hidden="true"></span><span>Videos Lume em casa</span></a>
               {% endif %}
             </div>
           </details>
-          <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Adesoes</span></a>
-          <a href="{% url 'billing:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos/Servicos</span></a>
+        {% endif %}
+
+        {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
           {% if homecare_internal_enabled %}
             <details class="nav-menu" {% if request.resolver_match.app_name == "homecare" %}open{% endif %}>
               <summary>
@@ -96,26 +133,40 @@
               </div>
             </details>
           {% endif %}
-          <a href="{% url 'fiscal:dashboard' %}"><span class="nav-icon icon-finance" aria-hidden="true"></span><span>Fiscal</span></a>
-          <a href="{% url 'team:professionals' %}"><span class="nav-icon icon-professionals" aria-hidden="true"></span><span>Profissionais</span></a>
-          <a href="{% url 'team:employees' %}"><span class="nav-icon icon-employees" aria-hidden="true"></span><span>Funcionarios</span></a>
-        {% endif %}
-        {% if request.user.is_superuser or request.user.profile.role == "management" %}
-          <a href="{% url 'accounts:list' %}"><span class="nav-icon icon-users" aria-hidden="true"></span><span>Usuarios</span></a>
-          <a href="{% url 'settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Configuracoes</span></a>
-          <a href="{% url 'integrations' %}"><span class="nav-icon icon-integrations" aria-hidden="true"></span><span>Integracoes</span></a>
-          <details class="nav-menu" {% if request.resolver_match.app_name == "website" %}open{% endif %}>
+
+          <details class="nav-menu" {% if request.resolver_match.app_name == "team" or request.resolver_match.app_name == "accounts" %}open{% endif %}>
             <summary>
-              <span class="nav-icon icon-links" aria-hidden="true"></span>
-              <span>Site</span>
+              <span class="nav-icon icon-professionals" aria-hidden="true"></span>
+              <span>Equipe</span>
             </summary>
             <div class="nav-submenu">
-              <a href="{% url 'website:dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Visao geral</span></a>
-              <a href="{% url 'website:settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Conteudo</span></a>
-              <a href="{% url 'website:faqs' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>FAQs</span></a>
-              <a href="{% url 'website:testimonials' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Depoimentos</span></a>
-              {% if website_base_url %}
-                <a href="{{ website_base_url }}" target="_blank" rel="noopener noreferrer"><span class="nav-icon icon-links" aria-hidden="true"></span><span>Ver site</span></a>
+              <a href="{% url 'team:professionals' %}"><span class="nav-icon icon-professionals" aria-hidden="true"></span><span>Profissionais</span></a>
+              <a href="{% url 'team:employees' %}"><span class="nav-icon icon-employees" aria-hidden="true"></span><span>Funcionarios</span></a>
+              {% if request.user.is_superuser or request.user.profile.role == "management" %}
+                <a href="{% url 'accounts:list' %}"><span class="nav-icon icon-users" aria-hidden="true"></span><span>Usuarios</span></a>
+              {% endif %}
+            </div>
+          </details>
+        {% endif %}
+
+        {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+          <details class="nav-menu" {% if request.resolver_match.app_name == "website" or request.resolver_match.url_name == "settings" or request.resolver_match.url_name == "integrations" or request.resolver_match.url_name == "plans" or request.resolver_match.url_name == "plan_create" or request.resolver_match.url_name == "plan_update" or request.resolver_match.url_name == "plan_delete" %}open{% endif %}>
+            <summary>
+              <span class="nav-icon icon-settings" aria-hidden="true"></span>
+              <span>Configuracoes</span>
+            </summary>
+            <div class="nav-submenu">
+              <a href="{% url 'billing:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos/Servicos</span></a>
+              {% if request.user.is_superuser or request.user.profile.role == "management" %}
+                <a href="{% url 'settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Clinica</span></a>
+                <a href="{% url 'integrations' %}"><span class="nav-icon icon-integrations" aria-hidden="true"></span><span>Integracoes</span></a>
+                <a href="{% url 'website:dashboard' %}"><span class="nav-icon icon-links" aria-hidden="true"></span><span>Site</span></a>
+                <a href="{% url 'website:settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Conteudo do site</span></a>
+                <a href="{% url 'website:faqs' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>FAQs</span></a>
+                <a href="{% url 'website:testimonials' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Depoimentos</span></a>
+                {% if website_base_url %}
+                  <a href="{{ website_base_url }}" target="_blank" rel="noopener noreferrer"><span class="nav-icon icon-links" aria-hidden="true"></span><span>Ver site</span></a>
+                {% endif %}
               {% endif %}
             </div>
           </details>

@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import UserProfile
-from billing.models import Charge
+from billing.models import Charge, Membership, Payment, ServicePlan
 from homecare.models import (
     HomecareCategory,
     HomecarePlan,
@@ -23,6 +23,7 @@ from homecare.models import (
 )
 from homecare.services.bunny import process_upload_job
 from patients.models import Patient
+from scheduling.models import ServicePackage
 from team.models import Professional
 
 
@@ -169,6 +170,31 @@ class HomecarePermissionTests(HomecareTestMixin, TestCase):
         )
         self.assertTrue(HomecareUploadJob.objects.filter(video=video).exists())
 
+    def test_dashboard_shows_homecare_storage_usage(self):
+        user = self.create_user("gestao-storage-homecare", UserProfile.Role.MANAGEMENT)
+        local_upload = SimpleUploadedFile("aula-storage.mp4", b"video-bytes", content_type="video/mp4")
+        temp_upload = SimpleUploadedFile("aula-pendente.mp4", b"temporary-video", content_type="video/mp4")
+        video = HomecareVideo.objects.create(
+            title="Aula com armazenamento local",
+            category=self.category,
+            author=self.professional,
+            status=HomecareVideo.Status.READY,
+            local_video_file=local_upload,
+            temporary_file=temp_upload,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Uso de armazenamento")
+        self.assertContains(response, "Videos protegidos")
+        self.assertEqual(response.context["storage_usage"]["local_video_count"], 1)
+        self.assertEqual(response.context["storage_usage"]["temporary_count"], 1)
+        self.assertEqual(response.context["storage_usage"]["local_video_bytes"], len(b"video-bytes"))
+        default_storage.delete(video.local_video_file.name)
+        default_storage.delete(video.temporary_file.name)
+
 
 @override_settings(HOMECARE_ENABLED=True, HOMECARE_PUBLIC_ENABLED=True)
 class HomecarePortalTests(HomecareTestMixin, TestCase):
@@ -194,21 +220,186 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
             current_period_end=timezone.now() + timedelta(days=30),
         )
 
+    def create_service_plan(self, **overrides):
+        defaults = {
+            "name": f"Plano clinica {ServicePlan.objects.count() + 1}",
+            "category": ServicePlan.Category.PILATES,
+            "plan_type": ServicePlan.PlanType.RECURRING,
+            "delivery_mode": ServicePlan.DeliveryMode.IN_PERSON,
+            "grants_homecare_access": False,
+            "monthly_price": Decimal("300.00"),
+            "duration_months": 1,
+            "sessions_per_week": 2,
+            "included_sessions": 8,
+            "active": True,
+        }
+        defaults.update(overrides)
+        return ServicePlan.objects.create(**defaults)
+
+    def create_membership_for_patient(self, plan=None, patient=None, status=None):
+        return Membership.objects.create(
+            patient=patient or self.patient,
+            plan=plan or self.create_service_plan(),
+            status=status or Membership.Status.ACTIVE,
+            due_day=10,
+        )
+
+    def create_service_package(self, membership, status=None, expires_on=None):
+        return ServicePackage.objects.create(
+            membership=membership,
+            total_sessions=membership.plan.default_total_sessions,
+            used_sessions=0,
+            starts_on=timezone.localdate(),
+            expires_on=expires_on if expires_on is not None else timezone.localdate() + timedelta(days=30),
+            status=status or ServicePackage.Status.ACTIVE,
+        )
+
+    def create_plan_access(self, **plan_overrides):
+        plan_defaults = {
+            "delivery_mode": ServicePlan.DeliveryMode.HYBRID,
+            "grants_homecare_access": True,
+        }
+        plan_defaults.update(plan_overrides)
+        plan = self.create_service_plan(**plan_defaults)
+        membership = self.create_membership_for_patient(plan=plan)
+        self.create_service_package(membership)
+        return membership
+
     def test_anonymous_user_is_redirected_to_login_before_library_access_check(self):
         response = self.client.get(reverse("homecare_public:library"))
 
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
-    def test_active_patient_without_subscription_can_access_library(self):
-        user = self.create_user("paciente-sem-assinatura", UserProfile.Role.PATIENT, patient=self.patient)
+    def test_active_patient_without_subscription_or_enabled_plan_is_redirected_to_access_required(self):
+        user = self.create_user("paciente-sem-plano-digital", UserProfile.Role.PATIENT, patient=self.patient)
         video = self.create_ready_video()
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertRedirects(response, reverse("homecare_public:access_required"))
+        self.assertNotContains(self.client.get(reverse("homecare_public:access_required")), video.title)
+
+    def test_patient_with_active_service_plan_homecare_access_can_access_library(self):
+        user = self.create_user("paciente-plano-lume", UserProfile.Role.PATIENT, patient=self.patient)
+        video = self.create_ready_video()
+        self.create_plan_access()
         self.client.force_login(user)
 
         response = self.client.get(reverse("homecare_public:library"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, video.title)
+
+    def test_patient_with_active_service_plan_without_homecare_access_is_blocked(self):
+        user = self.create_user("paciente-plano-sem-lume", UserProfile.Role.PATIENT, patient=self.patient)
+        plan = self.create_service_plan(grants_homecare_access=False)
+        membership = self.create_membership_for_patient(plan=plan)
+        self.create_service_package(membership)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertRedirects(response, reverse("homecare_public:access_required"))
+
+    def test_patient_with_canceled_membership_is_blocked_even_if_plan_grants_access(self):
+        user = self.create_user("paciente-plano-cancelado", UserProfile.Role.PATIENT, patient=self.patient)
+        plan = self.create_service_plan(grants_homecare_access=True, delivery_mode=ServicePlan.DeliveryMode.HYBRID)
+        membership = self.create_membership_for_patient(plan=plan, status=Membership.Status.CANCELED)
+        self.create_service_package(membership)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertRedirects(response, reverse("homecare_public:access_required"))
+
+    def test_patient_with_expired_package_is_blocked_even_if_plan_grants_access(self):
+        user = self.create_user("paciente-pacote-vencido", UserProfile.Role.PATIENT, patient=self.patient)
+        plan = self.create_service_plan(grants_homecare_access=True, delivery_mode=ServicePlan.DeliveryMode.HYBRID)
+        membership = self.create_membership_for_patient(plan=plan)
+        self.create_service_package(membership, expires_on=timezone.localdate() - timedelta(days=1))
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertRedirects(response, reverse("homecare_public:access_required"))
+
+    def test_patient_with_inactive_plan_is_blocked_even_if_field_is_marked(self):
+        user = self.create_user("paciente-plano-inativo", UserProfile.Role.PATIENT, patient=self.patient)
+        plan = self.create_service_plan(
+            grants_homecare_access=True,
+            delivery_mode=ServicePlan.DeliveryMode.HYBRID,
+            active=False,
+        )
+        membership = self.create_membership_for_patient(plan=plan)
+        self.create_service_package(membership)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertRedirects(response, reverse("homecare_public:access_required"))
+
+    def test_patient_with_overdue_membership_payment_is_blocked_even_if_plan_grants_access(self):
+        user = self.create_user("paciente-pagamento-vencido", UserProfile.Role.PATIENT, patient=self.patient)
+        plan = self.create_service_plan(grants_homecare_access=True, delivery_mode=ServicePlan.DeliveryMode.HYBRID)
+        membership = self.create_membership_for_patient(plan=plan)
+        self.create_service_package(membership)
+        Payment.objects.create(
+            membership=membership,
+            reference_month=timezone.localdate().replace(day=1),
+            due_date=timezone.localdate() - timedelta(days=1),
+            amount=membership.monthly_amount,
+            status=Payment.Status.OVERDUE,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertRedirects(response, reverse("homecare_public:access_required"))
+
+    def test_active_homecare_subscription_allows_patient_even_with_overdue_membership_payment(self):
+        user = self.create_user("paciente-assinatura-vencido", UserProfile.Role.PATIENT, patient=self.patient)
+        plan = self.create_service_plan(grants_homecare_access=True, delivery_mode=ServicePlan.DeliveryMode.HYBRID)
+        membership = self.create_membership_for_patient(plan=plan)
+        self.create_service_package(membership)
+        Payment.objects.create(
+            membership=membership,
+            reference_month=timezone.localdate().replace(day=1),
+            due_date=timezone.localdate() - timedelta(days=1),
+            amount=membership.monthly_amount,
+            status=Payment.Status.OVERDUE,
+        )
+        self.create_active_subscription()
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_user_without_patient_or_staff_role_does_not_receive_patient_access(self):
+        user = self.create_user("usuario-sem-paciente", UserProfile.Role.PATIENT)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertRedirects(response, reverse("homecare_public:access_required"))
+
+    def test_changing_plan_homecare_access_updates_patient_permission(self):
+        user = self.create_user("paciente-altera-plano", UserProfile.Role.PATIENT, patient=self.patient)
+        plan = self.create_service_plan(grants_homecare_access=False)
+        membership = self.create_membership_for_patient(plan=plan)
+        self.create_service_package(membership)
+        self.client.force_login(user)
+
+        blocked_response = self.client.get(reverse("homecare_public:library"))
+        plan.grants_homecare_access = True
+        plan.delivery_mode = ServicePlan.DeliveryMode.HYBRID
+        plan.save(update_fields=["grants_homecare_access", "delivery_mode", "updated_at"])
+        allowed_response = self.client.get(reverse("homecare_public:library"))
+
+        self.assertRedirects(blocked_response, reverse("homecare_public:access_required"))
+        self.assertEqual(allowed_response.status_code, 200)
 
     def test_inactive_patient_without_subscription_is_redirected_to_access_required(self):
         self.patient.active = False
@@ -328,6 +519,7 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
             provider_embed_url="",
             local_video_file=local_file,
         )
+        self.create_plan_access()
         self.client.force_login(user)
 
         detail_response = self.client.get(reverse("homecare_public:video_detail", args=[video.slug]))
@@ -352,6 +544,7 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
             provider_embed_url="",
             local_video_file=local_file,
         )
+        self.create_plan_access()
         self.client.force_login(user)
 
         response = self.client.get(reverse("homecare_public:video_stream", args=[video.slug]))
@@ -365,6 +558,7 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
     def test_patient_can_toggle_video_like(self):
         user = self.create_user("paciente-curte-aula", UserProfile.Role.PATIENT, patient=self.patient)
         video = self.create_ready_video()
+        self.create_plan_access()
         self.client.force_login(user)
         url = reverse("homecare_public:toggle_like", args=[video.slug])
 
@@ -378,6 +572,7 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
     def test_patient_can_comment_and_reply_on_video(self):
         user = self.create_user("paciente-comenta-aula", UserProfile.Role.PATIENT, patient=self.patient)
         video = self.create_ready_video()
+        self.create_plan_access()
         self.client.force_login(user)
         url = reverse("homecare_public:add_comment", args=[video.slug])
 
@@ -401,6 +596,7 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
         video = self.create_ready_video()
         parent = HomecareVideoComment.objects.create(video=video, author=user, content="Comentario principal")
         reply = HomecareVideoComment.objects.create(video=video, author=user, parent=parent, content="Resposta")
+        self.create_plan_access()
         self.client.force_login(user)
 
         response = self.client.post(

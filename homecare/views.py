@@ -17,7 +17,6 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
 
-from accounts.models import UserProfile
 from accounts.permissions import get_profile
 from core.integrations.http import IntegrationError
 from core.views import FormContextMixin, SearchableListView
@@ -41,52 +40,10 @@ from homecare.models import (
     HomecareVideoProgress,
 )
 from homecare.permissions import HomecareAdminAccessMixin, HomecareContentAccessMixin
+from homecare.services.access import active_subscription_for_user, homecare_access_for_user, included_homecare_access_for_user
 from homecare.services.bunny import build_bunny_embed_url
 from homecare.services.payments import get_payment_provider, record_asaas_webhook, start_checkout_subscription
-
-
-def included_homecare_access_for_user(user):
-    if not user.is_authenticated or not user.is_active:
-        return False
-    if user.is_superuser:
-        return True
-    profile = get_profile(user)
-    if not profile:
-        return False
-    if profile.is_patient:
-        return bool(profile.patient_id and profile.patient.active)
-    return profile.role in {
-        UserProfile.Role.PROFESSIONAL,
-        UserProfile.Role.ADMINISTRATION,
-        UserProfile.Role.MANAGEMENT,
-        UserProfile.Role.VIEWER,
-    }
-
-
-def active_subscription_for_user(user):
-    profile = get_profile(user)
-    if not profile or not profile.is_patient or not profile.patient_id:
-        return None
-    if not profile.patient.active:
-        return None
-    now = timezone.now()
-    return (
-        HomecareSubscription.objects.select_related("plan", "patient")
-        .filter(
-            patient=profile.patient,
-            status__in=[HomecareSubscription.Status.ACTIVE, HomecareSubscription.Status.TRIALING],
-        )
-        .filter(current_period_end__isnull=True)
-        .first()
-        or HomecareSubscription.objects.select_related("plan", "patient")
-        .filter(
-            patient=profile.patient,
-            status__in=[HomecareSubscription.Status.ACTIVE, HomecareSubscription.Status.TRIALING],
-            current_period_end__gte=now,
-        )
-        .order_by("-current_period_end")
-        .first()
-    )
+from homecare.services.storage import build_homecare_storage_usage
 
 
 def public_video_q(prefix=""):
@@ -118,6 +75,9 @@ class HomecareDashboardView(HomecareContentAccessMixin, TemplateView):
                 "scheduled_count": videos.filter(is_published=True, scheduled_publish_at__gt=now).count(),
                 "queued_count": HomecareUploadJob.objects.filter(status=HomecareUploadJob.Status.QUEUED).count(),
                 "active_subscriptions": HomecareSubscription.objects.filter(status=HomecareSubscription.Status.ACTIVE).count(),
+                "storage_usage": build_homecare_storage_usage(
+                    videos.only("local_video_file", "temporary_file", "thumbnail")
+                ),
                 "recent_videos": videos.select_related("category", "author")[:6],
                 "recent_subscriptions": HomecareSubscription.objects.select_related("patient", "plan")[:6],
             }
@@ -401,9 +361,14 @@ class HomecarePortalAccessMixin(HomecarePublicEnabledMixin, LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
-        self.subscription = active_subscription_for_user(request.user)
-        self.has_included_access = included_homecare_access_for_user(request.user)
-        if not (self.subscription or self.has_included_access):
+        access = homecare_access_for_user(request.user)
+        self.subscription = access.subscription
+        self.has_included_access = access.included_access
+        if not access.allowed:
+            messages.info(
+                request,
+                "Seu plano atual nao possui acesso ao Lume em Casa. Fale com a equipe da clinica para liberar o acesso.",
+            )
             return redirect("homecare_public:access_required")
         return super().dispatch(request, *args, **kwargs)
 

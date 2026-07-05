@@ -1,22 +1,30 @@
+from datetime import timedelta
+
 from django.contrib import messages
+from django.db.models.deletion import ProtectedError
 from django.db.models import Case, IntegerField, Sum, When
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views.generic import CreateView, DeleteView, FormView, ListView, UpdateView
+from django.utils.dateparse import parse_date
+from django.views.generic import CreateView, DeleteView, FormView, ListView, TemplateView, UpdateView
 
 from accounts.permissions import FinanceAccessMixin
 from billing.forms import (
+    CashClosingForm,
     ChargeForm,
     ExpenseCategoryForm,
     ExpenseForm,
     MembershipForm,
     PaymentForm,
     PaymentReceiveForm,
+    QuickMembershipReceiveForm,
     ServicePlanForm,
 )
 from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
+from billing.services import cash_summary_for_date, close_cash_for_date, receive_membership_month, upcoming_membership_receivables
 from core.deletion import (
     DELETE_ACTION_DEACTIVATE,
     DELETE_ACTION_NOW,
@@ -250,8 +258,71 @@ class PaymentQuickReceiveView(FinanceAccessMixin, SearchableListView, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        quick_receivables = upcoming_membership_receivables(self.request.GET.get("q", "").strip())
+        context["quick_receive_form"] = QuickMembershipReceiveForm()
+        context["upcoming_receivables"] = quick_receivables
         context["pending_receive_count"] = context["paginator"].count if context.get("paginator") else len(context["payments"])
+        context["available_receive_count"] = context["pending_receive_count"] + len(quick_receivables)
         return context
+
+    def post(self, request, *args, **kwargs):
+        form = QuickMembershipReceiveForm(request.POST)
+        query = request.GET.get("q", "").strip()
+        redirect_url = reverse("billing:payment_quick_receive")
+        if query:
+            redirect_url = f"{redirect_url}?q={query}"
+        if not form.is_valid():
+            messages.error(request, "Nao foi possivel receber a mensalidade adiantada. Confira os dados e tente novamente.")
+            return redirect(redirect_url)
+        payment = receive_membership_month(
+            membership=form.cleaned_data["membership"],
+            reference_month=form.cleaned_data["reference_month"],
+            method=form.cleaned_data["method"],
+            paid_at=form.cleaned_data["paid_at"],
+            notes=form.cleaned_data["notes"],
+        )
+        messages.success(request, f"Mensalidade de {payment.patient_display} recebida com sucesso.")
+        return redirect(redirect_url)
+
+
+class CashClosingView(FinanceAccessMixin, TemplateView):
+    template_name = "billing/cash_closing.html"
+
+    def get_selected_day(self):
+        return parse_date(self.request.GET.get("date", "")) or timezone.localdate()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        selected_day = self.get_selected_day()
+        summary = cash_summary_for_date(selected_day)
+        closing = summary["closing"]
+        context.update(
+            {
+                "selected_day": selected_day,
+                "previous_day": selected_day - timedelta(days=1),
+                "next_day": selected_day + timedelta(days=1),
+                "summary": summary,
+                "closing": closing,
+                "cash_form": CashClosingForm(instance=closing),
+            }
+        )
+        return context
+
+    def post(self, request, *args, **kwargs):
+        selected_day = parse_date(request.POST.get("date", "")) or timezone.localdate()
+        form = CashClosingForm(request.POST)
+        redirect_url = f"{reverse('billing:cash_closing')}?date={selected_day.isoformat()}"
+        if not form.is_valid():
+            messages.error(request, "Nao foi possivel fechar o caixa. Confira os campos e tente novamente.")
+            return redirect(redirect_url)
+        close_cash_for_date(
+            day=selected_day,
+            user=request.user,
+            cash_counted=form.cleaned_data["cash_counted"],
+            notes=form.cleaned_data["notes"],
+        )
+        messages.success(request, "Caixa fechado com sucesso.")
+        return redirect(redirect_url)
 
 
 class PaymentCreateView(FormContextMixin, FinanceAccessMixin, CreateView):
@@ -280,6 +351,37 @@ class PaymentUpdateView(FormContextMixin, FinanceAccessMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Pagamento atualizado com sucesso.")
         return super().form_valid(form)
+
+
+class PaymentDeleteView(FormContextMixin, FinanceAccessMixin, DeleteView):
+    model = Payment
+    template_name = "billing/payment_confirm_delete.html"
+    success_url = reverse_lazy("billing:payments")
+    page_title = "Excluir pagamento"
+    section_label = "Financeiro"
+    back_url_name = "billing:payments"
+
+    def get_queryset(self):
+        return Payment.objects.select_related("patient", "membership__patient", "membership__plan")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["object_name"] = f"{self.object.patient_display} - {self.object.item_display}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        payment_name = f"{self.object.patient_display} - {self.object.item_display}"
+        try:
+            self.object.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                "Nao foi possivel excluir este pagamento porque existe um pedido de checkout vinculado ao lancamento.",
+            )
+            return redirect(self.success_url)
+        messages.success(request, f"Pagamento {payment_name} excluido definitivamente.")
+        return redirect(self.success_url)
 
 
 class PaymentReceiveView(FormContextMixin, FinanceAccessMixin, FormView):

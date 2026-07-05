@@ -781,6 +781,265 @@ h2 {
   font-size: 14px;
 }
 
+.homecare-storage-panel {
+  margin-bottom: 18px;
+}
+
+.storage-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--sage-soft);
+  color: var(--sage-dark);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.storage-status.ok {
+  background: var(--sage-soft);
+  color: var(--sage-dark);
+}
+
+.storage-status.warning {
+  background: #f5e4c5;
+  color: var(--warning);
+}
+
+.storage-status.critical {
+  background: #f0d0cd;
+  color: var(--danger);
+}
+
+.storage-overview {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(0, 1.6fr);
+  gap: 18px;
+  padding: 20px;
+}
+
+.storage-main {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-right: 18px;
+  border-right: 1px solid var(--line);
+}
+
+.storage-main span,
+.storage-breakdown dt,
+.storage-footnotes span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.storage-main strong {
+  color: var(--ink);
+  font-size: 32px;
+  line-height: 1;
+}
+
+.storage-main small,
+.storage-breakdown small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.storage-meter {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #ece4d5;
+}
+
+.storage-meter i {
+  display: block;
+  max-width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--sage-dark), var(--sage));
+}
+
+.storage-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+}
+
+.storage-breakdown div {
+  display: grid;
+  gap: 6px;
+  padding: 2px 0 16px;
+}
+
+.storage-breakdown div:nth-child(odd) {
+  padding-right: 18px;
+}
+
+.storage-breakdown div:nth-child(even) {
+  padding-left: 18px;
+  border-left: 1px solid var(--line);
+}
+
+.storage-breakdown div:nth-child(n + 3) {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.storage-breakdown dd {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.storage-footnotes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 0 20px 20px;
+}
+
+.storage-alert {
+  color: var(--danger) !important;
+}
+
+.checkout-health-panel {
+  margin-bottom: 18px;
+}
+
+.checkout-health-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  padding: 20px;
+}
+
+.checkout-health-grid article {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-height: 104px;
+  padding: 0 18px;
+  border-left: 1px solid var(--line);
+}
+
+.checkout-health-grid article:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.checkout-health-grid article:last-child {
+  padding-right: 0;
+}
+
+.checkout-health-grid span,
+.checkout-health-grid small,
+.checkout-webhook-box span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.checkout-health-grid strong {
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1.08;
+}
+
+.checkout-webhook-box {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.65fr) minmax(0, 1.35fr);
+  gap: 16px;
+  align-items: center;
+  margin: 0 20px 20px;
+  padding: 14px 16px;
+  border: 1px solid rgba(96, 114, 79, 0.16);
+  border-radius: 8px;
+  background: var(--muted-panel);
+}
+
+.checkout-webhook-box strong,
+.checkout-webhook-box span {
+  display: block;
+}
+
+.checkout-webhook-box code {
+  min-width: 0;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.checkout-merchant-summary {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.checkout-merchant-summary strong,
+.checkout-merchant-summary span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.checkout-merchant-summary strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.checkout-onboarding-status {
+  margin-bottom: 18px;
+}
+
+.checkout-onboarding-form {
+  max-width: 1120px;
+}
+
+.checkout-form-section {
+  display: grid;
+  gap: 16px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+}
+
+.checkout-form-section:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.checkout-form-section h2 {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 19px;
+}
+
+.checkout-step-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 20px 24px 22px 44px;
+}
+
+.checkout-step-list li {
+  color: var(--text);
+  line-height: 1.45;
+}
+
 .finance-totals {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1239,6 +1498,10 @@ td small {
   grid-column: 1 / -1;
 }
 
+.form-field.span-2 {
+  grid-column: 1 / -1;
+}
+
 .availability-form-panel .full-span {
   grid-column: 1 / -1;
 }
@@ -1263,6 +1526,24 @@ td small {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 20px;
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.compact-control {
+  width: auto;
+  min-width: 120px;
+  padding: 9px 10px;
+}
+
+.compact-metrics {
+  margin-bottom: 14px;
 }
 
 .record-form-panel {
@@ -5159,12 +5440,14 @@ td small {
   .card-grid,
   .connect-layout,
   .connect-share-layout,
-  .connect-dashboard-body,
-  .connection-grid,
-  .connection-redesign-grid,
-  .connection-summary-strip,
-  .callback-box,
-  .report-highlight-grid,
+    .connect-dashboard-body,
+    .connection-grid,
+    .connection-redesign-grid,
+    .connection-summary-strip,
+    .callback-box,
+    .checkout-health-grid,
+    .checkout-webhook-box,
+    .report-highlight-grid,
   .integration-stack,
   .zap-metrics,
   .zap-guide-grid,
@@ -5241,11 +5524,15 @@ td small {
     .form-grid,
   .connect-layout,
   .connect-share-layout,
-  .connect-dashboard-body,
-  .connect-filter-bar,
-  .connect-composer-row,
-  .homecare-filter-bar,
-  .video-media-grid,
+    .connect-dashboard-body,
+    .connect-filter-bar,
+    .connect-composer-row,
+    .homecare-filter-bar,
+    .checkout-health-grid,
+    .checkout-webhook-box,
+    .storage-overview,
+    .storage-breakdown,
+    .video-media-grid,
   .toolbar,
   .filter-panel,
   .connection-grid,
@@ -5340,6 +5627,55 @@ td small {
 
   .homecare-social-panel {
     padding: 16px;
+  }
+
+  .storage-overview {
+    padding: 16px;
+  }
+
+  .storage-main {
+    padding-right: 0;
+    padding-bottom: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .storage-breakdown div,
+  .storage-breakdown div:nth-child(odd),
+  .storage-breakdown div:nth-child(even),
+  .storage-breakdown div:nth-child(n + 3) {
+    padding: 12px 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .storage-breakdown div:first-child {
+    border-top: 0;
+  }
+
+  .storage-footnotes {
+    padding: 0 16px 16px;
+  }
+
+  .checkout-health-grid {
+    padding: 16px;
+  }
+
+  .checkout-health-grid article,
+  .checkout-health-grid article:first-child,
+  .checkout-health-grid article:last-child {
+    min-height: auto;
+    padding: 12px 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .checkout-health-grid article:first-child {
+    border-top: 0;
+  }
+
+  .checkout-webhook-box {
+    margin: 0 16px 16px;
   }
 
   .homecare-comment {

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from billing.views import (
+    CashClosingView,
     ChargeCreateView,
     ChargeListView,
     ChargeUpdateView,
@@ -16,6 +17,7 @@ from billing.views import (
     MembershipListView,
     MembershipUpdateView,
     PaymentCreateView,
+    PaymentDeleteView,
     PaymentListView,
     PaymentQuickReceiveView,
     PaymentReceiveView,
@@ -40,8 +42,10 @@ urlpatterns = [
     path("pagamentos/", PaymentListView.as_view(), name="payments"),
     path("pagamentos/novo/", PaymentCreateView.as_view(), name="payment_create"),
     path("pagamentos/receber/", PaymentQuickReceiveView.as_view(), name="payment_quick_receive"),
+    path("caixa/", CashClosingView.as_view(), name="cash_closing"),
     path("pagamentos/<int:pk>/editar/", PaymentUpdateView.as_view(), name="payment_update"),
     path("pagamentos/<int:pk>/receber/", PaymentReceiveView.as_view(), name="payment_receive"),
+    path("pagamentos/<int:pk>/excluir/", PaymentDeleteView.as_view(), name="payment_delete"),
     path("despesas/", ExpenseListView.as_view(), name="expenses"),
     path("despesas/nova/", ExpenseCreateView.as_view(), name="expense_create"),
     path("despesas/categorias/", ExpenseCategoryListView.as_view(), name="expense_categories"),

@@ -97,6 +97,18 @@ Para validar envio ou simulacao:
 docker compose -f docker-compose.prod.yml exec web python manage.py check_whatsapp_setup --to 11999990000 --message "Teste Lume"
 ```
 
+Se `WHATSAPP_DRY_RUN=False`, os comandos bloqueiam envio real por padrao. Para um teste controlado depois de validar numero, token e templates, use explicitamente:
+
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py check_whatsapp_setup --to 11999990000 --message "Teste Lume" --allow-live
+```
+
+O comando direto de teste segue a mesma regra:
+
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py send_test_whatsapp 11999990000 --message "Teste Lume" --allow-live
+```
+
 Para processar manualmente a fila de mensagens agendadas:
 
 ```powershell
@@ -117,6 +129,14 @@ Na aba `Integracoes > Mensagens`, cada modelo interno tem campos para:
 - variaveis internas usadas na previa.
 
 Enquanto `WHATSAPP_DRY_RUN=True`, o sistema simula envios e usa o texto interno para facilitar testes. Quando `WHATSAPP_DRY_RUN=False`, envios iniciados pela clinica exigem o nome do template aprovado; caso contrario, o sistema bloqueia o disparo com a mensagem `Template nao configurado para producao`.
+
+Templates sugeridos para criar na Meta:
+
+- `lume_lembrete_agendamento`: lembrete ou confirmacao de consulta/sessao.
+- `lume_cobranca_pendente`: aviso de mensalidade, pacote ou cobranca avulsa.
+- `lume_aniversario_paciente`: mensagem de aniversario para paciente ativo.
+
+Use o idioma `pt_BR` e mantenha a ordem das variaveis igual a previa exibida no sistema. Depois que a Meta aprovar, copie o nome exato do template para a aba `Integracoes > Mensagens`.
 
 Sugestao de homologacao:
 

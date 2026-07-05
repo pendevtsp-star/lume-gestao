@@ -10,6 +10,7 @@
     <p class="page-subtitle">Controle recebimentos, vencimentos e status financeiro por paciente.</p>
   </div>
   <div class="panel-actions">
+    <a class="button secondary" href="{% url 'billing:cash_closing' %}">Caixa do dia</a>
     <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Receber mensalidade</a>
     <a class="button primary" href="{% url 'billing:payment_create' %}">Novo pagamento</a>
   </div>
@@ -52,6 +53,7 @@
                 <a class="table-action" href="{% url 'billing:payment_receive' payment.pk %}">Receber</a>
               {% endif %}
               <a class="table-action" href="{% url 'billing:payment_update' payment.pk %}">Editar</a>
+              <a class="table-action danger-link" href="{% url 'billing:payment_delete' payment.pk %}">Excluir</a>
             </td>
           </tr>
         {% empty %}

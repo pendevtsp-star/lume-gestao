@@ -6,7 +6,10 @@ param(
   [string]$ArchivePath = "dist\lume-gestao-vps.tar.gz",
   [string]$SshKey = "",
   [switch]$SkipBackup,
-  [switch]$SkipNginxReload
+  [switch]$SkipNginxReload,
+  [switch]$SkipDockerBuildCachePrune,
+  [string]$DockerBuildCacheMinAge = "24h",
+  [string]$DockerBuildCacheKeepStorage = "8GB"
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,6 +69,15 @@ if ($SkipNginxReload) {
   $nginxCommand = "echo '[deploy] reload nginx ignorado por parametro'"
 }
 
+$dockerBuildCachePruneCommand = @"
+echo '[deploy] Limpando cache antigo de build Docker'
+docker builder prune -f --filter 'until=$DockerBuildCacheMinAge' --keep-storage '$DockerBuildCacheKeepStorage' || echo '[deploy] aviso: limpeza de cache Docker falhou; deploy mantido'
+docker system df
+"@
+if ($SkipDockerBuildCachePrune) {
+  $dockerBuildCachePruneCommand = "echo '[deploy] limpeza de cache Docker ignorada por parametro'"
+}
+
 $remoteScript = @"
 set -eu
 echo '[deploy] Preparando diretorio $RemoteDir'
@@ -102,6 +114,8 @@ if [ -z "`$health_host" ]; then
   health_host='sistema.clinicafisiolume.com.br'
 fi
 curl -fsS -H "Host: `$health_host" -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/healthz/
+
+$dockerBuildCachePruneCommand
 
 echo '[deploy] Recarregando Nginx, se existir'
 $nginxCommand

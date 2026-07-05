@@ -7,8 +7,9 @@ from core.integrations.whatsapp import (
     send_whatsapp_text,
     whatsapp_embedded_signup_configured,
     whatsapp_embedded_signup_credentials,
+    whatsapp_runtime_state,
 )
-from core.models import WhatsAppIntegration
+from core.models import WhatsAppIntegration, WhatsAppMessageTemplate
 
 
 class Command(BaseCommand):
@@ -17,9 +18,16 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--to", help="Opcional: envia ou simula mensagem para este numero.")
         parser.add_argument("--message", default="Teste de integracao WhatsApp | Lume Gestao")
+        parser.add_argument(
+            "--allow-live",
+            action="store_true",
+            help="Permite envio real quando WHATSAPP_DRY_RUN=False. Sem isso, o comando so faz diagnostico.",
+        )
 
     def handle(self, *args, **options):
         integration = WhatsAppIntegration.load()
+        templates = WhatsAppMessageTemplate.ensure_defaults()
+        state = whatsapp_runtime_state(integration, templates)
         app_id, config_id, app_secret = whatsapp_embedded_signup_credentials(integration)
         meta_token_configured = bool(configured_value(integration.access_token) or configured_value(settings.WHATSAPP_META_ACCESS_TOKEN))
         phone_number_id_configured = bool(
@@ -32,6 +40,9 @@ class Command(BaseCommand):
         self.stdout.write(f"[whatsapp] Numero da clinica: {integration.clinic_whatsapp_number or '-'}")
         self.stdout.write(f"[whatsapp] Phone Number ID configurado: {'sim' if phone_number_id_configured else 'nao'}")
         self.stdout.write(f"[whatsapp] Token Meta configurado: {'sim' if meta_token_configured else 'nao'}")
+        self.stdout.write(f"[whatsapp] Status operacional: {state['label']}")
+        self.stdout.write(f"[whatsapp] Proximo passo: {state['next_step']}")
+        self.stdout.write(f"[whatsapp] Templates ativos prontos: {'sim' if state['templates_ready'] else 'nao'}")
         self.stdout.write(f"[whatsapp] Embedded Signup: {'sim' if whatsapp_embedded_signup_configured(integration) else 'nao'}")
         self.stdout.write(f"[whatsapp] App ID: {'sim' if app_id else 'nao'}")
         self.stdout.write(f"[whatsapp] Configuration ID: {'sim' if config_id else 'nao'}")
@@ -48,6 +59,10 @@ class Command(BaseCommand):
         recipient = (options.get("to") or "").strip()
         if not recipient:
             return
+        if not state["dry_run"] and not options["allow_live"]:
+            raise CommandError(
+                "Envio real bloqueado pelo comando. Use --allow-live apenas depois de validar numero e templates."
+            )
 
         try:
             result = send_whatsapp_text(recipient, options["message"], integration=integration)

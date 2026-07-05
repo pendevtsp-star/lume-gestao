@@ -8,6 +8,7 @@ from accounts.models import LGPD_CONSENT_VERSION
 from accounts.onboarding import ensure_patient_user
 from billing.models import Membership, Payment
 from checkout.models import CheckoutOrder, CheckoutPaymentEvent
+from checkout.providers import get_active_merchant_account
 from core.integrations.credentials import first_configured_value
 from core.integrations.http import IntegrationError, post_json
 from core.models import ClinicSettings
@@ -104,6 +105,7 @@ def checkout_description(order):
 
 
 def start_checkout_order(order):
+    merchant_account = assign_merchant_account(order)
     provider = get_checkout_provider()
     result = provider.create_payment(order)
     order.provider = provider.code
@@ -118,10 +120,23 @@ def start_checkout_order(order):
             "provider_customer_id",
             "checkout_url",
             "status",
+            "merchant_account",
             "updated_at",
         ]
     )
     return result
+
+
+def assign_merchant_account(order):
+    merchant_account = order.merchant_account or get_active_merchant_account()
+    if merchant_account and not order.merchant_account_id:
+        order.merchant_account = merchant_account
+    merchant_required = bool(getattr(settings, "CHECKOUT_REQUIRE_MERCHANT_ACCOUNT", False))
+    if merchant_required and not settings.ASAAS_DRY_RUN and not (merchant_account and merchant_account.is_ready):
+        raise IntegrationError(
+            "Conta recebedora da clinica ainda nao esta pronta para criar cobrancas remotas."
+        )
+    return merchant_account
 
 
 def decimal_from_payload(value, fallback):

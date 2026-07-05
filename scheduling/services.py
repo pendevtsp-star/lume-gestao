@@ -1,8 +1,10 @@
 from django.utils import timezone
+from django.core.exceptions import ValidationError
+from django.db.models import F
 
 from billing.models import Membership, Payment
 from core.models import ClinicSettings
-from scheduling.models import ServicePackage
+from scheduling.models import ServicePackage, ServicePackageAdjustment
 
 
 def resolve_membership_for_plan(patient, plan, starts_on=None):
@@ -97,3 +99,98 @@ def append_note(current_notes, new_note):
     if not new_note:
         return current_notes
     return f"{current_notes}\n{new_note}".strip() if current_notes else new_note
+
+
+def package_candidates_for_appointment(appointment, *, with_balance_only=False, lock=False):
+    packages = ServicePackage.objects.filter(
+        membership__patient=appointment.patient,
+        status=ServicePackage.Status.ACTIVE,
+    )
+    if lock:
+        packages = packages.select_for_update()
+    if appointment.service_plan_id:
+        packages = packages.filter(membership__plan_id=appointment.service_plan_id)
+    if with_balance_only:
+        packages = packages.filter(used_sessions__lt=F("total_sessions"))
+    return packages.select_related("membership__patient", "membership__plan").order_by("expires_on", "created_at")
+
+
+def completion_package_for_appointment(appointment, *, lock=False):
+    packages = package_candidates_for_appointment(appointment, with_balance_only=True, lock=lock)
+    if not appointment.service_plan_id and packages.values("membership__plan_id").distinct().count() > 1:
+        raise ValidationError(
+            "Este paciente possui mais de uma adesao ativa. Edite o agendamento e informe o plano/servico antes da baixa."
+        )
+    return packages.first()
+
+
+def completion_needs_credit_adjustment(appointment):
+    if appointment.status in {
+        appointment.Status.COMPLETED,
+        appointment.Status.CANCELED,
+        appointment.Status.RESCHEDULED,
+    }:
+        return False
+    if hasattr(appointment, "service_usage"):
+        return False
+    try:
+        package = completion_package_for_appointment(appointment)
+    except ValidationError:
+        return False
+    return not package or package.remaining_sessions < appointment.service_units
+
+
+def membership_for_credit_adjustment(appointment):
+    if appointment.service_plan_id:
+        membership, _created = resolve_membership_for_plan(
+            appointment.patient,
+            appointment.service_plan,
+            starts_on=timezone.localdate(),
+        )
+        return membership
+
+    memberships = Membership.objects.filter(patient=appointment.patient, status=Membership.Status.ACTIVE).select_related("plan")
+    if memberships.count() == 1:
+        return memberships.first()
+    raise ValidationError(
+        "Informe o plano/servico no agendamento antes de adicionar credito automaticamente para este paciente."
+    )
+
+
+def ensure_credit_for_appointment(appointment, user):
+    package = completion_package_for_appointment(appointment, lock=True)
+    required_units = appointment.service_units
+    if package and package.remaining_sessions >= required_units:
+        return package
+
+    missing_units = required_units
+    if package:
+        missing_units = required_units - package.remaining_sessions
+        package.total_sessions += missing_units
+        package.notes = append_note(package.notes, "Credito extra adicionado durante a baixa de atendimento.")
+        package.full_clean()
+        package.save(update_fields=["total_sessions", "notes", "updated_at"])
+    else:
+        membership = membership_for_credit_adjustment(appointment)
+        package = ServicePackage(
+            membership=membership,
+            total_sessions=missing_units,
+            used_sessions=0,
+            starts_on=timezone.localdate(),
+            status=ServicePackage.Status.ACTIVE,
+            notes="Credito extra criado durante a baixa de atendimento.",
+        )
+        package.full_clean()
+        package.save()
+
+    adjustment = ServicePackageAdjustment(
+        service_package=package,
+        appointment=appointment,
+        delta_sessions=missing_units,
+        reason=ServicePackageAdjustment.Reason.APPOINTMENT_NO_CREDIT,
+        notes="Ajuste confirmado pelo usuario durante a baixa de atendimento.",
+        created_by=user,
+    )
+    adjustment.full_clean()
+    adjustment.save()
+    return package

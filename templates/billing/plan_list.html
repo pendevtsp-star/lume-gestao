@@ -23,6 +23,8 @@
           <th>Plano/Servico</th>
           <th>Categoria</th>
           <th>Tipo</th>
+          <th>Modalidade</th>
+          <th>Lume em Casa</th>
           <th>Ciclo</th>
           <th>Creditos</th>
           <th>Site</th>
@@ -38,6 +40,14 @@
             <td><strong>{{ plan.name }}</strong></td>
             <td>{{ plan.get_category_display }}</td>
             <td>{{ plan.get_plan_type_display }}</td>
+            <td>{{ plan.get_delivery_mode_display }}</td>
+            <td>
+              {% if plan.grants_homecare_access %}
+                <span class="badge active">Sim</span>
+              {% else %}
+                <span class="badge canceled">Nao</span>
+              {% endif %}
+            </td>
             <td>{{ plan.duration_months }} mes(es)</td>
             <td>{{ plan.default_total_sessions }}</td>
             <td>
@@ -57,7 +67,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="10" class="empty">Nenhum plano/servico encontrado.</td></tr>
+          <tr><td colspan="12" class="empty">Nenhum plano/servico encontrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>

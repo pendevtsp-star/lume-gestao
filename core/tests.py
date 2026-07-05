@@ -431,7 +431,7 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Meta Embedded Signup")
+        self.assertContains(response, "Conectar WhatsApp oficial")
         self.assertContains(response, "Conectar WhatsApp oficial")
 
     def test_connections_tab_shows_disconnect_whatsapp_when_connected(self):
@@ -449,6 +449,29 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Desconectar WhatsApp")
+
+    @override_settings(
+        WHATSAPP_EMBEDDED_APP_ID="meta-app-id-real-fake",
+        WHATSAPP_EMBEDDED_CONFIG_ID="meta-config-real-fake",
+        WHATSAPP_EMBEDDED_APP_SECRET="meta-app-secret-real-fake",
+    )
+    def test_connections_tab_shows_whatsapp_runtime_status(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "enabled": True,
+                "dry_run": True,
+                "clinic_whatsapp_number": "11999990000",
+                "phone_number_id": "123456",
+            },
+        )
+
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertContains(response, "Conectado em modo teste")
+        self.assertContains(response, "Phone Number ID")
+        self.assertContains(response, "Fazer teste controlado")
 
     def test_management_can_disconnect_whatsapp(self):
         self.client.force_login(self.management)
@@ -488,7 +511,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertFalse(integration.is_connected)
-        self.assertContains(response, "Configurar Meta")
+        self.assertContains(response, "Conectar WhatsApp oficial")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",
@@ -500,7 +523,8 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Credenciais no .env da VPS")
+        self.assertContains(response, "Aguardando conexao Meta")
+        self.assertContains(response, "Concluir a autorizacao no fluxo seguro da Meta")
         self.assertContains(response, "Conectar WhatsApp oficial")
 
     @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
@@ -554,7 +578,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Configurar credenciais")
-        self.assertContains(response, "Configurar Meta")
+        self.assertContains(response, "Configuracao tecnica pendente")
         self.assertContains(response, "Conectar com Google")
         self.assertContains(response, "Conectar WhatsApp oficial")
         self.assertContains(response, "disabled")
@@ -591,10 +615,12 @@ class IntegrationsTests(TestCase):
 
         self.assertIn("Embedded Signup: sim", output.getvalue())
 
-    @patch("core.views.exchange_whatsapp_embedded_signup_code")
-    def test_management_can_finish_whatsapp_embedded_signup(self, exchange_mock):
+    @patch("core.views.subscribe_whatsapp_business_account")
+    @patch("core.views.connect_whatsapp_embedded_signup")
+    def test_management_can_finish_whatsapp_embedded_signup(self, connect_mock, subscribe_mock):
         self.client.force_login(self.management)
-        exchange_mock.return_value = {"access_token": "token"}
+        connect_mock.return_value = {"access_token": "token"}
+        subscribe_mock.return_value = {"success": True}
 
         response = self.client.post(
             reverse("integrations"),
@@ -612,7 +638,31 @@ class IntegrationsTests(TestCase):
         self.assertEqual(integration.phone_number_id, "phone-123")
         self.assertEqual(integration.business_account_id, "waba-123")
         self.assertEqual(integration.clinic_whatsapp_number, "5511999990000")
-        exchange_mock.assert_called_once()
+        connect_mock.assert_called_once()
+        subscribe_mock.assert_called_once()
+
+    @patch("core.views.subscribe_whatsapp_business_account")
+    @patch("core.views.connect_whatsapp_embedded_signup")
+    def test_management_can_finish_whatsapp_embedded_signup_with_browser_token(self, connect_mock, subscribe_mock):
+        self.client.force_login(self.management)
+        connect_mock.return_value = {"access_token": "browser-token", "source": "browser_auth_response"}
+        subscribe_mock.return_value = {"success": True}
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "finish_whatsapp_embedded",
+                "embedded_access_token": "browser-token",
+                "embedded_phone_number_id": "phone-123",
+                "embedded_business_account_id": "waba-123",
+                "embedded_clinic_number": "5511999990000",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        connect_mock.assert_called_once()
+        self.assertEqual(connect_mock.call_args.kwargs["browser_access_token"], "browser-token")
+        subscribe_mock.assert_called_once()
 
     def test_messages_tab_filters_single_template(self):
         self.client.force_login(self.management)
@@ -621,8 +671,9 @@ class IntegrationsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Mensagem de Cobranca")
-        self.assertNotContains(response, "Mensagem de Agendamento")
-        self.assertNotContains(response, "Mensagem de Aniversario")
+        self.assertContains(response, 'value="send_template:charge"')
+        self.assertNotContains(response, 'value="send_template:appointment"')
+        self.assertNotContains(response, 'value="send_template:birthday"')
 
     def test_administration_can_open_integrations(self):
         self.client.force_login(self.administration)
@@ -659,6 +710,78 @@ class IntegrationsTests(TestCase):
         integration = WhatsAppIntegration.load()
         self.assertIsNotNone(integration.last_test_at)
         self.assertEqual(integration.last_error, "")
+
+    @override_settings(WHATSAPP_DRY_RUN=False)
+    @patch("core.views.send_whatsapp_text")
+    def test_whatsapp_live_test_requires_confirmation(self, send_mock):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "enabled": True,
+                "dry_run": False,
+                "phone_number_id": "123",
+                "access_token": "token-real-falso",
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "test_whatsapp",
+                "test_number": "11999990000",
+                "test_message": "Teste Lume",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        send_mock.assert_not_called()
+
+    @override_settings(WHATSAPP_DRY_RUN=False)
+    @patch("core.views.send_whatsapp_text")
+    def test_whatsapp_live_test_runs_with_confirmation(self, send_mock):
+        self.client.force_login(self.management)
+        send_mock.return_value = {"messages": [{"id": "wa-1"}], "to": "5511999990000"}
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "enabled": True,
+                "dry_run": False,
+                "phone_number_id": "123",
+                "access_token": "token-real-falso",
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "test_whatsapp",
+                "test_number": "11999990000",
+                "test_message": "Teste Lume",
+                "confirm_live_test": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        send_mock.assert_called_once()
+
+    @override_settings(WHATSAPP_DRY_RUN=False)
+    def test_send_test_whatsapp_blocks_live_without_explicit_flag(self):
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "enabled": True,
+                "dry_run": False,
+                "phone_number_id": "123",
+                "access_token": "token-real-falso",
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )
+
+        with self.assertRaises(CommandError):
+            call_command("send_test_whatsapp", "11999990000")
 
     def test_management_can_save_whatsapp_message_template(self):
         self.client.force_login(self.management)

@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from core.integrations.credentials import first_configured_value
 from core.integrations.http import IntegrationError, post_form, post_json
-from core.models import WhatsAppIntegration, WhatsAppMessageLog
+from core.models import WhatsAppIntegration, WhatsAppMessageLog, WhatsAppMessageTemplate
 
 
 def normalize_whatsapp_number(number, default_country_code="55"):
@@ -28,6 +28,81 @@ def whatsapp_embedded_signup_credentials(integration=None):
 
 def whatsapp_embedded_signup_configured(integration=None):
     return all(whatsapp_embedded_signup_credentials(integration))
+
+
+def whatsapp_runtime_state(integration=None, templates=None):
+    integration = integration or WhatsAppIntegration.load()
+    templates = list(templates if templates is not None else WhatsAppMessageTemplate.ensure_defaults())
+    dry_run = bool(integration.dry_run or settings.WHATSAPP_DRY_RUN)
+    embedded_configured = whatsapp_embedded_signup_configured(integration)
+    phone_number_id_configured = bool(
+        first_configured_value(integration.phone_number_id, settings.WHATSAPP_META_PHONE_NUMBER_ID)
+    )
+    access_token_configured = bool(first_configured_value(integration.access_token, settings.WHATSAPP_META_ACCESS_TOKEN))
+    active_templates = [template for template in templates if template.active]
+    templates_ready = all(template.meta_template_name for template in active_templates)
+
+    blockers = []
+    if not embedded_configured:
+        blockers.append("embedded_signup")
+    if not integration.enabled:
+        blockers.append("not_connected")
+    if not phone_number_id_configured:
+        blockers.append("phone_number_id")
+    if not dry_run and not access_token_configured:
+        blockers.append("access_token")
+    if not dry_run and not templates_ready:
+        blockers.append("meta_templates")
+
+    if not embedded_configured:
+        code = "config_missing"
+        label = "Configuracao tecnica pendente"
+        detail = "Configure App ID, Configuration ID e App Secret para liberar a conexao pela Meta."
+        next_step = "Preencher credenciais do Embedded Signup no .env ou na configuracao tecnica."
+    elif not integration.enabled:
+        code = "awaiting_meta"
+        label = "Aguardando conexao Meta"
+        detail = "O botao de conexao esta pronto, mas a Meta ainda nao retornou os dados da conta WhatsApp."
+        next_step = "Concluir a autorizacao no fluxo seguro da Meta."
+    elif not phone_number_id_configured:
+        code = "missing_phone_number"
+        label = "Numero nao vinculado"
+        detail = "A integracao esta ativa, mas falta o Phone Number ID retornado pela Meta."
+        next_step = "Reconectar pela Meta depois que a conta WhatsApp estiver liberada."
+    elif dry_run:
+        code = "connected_test"
+        label = "Conectado em modo teste"
+        detail = "O sistema pode simular envios sem disparar mensagens reais para pacientes."
+        next_step = "Fazer teste controlado e manter WHATSAPP_DRY_RUN=True ate validar templates e numero."
+    elif not access_token_configured:
+        code = "missing_token"
+        label = "Token Meta ausente"
+        detail = "O envio real esta ligado, mas nao ha token disponivel para chamar a Cloud API."
+        next_step = "Reconectar pela Meta ou configurar token valido antes de testar em producao."
+    elif not templates_ready:
+        code = "templates_pending"
+        label = "Templates Meta pendentes"
+        detail = "Ha modelos ativos sem nome de template aprovado na Meta."
+        next_step = "Cadastrar os nomes aprovados na aba Mensagens antes de automacoes reais."
+    else:
+        code = "ready_live"
+        label = "Pronto para envio real"
+        detail = "Numero, token e templates ativos estao configurados."
+        next_step = "Executar um teste real controlado antes de liberar automacoes."
+
+    return {
+        "code": code,
+        "label": label,
+        "detail": detail,
+        "next_step": next_step,
+        "dry_run": dry_run,
+        "embedded_configured": embedded_configured,
+        "phone_number_id_configured": phone_number_id_configured,
+        "access_token_configured": access_token_configured,
+        "templates_ready": templates_ready,
+        "active_templates_total": len(active_templates),
+        "blockers": blockers,
+    }
 
 
 def exchange_whatsapp_embedded_signup_code(code, integration=None):
@@ -56,6 +131,35 @@ def exchange_whatsapp_embedded_signup_code(code, integration=None):
     integration.last_error = ""
     integration.save(update_fields=["access_token", "enabled", "connected_at", "last_error", "updated_at"])
     return token_data
+
+
+def connect_whatsapp_embedded_signup(*, code="", browser_access_token="", integration=None):
+    integration = integration or WhatsAppIntegration.load()
+    if code:
+        return exchange_whatsapp_embedded_signup_code(code, integration=integration)
+    if not browser_access_token:
+        raise IntegrationError("A Meta nao retornou o codigo de autorizacao nem um token de acesso.")
+    integration.access_token = browser_access_token
+    integration.enabled = True
+    integration.connected_at = timezone.now()
+    integration.last_error = ""
+    integration.save(update_fields=["access_token", "enabled", "connected_at", "last_error", "updated_at"])
+    return {"access_token": browser_access_token, "source": "browser_auth_response"}
+
+
+def subscribe_whatsapp_business_account(integration=None):
+    integration = integration or WhatsAppIntegration.load()
+    access_token = first_configured_value(integration.access_token, settings.WHATSAPP_META_ACCESS_TOKEN)
+    if not access_token:
+        raise IntegrationError("Token ausente para inscrever o app nos webhooks da WABA.")
+    if not integration.business_account_id:
+        raise IntegrationError("WABA ID ausente para inscrever o app nos webhooks.")
+    return post_json(
+        f"https://graph.facebook.com/{settings.WHATSAPP_META_API_VERSION}/{integration.business_account_id}/subscribed_apps",
+        {},
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=settings.WHATSAPP_TIMEOUT,
+    )
 
 
 def send_whatsapp_text(to_number, message, integration=None):

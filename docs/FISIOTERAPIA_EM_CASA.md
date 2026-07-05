@@ -38,9 +38,35 @@ Modo recomendado agora:
 
 - Profissional: cadastra e edita apenas os proprios videos.
 - Administracao/Gerencia: gerenciam videos, categorias, planos, assinaturas e eventos de pagamento.
-- Paciente ativo: acessa a biblioteca sem assinatura durante a fase inicial da clinica.
-- Paciente inativo: nao acessa a biblioteca sem assinatura ativa.
+- Paciente com assinatura ativa do canal: acessa a biblioteca enquanto a assinatura estiver ativa ou em teste.
+- Paciente com mensalidade/plano ativo da clinica: acessa apenas quando o plano estiver com `Acesso ao Lume em Casa` marcado.
+- Paciente com plano sem acesso, plano inativo, mensalidade cancelada, pacote vencido ou pagamento vencido da mensalidade: nao acessa a biblioteca, salvo assinatura ativa do canal.
+- Paciente inativo: nao acessa a biblioteca sem assinatura ativa e paciente ativo.
 - Compras, assinaturas e liberacoes manuais do canal continuam no codigo para uso comercial futuro, mas o checkout permanece desligado nesta fase.
+
+## Acesso Pelo Plano Da Clinica
+
+O cadastro de `Financeiro > Planos/Servicos` possui:
+
+- Campo `Acesso ao Lume em Casa`: libera automaticamente o acesso do paciente ao modulo enquanto o vinculo/plano estiver ativo.
+- Campo `Modalidade`: `Presencial`, `Digital` ou `Hibrido`.
+
+Como usar:
+
+1. Para um plano presencial com biblioteca inclusa, selecione `Modalidade = Hibrido` e marque `Acesso ao Lume em Casa`.
+2. Para um plano presencial sem biblioteca, mantenha `Modalidade = Presencial` e deixe `Acesso ao Lume em Casa` desmarcado.
+3. Para um plano apenas digital futuro, use `Modalidade = Digital`, marque `Acesso ao Lume em Casa` e configure os atendimentos incluidos/validade apenas como controle operacional.
+
+A regra central fica em `homecare/services/access.py`.
+
+Para testar acesso no sistema:
+
+1. Crie ou edite um plano em `Financeiro > Planos/Servicos`.
+2. Marque ou desmarque `Acesso ao Lume em Casa`.
+3. Vincule o plano ao paciente por uma mensalidade ativa ou adesao/pacote ativo.
+4. Confirme que nao ha pagamento vencido associado a mensalidade.
+5. Entre como usuario paciente e acesse `/pilates-em-casa/biblioteca/`.
+6. Se o plano nao liberar acesso, ou se houver pagamento vencido, o portal redireciona para `/pilates-em-casa/sem-acesso/` com mensagem orientativa.
 
 ## Videos Na VPS Agora
 
@@ -82,7 +108,7 @@ Variaveis:
 ```text
 HOMECARE_PAYMENT_PROVIDER=asaas
 ASAAS_DRY_RUN=True
-ASAAS_BASE_URL=https://sandbox.asaas.com/api/v3
+ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3
 ASAAS_API_KEY=
 ASAAS_WEBHOOK_TOKEN=
 ASAAS_TIMEOUT=20

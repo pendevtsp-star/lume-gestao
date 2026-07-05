@@ -7,7 +7,7 @@
   <div>
     <p class="eyebrow">Financeiro</p>
     <h1>Receber mensalidade</h1>
-    <p class="page-subtitle">Busque o paciente e baixe rapidamente mensalidades pendentes ou vencidas.</p>
+    <p class="page-subtitle">Busque o paciente para receber mensalidades pendentes, vencidas ou adiantadas.</p>
   </div>
   <a class="button secondary" href="{% url 'billing:payments' %}">Ver pagamentos</a>
 </section>
@@ -26,10 +26,16 @@
   </form>
 
   <div class="quick-receive-summary">
-    <strong>{{ pending_receive_count }}</strong>
-    <span>mensalidade{{ pending_receive_count|pluralize }} pronta{{ pending_receive_count|pluralize }} para baixa</span>
+    <strong>{{ available_receive_count }}</strong>
+    <span>opcoes de recebimento encontradas</span>
   </div>
 
+  <header class="panel-header">
+    <div>
+      <h2>Pendentes e vencidas</h2>
+      <p>Use esta lista quando a mensalidade ja existe no financeiro.</p>
+    </div>
+  </header>
   <div class="table-wrap">
     <table>
       <thead>
@@ -70,5 +76,62 @@
     </table>
   </div>
   {% include "core/pagination.html" %}
+</section>
+
+<section class="panel stacked-panel">
+  <header class="panel-header">
+    <div>
+      <h2>Receber mensalidade adiantada</h2>
+      <p>Para pacientes que querem pagar o proximo ciclo antes do vencimento.</p>
+    </div>
+  </header>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Plano/servico</th>
+          <th>Referencia sugerida</th>
+          <th>Vencimento</th>
+          <th class="right">Valor</th>
+          <th class="right">Receber</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in upcoming_receivables %}
+          <tr>
+            <td>
+              <strong>{{ row.membership.patient.full_name }}</strong>
+              <small>{{ row.membership.patient.phone|default:"Sem telefone" }}</small>
+            </td>
+            <td>{{ row.membership.plan.name }}</td>
+            <td>{{ row.reference_month|date:"m/Y" }}</td>
+            <td>{{ row.due_date|date:"d/m/Y" }}</td>
+            <td class="right">R$ {{ row.amount|floatformat:2 }}</td>
+            <td class="right">
+              <form class="inline-form" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="membership" value="{{ row.membership.pk }}">
+                <input type="hidden" name="reference_month" value="{{ row.reference_month|date:'Y-m-d' }}">
+                <input type="hidden" name="paid_at" value="{% now 'Y-m-d' %}">
+                <select class="field-control compact-control" name="method" aria-label="Metodo de pagamento">
+                  {% for value, label in quick_receive_form.fields.method.choices %}
+                    <option value="{{ value }}" {% if value == "pix" %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <button class="button primary compact" type="submit">Receber agora</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="empty">
+              Nenhuma mensalidade futura sugerida. Busque pelo paciente ou confira se ele possui mensalidade ativa.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 {% endblock %}

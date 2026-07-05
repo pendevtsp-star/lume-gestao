@@ -256,7 +256,12 @@
                         {% if session.appointment.status != "completed" and session.appointment.status != "canceled" and session.appointment.status != "rescheduled" and request.user.profile.role != "patient" %}
                           <form method="post" action="{% url 'scheduling:appointment_complete' session.appointment.pk %}">
                             {% csrf_token %}
-                            <button class="button secondary" type="submit">Baixar atendimento</button>
+                            {% if session.appointment.needs_credit_adjustment %}
+                              <input type="hidden" name="add_credit" value="1">
+                              <button class="button secondary" type="submit" onclick="return confirm('O cliente nao tem creditos disponiveis. Gostaria de acrescentar um credito e continuar?')">Baixar e adicionar credito</button>
+                            {% else %}
+                              <button class="button secondary" type="submit">Baixar atendimento</button>
+                            {% endif %}
                           </form>
                         {% endif %}
                         {% if request.user.profile.role != "patient" %}
@@ -397,7 +402,12 @@
               {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" and request.user.profile.role != "patient" %}
                 <form method="post" action="{% url 'scheduling:appointment_complete' appointment.pk %}">
                   {% csrf_token %}
-                  <button class="table-action button-link" type="submit">Baixar</button>
+                  {% if appointment.needs_credit_adjustment %}
+                    <input type="hidden" name="add_credit" value="1">
+                    <button class="table-action button-link" type="submit" onclick="return confirm('O cliente nao tem creditos disponiveis. Gostaria de acrescentar um credito e continuar?')">Baixar + credito</button>
+                  {% else %}
+                    <button class="table-action button-link" type="submit">Baixar</button>
+                  {% endif %}
                 </form>
               {% endif %}
             </td>

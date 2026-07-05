@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django import forms
 from django.utils import timezone
 
-from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
+from billing.models import CashClosing, Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from core.forms import StyledModelForm
 
 
@@ -15,6 +15,8 @@ class ServicePlanForm(StyledModelForm):
             "name",
             "category",
             "plan_type",
+            "delivery_mode",
+            "grants_homecare_access",
             "monthly_price",
             "duration_months",
             "sessions_per_week",
@@ -37,6 +39,12 @@ class ServicePlanForm(StyledModelForm):
         self.fields["duration_months"].help_text = "Use 1 para mensal, 3 para trimestral, 6 para semestral ou outro ciclo em meses."
         self.fields["included_sessions"].help_text = "Total de atendimentos liberados automaticamente quando este plano/servico for atribuido ao paciente."
         self.fields["sessions_per_week"].help_text = "Referencia operacional para agenda e relatorios. Em servico avulso, mantenha 1."
+        self.fields[
+            "grants_homecare_access"
+        ].help_text = (
+            "Libera automaticamente o acesso do paciente ao modulo Lume em Casa enquanto o vinculo/plano estiver ativo. "
+            "Alterar este campo afeta imediatamente todos os pacientes com vinculo ativo neste plano."
+        )
 
 
 class MembershipForm(StyledModelForm):
@@ -189,6 +197,48 @@ class PaymentReceiveForm(StyledModelForm):
         cleaned_data = super().clean()
         self.instance.status = Payment.Status.PAID
         return cleaned_data
+
+
+class QuickMembershipReceiveForm(forms.Form):
+    membership = forms.ModelChoiceField(queryset=Membership.objects.none(), widget=forms.HiddenInput)
+    reference_month = forms.DateField(widget=forms.HiddenInput)
+    method = forms.ChoiceField(label="Metodo", choices=Payment.Method.choices)
+    paid_at = forms.DateField(label="Recebido em", widget=forms.DateInput(attrs={"type": "date"}))
+    notes = forms.CharField(
+        label="Observacao",
+        required=False,
+        widget=forms.TextInput(attrs={"placeholder": "Opcional"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["membership"].queryset = Membership.objects.select_related("patient", "plan").filter(
+            status=Membership.Status.ACTIVE
+        )
+        self.fields["method"].initial = Payment.Method.PIX
+        self.fields["paid_at"].initial = timezone.localdate()
+
+    def clean_reference_month(self):
+        reference_month = self.cleaned_data["reference_month"]
+        if reference_month.day != 1:
+            raise forms.ValidationError("A referencia precisa ser o primeiro dia do mes.")
+        return reference_month
+
+
+class CashClosingForm(StyledModelForm):
+    class Meta:
+        model = CashClosing
+        fields = ["cash_counted", "notes"]
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["cash_counted"].label = "Dinheiro conferido no caixa"
+        self.fields["cash_counted"].required = False
+        self.fields["notes"].label = "Observacao do fechamento"
+        self.fields["notes"].required = False
 
 
 class ExpenseForm(StyledModelForm):

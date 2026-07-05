@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Acesso necessario | Fisioterapia em Casa</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-homecare-local-video">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-checkout-asaas">
 </head>
 <body class="homecare-public">
   <main class="homecare-shell compact">
@@ -15,7 +15,7 @@
       <div>
         <p class="eyebrow">Fisioterapia em Casa</p>
         <h1>Acesso necessario</h1>
-        <p>Nesta fase, o acesso e liberado para pacientes ativos da clinica e usuarios internos autorizados.</p>
+        <p>Seu plano atual nao possui acesso ao Lume em Casa. Fale com a equipe da clinica para liberar o acesso.</p>
         <div class="homecare-actions">
           {% if homecare_checkout_enabled %}
             <a class="button secondary" href="{% url 'homecare_public:landing' %}#planos">Ver planos</a>

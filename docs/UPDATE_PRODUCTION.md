@@ -68,7 +68,25 @@ Se o GitHub ainda nao estiver autenticado ou se for necessario subir direto da m
 .\scripts\deploy-vps.ps1 -SshTarget "usuario@IP_DA_VPS"
 ```
 
-Ele cria `dist\lume-gestao-vps.tar.gz`, envia para `/tmp` na VPS, exige que o `.env` real ja exista em `/srv/lume-gestao`, faz backup, extrai o codigo, roda `docker compose -f docker-compose.prod.yml up -d --build` e valida `/healthz/`.
+Ele cria `dist\lume-gestao-vps.tar.gz`, envia para `/tmp` na VPS, exige que o `.env` real ja exista em `/srv/lume-gestao`, faz backup, extrai o codigo, roda `docker compose -f docker-compose.prod.yml up -d --build`, valida `/healthz/` e limpa cache antigo de build Docker.
+
+Por padrao, apos o healthcheck passar, o script executa uma limpeza segura de cache de build:
+
+```bash
+docker builder prune -f --filter 'until=24h' --keep-storage '8GB'
+```
+
+Essa limpeza nao remove volumes, banco, media, containers em execucao ou imagens ativas. Ela reduz o acumulo em `/var/lib/containerd` e `/var/lib/docker` causado por builds repetidos. Para desativar em um deploy especifico:
+
+```powershell
+.\scripts\deploy-vps.ps1 -SshTarget "usuario@IP_DA_VPS" -SkipDockerBuildCachePrune
+```
+
+Para manter mais ou menos cache:
+
+```powershell
+.\scripts\deploy-vps.ps1 -SshTarget "usuario@IP_DA_VPS" -DockerBuildCacheKeepStorage "12GB" -DockerBuildCacheMinAge "48h"
+```
 
 Se estiver usando uma branch especifica:
 
@@ -208,6 +226,7 @@ RESTAURAR
 - [ ] `git pull` concluiu sem conflito.
 - [ ] `docker compose -f docker-compose.prod.yml config` passou.
 - [ ] `docker compose -f docker-compose.prod.yml up -d --build` executou sem erro.
+- [ ] Limpeza de cache Docker pos-deploy executou ou foi conscientemente ignorada.
 - [ ] Logs do `web` sem erro recorrente.
 - [ ] Logs do `worker` sem erro recorrente.
 - [ ] `/healthz/` responde HTTP 200.

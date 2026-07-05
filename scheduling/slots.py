@@ -13,24 +13,40 @@ def make_local_datetime(day, value):
     return timezone.make_aware(datetime.combine(day, value), timezone.get_current_timezone())
 
 
-def active_appointments_for_slot(professional_id, starts_at, ends_at, exclude_appointment_id=None):
+def active_appointments_for_slot(
+    professional_id,
+    starts_at,
+    ends_at,
+    exclude_appointment_id=None,
+    exclude_appointment_ids=None,
+):
     queryset = Appointment.objects.filter(
         professional_id=professional_id,
         status__in=ACTIVE_APPOINTMENT_STATUSES,
         starts_at__lt=ends_at,
         ends_at__gt=starts_at,
     )
+    exclude_ids = set(exclude_appointment_ids or [])
     if exclude_appointment_id:
-        queryset = queryset.exclude(pk=exclude_appointment_id)
+        exclude_ids.add(exclude_appointment_id)
+    if exclude_ids:
+        queryset = queryset.exclude(pk__in=exclude_ids)
     return queryset
 
 
-def slot_capacity_snapshot(professional_id, starts_at, ends_at, exclude_appointment_id=None):
+def slot_capacity_snapshot(
+    professional_id,
+    starts_at,
+    ends_at,
+    exclude_appointment_id=None,
+    exclude_appointment_ids=None,
+):
     overlaps = active_appointments_for_slot(
         professional_id,
         starts_at,
         ends_at,
         exclude_appointment_id=exclude_appointment_id,
+        exclude_appointment_ids=exclude_appointment_ids,
     )
     partial_overlaps = overlaps.exclude(starts_at=starts_at, ends_at=ends_at)
     exact_overlaps = overlaps.filter(starts_at=starts_at, ends_at=ends_at)

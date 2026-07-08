@@ -16,11 +16,38 @@
   </div>
 </section>
 
+<section class="list-overview-strip" aria-label="Resumo financeiro da lista">
+  <article>
+    <span>Busca atual</span>
+    <strong>{% if q %}{{ q }}{% else %}Sem filtro aplicado{% endif %}</strong>
+  </article>
+  <article>
+    <span>Registros visiveis</span>
+    <strong>{{ payments|length }} pagamento{{ payments|length|pluralize }}</strong>
+  </article>
+  <article>
+    <span>Leitura prioritaria</span>
+    <strong>Atencao aos itens pendentes e vencidos</strong>
+  </article>
+</section>
+
 <section class="panel">
   <form class="toolbar" method="get">
-    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, plano, status ou metodo">
-    <button class="button secondary" type="submit">Buscar</button>
+    <div class="list-toolbar-search">
+      <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, plano, status ou metodo">
+      <small>Filtre rapidamente para localizar recebimentos, revisar vencimentos ou abrir uma baixa sem percorrer toda a lista.</small>
+    </div>
+    <div class="list-toolbar-actions">
+      <button class="button secondary" type="submit">Buscar</button>
+      {% if q %}
+        <a class="button ghost" href="{% url 'billing:payment_list' %}">Limpar filtro</a>
+      {% endif %}
+    </div>
   </form>
+  <div class="surface-summary-bar">
+    <span>Painel financeiro</span>
+    <strong>{{ payments|length }} registro{{ payments|length|pluralize }} carregado{{ payments|length|pluralize:"s," }}</strong>
+  </div>
   <div class="table-wrap">
     <table>
       <thead>
@@ -57,7 +84,14 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="8" class="empty">Nenhum pagamento encontrado.</td></tr>
+          <tr>
+            <td colspan="8" class="empty">
+              <div class="empty-state soft">
+                <strong>Nenhum pagamento encontrado.</strong>
+                <span>Revise os filtros ou lance um novo pagamento para alimentar o controle financeiro.</span>
+              </div>
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>

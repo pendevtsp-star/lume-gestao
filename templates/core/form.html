@@ -22,6 +22,14 @@
   <a class="button secondary" href="{{ back_url }}">Voltar</a>
 </section>
 
+<section class="form-intro-card" aria-label="Orientacao do cadastro">
+  <div>
+    <span class="form-intro-eyebrow">Preenchimento guiado</span>
+    <strong>Revise apenas os campos essenciais para concluir {{ page_title|lower }} sem retrabalho.</strong>
+  </div>
+  <p>Os dados ficam organizados em um fluxo unico. Campos opcionais podem ser completados depois, sem travar a operacao.</p>
+</section>
+
 <form method="post" class="panel form-panel" {% if form.is_multipart %}enctype="multipart/form-data"{% endif %}>
   {% csrf_token %}
   {% if form.non_field_errors %}
@@ -30,12 +38,25 @@
 
   <div class="form-grid">
     {% for field in form %}
-      <label class="form-field">
-        <span>{{ field.label }}</span>
+      {% if field.is_hidden %}
         {{ field }}
-        {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
-        {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-      </label>
+      {% elif field.field.widget.input_type == "checkbox" %}
+        <label class="form-field checkbox-card full-span">
+          <span class="checkbox-field">
+            {{ field }}
+            <span>{{ field.label }}</span>
+          </span>
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      {% else %}
+        <label class="form-field{% if field.field.widget.input_type == 'textarea' %} full-span{% endif %}">
+          <span>{{ field.label }}</span>
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+        </label>
+      {% endif %}
     {% endfor %}
   </div>
 

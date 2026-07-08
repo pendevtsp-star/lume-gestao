@@ -20,38 +20,55 @@ from website.models import WebsiteFAQ, WebsiteSettings, WebsiteTestimonial
 
 
 class WebsitePublicContextMixin:
-    landing_hero_title = "Alivie dores, recupere movimentos e viva melhor."
+    landing_hero_title = "Cuidado presencial para voltar a se mover com segurança."
     landing_hero_subtitle = (
-        "Pilates, fisioterapia, massagem e terapias de bem-estar em um atendimento acolhedor, "
-        "humano e pensado para a sua rotina."
+        "A Lume combina fisioterapia, Pilates e terapias corporais em uma rotina orientada, "
+        "com escuta próxima desde o primeiro contato."
     )
     service_cards = [
         {
             "title": "Pilates",
-            "description": "Aulas para fortalecer, melhorar postura e ampliar consciência corporal com orientação próxima.",
+            "description": "Aulas orientadas para força, postura, mobilidade e consciência corporal, com atenção ao limite de cada aluno.",
         },
         {
             "title": "Fisioterapia",
-            "description": "Acompanhamento individualizado para dor, lesões, limitações funcionais e prevenção.",
+            "description": "Avaliação e acompanhamento para dor, lesões, limitações funcionais, recuperação e prevenção.",
         },
         {
             "title": "Massagem",
-            "description": "Cuidado corporal para relaxamento, alívio de tensões e bem-estar na rotina.",
+            "description": "Cuidado corporal para aliviar tensões, desacelerar e recuperar conforto na rotina.",
         },
         {
             "title": "Reiki",
-            "description": "Terapia complementar para pausa, relaxamento e equilíbrio, respeitando seu momento.",
+            "description": "Terapia complementar para pausa, relaxamento e equilíbrio, sempre respeitando seu momento.",
         },
     ]
     journey_steps = [
-        "Você entra em contato pelo WhatsApp e conta sua necessidade.",
-        "A equipe orienta o atendimento, plano ou combinação mais adequada.",
-        "Você agenda com praticidade e inicia o acompanhamento.",
+        "Você conta sua necessidade e a equipe entende o que está acontecendo.",
+        "A Lume orienta o atendimento, frequência ou combinação mais adequada.",
+        "Você agenda o primeiro passo e inicia o acompanhamento com clareza.",
     ]
     quick_benefits = [
-        "Atendimento acolhedor",
-        "Agendamento pelo WhatsApp",
-        "Estúdio em Penedo/AL",
+        "Avaliação antes da indicação",
+        "Atendimento presencial em Penedo/AL",
+        "Continuidade com Lume em casa",
+    ]
+    trust_points = [
+        {
+            "label": "Primeiro passo",
+            "title": "Você não precisa escolher sozinho",
+            "text": "A equipe escuta sua necessidade antes de indicar atendimento, frequência ou plano.",
+        },
+        {
+            "label": "Rotina real",
+            "title": "Cuidado que cabe na semana",
+            "text": "A orientação considera disponibilidade, evolução e continuidade fora do estúdio.",
+        },
+        {
+            "label": "Presença local",
+            "title": "Estúdio em Penedo, acompanhamento próximo",
+            "text": "Endereço, horários e contato ficam claros para reduzir dúvida antes da visita.",
+        },
     ]
     default_faqs = [
         {
@@ -76,7 +93,7 @@ class WebsitePublicContextMixin:
         },
     ]
     whatsapp_messages = {
-        "general": "Olá, equipe Lume. Quero agendar um atendimento.",
+        "general": "Olá, equipe Lume. Quero agendar uma avaliação.",
         "services": "Olá, equipe Lume. Não sei qual atendimento escolher e gostaria de orientação.",
         "homecare": "Olá, equipe Lume. Quero conhecer o Lume em casa.",
         "contact": "Olá, equipe Lume. Quero falar com a equipe e receber orientação.",
@@ -170,6 +187,7 @@ class WebsiteHomeView(WebsitePublicContextMixin, TemplateView):
                 "service_cards": self.service_cards,
                 "journey_steps": self.journey_steps,
                 "quick_benefits": self.quick_benefits,
+                "trust_points": self.trust_points,
                 "faqs": public_faqs,
                 "testimonials": testimonials,
                 "assistant_questions": assistant_questions,

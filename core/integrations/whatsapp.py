@@ -62,13 +62,13 @@ def whatsapp_runtime_state(integration=None, templates=None):
     elif not integration.enabled:
         code = "awaiting_meta"
         label = "Aguardando conexao Meta"
-        detail = "O botao de conexao esta pronto, mas a Meta ainda nao retornou os dados da conta WhatsApp."
-        next_step = "Concluir a autorizacao no fluxo seguro da Meta."
+        detail = "A tela de conexao esta pronta, mas a Meta ainda nao devolveu os dados finais da conta oficial."
+        next_step = "Abrir a Meta e concluir a conexao, priorizando o numero ja existente da clinica quando ele ja estiver em uso."
     elif not phone_number_id_configured:
         code = "missing_phone_number"
         label = "Numero nao vinculado"
-        detail = "A integracao esta ativa, mas falta o Phone Number ID retornado pela Meta."
-        next_step = "Reconectar pela Meta depois que a conta WhatsApp estiver liberada."
+        detail = "A conexao foi iniciada, mas a Meta ainda nao devolveu o identificador final do numero."
+        next_step = "Reconectar pela Meta e, se o numero ja existir em outra conta, concluir pelo caminho de numero existente em vez de cadastrar um novo."
     elif dry_run:
         code = "connected_test"
         label = "Conectado em modo teste"
@@ -102,6 +102,44 @@ def whatsapp_runtime_state(integration=None, templates=None):
         "templates_ready": templates_ready,
         "active_templates_total": len(active_templates),
         "blockers": blockers,
+    }
+
+
+def whatsapp_connection_guidance(integration=None, templates=None):
+    integration = integration or WhatsAppIntegration.load()
+    state = whatsapp_runtime_state(integration, templates)
+    raw_error = (integration.last_error or "").strip()
+    normalized_error = raw_error.lower()
+
+    tips = [
+        "Se a clinica ja usa esse WhatsApp no app Business, prefira conectar o numero existente em vez de cadastrar um novo.",
+        "Use a mesma empresa/portfolio da Meta que ja e dona do numero para evitar bloqueios de propriedade.",
+        "Depois que a Meta concluir a autorizacao, volte para esta tela e faca um teste controlado antes de liberar automacoes.",
+    ]
+
+    error_title = ""
+    error_detail = ""
+    if "133010" in normalized_error or "account not registered" in normalized_error:
+        error_title = "A Meta ainda nao liberou esse numero para envio real."
+        error_detail = (
+            "Isso costuma acontecer quando o numero foi conectado, mas ainda nao ficou registrado na conta certa da Cloud API, "
+            "ou quando o fluxo foi concluido como novo numero em vez de numero ja existente."
+        )
+    elif "ja esta registrado" in normalized_error or "já está registrado" in normalized_error:
+        error_title = "Esse numero ja existe em outra conta da Meta."
+        error_detail = (
+            "Para seguir sem conflito, conclua a conexao usando o portfolio que ja possui o numero ou escolha o caminho de numero existente/migracao."
+        )
+    elif raw_error:
+        error_title = "A Meta devolveu um erro na etapa final da conexao."
+        error_detail = "Abra o diagnostico tecnico apenas se precisar conferir os detalhes para suporte."
+
+    return {
+        "state": state,
+        "tips": tips,
+        "error_title": error_title,
+        "error_detail": error_detail,
+        "show_debug_hint": bool(raw_error),
     }
 
 

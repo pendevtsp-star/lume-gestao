@@ -220,6 +220,25 @@
   </div>
 </section>
 
+<section class="agenda-overview-strip" aria-label="Resumo operacional da agenda">
+  <article>
+    <span>Semana exibida</span>
+    <strong>{{ week_start|date:"d/m" }} ate {{ week_end|date:"d/m/Y" }}</strong>
+  </article>
+  <article>
+    <span>Dia em foco</span>
+    <strong>{{ selected_day|date:"d/m/Y" }}</strong>
+  </article>
+  <article>
+    <span>Busca atual</span>
+    <strong>{% if q %}{{ q }}{% else %}Sem filtro aplicado{% endif %}</strong>
+  </article>
+  <article>
+    <span>Itens na lista</span>
+    <strong>{{ appointments|length }} registro{{ appointments|length|pluralize }}</strong>
+  </article>
+</section>
+
 <section class="metric-grid agenda-metrics">
   <article class="metric">
     <span>Atendimentos hoje</span>
@@ -241,8 +260,16 @@
 
 <section class="panel agenda-hero-panel">
   <form class="toolbar agenda-toolbar" method="get">
-    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, profissional, status ou observacao">
-    <button class="button secondary" type="submit">Buscar</button>
+    <div class="agenda-toolbar-search">
+      <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, profissional, status ou observacao">
+      <small>Use a busca para localizar sessoes da semana inteira sem sair da visao principal.</small>
+    </div>
+    <div class="agenda-toolbar-actions">
+      <button class="button secondary" type="submit">Buscar</button>
+      {% if q %}
+        <a class="button ghost" href="?semana={{ week_start|date:'Y-m-d' }}">Limpar filtro</a>
+      {% endif %}
+    </div>
   </form>
   <div class="calendar-toolbar agenda-calendar-toolbar">
     <div>
@@ -261,6 +288,12 @@
     <span><i class="legend-dot completed"></i> Realizado</span>
     <span><i class="legend-dot group"></i> Grupo</span>
     <span><i class="legend-dot recurring"></i> Recorrente</span>
+  </div>
+  <div class="agenda-surface-summary">
+    <span>Hoje: <strong>{{ today_total }}</strong></span>
+    <span>Pendentes: <strong>{{ pending_total }}</strong></span>
+    <span>Grupos: <strong>{{ group_total }}</strong></span>
+    <span>Recorrentes: <strong>{{ recurring_total }}</strong></span>
   </div>
   <div class="calendar-wrap agenda-soft-wrap">
     <table class="calendar-grid-table agenda-grid-table">
@@ -458,8 +491,9 @@
   <div class="panel-header">
     <div>
       <h2>Atendimentos do dia</h2>
-      <p>{{ selected_day|date:"d/m/Y" }}</p>
+      <p>{{ selected_day|date:"d/m/Y" }} com leitura rapida para confirmacoes e reagendamentos.</p>
     </div>
+    <span class="panel-counter">{{ day_appointments|length }} item{{ day_appointments|length|pluralize }}</span>
   </div>
   <div class="day-agenda-list">
     {% for appointment in day_appointments %}
@@ -501,6 +535,7 @@
       <h2>Lista detalhada</h2>
       <p>Use a lista para edicoes, baixas, confirmacoes e auditoria operacional.</p>
     </div>
+    <span class="panel-counter">{{ appointments|length }} registro{{ appointments|length|pluralize }}</span>
   </div>
   <div class="table-wrap">
     <table class="appointment-detail-table">

@@ -3,7 +3,7 @@
 }
 
 .main {
-  padding-bottom: 128px;
+  padding-bottom: 32px;
 }
 
 .quick-actions-grid {
@@ -13,9 +13,9 @@
 }
 
 .quick-action-card {
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
   color: var(--text);
   display: grid;
   gap: 7px;
@@ -27,7 +27,7 @@
 
 .quick-action-card:hover {
   border-color: rgba(82, 111, 68, 0.48);
-  box-shadow: 0 16px 34px rgba(53, 66, 45, 0.12);
+  box-shadow: 0 8px 16px rgba(53, 66, 45, 0.10);
   transform: translateY(-2px);
 }
 
@@ -55,13 +55,13 @@
 }
 
 .floating-actions {
+  display: none;
   align-items: center;
   background: rgba(255, 253, 248, 0.98);
   border: 1px solid rgba(82, 111, 68, 0.22);
   border-radius: 999px;
   bottom: 18px;
   box-shadow: 0 18px 42px rgba(32, 48, 28, 0.20);
-  display: flex;
   flex-direction: row;
   gap: 8px;
   left: 50%;
@@ -103,7 +103,7 @@
 
 .form-field .multi-check-list {
   background: #fffdf8;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 16px;
   display: grid;
   gap: 4px;
@@ -159,7 +159,7 @@
 .quick-receive-summary {
   align-items: center;
   background: #f4efe4;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 16px;
   display: inline-flex;
   gap: 10px;
@@ -197,12 +197,17 @@
 }
 
 @media (max-width: 720px) {
+  .main {
+    padding-bottom: 128px;
+  }
+
   .quick-actions-grid,
   .quick-receive-search {
     grid-template-columns: 1fr;
   }
 
   .floating-actions {
+    display: flex;
     border-radius: 18px;
     bottom: 10px;
     left: 10px;

@@ -7,16 +7,44 @@
   <div>
     <p class="eyebrow">Cadastro</p>
     <h1>Pacientes</h1>
-    <p class="page-subtitle">Consulte dados, pacotes, mensalidades e profissionais pelo card do paciente.</p>
+    <p class="page-subtitle">Encontre o cadastro certo, abra o resumo clinico-operacional e siga para edicao apenas quando precisar alterar dados.</p>
   </div>
   <a class="button primary" href="{% url 'patients:create' %}">Novo paciente</a>
 </section>
 
+<section class="list-overview-strip" aria-label="Resumo da lista de pacientes">
+  <article>
+    <span>Filtro aplicado</span>
+    <strong>{% if q %}{{ q }}{% else %}Sem filtro aplicado{% endif %}</strong>
+  </article>
+  <article>
+    <span>Pacientes na lista</span>
+    <strong>{{ patients|length }} paciente{{ patients|length|pluralize }}</strong>
+  </article>
+  <article>
+    <span>Uso recomendado</span>
+    <strong>{% if q %}Abra o resumo antes de editar{% else %}Busque por nome, CPF ou plano{% endif %}</strong>
+  </article>
+</section>
+
 <section class="panel">
   <form class="toolbar" method="get" data-live-search-form>
-    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por nome, CPF, telefone, plano ou profissional" autocomplete="off" data-live-search-input>
-    <button class="button secondary" type="submit">Buscar</button>
+    <div class="list-toolbar-search">
+      <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por nome, CPF, telefone, plano ou profissional" autocomplete="off" data-live-search-input>
+      <small>Digite para filtrar a lista e abrir o resumo do paciente sem sair desta tela.</small>
+    </div>
+    <div class="list-toolbar-actions">
+      <button class="button secondary" type="submit">Buscar</button>
+      {% if q %}
+        <a class="button ghost" href="{% url 'patients:list' %}">Limpar filtro</a>
+      {% endif %}
+    </div>
   </form>
+
+  <div class="surface-summary-bar">
+    <span>Resumo da consulta</span>
+    <strong>{{ patients|length }} registro{{ patients|length|pluralize }} disponivel{{ patients|length|pluralize:"s," }} para leitura</strong>
+  </div>
 
   <div class="table-wrap">
     <table>
@@ -45,7 +73,7 @@
                   <span>
                     <strong>{{ patient.full_name }}</strong>
                     {% if patient.cpf %}<small>CPF {{ patient.cpf }}</small>{% endif %}
-                    <small>Clique na foto para ver detalhes</small>
+                    <small>Abrir resumo completo</small>
                   </span>
                 </summary>
                 <div class="entity-detail-card">
@@ -104,14 +132,23 @@
             <td>{{ patient.email|default:"-" }}</td>
             <td><span class="badge {% if patient.active %}active{% else %}canceled{% endif %}">{% if patient.active %}Ativo{% else %}Inativo{% endif %}</span></td>
             <td class="right">
-              <a class="table-action" href="{% url 'patients:update' patient.pk %}">Editar</a>
-              {% if patient.active %}
-                <a class="table-action danger-link" href="{% url 'patients:delete' patient.pk %}">Excluir</a>
-              {% endif %}
+              <div class="table-actions">
+                <a class="table-action" href="{% url 'patients:update' patient.pk %}">Editar</a>
+                {% if patient.active %}
+                  <a class="table-action danger-link" href="{% url 'patients:delete' patient.pk %}">Excluir</a>
+                {% endif %}
+              </div>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="empty">Nenhum paciente encontrado.</td></tr>
+          <tr>
+            <td colspan="5" class="empty">
+              <div class="empty-state soft">
+                <strong>Nenhum paciente encontrado.</strong>
+                <span>Ajuste a busca ou cadastre um novo paciente para continuar.</span>
+              </div>
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>

@@ -40,7 +40,7 @@
       {% if plans %}<a href="#planos">Planos</a>{% endif %}
       <a href="#lume-em-casa">Lume em casa</a>
       <a href="#contato">Contato</a>
-      <a class="nav-action" href="{{ whatsapp_general_url }}">Agendar pelo WhatsApp</a>
+      <a class="nav-action" href="{{ whatsapp_general_url }}">Agendar avaliação</a>
       <a class="nav-system-link" href="{% url 'website_system_redirect' %}">{{ website_settings.system_cta_text }}</a>
     </nav>
   </header>
@@ -59,8 +59,8 @@
         </div>
 
         <div class="hero-actions">
-          <a class="button-primary" href="{{ whatsapp_general_url }}">Agendar pelo WhatsApp</a>
-          <a class="button-secondary" href="#servicos">Conhecer atendimentos</a>
+          <a class="button-primary" href="{{ whatsapp_general_url }}">Agendar avaliação</a>
+          <a class="button-secondary" href="#servicos">Ver atendimentos</a>
         </div>
       </div>
 
@@ -76,28 +76,26 @@
       </div>
     </section>
 
-    <section class="homecare-site-section shell-panel" id="lume-em-casa">
-      <div class="homecare-site-copy">
-        <p class="eyebrow">Lume em casa</p>
-        <h2>Cuidado orientado para continuar sua rotina fora do estúdio.</h2>
-        <p class="section-text">A biblioteca de aulas gravadas aproxima a equipe da clínica do dia a dia do paciente, com conteúdos organizados por foco, nível e duração.</p>
-        <ul class="soft-bullet-list" aria-label="Recursos do Lume em casa">
-          <li>Aulas gravadas</li>
-          <li>Conteúdos por foco, nível e duração</li>
-          <li>Orientação para continuar a rotina fora do estúdio</li>
-        </ul>
+    <section class="trust-section shell-panel" aria-label="Por que escolher a Lume">
+      <div class="trust-intro">
+        <span>O caminho antes do plano</span>
+        <strong>Primeiro entendemos seu momento. Depois indicamos o cuidado.</strong>
       </div>
-      <div class="homecare-site-actions">
-        <a class="button-primary" href="{% url 'homecare_public:landing' %}">Conhecer Lume em casa</a>
-        <a class="button-secondary" href="{{ whatsapp_homecare_url }}">Tirar dúvida pelo WhatsApp</a>
+      <div class="trust-grid">
+        {% for point in trust_points %}
+          <article class="trust-item">
+            <small>{{ point.label }}</small>
+            <h2>{{ point.title }}</h2>
+            <p>{{ point.text }}</p>
+          </article>
+        {% endfor %}
       </div>
     </section>
 
     <section class="services-section shell-panel" id="servicos">
       <div class="section-head">
-        <p class="eyebrow">Atendimentos</p>
         <h2>Atendimentos para cuidar do corpo com clareza e acolhimento.</h2>
-        <p class="section-text">Pilates, fisioterapia, massagem e Reiki aparecem de forma simples para você entender possibilidades e conversar com a equipe.</p>
+        <p class="section-text">Você pode chegar com dor, busca por movimento, tensão acumulada ou vontade de manter uma rotina mais saudável. A equipe ajuda a traduzir isso em um caminho de cuidado.</p>
       </div>
 
       <div class="service-grid">
@@ -111,14 +109,13 @@
       </div>
 
       <div class="section-inline-cta">
-        <span>Não sabe qual atendimento escolher?</span>
-        <a href="{{ whatsapp_services_url }}">Fale com a equipe</a>
+        <span>Está em dúvida entre fisioterapia, Pilates ou outro cuidado?</span>
+        <a href="{{ whatsapp_services_url }}">Receber orientação</a>
       </div>
     </section>
 
     <section class="experience-section" id="como-funciona">
       <article class="journey-panel shell-panel">
-        <p class="eyebrow">Como funciona</p>
         <h2>{{ website_settings.institutional_title }}</h2>
         <p class="section-text">{{ website_settings.institutional_text }}</p>
 
@@ -134,8 +131,8 @@
 
       <article class="media-panel shell-panel">
         <div class="section-head section-head-compact">
-          <p class="eyebrow">Conheça a Lume</p>
           <h2>Um pouco do cuidado que acontece na Lume.</h2>
+          <p class="section-text">Registros do estúdio ajudam você a sentir o ambiente antes de marcar a primeira visita.</p>
         </div>
 
         <div class="reel-grid">
@@ -155,12 +152,46 @@
       </article>
     </section>
 
+    {% if testimonials %}
+      <section class="testimonial-section shell-panel" aria-label="Depoimentos">
+        <div class="section-head section-head-compact">
+          <h2>Quem chega com dúvida precisa encontrar confiança.</h2>
+          <p class="section-text">Depoimentos de pacientes ajudam a mostrar a experiência real de cuidado na Lume.</p>
+        </div>
+        <div class="testimonial-grid">
+          {% for testimonial in testimonials %}
+            <article class="testimonial-card">
+              <p>“{{ testimonial.body }}”</p>
+              <strong>{{ testimonial.author_name }}</strong>
+              {% if testimonial.author_role %}<span>{{ testimonial.author_role }}</span>{% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="homecare-site-section shell-panel" id="lume-em-casa">
+      <div class="homecare-site-copy">
+        <span class="section-kicker">Continuidade fora do estúdio</span>
+        <h2>Lume em casa entra depois da orientação presencial.</h2>
+        <p class="section-text">A biblioteca de aulas gravadas apoia a rotina do paciente entre os atendimentos, com conteúdos organizados por foco, nível e duração.</p>
+        <ul class="soft-bullet-list" aria-label="Recursos do Lume em casa">
+          <li>Aulas gravadas para manter constância</li>
+          <li>Conteúdos por foco, nível e duração</li>
+          <li>Uso complementar ao cuidado orientado pela equipe</li>
+        </ul>
+      </div>
+      <div class="homecare-site-actions">
+        <a class="button-primary" href="{% url 'homecare_public:landing' %}">Conhecer Lume em casa</a>
+        <a class="button-secondary" href="{{ whatsapp_homecare_url }}">Perguntar sobre aulas</a>
+      </div>
+    </section>
+
     {% if plans %}
       <section class="plans-section shell-panel" id="planos">
         <div class="section-head">
-          <p class="eyebrow">Planos</p>
           <h2>Planos para manter sua rotina de cuidado.</h2>
-          <p class="section-text">Escolha a frequência que combina com sua semana e confirme a disponibilidade com a equipe.</p>
+          <p class="section-text">Os planos ajudam a manter frequência. Se você ainda não sabe qual escolher, fale com a equipe antes de decidir.</p>
         </div>
 
         <div class="plan-grid">
@@ -170,7 +201,7 @@
               <p class="plan-category">{{ plan.get_category_display }}</p>
               <h3>{{ plan.name }}</h3>
               <p class="plan-description">{{ plan.public_description|default:plan.description|default:"Plano personalizado para acompanhar seu cuidado." }}</p>
-              <a class="plan-whatsapp-link" href="{{ plan.whatsapp_url }}">Quero este plano</a>
+              <a class="plan-whatsapp-link" href="{{ plan.whatsapp_url }}">Conversar sobre este plano</a>
               {% if checkout_public_enabled %}
                 <a class="plan-checkout-link" href="{% url 'checkout:plan' plan.pk %}">Comprar online</a>
               {% endif %}
@@ -188,7 +219,6 @@
       <section class="support-section">
         <article class="faq-panel shell-panel">
           <div class="section-head section-head-compact">
-            <p class="eyebrow">Perguntas frequentes</p>
             <h2>Dúvidas rápidas antes do contato.</h2>
           </div>
 
@@ -206,9 +236,9 @@
 
     <section class="contact-section shell-panel" id="contato">
       <div class="contact-copy">
-        <p class="eyebrow">Agendamento</p>
-        <h2>Fale com a equipe e receba a orientação certa para o seu momento.</h2>
-        <p class="section-text">Conte o que você sente, o que procura ou qual plano chamou sua atenção. A equipe orienta o próximo passo pelo WhatsApp.</p>
+        <span class="section-kicker">Agendamento</span>
+        <h2>Conte seu caso. A Lume orienta o primeiro passo.</h2>
+        <p class="section-text">Diga o que você sente, o que procura ou qual rotina deseja construir. A equipe responde pelo WhatsApp e indica o caminho mais adequado.</p>
       </div>
 
       <div class="contact-side">

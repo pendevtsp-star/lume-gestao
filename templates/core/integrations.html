@@ -40,6 +40,7 @@
   <div>
     <p class="eyebrow">{{ section_label }}</p>
     <h1>{{ page_title }}</h1>
+    <p class="page-subtitle">Conecte canais, valide a operacao e acompanhe o que ja esta pronto para uso sem depender de leitura tecnica.</p>
   </div>
   <a class="button secondary" href="{% url 'settings' %}">Configuracoes da clinica</a>
 </section>
@@ -278,6 +279,11 @@
             </div>
           </div>
 
+          <div class="connection-expectation">
+            <strong>Quando esta tela estiver certa</strong>
+            <p>Voce ve a conta Google autorizada, a agenda escolhida e consegue sincronizar atendimentos sem voltar para configuracoes tecnicas.</p>
+          </div>
+
           <div class="callback-box">
             <div>
               <strong>URL autorizada para Google Cloud</strong>
@@ -337,6 +343,37 @@
             <p>{{ whatsapp_status.detail }}</p>
           </div>
 
+          <div class="connection-checklist" aria-label="Checklist da conexao oficial do WhatsApp">
+            <article class="check-item {% if whatsapp_embedded_configured %}is-done{% endif %}">
+              <span>1</span>
+              <div>
+                <strong>Conexao liberada</strong>
+                <p>{% if whatsapp_embedded_configured %}A tela oficial da Meta ja pode ser aberta pelo sistema.{% else %}Ainda falta liberar a configuracao segura antes do primeiro uso.{% endif %}</p>
+              </div>
+            </article>
+            <article class="check-item {% if whatsapp.is_connected %}is-done{% endif %}">
+              <span>2</span>
+              <div>
+                <strong>Numero vinculado</strong>
+                <p>{% if whatsapp.is_connected %}O numero da clinica ja voltou para o Lume como conectado.{% else %}Conclua a conexao na Meta usando o numero oficial da clinica.{% endif %}</p>
+              </div>
+            </article>
+            <article class="check-item {% if not whatsapp_status.dry_run and whatsapp_status.code != 'awaiting_meta' and whatsapp_status.code != 'missing_phone_number' %}is-done{% endif %}">
+              <span>3</span>
+              <div>
+                <strong>Envio validado</strong>
+                <p>{% if whatsapp_status.dry_run %}Mantenha em modo teste ate validar numero e templates.{% else %}Fluxo pronto para teste real controlado e liberacao gradual.{% endif %}</p>
+              </div>
+            </article>
+          </div>
+
+          <div class="setup-note">
+            <strong>Antes de abrir a Meta</strong>
+            {% for tip in whatsapp_connection_tips %}
+              <span>{{ forloop.counter }}. {{ tip }}</span>
+            {% endfor %}
+          </div>
+
           <div class="connection-main-actions">
             {% if whatsapp_embedded_configured %}
               <button class="button primary" id="whatsapp-connect-button" type="button" onclick="launchWhatsAppSignup()">
@@ -355,15 +392,23 @@
             {% endif %}
           </div>
           <div class="setup-note" id="whatsapp-embedded-status" hidden></div>
-          <div class="setup-note" id="whatsapp-embedded-debug" style="display: grid; gap: 4px; overflow-wrap: anywhere;">
-            <strong>Diagnostico da conexao Meta</strong>
-            <span>Etapa: aguardando novo teste</span>
-            <span>OAuth code recebido: nao</span>
-            <span>Evento Embedded Signup: nao recebido</span>
-            <span>WABA ID: nao</span>
-            <span>Phone Number ID: nao</span>
-            <span>Erro Meta: -</span>
-          </div>
+          {% if whatsapp_friendly_error_title %}
+            <div class="connection-alert">
+              <strong>{{ whatsapp_friendly_error_title }}</strong>
+              <span>{{ whatsapp_friendly_error_detail }}</span>
+            </div>
+          {% endif %}
+          <details class="setup-note slim-advanced" id="whatsapp-embedded-debug-panel" {% if not whatsapp_show_debug_hint %}hidden{% endif %}>
+            <summary>Diagnostico tecnico da conexao Meta</summary>
+            <div id="whatsapp-embedded-debug" style="display: grid; gap: 4px; overflow-wrap: anywhere; margin-top: 8px;">
+              <span>Etapa: aguardando novo teste</span>
+              <span>OAuth code recebido: nao</span>
+              <span>Evento Embedded Signup: nao recebido</span>
+              <span>WABA ID: nao</span>
+              <span>Phone Number ID: nao</span>
+              <span>Erro Meta: -</span>
+            </div>
+          </details>
 
           <div class="connection-summary-strip">
             <div>
@@ -382,6 +427,11 @@
               <span>Ultimo teste</span>
               <strong>{{ whatsapp.last_test_at|date:"d/m/Y H:i"|default:"-" }}</strong>
             </div>
+          </div>
+
+          <div class="connection-expectation">
+            <strong>Quando esta tela estiver certa</strong>
+            <p>O botao principal abre a Meta, o numero retorna preenchido, o status sai de pendente e o teste controlado deixa de responder com erro de conta nao registrada.</p>
           </div>
 
           {% if whatsapp_embedded_configured %}
@@ -633,15 +683,15 @@
 
     function setWhatsAppSignupDiagnostics(step) {
       var debug = document.getElementById("whatsapp-embedded-debug");
+      var panel = document.getElementById("whatsapp-embedded-debug-panel");
       if (!debug) {
         return;
       }
+      if (panel) {
+        panel.hidden = false;
+      }
       whatsappSignupState.lastStep = step || whatsappSignupState.lastStep;
-      debug.hidden = false;
       debug.replaceChildren();
-      var title = document.createElement("strong");
-      title.textContent = "Diagnostico da conexao Meta";
-      debug.appendChild(title);
       [
         "Etapa: " + (whatsappSignupState.lastStep || "-"),
         "OAuth code recebido: " + (whatsappSignupState.code ? "sim" : "nao"),
@@ -721,12 +771,12 @@
         return;
       }
       if (!whatsappSignupState.code && !whatsappSignupState.accessToken) {
-        setWhatsAppSignupStatus("Aguardando autorizacao da Meta.");
+        setWhatsAppSignupStatus("Aguardando autorizacao da Meta para continuar a conexao oficial.");
         setWhatsAppSignupDiagnostics("aguardando OAuth code ou token");
         return;
       }
       if (!whatsappSignupState.businessAccountId || !whatsappSignupState.phoneNumberId) {
-        setWhatsAppSignupStatus("Aguardando dados do WhatsApp retornados pela Meta.");
+        setWhatsAppSignupStatus("A Meta ainda esta finalizando os dados do numero conectado.");
         setWhatsAppSignupDiagnostics("aguardando WABA e Phone Number ID");
         return;
       }
@@ -737,7 +787,7 @@
       document.getElementById("embedded-phone-number-id").value = whatsappSignupState.phoneNumberId;
       document.getElementById("embedded-business-account-id").value = whatsappSignupState.businessAccountId;
       document.getElementById("embedded-clinic-number").value = whatsappSignupState.clinicNumber;
-      setWhatsAppSignupStatus("Finalizando conexao do WhatsApp.");
+      setWhatsAppSignupStatus("Finalizando conexao oficial do WhatsApp.");
       setWhatsAppSignupDiagnostics("enviando dados ao backend");
       document.getElementById("whatsapp-embedded-form").submit();
     }
@@ -782,7 +832,7 @@
       } else {
         whatsappSignupState.errorCode = data.error_code || (data.data && data.data.error_code) || "";
         whatsappSignupState.errorMessage = data.error_message || data.message || (data.data && data.data.error_message) || "";
-        setWhatsAppSignupStatus("A Meta retornou um evento sem conclusao da conexao.");
+        setWhatsAppSignupStatus("A Meta nao concluiu a conexao. Se precisar, abra o diagnostico tecnico para conferir o retorno.");
         setWhatsAppSignupDiagnostics(data.event === "NON_JSON" ? "mensagem Facebook sem JSON recebida" : "evento sem conclusao recebido");
       }
     });
@@ -809,7 +859,7 @@
       if (button) {
         button.disabled = true;
       }
-      setWhatsAppSignupStatus("Aguardando autorizacao da Meta.");
+      setWhatsAppSignupStatus("Abrindo a Meta para conectar o WhatsApp oficial.");
       setWhatsAppSignupDiagnostics("fluxo iniciado");
       FB.login(function(response) {
         whatsappSignupState.authStatus = response.status || "";

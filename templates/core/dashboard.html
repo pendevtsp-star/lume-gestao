@@ -6,11 +6,36 @@
 <section class="page-heading">
   <div>
     <p class="eyebrow">Visao geral</p>
-    <h1>Dashboard</h1>
+    <h1>Painel do dia</h1>
+    <p class="page-subtitle">Um resumo direto para priorizar agenda, pacientes e financeiro antes de entrar nas rotinas detalhadas.</p>
   </div>
   {% if finance_visible %}
     <a class="button primary" href="{% url 'patients:create' %}">Novo paciente</a>
   {% endif %}
+</section>
+
+<section class="dashboard-command-panel" aria-label="Resumo operacional">
+  <article>
+    <span>Agenda em foco</span>
+    <strong>{{ next_appointments|length }} proximo{{ next_appointments|length|pluralize }} atendimento{{ next_appointments|length|pluralize }}</strong>
+    <a href="{% url 'scheduling:appointments' %}">Ver agenda</a>
+  </article>
+  {% if finance_visible %}
+    <article>
+      <span>Financeiro</span>
+      <strong>{{ overdue_payments|length }} vencido{{ overdue_payments|length|pluralize }} · {{ upcoming_payments|length }} a vencer</strong>
+      <a href="{% url 'billing:payments' %}">Acompanhar pagamentos</a>
+    </article>
+  {% endif %}
+  <article>
+    <span>Relacionamento</span>
+    <strong>{{ birthday_patients|length }} aniversario{{ birthday_patients|length|pluralize }} na semana</strong>
+    {% if birthday_whatsapp_visible %}
+      <a href="{% url 'integrations' %}?tab=messages">Revisar mensagem</a>
+    {% else %}
+      <a href="{% url 'patients:list' %}">Ver pacientes</a>
+    {% endif %}
+  </article>
 </section>
 
 <section class="metric-grid">
@@ -43,8 +68,8 @@
 <section class="panel quick-actions-panel stacked-panel">
   <header class="panel-header">
     <div>
-      <h2>Acoes rapidas</h2>
-      <p>Atalhos para as rotinas mais usadas no atendimento da clinica.</p>
+      <h2>Rotinas frequentes</h2>
+      <p>Atalhos para as acoes que costumam iniciar ou fechar o atendimento do dia.</p>
     </div>
   </header>
   <div class="quick-actions-grid">
@@ -76,7 +101,7 @@
   <header class="panel-header">
     <div>
       <h2>Lume Connect</h2>
-      <p>Comunidade interna para avisos, fotos, curtidas e comentarios.</p>
+      <p>Avisos e registros da comunidade em um unico ponto de acompanhamento.</p>
     </div>
     <div class="panel-actions">
       {% if connect_unread_notifications %}

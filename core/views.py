@@ -45,6 +45,7 @@ from core.integrations.whatsapp import (
     send_whatsapp_template,
     send_whatsapp_text,
     subscribe_whatsapp_business_account,
+    whatsapp_connection_guidance,
     whatsapp_embedded_signup_credentials,
     whatsapp_embedded_signup_configured,
     whatsapp_runtime_state,
@@ -610,7 +611,8 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             for template in templates.values()
             if template.active
         )
-        whatsapp_status = whatsapp_runtime_state(whatsapp_integration, templates.values())
+        whatsapp_guidance = whatsapp_connection_guidance(whatsapp_integration, templates.values())
+        whatsapp_status = whatsapp_guidance["state"]
         whatsapp_template_readiness = [
             {
                 "template": template,
@@ -638,6 +640,10 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             "google": google_integration,
             "whatsapp": whatsapp_integration,
             "whatsapp_status": whatsapp_status,
+            "whatsapp_connection_tips": whatsapp_guidance["tips"],
+            "whatsapp_friendly_error_title": whatsapp_guidance["error_title"],
+            "whatsapp_friendly_error_detail": whatsapp_guidance["error_detail"],
+            "whatsapp_show_debug_hint": whatsapp_guidance["show_debug_hint"],
             "whatsapp_template_readiness": whatsapp_template_readiness,
             "google_configured": google_calendar_configured(),
             "google_callback_url": google_redirect_uri(self.request),
@@ -949,7 +955,10 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 messages.error(request, str(exc))
             else:
                 integration.save(update_fields=["phone_number_id", "business_account_id", "clinic_whatsapp_number", "updated_at"])
-                messages.success(request, "WhatsApp conectado pela Meta com sucesso.")
+                messages.success(
+                    request,
+                    "WhatsApp autorizado pela Meta. Agora valide o status da conexao e faca um teste controlado antes de liberar automacoes.",
+                )
             return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "test_whatsapp":
             number = request.POST.get("test_number", "")

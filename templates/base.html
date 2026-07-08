@@ -31,19 +31,22 @@
         <a href="{% url 'dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Dashboard</span></a>
 
         {% if request.user.profile.role == "patient" %}
+          <span class="nav-section-label">Minha rotina</span>
           <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Agenda</span></a>
           {% if checkout_patient_enabled %}
             <a href="{% url 'checkout:patient_payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Meu financeiro</span></a>
           {% endif %}
+          <span class="nav-section-label">Conteudo</span>
           <a href="{% url 'lume_connect:feed' %}"><span class="nav-icon icon-connect" aria-hidden="true"></span><span>Lume Connect</span></a>
           {% if homecare_public_enabled %}
             <a href="{% url 'homecare_public:library' %}"><span class="nav-icon icon-video" aria-hidden="true"></span><span>Lume em casa</span></a>
           {% endif %}
         {% else %}
+          <span class="nav-section-label">Rotina da clinica</span>
           <details class="nav-menu" {% if request.resolver_match.app_name == "scheduling" or request.resolver_match.app_name == "patients" %}open{% endif %}>
             <summary>
               <span class="nav-icon icon-calendar" aria-hidden="true"></span>
-              <span>Operacao</span>
+              <span>Agenda e pacientes</span>
             </summary>
             <div class="nav-submenu">
               <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Agenda</span></a>
@@ -61,6 +64,7 @@
             </div>
           </details>
           {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+            <span class="nav-section-label">Financeiro</span>
             <details class="nav-menu" {% if request.resolver_match.app_name == "billing" and request.resolver_match.url_name != "plans" and request.resolver_match.url_name != "plan_create" and request.resolver_match.url_name != "plan_update" and request.resolver_match.url_name != "plan_delete" or request.resolver_match.app_name == "checkout" or request.resolver_match.app_name == "fiscal" %}open{% endif %}>
               <summary>
                 <span class="nav-icon icon-finance" aria-hidden="true"></span>
@@ -82,6 +86,7 @@
         {% endif %}
 
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+          <span class="nav-section-label">Analise</span>
           <details class="nav-menu" {% if request.resolver_match.app_name == "reports" or request.resolver_match.url_name == "audit" %}open{% endif %}>
             <summary>
               <span class="nav-icon icon-reports" aria-hidden="true"></span>
@@ -99,6 +104,7 @@
         {% endif %}
 
         {% if request.user.profile.role != "patient" %}
+          <span class="nav-section-label">Conteudo</span>
           <details class="nav-menu" {% if request.resolver_match.app_name == "lume_connect" or request.resolver_match.app_name == "homecare" or request.resolver_match.app_name == "homecare_public" %}open{% endif %}>
             <summary>
               <span class="nav-icon icon-connect" aria-hidden="true"></span>
@@ -118,10 +124,11 @@
 
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
           {% if homecare_internal_enabled %}
+            <span class="nav-section-label">Lume em casa</span>
             <details class="nav-menu" {% if request.resolver_match.app_name == "homecare" %}open{% endif %}>
               <summary>
                 <span class="nav-icon icon-video" aria-hidden="true"></span>
-                <span>Gestao Lume em casa</span>
+                <span>Gestao do canal</span>
               </summary>
               <div class="nav-submenu">
                 <a href="{% url 'homecare:dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Visao geral</span></a>
@@ -134,6 +141,7 @@
             </details>
           {% endif %}
 
+          <span class="nav-section-label">Equipe</span>
           <details class="nav-menu" {% if request.resolver_match.app_name == "team" or request.resolver_match.app_name == "accounts" %}open{% endif %}>
             <summary>
               <span class="nav-icon icon-professionals" aria-hidden="true"></span>
@@ -150,6 +158,7 @@
         {% endif %}
 
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+          <span class="nav-section-label">Administracao</span>
           <details class="nav-menu" {% if request.resolver_match.app_name == "website" or request.resolver_match.url_name == "settings" or request.resolver_match.url_name == "integrations" or request.resolver_match.url_name == "plans" or request.resolver_match.url_name == "plan_create" or request.resolver_match.url_name == "plan_update" or request.resolver_match.url_name == "plan_delete" %}open{% endif %}>
             <summary>
               <span class="nav-icon icon-settings" aria-hidden="true"></span>
@@ -180,19 +189,26 @@
 
     <main class="main">
       <div class="topbar">
-        <div class="topbar-account">
-          <span class="avatar avatar-topbar">
-            {% if request.user.profile.avatar_url %}
-              <img src="{{ request.user.profile.avatar_url }}" alt="">
-            {% else %}
-              {{ request.user.profile.initials }}
-            {% endif %}
-          </span>
-          <span class="topbar-user">
-            <strong>{{ request.user.profile.display_name }}</strong>
-          </span>
+        <div class="topbar-context">
+          <span class="topbar-badge">{{ section_label|default:"Sistema" }}</span>
+          <div class="topbar-title-group">
+            <strong>{{ page_title|default:"Lume Gestao" }}</strong>
+            <small>{{ system_host_label }} · v{{ app_version }}</small>
+          </div>
         </div>
         <div class="topbar-actions">
+          <div class="topbar-account">
+            <span class="avatar avatar-topbar">
+              {% if request.user.profile.avatar_url %}
+                <img src="{{ request.user.profile.avatar_url }}" alt="">
+              {% else %}
+                {{ request.user.profile.initials }}
+              {% endif %}
+            </span>
+            <span class="topbar-user">
+              <strong>{{ request.user.profile.display_name }}</strong>
+            </span>
+          </div>
           <a class="topbar-settings" href="{% url 'accounts:self_settings' %}" aria-label="Configuracoes da conta" title="Configuracoes da conta">&#9881;</a>
           <form method="post" action="{% url 'logout' %}">
             {% csrf_token %}

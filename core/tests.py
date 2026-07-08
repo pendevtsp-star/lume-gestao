@@ -470,7 +470,8 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Conectado em modo teste")
-        self.assertContains(response, "Phone Number ID")
+        self.assertContains(response, "Antes de abrir a Meta")
+        self.assertContains(response, "Diagnostico tecnico da conexao Meta")
         self.assertContains(response, "Fazer teste controlado")
 
     def test_management_can_disconnect_whatsapp(self):
@@ -524,8 +525,31 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Aguardando conexao Meta")
-        self.assertContains(response, "Concluir a autorizacao no fluxo seguro da Meta")
+        self.assertContains(response, "priorizando o numero ja existente da clinica")
         self.assertContains(response, "Conectar WhatsApp oficial")
+
+    @override_settings(
+        WHATSAPP_EMBEDDED_APP_ID="env-app-id",
+        WHATSAPP_EMBEDDED_CONFIG_ID="env-config-id",
+        WHATSAPP_EMBEDDED_APP_SECRET="env-secret",
+    )
+    def test_connections_tab_translates_common_meta_errors_to_friendly_guidance(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "enabled": True,
+                "dry_run": False,
+                "phone_number_id": "628901596970173",
+                "clinic_whatsapp_number": "5582993453535",
+                "last_error": 'HTTP 400: {"error":{"message":"(#133010) Account not registered"}}',
+            },
+        )
+
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertContains(response, "A Meta ainda nao liberou esse numero para envio real.")
+        self.assertContains(response, "numero ja existente")
 
     @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
     def test_connections_tab_shows_public_google_callback(self):

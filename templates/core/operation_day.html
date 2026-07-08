@@ -43,12 +43,32 @@
   {% endif %}
 </section>
 
+<section class="operation-overview-strip" aria-label="Resumo executivo do dia">
+  <article>
+    <span>Data de operacao</span>
+    <strong>{{ today|date:"d/m/Y" }}</strong>
+  </article>
+  <article>
+    <span>Fila aguardando</span>
+    <strong>{{ request_queue|length }} solicitacao{{ request_queue|length|pluralize }}</strong>
+  </article>
+  <article>
+    <span>Creditos a revisar</span>
+    <strong>{{ credit_alerts|length }} alerta{{ credit_alerts|length|pluralize }}</strong>
+  </article>
+  <article>
+    <span>Aniversariantes</span>
+    <strong>{{ birthday_patients|length }} paciente{{ birthday_patients|length|pluralize }}</strong>
+  </article>
+</section>
+
 <section class="panel stacked-panel">
   <div class="panel-header">
     <div>
       <h2>Atendimentos de hoje</h2>
       <p>Baixe, reagende ou abra o painel do paciente sem sair do fluxo.</p>
     </div>
+    <span class="panel-counter">{{ today_appointments|length }} item{{ today_appointments|length|pluralize }}</span>
   </div>
   <div class="table-wrap">
     <table>
@@ -88,7 +108,14 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="empty">Nenhum atendimento para hoje.</td></tr>
+          <tr>
+            <td colspan="5" class="empty">
+              <div class="empty-state soft">
+                <strong>Nenhum atendimento para hoje.</strong>
+                <span>O dia esta livre. Use a agenda para criar novos agendamentos ou revisar a semana.</span>
+              </div>
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
@@ -101,6 +128,7 @@
       <h2>Pendencias operacionais</h2>
       <p>Itens que costumam travar a recepcao ou a baixa do atendimento.</p>
     </div>
+    <span class="panel-counter">{{ request_queue|length }} fila ativa</span>
   </div>
   <div class="operation-grid">
     <article class="operation-card">
@@ -148,12 +176,13 @@
 {% if finance_visible %}
   <section class="panel stacked-panel">
     <div class="panel-header">
-      <div>
-        <h2>Financeiro rapido</h2>
-        <p>Use o caixa para receber mensalidade atual ou adiantada.</p>
-      </div>
-      <a class="button primary compact" href="{% url 'billing:cash_closing' %}">Abrir caixa</a>
+    <div>
+      <h2>Financeiro rapido</h2>
+      <p>Use o caixa para receber mensalidade atual ou adiantada.</p>
     </div>
+    <span class="panel-counter">{{ overdue_payments|length }} vencido{{ overdue_payments|length|pluralize }}</span>
+    <a class="button primary compact" href="{% url 'billing:cash_closing' %}">Abrir caixa</a>
+  </div>
     <div class="operation-grid">
       <article class="operation-card">
         <h3>Vencidos</h3>

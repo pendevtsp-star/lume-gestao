@@ -10,52 +10,77 @@
 </head>
 <body class="login-page">
   <main class="login-panel">
-    <div class="login-brand">
-      <span class="brand-mark">L</span>
-      <div>
-        <strong>Lume Gestão</strong>
-        <small>Clínica de fisioterapia e pilates</small>
-      </div>
-    </div>
-
-    <form method="post" class="form-panel">
-      {% csrf_token %}
-      <h1>Entrar</h1>
-      {% if messages %}
-        <div class="form-messages">
-          {% for message in messages %}
-            <p class="form-message {{ message.tags }}">{{ message }}</p>
-          {% endfor %}
+    <section class="login-surface">
+      <div class="login-aside">
+        <div class="login-brand">
+          <span class="brand-mark">L</span>
+          <div>
+            <strong>Lume Gestão</strong>
+            <small>Clínica de fisioterapia e pilates</small>
+          </div>
         </div>
-      {% endif %}
-      {% if form.non_field_errors %}
-        <div class="form-errors">{{ form.non_field_errors }}</div>
-      {% endif %}
-      <p class="login-copy">Primeiro acesso? Use o login e a senha temporária recebidos pela clínica. Depois você criará sua senha definitiva.</p>
-      <label class="form-field">
-        <span>Login, CPF ou e-mail</span>
-        {{ form.username }}
-      </label>
-      <label class="form-field">
-        <span>Senha</span>
-        <span class="password-control">
-          {{ form.password }}
-          <button class="password-toggle" type="button" aria-label="Mostrar senha" aria-pressed="false" data-password-toggle>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M2.4 12s3.3-6 9.6-6 9.6 6 9.6 6-3.3 6-9.6 6-9.6-6-9.6-6Z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </button>
-        </span>
-      </label>
-      <button class="button primary full" type="submit">Entrar</button>
-      <a class="login-help-link" href="{% url 'password_reset' %}">Esqueci minha senha</a>
-      <div class="login-legal-links">
-        <a href="{% url 'terms_of_use' %}" target="_blank" rel="noopener">Termos</a>
-        <a href="{% url 'privacy_policy' %}" target="_blank" rel="noopener">Privacidade</a>
-        <a href="{% url 'sensitive_data_consent' %}" target="_blank" rel="noopener">Dados de saúde</a>
+        <div class="login-aside-copy">
+          <p class="eyebrow">Acesso seguro</p>
+          <h1>Entrar</h1>
+          <p>Use seu login para acessar agenda, pacientes, financeiro e rotinas da clínica em um ambiente interno protegido.</p>
+        </div>
+        <div class="login-trust-grid">
+          <article class="login-trust-card">
+            <strong>Uso interno</strong>
+            <span>Acesso restrito para equipe e pacientes autorizados.</span>
+          </article>
+          <article class="login-trust-card">
+            <strong>Dados protegidos</strong>
+            <span>Fluxos pensados para rotina clínica com informações sensíveis.</span>
+          </article>
+          <article class="login-trust-card">
+            <strong>Primeiro acesso</strong>
+            <span>Entre com a senha temporária enviada pela clínica e defina sua senha definitiva depois.</span>
+          </article>
+        </div>
       </div>
-    </form>
+
+      <form method="post" class="form-panel login-form-panel">
+        {% csrf_token %}
+        <div class="login-form-head">
+          <strong>Acessar o Lume</strong>
+          <span>Acesse com login, CPF ou e-mail cadastrado.</span>
+        </div>
+        {% if messages %}
+          <div class="form-messages">
+            {% for message in messages %}
+              <p class="form-message {{ message.tags }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if form.non_field_errors %}
+          <div class="form-errors">{{ form.non_field_errors }}</div>
+        {% endif %}
+        <label class="form-field">
+          <span>Login, CPF ou e-mail</span>
+          {{ form.username }}
+        </label>
+        <label class="form-field">
+          <span>Senha</span>
+          <span class="password-control">
+            {{ form.password }}
+            <button class="password-toggle" type="button" aria-label="Mostrar senha" aria-pressed="false" data-password-toggle>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M2.4 12s3.3-6 9.6-6 9.6 6 9.6 6-3.3 6-9.6 6-9.6-6-9.6-6Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </span>
+        </label>
+        <button class="button primary full" type="submit">Entrar</button>
+        <a class="login-help-link" href="{% url 'password_reset' %}">Esqueci minha senha</a>
+        <div class="login-legal-links">
+          <a href="{% url 'terms_of_use' %}" target="_blank" rel="noopener">Termos</a>
+          <a href="{% url 'privacy_policy' %}" target="_blank" rel="noopener">Privacidade</a>
+          <a href="{% url 'sensitive_data_consent' %}" target="_blank" rel="noopener">Dados de saúde</a>
+        </div>
+      </form>
+    </section>
   </main>
   <script>
     const passwordToggle = document.querySelector("[data-password-toggle]");

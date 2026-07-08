@@ -12,9 +12,9 @@
   --sand: #dccab3;
   --line: rgba(97, 113, 79, 0.14);
   --line-strong: rgba(97, 113, 79, 0.22);
-  --shadow: 0 18px 42px rgba(59, 65, 51, 0.075);
-  --radius-xl: 28px;
-  --radius-lg: 20px;
+  --shadow: 0 12px 28px rgba(59, 65, 51, 0.07);
+  --radius-xl: 20px;
+  --radius-lg: 14px;
   --radius-md: 14px;
 }
 
@@ -62,7 +62,6 @@ img {
   border-radius: var(--radius-xl);
   background: linear-gradient(180deg, rgba(255, 253, 249, 0.98), var(--panel));
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
 }
 
 .site-header {
@@ -140,7 +139,7 @@ img {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px 16px;
+  gap: 10px 14px;
 }
 
 .site-nav-toggle,
@@ -173,10 +172,10 @@ img {
 .button-primary,
 .floating-whatsapp,
 .plan-whatsapp-link {
-  background: linear-gradient(135deg, var(--sage-deep), var(--sage));
+  background: var(--sage-deep);
   color: #fffdf8;
   font-weight: 600;
-  box-shadow: 0 14px 28px rgba(97, 113, 79, 0.18);
+  box-shadow: 0 8px 18px rgba(97, 113, 79, 0.18);
 }
 
 .nav-system-link,
@@ -231,7 +230,10 @@ label:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
   gap: 28px;
-  padding: 28px;
+  padding: 32px;
+  background:
+    linear-gradient(115deg, rgba(97, 113, 79, 0.10), rgba(255, 253, 249, 0) 52%),
+    linear-gradient(180deg, rgba(255, 253, 249, 0.98), var(--panel));
 }
 
 .hero-copy {
@@ -256,9 +258,10 @@ label:focus-visible {
 
 .hero h1 {
   margin: 0;
-  font-size: clamp(38px, 4.1vw, 56px);
+  font-size: clamp(39px, 4.4vw, 62px);
   line-height: 1.08;
-  max-width: 15ch;
+  max-width: 14.5ch;
+  text-wrap: balance;
 }
 
 .hero-text,
@@ -275,6 +278,7 @@ label:focus-visible {
   margin: 18px 0 0;
   max-width: 42ch;
   font-size: 18px;
+  text-wrap: pretty;
 }
 
 .hero-tags,
@@ -318,7 +322,7 @@ label:focus-visible {
 .hero-visual {
   position: relative;
   overflow: hidden;
-  border-radius: calc(var(--radius-xl) - 6px);
+  border-radius: var(--radius-lg);
   background: #ddd1c2;
   min-height: clamp(360px, 43vw, 500px);
 }
@@ -345,9 +349,8 @@ label:focus-visible {
   max-width: 360px;
   padding: 15px 17px;
   border-radius: var(--radius-md);
-  background: rgba(255, 252, 247, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 252, 247, 0.92);
+  border: 1px solid var(--line);
 }
 
 .hero-note strong {
@@ -359,6 +362,73 @@ label:focus-visible {
   color: var(--ink-soft);
 }
 
+.trust-section {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.62fr) minmax(0, 1.38fr);
+  gap: 24px;
+  padding: 24px;
+}
+
+.trust-intro {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-right: 18px;
+}
+
+.trust-intro span,
+.section-kicker {
+  color: var(--sage-deep);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.trust-intro strong {
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: clamp(26px, 3vw, 38px);
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trust-item {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 252, 247, 0.74);
+}
+
+.trust-item small {
+  color: var(--sage-deep);
+  font-weight: 800;
+}
+
+.trust-item h2,
+.testimonial-card strong {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+}
+
+.trust-item h2 {
+  font-size: 24px;
+  line-height: 1.08;
+}
+
+.trust-item p,
+.testimonial-card span {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
 .homecare-site-section {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(240px, 0.55fr);
@@ -366,7 +436,7 @@ label:focus-visible {
   gap: 24px;
   padding: 24px;
   background:
-    linear-gradient(135deg, rgba(135, 149, 111, 0.13), rgba(255, 252, 247, 0.90)),
+    linear-gradient(135deg, rgba(97, 113, 79, 0.16), rgba(255, 252, 247, 0.88)),
     linear-gradient(180deg, rgba(255, 253, 249, 0.98), var(--panel));
 }
 
@@ -385,6 +455,7 @@ label:focus-visible {
   margin: 0;
   font-size: clamp(27px, 3vw, 38px);
   line-height: 1.08;
+  text-wrap: balance;
 }
 
 .homecare-site-section .section-text {
@@ -423,6 +494,7 @@ label:focus-visible {
 .plans-section,
 .faq-panel,
 .assistant-panel,
+.testimonial-section,
 .contact-section {
   padding: 26px;
 }
@@ -444,6 +516,7 @@ label:focus-visible {
   font-size: clamp(28px, 3.2vw, 40px);
   line-height: 1.09;
   max-width: 18ch;
+  text-wrap: balance;
 }
 
 .section-text {
@@ -462,7 +535,7 @@ label:focus-visible {
 .plan-card {
   flex: 1 1 220px;
   padding: 21px;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background: rgba(255, 252, 247, 0.68);
 }
@@ -505,6 +578,43 @@ label:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: 22px;
+}
+
+.testimonial-section {
+  display: grid;
+  gap: 18px;
+}
+
+.testimonial-section .section-head h2 {
+  max-width: 24ch;
+}
+
+.testimonial-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.testimonial-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 252, 247, 0.72);
+}
+
+.testimonial-card p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.58;
+  text-wrap: pretty;
+}
+
+.testimonial-card strong {
+  font-size: 22px;
 }
 
 .support-section {
@@ -558,7 +668,7 @@ label:focus-visible {
   display: grid;
   gap: 0;
   padding: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--line);
   background: rgba(255, 252, 247, 0.74);
@@ -567,7 +677,7 @@ label:focus-visible {
 .reel-media {
   aspect-ratio: 4 / 5;
   overflow: hidden;
-  background: #ece3d8;
+  background: #efe2c9;
 }
 
 .reel-media img {
@@ -594,6 +704,11 @@ label:focus-visible {
 
 .plans-section .section-head {
   margin-bottom: 18px;
+}
+
+.plans-section {
+  background:
+    linear-gradient(180deg, rgba(255, 253, 249, 0.98), rgba(255, 250, 244, 0.86));
 }
 
 .plan-card {
@@ -724,6 +839,9 @@ label:focus-visible {
   grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
   gap: 24px;
   align-items: center;
+  background:
+    linear-gradient(135deg, rgba(97, 113, 79, 0.20), rgba(255, 252, 247, 0.88)),
+    linear-gradient(180deg, rgba(255, 253, 249, 0.98), var(--panel));
 }
 
 .contact-side {
@@ -770,8 +888,13 @@ label:focus-visible {
   .experience-section,
   .contact-section,
   .homecare-site-section,
+  .trust-section,
   .site-header {
     grid-template-columns: 1fr;
+  }
+
+  .trust-intro {
+    padding-right: 0;
   }
 
   .site-header {
@@ -804,6 +927,10 @@ label:focus-visible {
     grid-template-columns: 1fr 1fr;
   }
 
+  .trust-grid {
+    grid-template-columns: 1fr;
+  }
+
   .contact-section {
     grid-template-columns: 1fr;
   }
@@ -827,7 +954,7 @@ label:focus-visible {
     align-items: center;
     gap: 12px;
     margin-top: 10px;
-    border-radius: 24px;
+    border-radius: var(--radius-xl);
   }
 
   .brand-lockup {
@@ -837,7 +964,7 @@ label:focus-visible {
   .brand-mark {
     width: 54px;
     height: 54px;
-    border-radius: 16px;
+    border-radius: var(--radius-lg);
   }
 
   .brand-copy {
@@ -945,7 +1072,7 @@ label:focus-visible {
 
   .site-nav .nav-action {
     border-color: transparent;
-    background: linear-gradient(135deg, var(--sage-deep), var(--sage));
+    background: var(--sage-deep);
   }
 
   .site-nav .nav-system-link {
@@ -955,6 +1082,7 @@ label:focus-visible {
 
   .site-header,
   .hero,
+  .trust-section,
   .homecare-site-section,
   .services-section,
   .journey-panel,
@@ -962,6 +1090,7 @@ label:focus-visible {
   .plans-section,
   .faq-panel,
   .assistant-panel,
+  .testimonial-section,
   .contact-section {
     padding: 18px;
   }
@@ -1024,6 +1153,7 @@ label:focus-visible {
   .section-head h2,
   .journey-panel h2,
   .homecare-site-section h2,
+  .trust-intro strong,
   .contact-copy h2 {
     font-size: clamp(26px, 9vw, 34px);
     max-width: none;
@@ -1081,7 +1211,7 @@ label:focus-visible {
   .floating-whatsapp {
     width: 100%;
     min-height: 50px;
-    box-shadow: 0 10px 26px rgba(59, 65, 51, 0.20);
+    box-shadow: 0 10px 26px rgba(97, 113, 79, 0.18);
   }
 
   .site-footer {
@@ -1091,5 +1221,19 @@ label:focus-visible {
 
   .footer-links {
     justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

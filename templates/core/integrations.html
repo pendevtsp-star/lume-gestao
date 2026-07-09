@@ -60,6 +60,25 @@
     width: min(240px, 100%);
     height: auto;
   }
+
+  .provider-shortcut-form {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid rgba(94, 117, 75, 0.18);
+    border-radius: 14px;
+    background: rgba(244, 248, 239, 0.66);
+  }
+
+  .provider-shortcut-form .button {
+    width: fit-content;
+  }
+
+  .provider-shortcut-form small {
+    color: var(--muted);
+    font-weight: 800;
+  }
 </style>
 <section class="page-heading">
   <div>
@@ -520,6 +539,13 @@
             <div class="setup-note">
               Para entrega provisoria com disparo automatico, escolha <strong>WhatsApp Web temporario</strong>, informe o numero oficial da clinica e mantenha a integracao ativa. Quando a Meta estabilizar, volte para <strong>Meta Cloud API</strong>.
             </div>
+            <form method="post" class="provider-shortcut-form">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="select_whatsapp_web_gateway">
+              <input type="hidden" name="tab" value="connections">
+              <button class="button primary" type="submit">Usar WhatsApp Web temporario</button>
+              <small>Ativa o modo por QR com o numero ja configurado abaixo. Depois, escaneie o QR nesta tela.</small>
+            </form>
             <form method="post" class="integration-body compact-integration-body">
               {% csrf_token %}
               <input type="hidden" name="action" value="save_whatsapp">

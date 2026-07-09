@@ -35,6 +35,31 @@
     color: var(--ink);
     font-size: 17px;
   }
+
+  .whatsapp-web-box {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid rgba(94, 117, 75, 0.22);
+    border-radius: 16px;
+    background: rgba(244, 248, 239, 0.78);
+  }
+
+  .whatsapp-web-qr {
+    display: grid;
+    min-height: 180px;
+    place-items: center;
+    padding: 14px;
+    border: 1px dashed rgba(39, 54, 43, 0.22);
+    border-radius: 14px;
+    background: rgba(255, 253, 248, 0.92);
+    text-align: center;
+  }
+
+  .whatsapp-web-qr img {
+    width: min(240px, 100%);
+    height: auto;
+  }
 </style>
 <section class="page-heading">
   <div>
@@ -173,7 +198,7 @@
                       <td>{{ item.sent_at|date:"d/m/y H:i"|default:item.created_at|date:"d/m/y H:i" }}</td>
                       <td>{{ item.recipient_name }}</td>
                       <td>{{ item.recipient_number }}</td>
-                      <td>{{ item.template.title|default:"Envio manual" }}</td>
+                      <td>{{ item.template.title|default:"Envio avulso" }}</td>
                       <td>{{ item.scheduled_for|date:"d/m/y H:i"|default:"-" }}</td>
                       <td>
                         <span class="status-pill {% if item.status == 'failed' %}is-danger{% elif item.status == 'sent' %}is-success{% elif item.status == 'scheduled' %}is-warning{% elif item.status == 'canceled' %}is-muted{% else %}is-warning{% endif %}">
@@ -328,11 +353,11 @@
         <section class="panel connection-card connection-card-feature integration-wizard-card embedded-signup-card connection-hero-card">
           <div class="connection-hero-top">
             <div>
-              <p class="eyebrow">WhatsApp oficial</p>
+              <p class="eyebrow">{% if whatsapp_status.web_gateway_mode %}WhatsApp Web temporario{% else %}WhatsApp oficial{% endif %}</p>
               <h3>{{ whatsapp_status.label }}</h3>
-              <p>Conecte a conta oficial da clinica para enviar lembretes, cobrancas e avisos automaticos.</p>
+              <p>{% if whatsapp_status.web_gateway_mode %}Conecte por QR e mantenha uma sessao WhatsApp Web no servidor para disparos automaticos enquanto a API oficial e estabilizada.{% else %}Conecte a conta oficial da clinica para enviar lembretes, cobrancas e avisos automaticos.{% endif %}</p>
             </div>
-            <span class="status-pill {% if whatsapp_status.code == 'ready_live' or whatsapp_status.code == 'connected_test' %}is-success{% elif whatsapp_embedded_configured %}is-warning{% else %}is-muted{% endif %}">
+            <span class="status-pill {% if whatsapp_status.code == 'ready_live' or whatsapp_status.code == 'connected_test' or whatsapp_status.code == 'web_gateway_ready' %}is-success{% elif whatsapp_embedded_configured or whatsapp_status.code == 'web_gateway_setup' %}is-warning{% else %}is-muted{% endif %}">
               {{ whatsapp_status.label }}
             </span>
           </div>
@@ -343,26 +368,26 @@
             <p>{{ whatsapp_status.detail }}</p>
           </div>
 
-          <div class="connection-checklist" aria-label="Checklist da conexao oficial do WhatsApp">
-            <article class="check-item {% if whatsapp_embedded_configured %}is-done{% endif %}">
+          <div class="connection-checklist" aria-label="Checklist da conexao do WhatsApp">
+            <article class="check-item {% if whatsapp_status.web_gateway_mode or whatsapp_embedded_configured %}is-done{% endif %}">
               <span>1</span>
               <div>
-                <strong>Conexao liberada</strong>
-                <p>{% if whatsapp_embedded_configured %}A tela oficial da Meta ja pode ser aberta pelo sistema.{% else %}Ainda falta liberar a configuracao segura antes do primeiro uso.{% endif %}</p>
+                <strong>{% if whatsapp_status.web_gateway_mode %}Gateway selecionado{% else %}Conexao liberada{% endif %}</strong>
+                <p>{% if whatsapp_status.web_gateway_mode %}O Lume vai usar uma sessao WhatsApp Web isolada para envio automatico temporario.{% elif whatsapp_embedded_configured %}A tela oficial da Meta ja pode ser aberta pelo sistema.{% else %}Ainda falta liberar a configuracao segura antes do primeiro uso.{% endif %}</p>
               </div>
             </article>
-            <article class="check-item {% if whatsapp.is_connected %}is-done{% endif %}">
+            <article class="check-item {% if whatsapp_status.web_gateway_mode and whatsapp_web_gateway.ready or whatsapp.is_connected %}is-done{% endif %}">
               <span>2</span>
               <div>
-                <strong>Numero vinculado</strong>
-                <p>{% if whatsapp.is_connected %}O numero da clinica ja voltou para o Lume como conectado.{% else %}Conclua a conexao na Meta usando o numero oficial da clinica.{% endif %}</p>
+                <strong>{% if whatsapp_status.web_gateway_mode %}Sessao pareada{% else %}Numero vinculado{% endif %}</strong>
+                <p>{% if whatsapp_status.web_gateway_mode and whatsapp_web_gateway.ready %}O WhatsApp Web esta conectado e pronto para enviar.{% elif whatsapp_status.web_gateway_mode %}Escaneie o QR com o WhatsApp Business da clinica uma vez.{% elif whatsapp.is_connected %}O numero da clinica ja voltou para o Lume como conectado.{% else %}Conclua a conexao na Meta usando o numero oficial da clinica.{% endif %}</p>
               </div>
             </article>
             <article class="check-item {% if not whatsapp_status.dry_run and whatsapp_status.code != 'awaiting_meta' and whatsapp_status.code != 'missing_phone_number' %}is-done{% endif %}">
               <span>3</span>
               <div>
-                <strong>Envio validado</strong>
-                <p>{% if whatsapp_status.dry_run %}Mantenha em modo teste ate validar numero e templates.{% else %}Fluxo pronto para teste real controlado e liberacao gradual.{% endif %}</p>
+                <strong>Disparo automatico</strong>
+                <p>{% if whatsapp_status.dry_run %}Mantenha em modo teste ate validar a sessao e fazer o primeiro envio controlado.{% elif whatsapp_status.web_gateway_mode %}O Lume envia direto pelo gateway, sem confirmacao no celular.{% else %}Fluxo pronto para teste real controlado e liberacao gradual.{% endif %}</p>
               </div>
             </article>
           </div>
@@ -375,7 +400,9 @@
           </div>
 
           <div class="connection-main-actions">
-            {% if whatsapp_embedded_configured %}
+            {% if whatsapp_status.web_gateway_mode %}
+              <a class="button primary" href="{% url 'integrations' %}?tab=messages">Enviar mensagem</a>
+            {% elif whatsapp_embedded_configured %}
               <button class="button primary" id="whatsapp-connect-button" type="button" onclick="launchWhatsAppSignup()">
                 {% if whatsapp.is_connected %}Trocar WhatsApp Meta{% else %}Conectar WhatsApp oficial{% endif %}
               </button>
@@ -431,10 +458,33 @@
 
           <div class="connection-expectation">
             <strong>Quando esta tela estiver certa</strong>
-            <p>O botao principal abre a Meta, o numero retorna preenchido, o status sai de pendente e o teste controlado deixa de responder com erro de conta nao registrada.</p>
+            <p>{% if whatsapp_status.web_gateway_mode %}A sessao aparece conectada, o QR some e o teste controlado envia uma mensagem real pelo WhatsApp Web da clinica.{% else %}O botao principal abre a Meta, o numero retorna preenchido, o status sai de pendente e o teste controlado deixa de responder com erro de conta nao registrada.{% endif %}</p>
           </div>
 
-          {% if whatsapp_embedded_configured %}
+          {% if whatsapp_status.web_gateway_mode %}
+            <div class="whatsapp-web-box">
+              <strong>Status do WhatsApp Web</strong>
+              <span data-whatsapp-web-status>
+                {% if whatsapp_web_gateway.ready %}
+                  Sessao conectada.
+                {% elif whatsapp_web_gateway.hasQr %}
+                  QR disponivel para pareamento.
+                {% elif whatsapp_web_gateway.error or whatsapp_web_gateway.lastError %}
+                  {{ whatsapp_web_gateway.error|default:whatsapp_web_gateway.lastError }}
+                {% else %}
+                  Aguardando QR do gateway.
+                {% endif %}
+              </span>
+              <div class="whatsapp-web-qr" data-whatsapp-web-qr>
+                {% if whatsapp_web_gateway.ready %}
+                  <strong>Sessao WhatsApp Web conectada.</strong>
+                {% else %}
+                  <span>O QR aparecera aqui quando o gateway estiver pronto.</span>
+                {% endif %}
+              </div>
+              <small>Uso temporario: pode exigir novo pareamento se o WhatsApp encerrar a sessao. Para SaaS, mantenha a evolucao para Meta Cloud API.</small>
+            </div>
+          {% elif whatsapp_embedded_configured %}
             <form id="whatsapp-embedded-form" method="post">
               {% csrf_token %}
               <input type="hidden" name="action" value="finish_whatsapp_embedded">
@@ -465,6 +515,35 @@
               {% endfor %}
             </div>
           {% endif %}
+          <details class="template-advanced connection-advanced slim-advanced" {% if whatsapp_status.web_gateway_mode %}open{% endif %}>
+            <summary>Configuracao do WhatsApp</summary>
+            <div class="setup-note">
+              Para entrega provisoria com disparo automatico, escolha <strong>WhatsApp Web temporario</strong>, informe o numero oficial da clinica e mantenha a integracao ativa. Quando a Meta estabilizar, volte para <strong>Meta Cloud API</strong>.
+            </div>
+            <form method="post" class="integration-body compact-integration-body">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_whatsapp">
+              <input type="hidden" name="tab" value="connections">
+              <div class="form-grid compact-form-grid">
+                {% for field in whatsapp_form %}
+                  <label class="form-field {% if field.field.widget.input_type == 'checkbox' %}toggle-card{% endif %}">
+                    {% if field.field.widget.input_type == 'checkbox' %}
+                      {{ field }}
+                      <span>{{ field.label }}</span>
+                    {% else %}
+                      <span>{{ field.label }}</span>
+                      {{ field }}
+                    {% endif %}
+                    {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                    {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+                  </label>
+                {% endfor %}
+              </div>
+              <div class="form-actions compact-actions">
+                <button class="button secondary" type="submit">Salvar WhatsApp</button>
+              </div>
+            </form>
+          </details>
         </section>
 
         <section class="panel connection-card connection-card-feature integration-wizard-card connection-hero-card">
@@ -579,7 +658,7 @@
           <div class="panel-header">
             <div>
               <h3>Bot automatico</h3>
-              <p>O worker local verifica a fila periodicamente e agenda lembretes sem acao manual do admin.</p>
+              <p>{% if whatsapp_status.web_gateway_mode %}O worker local verifica a fila e envia pelo gateway de WhatsApp Web quando a sessao estiver pareada.{% else %}O worker local verifica a fila periodicamente e agenda lembretes sem acao manual do admin.{% endif %}</p>
             </div>
           </div>
           <form method="post" class="integration-body compact-integration-body automation-form">
@@ -611,7 +690,7 @@
           <div class="panel-header">
             <div>
               <h3>Checklist para producao</h3>
-              <p>Antes de desligar o modo teste, todos os modelos ativos precisam apontar para um template aprovado na Meta.</p>
+              <p>{% if whatsapp_status.web_gateway_mode %}No modo WhatsApp Web temporario, o Lume envia o texto renderizado e nao depende dos nomes aprovados na Meta.{% else %}Antes de desligar o modo teste, todos os modelos ativos precisam apontar para um template aprovado na Meta.{% endif %}</p>
             </div>
           </div>
           <div class="diagnostic-grid">
@@ -906,6 +985,51 @@
         });
       });
     });
+  </script>
+{% endif %}
+{% if active_tab == "connections" and whatsapp_status.web_gateway_mode %}
+  <script>
+    function setWhatsAppWebQr(data) {
+      var qrTarget = document.querySelector("[data-whatsapp-web-qr]");
+      var statusTarget = document.querySelector("[data-whatsapp-web-status]");
+      if (!qrTarget) {
+        return;
+      }
+      qrTarget.replaceChildren();
+      if (statusTarget) {
+        if (data.ready) {
+          statusTarget.textContent = "Sessao conectada.";
+        } else if (data.error || data.lastError) {
+          statusTarget.textContent = data.error || data.lastError;
+        } else if (data.hasQr) {
+          statusTarget.textContent = "Escaneie o QR com o WhatsApp Business da clinica.";
+        } else {
+          statusTarget.textContent = "Aguardando QR do gateway.";
+        }
+      }
+      if (data.qrDataUrl) {
+        var image = document.createElement("img");
+        image.alt = "QR WhatsApp Web";
+        image.src = data.qrDataUrl;
+        qrTarget.appendChild(image);
+        return;
+      }
+      var message = document.createElement("strong");
+      message.textContent = data.ready ? "Sessao WhatsApp Web conectada." : "QR ainda nao disponivel.";
+      qrTarget.appendChild(message);
+    }
+
+    function refreshWhatsAppWebQr() {
+      fetch("{% url 'integrations_whatsapp_web_qr' %}", { headers: { "Accept": "application/json" } })
+        .then(function(response) { return response.json(); })
+        .then(setWhatsAppWebQr)
+        .catch(function() {
+          setWhatsAppWebQr({ ok: false, ready: false, error: "Nao foi possivel ler o gateway agora." });
+        });
+    }
+
+    refreshWhatsAppWebQr();
+    window.setInterval(refreshWhatsAppWebQr, 10000);
   </script>
 {% endif %}
 {% endblock %}

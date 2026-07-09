@@ -1,10 +1,9 @@
 from decimal import Decimal
-
 from django.conf import settings
 from django.utils import timezone
 
 from core.integrations.credentials import first_configured_value
-from core.integrations.http import IntegrationError, post_form, post_json
+from core.integrations.http import IntegrationError, get_json, post_form, post_json
 from core.models import WhatsAppIntegration, WhatsAppMessageLog, WhatsAppMessageTemplate
 
 
@@ -41,20 +40,38 @@ def whatsapp_runtime_state(integration=None, templates=None):
     access_token_configured = bool(first_configured_value(integration.access_token, settings.WHATSAPP_META_ACCESS_TOKEN))
     active_templates = [template for template in templates if template.active]
     templates_ready = all(template.meta_template_name for template in active_templates)
+    web_gateway_mode = integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY
 
     blockers = []
-    if not embedded_configured:
+    if web_gateway_mode:
+        if not integration.enabled:
+            blockers.append("not_connected")
+        if not integration.clinic_whatsapp_number:
+            blockers.append("clinic_number")
+        if not settings.WHATSAPP_WEB_GATEWAY_URL:
+            blockers.append("web_gateway_url")
+    elif not embedded_configured:
         blockers.append("embedded_signup")
-    if not integration.enabled:
+    if not web_gateway_mode and not integration.enabled:
         blockers.append("not_connected")
-    if not phone_number_id_configured:
+    if not web_gateway_mode and not phone_number_id_configured:
         blockers.append("phone_number_id")
-    if not dry_run and not access_token_configured:
+    if not web_gateway_mode and not dry_run and not access_token_configured:
         blockers.append("access_token")
-    if not dry_run and not templates_ready:
+    if not web_gateway_mode and not dry_run and not templates_ready:
         blockers.append("meta_templates")
 
-    if not embedded_configured:
+    if web_gateway_mode and integration.enabled and integration.clinic_whatsapp_number and settings.WHATSAPP_WEB_GATEWAY_URL:
+        code = "web_gateway_ready"
+        label = "WhatsApp Web temporario ativo"
+        detail = "O Lume envia mensagens automaticamente por uma sessao WhatsApp Web pareada por QR."
+        next_step = "Abrir o QR do gateway, parear o celular uma vez e fazer um teste controlado."
+    elif web_gateway_mode:
+        code = "web_gateway_setup"
+        label = "WhatsApp Web temporario pendente"
+        detail = "Informe o numero oficial da clinica e mantenha a integracao ativa para usar o gateway."
+        next_step = "Selecionar WhatsApp Web temporario, informar o numero da clinica e salvar a configuracao."
+    elif not embedded_configured:
         code = "config_missing"
         label = "Configuracao tecnica pendente"
         detail = "Configure App ID, Configuration ID e App Secret para liberar a conexao pela Meta."
@@ -101,6 +118,7 @@ def whatsapp_runtime_state(integration=None, templates=None):
         "access_token_configured": access_token_configured,
         "templates_ready": templates_ready,
         "active_templates_total": len(active_templates),
+        "web_gateway_mode": web_gateway_mode,
         "blockers": blockers,
     }
 
@@ -112,6 +130,7 @@ def whatsapp_connection_guidance(integration=None, templates=None):
     normalized_error = raw_error.lower()
 
     tips = [
+        "Para entrega provisoria com disparo automatico, use WhatsApp Web temporario e mantenha a sessao pareada no servidor.",
         "Se a clinica ja usa esse WhatsApp no app Business, prefira conectar o numero existente em vez de cadastrar um novo.",
         "Use a mesma empresa/portfolio da Meta que ja e dona do numero para evitar bloqueios de propriedade.",
         "Depois que a Meta concluir a autorizacao, volte para esta tela e faca um teste controlado antes de liberar automacoes.",
@@ -200,18 +219,61 @@ def subscribe_whatsapp_business_account(integration=None):
     )
 
 
+def whatsapp_web_gateway_headers():
+    headers = {}
+    if settings.WHATSAPP_WEB_GATEWAY_TOKEN:
+        headers["Authorization"] = f"Bearer {settings.WHATSAPP_WEB_GATEWAY_TOKEN}"
+    return headers
+
+
+def whatsapp_web_gateway_status():
+    if not settings.WHATSAPP_WEB_GATEWAY_URL:
+        return {"ok": False, "ready": False, "error": "WHATSAPP_WEB_GATEWAY_URL ausente."}
+    try:
+        return get_json(
+            f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/healthz",
+            headers=whatsapp_web_gateway_headers(),
+            timeout=min(settings.WHATSAPP_TIMEOUT, 5),
+        )
+    except IntegrationError as exc:
+        return {"ok": False, "ready": False, "error": str(exc)}
+
+
+def whatsapp_web_gateway_qr():
+    if not settings.WHATSAPP_WEB_GATEWAY_URL:
+        raise IntegrationError("WHATSAPP_WEB_GATEWAY_URL ausente.")
+    return get_json(
+        f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/qr",
+        headers=whatsapp_web_gateway_headers(),
+        timeout=min(settings.WHATSAPP_TIMEOUT, 5),
+    )
+
+
 def send_whatsapp_text(to_number, message, integration=None):
     integration = integration or WhatsAppIntegration.load()
     target = normalize_whatsapp_number(to_number, integration.default_country_code)
     if not integration.enabled:
         raise IntegrationError("Integracao WhatsApp esta desativada.")
-    if integration.provider != WhatsAppIntegration.Provider.META:
-        raise IntegrationError("Twilio esta documentado como alternativa, mas ainda nao foi ativado neste modulo.")
     if integration.dry_run or settings.WHATSAPP_DRY_RUN:
         integration.last_test_at = timezone.now()
         integration.last_error = ""
         integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
         return {"dry_run": True, "to": target, "message": message}
+    if integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY:
+        if not settings.WHATSAPP_WEB_GATEWAY_URL:
+            raise IntegrationError("Configure WHATSAPP_WEB_GATEWAY_URL para usar o WhatsApp Web temporario.")
+        response = post_json(
+            f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/send",
+            {"to": target, "message": message},
+            headers=whatsapp_web_gateway_headers(),
+            timeout=settings.WHATSAPP_TIMEOUT,
+        )
+        integration.last_test_at = timezone.now()
+        integration.last_error = ""
+        integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
+        return response
+    if integration.provider != WhatsAppIntegration.Provider.META:
+        raise IntegrationError("Twilio esta documentado como alternativa, mas ainda nao foi ativado neste modulo.")
     access_token = first_configured_value(integration.access_token, settings.WHATSAPP_META_ACCESS_TOKEN)
     if not access_token:
         raise IntegrationError("Conecte o WhatsApp pela Meta ou configure WHATSAPP_META_ACCESS_TOKEN no .env.")
@@ -312,6 +374,8 @@ def meta_template_parameters(template, context):
 def provider_reference_from_response(result):
     if not isinstance(result, dict):
         return ""
+    if result.get("messageId"):
+        return result["messageId"]
     messages_data = result.get("messages") or []
     if not messages_data:
         return ""
@@ -334,7 +398,9 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
     for log in due_logs:
         integration = log.integration or WhatsAppIntegration.load()
         try:
-            if integration.dry_run or settings.WHATSAPP_DRY_RUN or not log.template:
+            if integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY:
+                result = send_whatsapp_text(log.recipient_number, log.rendered_message, integration=integration)
+            elif integration.dry_run or settings.WHATSAPP_DRY_RUN or not log.template:
                 result = send_whatsapp_text(log.recipient_number, log.rendered_message, integration=integration)
             else:
                 from core.services.whatsapp_automation import build_whatsapp_message_context

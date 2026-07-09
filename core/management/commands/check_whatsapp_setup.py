@@ -7,6 +7,7 @@ from core.integrations.whatsapp import (
     send_whatsapp_text,
     whatsapp_embedded_signup_configured,
     whatsapp_embedded_signup_credentials,
+    whatsapp_web_gateway_status,
     whatsapp_runtime_state,
 )
 from core.models import WhatsAppIntegration, WhatsAppMessageTemplate
@@ -47,6 +48,10 @@ class Command(BaseCommand):
         self.stdout.write(f"[whatsapp] App ID: {'sim' if app_id else 'nao'}")
         self.stdout.write(f"[whatsapp] Configuration ID: {'sim' if config_id else 'nao'}")
         self.stdout.write(f"[whatsapp] App Secret: {'sim' if app_secret else 'nao'}")
+        if state["web_gateway_mode"]:
+            gateway = whatsapp_web_gateway_status()
+            self.stdout.write(f"[whatsapp] Gateway Web configurado: {'sim' if settings.WHATSAPP_WEB_GATEWAY_URL else 'nao'}")
+            self.stdout.write(f"[whatsapp] Sessao Web conectada: {'sim' if gateway.get('ready') else 'nao'}")
 
         if not whatsapp_embedded_signup_configured(integration):
             self.stdout.write("[whatsapp] Configure Embedded Signup para permitir conexao por botao na tela.")
@@ -69,5 +74,10 @@ class Command(BaseCommand):
         except IntegrationError as exc:
             raise CommandError(f"Falha no teste de WhatsApp: {exc}") from exc
 
-        mode = "simulada" if result.get("dry_run") else "enviada"
+        if result.get("dry_run"):
+            mode = "simulada"
+        elif result.get("provider") == "whatsapp_web":
+            mode = "enviada pelo WhatsApp Web"
+        else:
+            mode = "enviada"
         self.stdout.write(self.style.SUCCESS(f"[whatsapp] Mensagem {mode} para {result.get('to', recipient)}."))

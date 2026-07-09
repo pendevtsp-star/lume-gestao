@@ -434,6 +434,29 @@ class IntegrationsTests(TestCase):
         self.assertContains(response, "Conectar WhatsApp oficial")
         self.assertContains(response, "Conectar WhatsApp oficial")
 
+    def test_management_can_select_whatsapp_web_gateway_mode(self):
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "provider": WhatsAppIntegration.Provider.META,
+                "enabled": False,
+                "dry_run": False,
+                "clinic_whatsapp_number": "82993453535",
+            },
+        )
+
+        response = self.client.post(
+            reverse("integrations"),
+            {"action": "select_whatsapp_web_gateway", "tab": "connections"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        integration = WhatsAppIntegration.load()
+        self.assertEqual(integration.provider, WhatsAppIntegration.Provider.WEB_GATEWAY)
+        self.assertTrue(integration.enabled)
+        self.assertEqual(integration.clinic_whatsapp_number, "82993453535")
+
     def test_connections_tab_shows_disconnect_whatsapp_when_connected(self):
         self.client.force_login(self.management)
         WhatsAppIntegration.objects.update_or_create(

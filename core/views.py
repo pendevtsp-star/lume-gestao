@@ -940,6 +940,16 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 messages.success(request, "Configuracao do WhatsApp salva.")
                 return redirect(f"{reverse('integrations')}?tab=connections")
             return self.render_with_forms(whatsapp_form=form, active_tab="connections")
+        elif action == "select_whatsapp_web_gateway":
+            integration = WhatsAppIntegration.load()
+            integration.provider = WhatsAppIntegration.Provider.WEB_GATEWAY
+            integration.enabled = True
+            if integration.clinic_whatsapp_number and not integration.connected_at:
+                integration.connected_at = timezone.now()
+            integration.last_error = ""
+            integration.save(update_fields=["provider", "enabled", "connected_at", "last_error", "updated_at"])
+            messages.success(request, "WhatsApp Web temporario selecionado. Escaneie o QR nesta tela para parear a sessao.")
+            return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "disconnect_whatsapp":
             integration = WhatsAppIntegration.load()
             integration.enabled = False

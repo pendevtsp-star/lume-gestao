@@ -11,6 +11,8 @@ from core.views import (
     HealthCheckView,
     IntegrationsView,
     LegalDocumentView,
+    WhatsAppWebGatewayQrView,
+    WhatsAppWebGatewayStatusView,
 )
 from reports.views import AuditReportView
 
@@ -25,6 +27,8 @@ urlpatterns = [
     path("configuracoes/", ClinicSettingsUpdateView.as_view(), name="settings"),
     path("aniversariantes/<int:patient_pk>/whatsapp/", BirthdayWhatsAppSendView.as_view(), name="birthday_whatsapp_send"),
     path("integracoes/", IntegrationsView.as_view(), name="integrations"),
+    path("integracoes/whatsapp-web/status/", WhatsAppWebGatewayStatusView.as_view(), name="integrations_whatsapp_web_status"),
+    path("integracoes/whatsapp-web/qr/", WhatsAppWebGatewayQrView.as_view(), name="integrations_whatsapp_web_qr"),
     path("integracoes/google/conectar/", GoogleCalendarConnectView.as_view(), name="integrations_google_connect"),
     path("integracoes/google/callback/", GoogleCalendarCallbackView.as_view(), name="integrations_google_callback"),
     path("integracoes/google/sincronizar/", GoogleCalendarSyncView.as_view(), name="integrations_google_sync"),

@@ -145,6 +145,7 @@ class GoogleCalendarIntegration(TimeStampedModel):
 class WhatsAppIntegration(TimeStampedModel):
     class Provider(models.TextChoices):
         META = "meta", "Meta Cloud API"
+        WEB_GATEWAY = "web_gateway", "WhatsApp Web temporario"
         TWILIO = "twilio", "Twilio"
 
     provider = models.CharField("provedor", max_length=20, choices=Provider.choices, default=Provider.META)
@@ -174,6 +175,8 @@ class WhatsAppIntegration(TimeStampedModel):
     def is_connected(self):
         if not self.enabled:
             return False
+        if self.provider == self.Provider.WEB_GATEWAY:
+            return bool(self.clinic_whatsapp_number)
         if self.provider != self.Provider.META:
             return False
         phone_number_id = configured_value(self.phone_number_id) or configured_value(settings.WHATSAPP_META_PHONE_NUMBER_ID)

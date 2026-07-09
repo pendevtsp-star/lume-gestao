@@ -8,6 +8,7 @@ __pycache__/
 staticfiles
 dist
 desktop
+data
 media
 docs
 referencias visuais

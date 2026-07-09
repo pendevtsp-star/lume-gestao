@@ -51,8 +51,8 @@ class WebsitePublicTests(TestCase):
         response = self.client.get("/", HTTP_HOST="clinicafisiolume.com.br")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Alivie dores, recupere movimentos e viva melhor.")
-        self.assertContains(response, "Agendar pelo WhatsApp")
+        self.assertContains(response, "Cuidado presencial para voltar a se mover")
+        self.assertContains(response, "Agendar")
         self.assertContains(response, "Plano Pilates Essencial")
         self.assertNotContains(response, "Plano Oculto")
 

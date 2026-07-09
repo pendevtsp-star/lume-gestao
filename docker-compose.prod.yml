@@ -57,5 +57,23 @@ services:
       web:
         condition: service_healthy
 
+  whatsapp-web:
+    build:
+      context: .
+      dockerfile: whatsapp-web-gateway/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      WHATSAPP_WEB_SESSION_DIR: /data/session
+      WHATSAPP_WEB_GATEWAY_PORT: "3020"
+    volumes:
+      - ./data/whatsapp-web:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3020/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
 volumes:
   postgres_data:

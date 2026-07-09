@@ -474,6 +474,29 @@ class IntegrationsTests(TestCase):
         self.assertContains(response, "Diagnostico tecnico da conexao Meta")
         self.assertContains(response, "Fazer teste controlado")
 
+    @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local", WHATSAPP_DRY_RUN=False)
+    @patch("core.views.whatsapp_web_gateway_status")
+    def test_connections_tab_shows_web_gateway_whatsapp_mode(self, gateway_status):
+        gateway_status.return_value = {"ok": True, "ready": False, "hasQr": True}
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "provider": WhatsAppIntegration.Provider.WEB_GATEWAY,
+                "enabled": True,
+                "dry_run": False,
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )
+
+        integration = WhatsAppIntegration.load()
+        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+
+        self.assertTrue(integration.is_connected)
+        self.assertContains(response, "WhatsApp Web temporario ativo")
+        self.assertContains(response, "Enviar mensagem")
+        self.assertContains(response, "Escaneie o QR")
+
     def test_management_can_disconnect_whatsapp(self):
         self.client.force_login(self.management)
         WhatsAppIntegration.objects.update_or_create(
@@ -855,6 +878,47 @@ class IntegrationsTests(TestCase):
         self.assertEqual(log.status, WhatsAppMessageLog.Status.DRY_RUN)
         self.assertEqual(log.patient, self.patient)
         self.assertIn(self.patient.full_name, log.rendered_message)
+
+    @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local", WHATSAPP_DRY_RUN=False)
+    @patch("core.views.send_whatsapp_text")
+    def test_management_can_send_web_gateway_whatsapp_template(self, send_whatsapp_text_mock):
+        send_whatsapp_text_mock.return_value = {
+            "ok": True,
+            "provider": "whatsapp_web",
+            "to": "5511999990000",
+            "messageId": "web-msg-1",
+        }
+        self.client.force_login(self.management)
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "provider": WhatsAppIntegration.Provider.WEB_GATEWAY,
+                "enabled": True,
+                "dry_run": False,
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )
+        WhatsAppMessageTemplate.ensure_defaults()
+        template = WhatsAppMessageTemplate.objects.get(
+            template_type=WhatsAppMessageTemplate.TemplateType.APPOINTMENT
+        )
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": "send_template:appointment",
+                "tab": "messages",
+                "send-appointment-appointment": self.appointment.pk,
+                "send-appointment-custom_number": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log = WhatsAppMessageLog.objects.get(template=template)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.SENT)
+        self.assertEqual(log.patient, self.patient)
+        self.assertEqual(log.provider_reference, "web-msg-1")
+        send_whatsapp_text_mock.assert_called_once()
 
     def test_management_can_save_whatsapp_automation_settings(self):
         self.client.force_login(self.management)

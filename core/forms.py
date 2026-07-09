@@ -90,8 +90,11 @@ class WhatsAppIntegrationForm(StyledModelForm):
         super().__init__(*args, **kwargs)
         self.fields["clinic_whatsapp_number"].label = "Numero oficial da clinica"
         self.fields["default_country_code"].label = "DDI"
-        self.fields["enabled"].label = "Ativar automacoes"
+        self.fields["enabled"].label = "Ativar integracao"
         self.fields["dry_run"].label = "Manter em modo teste"
+        self.fields["provider"].help_text = (
+            "Use WhatsApp Web temporario para disparo automatico via sessao pareada por QR enquanto a Meta e estabilizada."
+        )
         self.fields["embedded_app_id"].help_text = "Opcional se estiver configurado no .env da VPS."
         self.fields["embedded_config_id"].help_text = "Opcional se estiver configurado no .env da VPS."
         self.fields["embedded_app_secret"].help_text = "Opcional se estiver configurado no .env da VPS."

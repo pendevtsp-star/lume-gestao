@@ -48,6 +48,8 @@ from core.integrations.whatsapp import (
     whatsapp_connection_guidance,
     whatsapp_embedded_signup_credentials,
     whatsapp_embedded_signup_configured,
+    whatsapp_web_gateway_qr,
+    whatsapp_web_gateway_status,
     whatsapp_runtime_state,
 )
 from core.models import (
@@ -613,6 +615,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         )
         whatsapp_guidance = whatsapp_connection_guidance(whatsapp_integration, templates.values())
         whatsapp_status = whatsapp_guidance["state"]
+        whatsapp_web_gateway = whatsapp_web_gateway_status() if whatsapp_status["web_gateway_mode"] else {}
         whatsapp_template_readiness = [
             {
                 "template": template,
@@ -628,6 +631,11 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             ("Phone Number ID", "Sim" if whatsapp_status["phone_number_id_configured"] else "Nao"),
             ("Token Meta", "Sim" if whatsapp_status["access_token_configured"] else "Nao"),
             ("Modo teste WhatsApp", "Sim" if whatsapp_status["dry_run"] else "Nao"),
+            ("Gateway WhatsApp Web", "Sim" if whatsapp_status["web_gateway_mode"] else "Nao"),
+            (
+                "Sessao WhatsApp Web",
+                "Conectada" if whatsapp_web_gateway.get("ready") else "Aguardando QR" if whatsapp_status["web_gateway_mode"] else "-",
+            ),
             ("Templates Meta", "Sim" if whatsapp_templates_ready else "Pendente"),
             ("Google OAuth configurado", "Sim" if google_calendar_configured() else "Nao"),
             ("Google conectado", "Sim" if google_integration.is_connected else "Nao"),
@@ -644,6 +652,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             "whatsapp_friendly_error_title": whatsapp_guidance["error_title"],
             "whatsapp_friendly_error_detail": whatsapp_guidance["error_detail"],
             "whatsapp_show_debug_hint": whatsapp_guidance["show_debug_hint"],
+            "whatsapp_web_gateway": whatsapp_web_gateway,
             "whatsapp_template_readiness": whatsapp_template_readiness,
             "google_configured": google_calendar_configured(),
             "google_callback_url": google_redirect_uri(self.request),
@@ -676,7 +685,10 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             "scheduled_logs": scheduled_logs,
             "connected_numbers_total": 1 if whatsapp_integration.is_connected else 0,
             "sent_messages_total": log_queryset.filter(
-                status__in=[WhatsAppMessageLog.Status.SENT, WhatsAppMessageLog.Status.DRY_RUN]
+                status__in=[
+                    WhatsAppMessageLog.Status.SENT,
+                    WhatsAppMessageLog.Status.DRY_RUN,
+                ]
             ).count(),
             "scheduled_messages_total": log_queryset.filter(status=WhatsAppMessageLog.Status.SCHEDULED).count(),
             "active_templates_total": sum(1 for template in templates.values() if template.active),
@@ -818,7 +830,9 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             return redirect(f"{reverse('integrations')}?tab=messages&message={template_type}")
 
         try:
-            if integration.dry_run or settings.WHATSAPP_DRY_RUN:
+            if integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY:
+                result = send_whatsapp_text(target_number, rendered_message, integration=integration)
+            elif integration.dry_run or settings.WHATSAPP_DRY_RUN:
                 result = send_whatsapp_text(target_number, rendered_message, integration=integration)
             else:
                 result = send_whatsapp_template(
@@ -841,7 +855,10 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             messages.error(request, str(exc))
             return redirect(f"{reverse('integrations')}?tab=messages&message={template_type}")
 
-        status = WhatsAppMessageLog.Status.DRY_RUN if result.get("dry_run") else WhatsAppMessageLog.Status.SENT
+        if result.get("dry_run"):
+            status = WhatsAppMessageLog.Status.DRY_RUN
+        else:
+            status = WhatsAppMessageLog.Status.SENT
         self.create_whatsapp_log(
             integration=integration,
             template=template,
@@ -977,7 +994,12 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 WhatsAppIntegration.objects.filter(pk=1).update(last_error=str(exc))
                 messages.error(request, str(exc))
             else:
-                detail = "modo teste" if result.get("dry_run") else "enviado pela API"
+                if result.get("dry_run"):
+                    detail = "modo teste"
+                elif result.get("provider") == "whatsapp_web":
+                    detail = "enviado pelo WhatsApp Web"
+                else:
+                    detail = "enviado pela API"
                 messages.success(request, f"WhatsApp validado em {detail}.")
             return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "save_automation":
@@ -1048,7 +1070,9 @@ class BirthdayWhatsAppSendView(FinanceAccessMixin, View):
 
         try:
             message_context = build_whatsapp_message_context(patient=patient)
-            if integration.dry_run or settings.WHATSAPP_DRY_RUN:
+            if integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY:
+                result = send_whatsapp_text(target_number, rendered_message, integration=integration)
+            elif integration.dry_run or settings.WHATSAPP_DRY_RUN:
                 result = send_whatsapp_text(target_number, rendered_message, integration=integration)
             else:
                 result = send_whatsapp_template(
@@ -1093,6 +1117,19 @@ class BirthdayWhatsAppSendView(FinanceAccessMixin, View):
         detail = "simulada" if status == WhatsAppMessageLog.Status.DRY_RUN else "enviada"
         messages.success(request, f"Mensagem de aniversario {detail} para {patient.full_name}.")
         return redirect("dashboard")
+
+
+class WhatsAppWebGatewayStatusView(FinanceAccessMixin, View):
+    def get(self, request):
+        return JsonResponse(whatsapp_web_gateway_status())
+
+
+class WhatsAppWebGatewayQrView(FinanceAccessMixin, View):
+    def get(self, request):
+        try:
+            return JsonResponse(whatsapp_web_gateway_qr())
+        except IntegrationError as exc:
+            return JsonResponse({"ok": False, "ready": False, "error": str(exc)}, status=503)
 
 
 class GoogleCalendarConnectView(FinanceAccessMixin, View):

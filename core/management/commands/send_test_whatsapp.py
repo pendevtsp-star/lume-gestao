@@ -33,5 +33,10 @@ class Command(BaseCommand):
         except IntegrationError as exc:
             raise CommandError(str(exc)) from exc
 
-        mode = "simulada" if result.get("dry_run") else "enviada"
+        if result.get("dry_run"):
+            mode = "simulada"
+        elif result.get("provider") == "whatsapp_web":
+            mode = "enviada pelo WhatsApp Web"
+        else:
+            mode = "enviada"
         self.stdout.write(self.style.SUCCESS(f"Mensagem WhatsApp {mode} para {result.get('to', options['number'])}."))

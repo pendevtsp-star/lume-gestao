@@ -363,10 +363,14 @@ label:focus-visible {
 }
 
 .trust-section {
+  padding: clamp(22px, 3vw, 34px);
+}
+
+.trust-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 0.62fr) minmax(0, 1.38fr);
-  gap: 24px;
-  padding: 24px;
+  grid-template-columns: minmax(230px, 0.62fr) minmax(0, 1.38fr);
+  gap: clamp(18px, 3vw, 30px);
+  align-items: start;
 }
 
 .trust-intro {
@@ -393,17 +397,19 @@ label:focus-visible {
 .trust-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
 .trust-item {
   display: grid;
   align-content: start;
   gap: 10px;
+  min-height: 100%;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: rgba(255, 252, 247, 0.74);
+  box-shadow: 0 18px 42px rgba(46, 59, 45, 0.06);
 }
 
 .trust-item small {
@@ -888,7 +894,7 @@ label:focus-visible {
   .experience-section,
   .contact-section,
   .homecare-site-section,
-  .trust-section,
+  .trust-layout,
   .site-header {
     grid-template-columns: 1fr;
   }

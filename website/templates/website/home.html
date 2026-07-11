@@ -77,18 +77,20 @@
     </section>
 
     <section class="trust-section shell-panel" aria-label="Por que escolher a Lume">
-      <div class="trust-intro">
-        <span>O caminho antes do plano</span>
-        <strong>Primeiro entendemos seu momento. Depois indicamos o cuidado.</strong>
-      </div>
-      <div class="trust-grid">
-        {% for point in trust_points %}
-          <article class="trust-item">
-            <small>{{ point.label }}</small>
-            <h2>{{ point.title }}</h2>
-            <p>{{ point.text }}</p>
-          </article>
-        {% endfor %}
+      <div class="trust-layout">
+        <div class="trust-intro">
+          <span>O caminho antes do plano</span>
+          <strong>Primeiro entendemos seu momento. Depois indicamos o cuidado.</strong>
+        </div>
+        <div class="trust-grid">
+          {% for point in trust_points %}
+            <article class="trust-item">
+              <small>{{ point.label }}</small>
+              <h2>{{ point.title }}</h2>
+              <p>{{ point.text }}</p>
+            </article>
+          {% endfor %}
+        </div>
       </div>
     </section>
 

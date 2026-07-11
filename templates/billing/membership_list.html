@@ -13,11 +13,11 @@
 </section>
 
 <section class="panel">
-  <form class="toolbar" method="get">
+  <form class="toolbar" method="get" data-persist-filters="memberships">
     <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, plano ou status">
     <button class="button secondary" type="submit">Buscar</button>
   </form>
-  <div class="table-wrap">
+  <div class="table-wrap responsive-table">
     <table>
       <thead>
         <tr>
@@ -32,12 +32,12 @@
       <tbody>
         {% for membership in memberships %}
           <tr>
-            <td><strong>{{ membership.patient.full_name }}</strong></td>
-            <td>{{ membership.plan.name }}</td>
-            <td>Dia {{ membership.due_day }}</td>
-            <td><span class="badge {{ membership.status }}">{{ membership.get_status_display }}</span></td>
-            <td class="right">R$ {{ membership.monthly_amount|floatformat:2 }}</td>
-            <td class="right">
+            <td data-label="Paciente"><strong>{{ membership.patient.full_name }}</strong></td>
+            <td data-label="Plano">{{ membership.plan.name }}</td>
+            <td data-label="Vencimento">Dia {{ membership.due_day }}</td>
+            <td data-label="Status"><span class="badge {{ membership.status }}">{{ membership.get_status_display }}</span></td>
+            <td class="right" data-label="Valor mensal">R$ {{ membership.monthly_amount|floatformat:2 }}</td>
+            <td class="right table-actions" data-label="Acoes">
               <a class="table-action" href="{% url 'billing:membership_update' membership.pk %}">Editar</a>
               {% if membership.status == "active" %}
                 <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ membership.patient.pk }}&plan={{ membership.plan.pk }}">Criar adesao</a>
@@ -46,7 +46,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty">Nenhuma mensalidade encontrada.</td></tr>
+          <tr><td colspan="6" class="empty"><div class="empty-state soft"><strong>Nenhuma mensalidade encontrada.</strong><span>Crie uma mensalidade para acompanhar plano, vencimento e valor.</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

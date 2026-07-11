@@ -113,6 +113,21 @@
       <a class="{% if active_tab == 'messages' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages">Mensagens</a>
     </nav>
 
+    <div class="workflow-strip" aria-label="Etapas de configuracao">
+      <a class="workflow-step {% if active_tab == 'connections' %}is-current{% endif %}" href="{% url 'integrations' %}?tab=connections">
+        <span>1</span>
+        <div><strong>Conectar</strong><small>WhatsApp e Google Agenda</small></div>
+      </a>
+      <a class="workflow-step {% if active_tab == 'messages' %}is-current{% endif %}" href="{% url 'integrations' %}?tab=messages">
+        <span>2</span>
+        <div><strong>Preparar</strong><small>Modelos e automacoes</small></div>
+      </a>
+      <a class="workflow-step {% if active_tab == 'panel' %}is-current{% endif %}" href="{% url 'integrations' %}?tab=panel">
+        <span>3</span>
+        <div><strong>Acompanhar</strong><small>Status e proximos envios</small></div>
+      </a>
+    </div>
+
     {% if active_tab == "panel" %}
       <div class="zap-panel-body">
         <section class="zap-metrics">

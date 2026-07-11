@@ -259,15 +259,24 @@
 </section>
 
 <section class="panel agenda-hero-panel">
-  <form class="toolbar agenda-toolbar" method="get">
+  <form class="toolbar agenda-toolbar" method="get" data-persist-filters="agenda">
     <div class="agenda-toolbar-search">
       <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, profissional, status ou observacao">
       <small>Use a busca para localizar sessoes da semana inteira sem sair da visao principal.</small>
     </div>
+    <label class="form-field agenda-status-filter">
+      <span>Status</span>
+      <select class="field-control" name="status">
+        <option value="">Todos</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <div class="agenda-toolbar-actions">
       <button class="button secondary" type="submit">Buscar</button>
-      {% if q %}
-        <a class="button ghost" href="?semana={{ week_start|date:'Y-m-d' }}">Limpar filtro</a>
+      {% if q or selected_status %}
+        <a class="button ghost" data-clear-filters href="?semana={{ week_start|date:'Y-m-d' }}">Limpar filtro</a>
       {% endif %}
     </div>
   </form>

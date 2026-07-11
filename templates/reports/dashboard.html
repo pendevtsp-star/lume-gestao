@@ -7,10 +7,26 @@
   <div>
     <p class="eyebrow">Relatorios</p>
     <h1>Central de relatorios</h1>
+    <p class="page-subtitle">Comece pelo retrato do periodo e avance para o detalhe financeiro ou operacional quando houver algo para investigar.</p>
   </div>
 </section>
 
 {% include "reports/_navigation.html" %}
+
+<section class="workflow-strip" aria-label="Leitura recomendada dos relatorios">
+  <a class="workflow-step is-current" href="{% url 'reports:dashboard' %}">
+    <span>1</span>
+    <div><strong>Visao geral</strong><small>Entenda o periodo antes de abrir detalhes.</small></div>
+  </a>
+  <a class="workflow-step" href="{% url 'reports:financial' %}">
+    <span>2</span>
+    <div><strong>Financeiro</strong><small>Receitas, despesas e pendencias.</small></div>
+  </a>
+  <a class="workflow-step" href="{% url 'reports:clinic' %}">
+    <span>3</span>
+    <div><strong>Operacao</strong><small>Agenda, pacientes e planos ativos.</small></div>
+  </a>
+</section>
 
 <section class="metric-grid">
   <article class="metric">

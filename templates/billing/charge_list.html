@@ -12,12 +12,18 @@
   <a class="button primary" href="{% url 'billing:charge_create' %}">Nova cobranca</a>
 </section>
 
+<section class="list-overview-strip" aria-label="Resumo de cobrancas">
+  <article><span>Busca atual</span><strong>{% if q %}{{ q }}{% else %}Sem filtro aplicado{% endif %}</strong></article>
+  <article><span>Registros visiveis</span><strong>{{ charges|length }} cobranca{{ charges|length|pluralize }}</strong></article>
+  <article><span>Prioridade</span><strong>Revise primeiro os vencimentos mais proximos.</strong></article>
+</section>
+
 <section class="panel">
-  <form class="toolbar" method="get">
+  <form class="toolbar" method="get" data-persist-filters="charges">
     <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar cobrancas">
     <button class="button secondary" type="submit">Buscar</button>
   </form>
-  <div class="table-wrap">
+  <div class="table-wrap responsive-table">
     <table>
       <thead>
         <tr>
@@ -32,15 +38,15 @@
       <tbody>
         {% for charge in charges %}
           <tr>
-            <td><strong>{{ charge.description }}</strong></td>
-            <td>{{ charge.patient.full_name|default:"-" }}</td>
-            <td>{{ charge.due_date|date:"d/m/Y" }}</td>
-            <td><span class="badge {{ charge.status }}">{{ charge.get_status_display }}</span></td>
-            <td class="right">R$ {{ charge.amount|floatformat:2 }}</td>
-            <td class="right"><a class="table-action" href="{% url 'billing:charge_update' charge.pk %}">Editar</a></td>
+            <td data-label="Descricao"><strong>{{ charge.description }}</strong></td>
+            <td data-label="Paciente">{{ charge.patient.full_name|default:"-" }}</td>
+            <td data-label="Vencimento">{{ charge.due_date|date:"d/m/Y" }}</td>
+            <td data-label="Status"><span class="badge {{ charge.status }}">{{ charge.get_status_display }}</span></td>
+            <td class="right" data-label="Valor">R$ {{ charge.amount|floatformat:2 }}</td>
+            <td class="right" data-label="Acao"><a class="table-action" href="{% url 'billing:charge_update' charge.pk %}">Editar</a></td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty">Nenhuma cobranca encontrada.</td></tr>
+          <tr><td colspan="6" class="empty"><div class="empty-state soft"><strong>Nenhuma cobranca encontrada.</strong><span>Ajuste a busca ou crie uma cobranca para acompanhar este valor.</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

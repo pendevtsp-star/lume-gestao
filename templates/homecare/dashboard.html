@@ -20,6 +20,21 @@
   <article class="metric"><span>Assinaturas ativas</span><strong>{{ active_subscriptions }}</strong></article>
 </section>
 
+<section class="workflow-strip" aria-label="Rotina do Lume em casa">
+  <a class="workflow-step is-current" href="{% url 'homecare:videos' %}">
+    <span>1</span>
+    <div><strong>Organizar biblioteca</strong><small>Publique ou programe os proximos videos.</small></div>
+  </a>
+  <a class="workflow-step" href="{% url 'homecare:subscriptions' %}">
+    <span>2</span>
+    <div><strong>Conferir acessos</strong><small>Revise quem pode assistir ao canal.</small></div>
+  </a>
+  <a class="workflow-step" href="{% url 'homecare:payment_events' %}">
+    <span>3</span>
+    <div><strong>Acompanhar eventos</strong><small>Trate pagamentos e retornos pendentes.</small></div>
+  </a>
+</section>
+
 <section class="panel homecare-storage-panel">
   <div class="panel-header">
     <div>

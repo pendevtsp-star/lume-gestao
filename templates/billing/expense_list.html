@@ -35,7 +35,7 @@
 </section>
 
 <section class="panel">
-  <form class="filter-panel" method="get">
+  <form class="filter-panel" method="get" data-persist-filters="expenses">
     <label class="form-field">
       <span>Busca</span>
       <input class="field-control" type="search" name="q" value="{{ q }}" placeholder="Nome ou observacao">
@@ -77,7 +77,7 @@
     </label>
     <button class="button secondary" type="submit">Buscar</button>
   </form>
-  <div class="table-wrap">
+  <div class="table-wrap responsive-table">
     <table>
       <thead>
         <tr>
@@ -93,19 +93,19 @@
       <tbody>
         {% for expense in expenses %}
           <tr>
-            <td><strong>{{ expense.description }}</strong></td>
-            <td>{{ expense.category.name|default:"Sem categoria" }}</td>
-            <td>{{ expense.get_kind_display }}</td>
-            <td>{{ expense.due_date|date:"d/m/Y" }}</td>
-            <td><span class="badge {{ expense.status }}">{{ expense.get_status_display }}</span></td>
-            <td class="right">R$ {{ expense.amount|floatformat:2 }}</td>
-            <td class="right table-actions">
+            <td data-label="Descricao"><strong>{{ expense.description }}</strong></td>
+            <td data-label="Categoria">{{ expense.category.name|default:"Sem categoria" }}</td>
+            <td data-label="Tipo">{{ expense.get_kind_display }}</td>
+            <td data-label="Vencimento">{{ expense.due_date|date:"d/m/Y" }}</td>
+            <td data-label="Status"><span class="badge {{ expense.status }}">{{ expense.get_status_display }}</span></td>
+            <td class="right" data-label="Valor">R$ {{ expense.amount|floatformat:2 }}</td>
+            <td class="right table-actions" data-label="Acoes">
               <a class="table-action" href="{% url 'billing:expense_update' expense.pk %}">Editar</a>
               <a class="table-action danger-link" href="{% url 'billing:expense_delete' expense.pk %}">Excluir</a>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="7" class="empty">Nenhuma despesa encontrada.</td></tr>
+          <tr><td colspan="7" class="empty"><div class="empty-state soft"><strong>Nenhuma despesa encontrada.</strong><span>Altere os filtros ou registre uma despesa para acompanhar os custos.</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

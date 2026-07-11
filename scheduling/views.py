@@ -342,7 +342,11 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
 
     def get_queryset(self):
         queryset = appointments_for_user(self.request.user).order_by("starts_at")
-        return filter_appointment_search(queryset, self.request.GET.get("q", "").strip())
+        queryset = filter_appointment_search(queryset, self.request.GET.get("q", "").strip())
+        selected_status = self.request.GET.get("status", "").strip()
+        if selected_status in Appointment.Status.values:
+            queryset = queryset.filter(status=selected_status)
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -390,6 +394,8 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
 
         context.update(
             {
+                "status_choices": Appointment.Status.choices,
+                "selected_status": self.request.GET.get("status", "").strip(),
                 "week_start": week_start,
                 "week_end": week_end,
                 "previous_week": week_start - timedelta(days=7),

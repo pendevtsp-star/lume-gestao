@@ -12,7 +12,7 @@
 </section>
 
 <section class="panel">
-  <form class="toolbar filters" method="get">
+  <form class="toolbar filters" method="get" data-persist-filters="homecare-subscriptions">
     <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar paciente, plano ou referencia">
     <label class="form-field">
       <span>Status</span>
@@ -25,21 +25,21 @@
     </label>
     <button class="button secondary" type="submit">Filtrar</button>
   </form>
-  <div class="table-wrap">
+  <div class="table-wrap responsive-table">
     <table>
       <thead><tr><th>Paciente</th><th>Plano</th><th>Origem</th><th>Status</th><th>Periodo</th><th class="right">Acao</th></tr></thead>
       <tbody>
         {% for subscription in subscriptions %}
           <tr>
-            <td><strong>{{ subscription.patient.full_name }}</strong><div class="table-meta">{{ subscription.external_reference }}</div></td>
-            <td>{{ subscription.plan.name }}</td>
-            <td>{{ subscription.get_source_display }}<div class="table-meta">{{ subscription.get_provider_display }}</div></td>
-            <td><span class="badge {{ subscription.status }}">{{ subscription.get_status_display }}</span></td>
-            <td>{% if subscription.current_period_end %}ate {{ subscription.current_period_end|date:"d/m/Y" }}{% else %}sem vencimento{% endif %}</td>
-            <td class="right"><a class="table-action" href="{% url 'homecare:subscription_update' subscription.pk %}">Editar</a></td>
+            <td data-label="Paciente"><strong>{{ subscription.patient.full_name }}</strong><div class="table-meta">{{ subscription.external_reference }}</div></td>
+            <td data-label="Plano">{{ subscription.plan.name }}</td>
+            <td data-label="Origem">{{ subscription.get_source_display }}<div class="table-meta">{{ subscription.get_provider_display }}</div></td>
+            <td data-label="Status"><span class="badge {{ subscription.status }}">{{ subscription.get_status_display }}</span></td>
+            <td data-label="Periodo">{% if subscription.current_period_end %}ate {{ subscription.current_period_end|date:"d/m/Y" }}{% else %}sem vencimento{% endif %}</td>
+            <td class="right" data-label="Acao"><a class="table-action" href="{% url 'homecare:subscription_update' subscription.pk %}">Editar</a></td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty">Nenhuma assinatura encontrada.</td></tr>
+          <tr><td colspan="6" class="empty"><div class="empty-state soft"><strong>Nenhuma assinatura encontrada.</strong><span>Libere um acesso quando um paciente entrar no canal.</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

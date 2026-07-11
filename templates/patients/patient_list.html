@@ -28,7 +28,7 @@
 </section>
 
 <section class="panel">
-  <form class="toolbar" method="get" data-live-search-form>
+  <form class="toolbar" method="get" data-live-search-form data-persist-filters="patients">
     <div class="list-toolbar-search">
       <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por nome, CPF, telefone, plano ou profissional" autocomplete="off" data-live-search-input>
       <small>Digite para filtrar a lista e abrir o resumo do paciente sem sair desta tela.</small>
@@ -36,7 +36,7 @@
     <div class="list-toolbar-actions">
       <button class="button secondary" type="submit">Buscar</button>
       {% if q %}
-        <a class="button ghost" href="{% url 'patients:list' %}">Limpar filtro</a>
+        <a class="button ghost" data-clear-filters href="{% url 'patients:list' %}">Limpar filtro</a>
       {% endif %}
     </div>
   </form>

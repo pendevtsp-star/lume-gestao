@@ -32,7 +32,7 @@
 </section>
 
 <section class="panel">
-  <form class="toolbar" method="get">
+  <form class="toolbar" method="get" data-persist-filters="payments">
     <div class="list-toolbar-search">
       <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, plano, status ou metodo">
       <small>Filtre rapidamente para localizar recebimentos, revisar vencimentos ou abrir uma baixa sem percorrer toda a lista.</small>
@@ -40,7 +40,7 @@
     <div class="list-toolbar-actions">
       <button class="button secondary" type="submit">Buscar</button>
       {% if q %}
-        <a class="button ghost" href="{% url 'billing:payment_list' %}">Limpar filtro</a>
+        <a class="button ghost" data-clear-filters href="{% url 'billing:payment_list' %}">Limpar filtro</a>
       {% endif %}
     </div>
   </form>
@@ -48,7 +48,7 @@
     <span>Painel financeiro</span>
     <strong>{{ payments|length }} registro{{ payments|length|pluralize }} carregado{{ payments|length|pluralize:"s," }}</strong>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap responsive-table">
     <table>
       <thead>
         <tr>
@@ -65,17 +65,17 @@
       <tbody>
         {% for payment in payments %}
           <tr class="{% if payment.status == 'overdue' %}table-row-danger{% elif payment.status == 'pending' %}table-row-warning{% endif %}">
-            <td>
+            <td data-label="Paciente">
               <strong>{{ payment.patient_display }}</strong>
               <small>{{ payment.patient.phone|default:"-" }}</small>
             </td>
-            <td>{{ payment.item_display }}</td>
-            <td>{{ payment.reference_month|date:"m/Y" }}</td>
-            <td>{{ payment.due_date|date:"d/m/Y" }}</td>
-            <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
-            <td>{{ payment.get_method_display }}</td>
-            <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
-            <td class="right table-actions">
+            <td data-label="Item">{{ payment.item_display }}</td>
+            <td data-label="Referencia">{{ payment.reference_month|date:"m/Y" }}</td>
+            <td data-label="Vencimento">{{ payment.due_date|date:"d/m/Y" }}</td>
+            <td data-label="Status"><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
+            <td data-label="Metodo">{{ payment.get_method_display }}</td>
+            <td class="right" data-label="Valor">R$ {{ payment.amount|floatformat:2 }}</td>
+            <td class="right table-actions" data-label="Acoes">
               {% if payment.status == "pending" or payment.status == "overdue" %}
                 <a class="table-action" href="{% url 'billing:payment_receive' payment.pk %}">Receber</a>
               {% endif %}

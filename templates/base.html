@@ -7,8 +7,9 @@
   <title>{% block title %}Lume Gestao{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260702-operational-flow">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260711-operational-ui">
   <link rel="stylesheet" href="{% static 'css/quick-actions.css' %}?v=20260630-quick-actions-compact">
+  <script src="{% static 'js/app.js' %}?v=20260711-operational-ui" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -197,6 +198,39 @@
           </div>
         </div>
         <div class="topbar-actions">
+          {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+            <details class="notification-center">
+              <summary aria-label="Abrir notificacoes operacionais" title="Notificacoes operacionais">
+                <span class="notification-icon" aria-hidden="true">!</span>
+                {% if operational_notifications_total %}<b>{{ operational_notifications_total }}</b>{% endif %}
+              </summary>
+              <div class="notification-popover">
+                <div class="notification-popover-head">
+                  <div>
+                    <span>Central operacional</span>
+                    <strong>O que pede atencao</strong>
+                  </div>
+                  <a href="{% url 'dashboard' %}">Abrir painel</a>
+                </div>
+                <div class="notification-list">
+                  {% for notification in operational_notifications %}
+                    <a class="notification-item is-{{ notification.tone }}" href="{{ notification.url }}">
+                      <span aria-hidden="true"></span>
+                      <div>
+                        <strong>{{ notification.title }}</strong>
+                        <small>{{ notification.detail }}</small>
+                      </div>
+                    </a>
+                  {% empty %}
+                    <div class="notification-empty">
+                      <strong>Operacao em dia</strong>
+                      <span>Nenhum alerta relevante agora.</span>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </details>
+          {% endif %}
           <div class="topbar-account">
             <span class="avatar avatar-topbar">
               {% if request.user.profile.avatar_url %}
@@ -218,9 +252,9 @@
       </div>
 
       {% if messages %}
-        <div class="messages">
+        <div class="messages" aria-live="polite" aria-atomic="true">
           {% for message in messages %}
-            <div class="message {{ message.tags }}">{{ message }}</div>
+            <div class="message {{ message.tags }}" role="status">{{ message }}</div>
           {% endfor %}
         </div>
       {% endif %}

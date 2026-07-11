@@ -9,7 +9,9 @@ param(
   [switch]$SkipNginxReload,
   [switch]$SkipDockerBuildCachePrune,
   [string]$DockerBuildCacheMinAge = "24h",
-  [string]$DockerBuildCacheKeepStorage = "8GB"
+  [string]$DockerBuildCacheKeepStorage = "8GB",
+  [string]$ReleaseCommit = "",
+  [string]$ReleaseBranch = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,6 +19,16 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $ArchiveFullPath = Join-Path $Root $ArchivePath
 $ArchiveDir = Split-Path -Parent $ArchiveFullPath
+
+if (-not $ReleaseCommit) {
+  $ReleaseCommit = (git -C $Root rev-parse HEAD).Trim()
+}
+
+if (-not $ReleaseBranch) {
+  $ReleaseBranch = (git -C $Root branch --show-current).Trim()
+}
+
+$ReleaseRecordedAt = Get-Date -Format "yyyyMMdd_HHmmss"
 
 if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
   throw "ssh nao encontrado no PATH."
@@ -114,6 +126,16 @@ if [ -z "`$health_host" ]; then
   health_host='sistema.clinicafisiolume.com.br'
 fi
 curl -fsS -H "Host: `$health_host" -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/healthz/
+
+echo '[deploy] Registrando versao efetivamente publicada'
+cat > PRODUCTION_VERSION <<'EOF'
+project=lume-gestao
+tag=production-$ReleaseRecordedAt
+commit=$ReleaseCommit
+branch=$ReleaseBranch
+recorded_at=$ReleaseRecordedAt
+source=github.com/pendevtsp-star/lume-gestao
+EOF
 
 $dockerBuildCachePruneCommand
 

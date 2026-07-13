@@ -88,7 +88,7 @@ def send_document_email(document):
             f"Segue em anexo o documento referente a {document.description}.\n\n"
             "Equipe Lume Gestao"
         ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
+        from_email=settings.EMAIL_TRANSACTIONAL_FROM_EMAIL,
         to=[document.customer_email],
     )
     message.attach(f"documento-fiscal-{document.pk}.pdf", pdf_content, "application/pdf")

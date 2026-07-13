@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from billing.models import ServicePlan
 from core.forms import StyledModelForm
@@ -195,6 +196,7 @@ class PatientForm(StyledModelForm):
             "birth_date",
             "phone",
             "email",
+            "email_marketing_opt_in",
             "emergency_contact",
             "address",
             "clinical_notes",
@@ -205,6 +207,18 @@ class PatientForm(StyledModelForm):
             "birth_date": forms.DateInput(attrs={"type": "date"}),
             "clinical_notes": forms.Textarea(attrs={"rows": 4}),
         }
+
+    def save(self, commit=True):
+        patient = super().save(commit=False)
+        if patient.email_marketing_opt_in:
+            if not patient.email_marketing_opt_in_at:
+                patient.email_marketing_opt_in_at = timezone.now()
+        else:
+            patient.email_marketing_opt_in_at = None
+        if commit:
+            patient.save()
+            self.save_m2m()
+        return patient
 
     def clean_email(self):
         email = (self.cleaned_data.get("email") or "").strip()

@@ -2,6 +2,7 @@ from django.urls import path
 
 from core.views import (
     BirthdayWhatsAppSendView,
+    BrevoTransactionalWebhookView,
     ClinicSettingsUpdateView,
     DashboardView,
     GoogleCalendarCallbackView,
@@ -20,6 +21,7 @@ urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
     path("health/", HealthCheckView.as_view(), name="health"),
     path("healthz/", HealthCheckView.as_view(), name="healthz"),
+    path("webhooks/brevo/email/", BrevoTransactionalWebhookView.as_view(), name="brevo_email_webhook"),
     path("termos-de-uso/", LegalDocumentView.as_view(document_key="terms"), name="terms_of_use"),
     path("privacidade/", LegalDocumentView.as_view(document_key="privacy"), name="privacy_policy"),
     path("consentimento-lgpd/", LegalDocumentView.as_view(document_key="sensitive"), name="sensitive_data_consent"),

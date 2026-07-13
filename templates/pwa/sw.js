@@ -1,8 +1,8 @@
-const LUME_CACHE = "lume-shell-v20260713-block8";
+const LUME_CACHE = "lume-shell-v20260713-automation-ux";
 const STATIC_ASSETS = [
-  "/static/css/app.css?v=20260713-block8",
+  "/static/css/app.css?v=20260713-automation-ux",
   "/static/css/quick-actions.css?v=20260630-quick-actions-compact",
-  "/static/js/app.js?v=20260713-block8",
+  "/static/js/app.js?v=20260713-automation-ux",
   "/static/images/pwa/lume-192.png",
   "/static/images/pwa/lume-512.png",
   "/static/images/lume-favicon.svg",

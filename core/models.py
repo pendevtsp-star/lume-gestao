@@ -18,6 +18,25 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
+class EmailDeliveryEvent(TimeStampedModel):
+    """Delivery events received from the transactional email provider."""
+
+    provider = models.CharField("provedor", max_length=40, default="brevo")
+    event_type = models.CharField("evento", max_length=60, db_index=True)
+    recipient = models.EmailField("destinatario", blank=True)
+    message_id = models.CharField("identificador da mensagem", max_length=255, blank=True, db_index=True)
+    occurred_at = models.DateTimeField("ocorreu em", null=True, blank=True)
+    payload = models.JSONField("dados do provedor", default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-occurred_at", "-created_at"]
+        verbose_name = "evento de entrega de e-mail"
+        verbose_name_plural = "eventos de entrega de e-mail"
+
+    def __str__(self):
+        return f"{self.event_type} - {self.recipient or self.message_id or 'sem destinatario'}"
+
+
 class ClinicSettings(TimeStampedModel):
     clinic_name = models.CharField("nome da clinica", max_length=140, default="Lume Gestao")
     cnpj = models.CharField("CNPJ", max_length=18, blank=True)
@@ -192,10 +211,12 @@ class WhatsAppIntegration(TimeStampedModel):
 class WhatsAppMessageTemplate(TimeStampedModel):
     class TemplateType(models.TextChoices):
         APPOINTMENT = "appointment", "Mensagem de agendamento"
+        SESSION_SOON = "session_soon", "Sessao proxima"
         CHARGE = "charge", "Mensagem de cobranca"
         BIRTHDAY = "birthday", "Mensagem de aniversario"
+        CUSTOM = "custom", "Modelo personalizado"
 
-    template_type = models.CharField("tipo", max_length=20, choices=TemplateType.choices, unique=True)
+    template_type = models.CharField("tipo", max_length=20, choices=TemplateType.choices)
     title = models.CharField("titulo", max_length=120)
     description = models.CharField("descricao", max_length=255, blank=True)
     body = models.TextField("mensagem")
@@ -235,6 +256,15 @@ class WhatsAppMessageTemplate(TimeStampedModel):
                 ),
                 "tokens": ["[Paciente]", "[Profissional]", "[Data]", "[Horario]", "[Clinica]", "[TelefoneClinica]"],
             },
+            cls.TemplateType.SESSION_SOON: {
+                "title": "Sessao proxima",
+                "description": "Lembrete enviado pouco antes do inicio da sessao.",
+                "body": (
+                    "Ola, [Paciente]! Sua sessao com [Profissional] comeca em aproximadamente uma hora, "
+                    "as [Horario]. Esperamos voce na [Clinica]."
+                ),
+                "tokens": ["[Paciente]", "[Profissional]", "[Data]", "[Horario]", "[Clinica]", "[TelefoneClinica]"],
+            },
             cls.TemplateType.CHARGE: {
                 "title": "Mensagem de Cobranca",
                 "description": "Avisos de mensalidades, pagamentos pendentes e cobrancas avulsas.",
@@ -253,12 +283,20 @@ class WhatsAppMessageTemplate(TimeStampedModel):
                 ),
                 "tokens": ["[Paciente]", "[Profissional]", "[Clinica]"],
             },
+            cls.TemplateType.CUSTOM: {
+                "title": "Novo modelo",
+                "description": "Modelo criado pela gestao.",
+                "body": "Ola, [Paciente]!",
+                "tokens": ["[Paciente]", "[Profissional]", "[Data]", "[Horario]", "[Clinica]", "[TelefoneClinica]"],
+            },
         }[template_type]
 
     @classmethod
     def ensure_defaults(cls):
         templates = []
         for template_type, _label in cls.TemplateType.choices:
+            if template_type == cls.TemplateType.CUSTOM:
+                continue
             defaults = cls.default_config_for(template_type)
             template, _created = cls.objects.get_or_create(
                 template_type=template_type,
@@ -270,6 +308,54 @@ class WhatsAppMessageTemplate(TimeStampedModel):
             )
             templates.append(template)
         return templates
+
+
+class WhatsAppAutomationRule(TimeStampedModel):
+    class Trigger(models.TextChoices):
+        APPOINTMENT_BEFORE = "appointment_before", "Antes da sessao"
+        MANUAL = "manual", "Somente envio manual"
+
+    name = models.CharField("nome da automacao", max_length=120)
+    template = models.ForeignKey(
+        WhatsAppMessageTemplate,
+        on_delete=models.PROTECT,
+        related_name="automation_rules",
+        verbose_name="modelo de mensagem",
+    )
+    trigger = models.CharField("rotina", max_length=40, choices=Trigger.choices, default=Trigger.APPOINTMENT_BEFORE)
+    hours_before = models.PositiveSmallIntegerField("horas antes da sessao", default=1)
+    active = models.BooleanField("ativa", default=True)
+    is_system = models.BooleanField("regra do sistema", default=False)
+
+    class Meta:
+        ordering = ["is_system", "hours_before", "name"]
+        verbose_name = "regra de automacao WhatsApp"
+        verbose_name_plural = "regras de automacao WhatsApp"
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def ensure_defaults(cls):
+        templates = {template.template_type: template for template in WhatsAppMessageTemplate.ensure_defaults()}
+        defaults = [
+            ("Lembrete de sessao - 24 horas", WhatsAppMessageTemplate.TemplateType.APPOINTMENT, 24),
+            ("Sessao proxima - 1 hora", WhatsAppMessageTemplate.TemplateType.SESSION_SOON, 1),
+        ]
+        rules = []
+        for name, template_type, hours_before in defaults:
+            rule, _created = cls.objects.get_or_create(
+                name=name,
+                is_system=True,
+                defaults={
+                    "template": templates[template_type],
+                    "trigger": cls.Trigger.APPOINTMENT_BEFORE,
+                    "hours_before": hours_before,
+                    "active": True,
+                },
+            )
+            rules.append(rule)
+        return rules
 
 
 class WhatsAppAutomationSettings(TimeStampedModel):

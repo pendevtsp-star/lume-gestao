@@ -1,5 +1,8 @@
 from datetime import datetime, time, timedelta
 from datetime import timezone as datetime_timezone
+import hashlib
+import hmac
+import json
 
 from django.conf import settings
 from django.contrib import messages
@@ -11,6 +14,8 @@ from django.urls import reverse
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from django.views.generic import ListView, TemplateView, UpdateView
 
 from accounts.models import UserProfile
@@ -20,10 +25,12 @@ from core.forms import (
     ClinicSettingsForm,
     GoogleCalendarIntegrationForm,
     WhatsAppAppointmentSendForm,
+    WhatsAppAutomationRuleForm,
     WhatsAppAutomationSettingsForm,
     WhatsAppBirthdaySendForm,
     WhatsAppChargeSendForm,
     WhatsAppIntegrationForm,
+    CustomWhatsAppMessageTemplateForm,
     WhatsAppMessageTemplateForm,
 )
 from core.integrations.google_calendar import (
@@ -55,8 +62,10 @@ from core.integrations.whatsapp import (
 from core.models import (
     AuditLog,
     ClinicSettings,
+    EmailDeliveryEvent,
     GoogleCalendarIntegration,
     WhatsAppIntegration,
+    WhatsAppAutomationRule,
     WhatsAppAutomationSettings,
     WhatsAppMessageLog,
     WhatsAppMessageTemplate,
@@ -70,6 +79,42 @@ from lume_connect.models import ConnectNotification, ConnectPost
 
 
 WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"]
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class BrevoTransactionalWebhookView(View):
+    """Receives Brevo delivery events without exposing SMTP credentials."""
+
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        expected_token = settings.EMAIL_BREVO_WEBHOOK_TOKEN
+        supplied_token = request.headers.get("X-Lume-Email-Webhook-Token") or request.GET.get("token", "")
+        if not expected_token or not hmac.compare_digest(supplied_token, expected_token):
+            return JsonResponse({"ok": False, "error": "unauthorized"}, status=403)
+
+        try:
+            payload = json.loads(request.body.decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return JsonResponse({"ok": False, "error": "invalid_json"}, status=400)
+
+        events = payload if isinstance(payload, list) else payload.get("events", [payload])
+        if not isinstance(events, list):
+            return JsonResponse({"ok": False, "error": "invalid_events"}, status=400)
+
+        stored = 0
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            EmailDeliveryEvent.objects.create(
+                provider="brevo",
+                event_type=str(event.get("event") or event.get("type") or "unknown")[:60],
+                recipient=str(event.get("email") or event.get("recipient") or "")[:254],
+                message_id=str(event.get("message-id") or event.get("message_id") or event.get("id") or "")[:255],
+                payload=event,
+            )
+            stored += 1
+        return JsonResponse({"ok": True, "stored": stored})
 
 
 def escape_ics_value(value):
@@ -537,6 +582,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
     WHATSAPP_TABS = {"panel", "connections", "messages"}
     MESSAGE_TABS = {
         WhatsAppMessageTemplate.TemplateType.APPOINTMENT,
+        WhatsAppMessageTemplate.TemplateType.SESSION_SOON,
         WhatsAppMessageTemplate.TemplateType.CHARGE,
         WhatsAppMessageTemplate.TemplateType.BIRTHDAY,
     }
@@ -549,7 +595,9 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         WhatsAppMessageTemplate.ensure_defaults()
         return {
             template.template_type: template
-            for template in WhatsAppMessageTemplate.objects.order_by("template_type")
+            for template in WhatsAppMessageTemplate.objects.exclude(
+                template_type=WhatsAppMessageTemplate.TemplateType.CUSTOM
+            ).order_by("template_type")
         }
 
     def default_template_forms(self, templates):
@@ -564,6 +612,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
     def default_send_forms(self):
         return {
             WhatsAppMessageTemplate.TemplateType.APPOINTMENT: WhatsAppAppointmentSendForm(prefix="send-appointment"),
+            WhatsAppMessageTemplate.TemplateType.SESSION_SOON: WhatsAppAppointmentSendForm(prefix="send-session-soon"),
             WhatsAppMessageTemplate.TemplateType.CHARGE: WhatsAppChargeSendForm(prefix="send-charge"),
             WhatsAppMessageTemplate.TemplateType.BIRTHDAY: WhatsAppBirthdaySendForm(prefix="send-birthday"),
         }
@@ -580,6 +629,8 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         template_forms=None,
         send_forms=None,
         automation_form=None,
+        automation_rule_form=None,
+        custom_template_form=None,
         active_tab=None,
     ):
         google_integration = GoogleCalendarIntegration.load()
@@ -595,6 +646,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             whatsapp_integration
         )
         templates = self.get_whatsapp_templates()
+        WhatsAppAutomationRule.ensure_defaults()
         template_forms = template_forms or self.default_template_forms(templates)
         send_forms = send_forms or self.default_send_forms()
         log_queryset = WhatsAppMessageLog.objects.select_related(
@@ -617,7 +669,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         whatsapp_templates_ready = all(
             template.meta_template_name
             for template in templates.values()
-            if template.active
+            if template.active and template.template_type != WhatsAppMessageTemplate.TemplateType.CUSTOM
         )
         whatsapp_guidance = whatsapp_connection_guidance(whatsapp_integration, templates.values())
         whatsapp_status = whatsapp_guidance["state"]
@@ -682,10 +734,16 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 and not whatsapp_integration.embedded_app_secret
             ),
             "whatsapp_templates": templates,
+            "custom_whatsapp_templates": WhatsAppMessageTemplate.objects.filter(
+                template_type=WhatsAppMessageTemplate.TemplateType.CUSTOM
+            ).order_by("title"),
             "template_forms": template_forms,
             "send_forms": send_forms,
             "automation_form": automation_form
             or WhatsAppAutomationSettingsForm(prefix="automation", instance=WhatsAppAutomationSettings.load()),
+            "automation_rules": WhatsAppAutomationRule.objects.select_related("template").order_by("hours_before", "name"),
+            "automation_rule_form": automation_rule_form or WhatsAppAutomationRuleForm(prefix="rule"),
+            "custom_template_form": custom_template_form or CustomWhatsAppMessageTemplateForm(prefix="custom-template"),
             "preview_messages": previews,
             "active_message_type": self.get_active_message_type(),
             "recent_logs": recent_logs,
@@ -769,8 +827,12 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         templates = self.get_whatsapp_templates()
         template = templates[template_type]
         send_forms = self.default_send_forms()
-        if template_type == WhatsAppMessageTemplate.TemplateType.APPOINTMENT:
-            form = WhatsAppAppointmentSendForm(request.POST, prefix="send-appointment")
+        if template_type in {
+            WhatsAppMessageTemplate.TemplateType.APPOINTMENT,
+            WhatsAppMessageTemplate.TemplateType.SESSION_SOON,
+        }:
+            prefix = "send-appointment" if template_type == WhatsAppMessageTemplate.TemplateType.APPOINTMENT else "send-session-soon"
+            form = WhatsAppAppointmentSendForm(request.POST, prefix=prefix)
             send_forms[template_type] = form
             if not form.is_valid():
                 return self.render_with_forms(send_forms=send_forms, active_tab="messages")
@@ -893,6 +955,34 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         scheduled_log.status = WhatsAppMessageLog.Status.CANCELED
         scheduled_log.save(update_fields=["status", "updated_at"])
         messages.success(request, "Mensagem agendada cancelada.")
+        return redirect(f"{reverse('integrations')}?tab=messages")
+
+    def create_custom_template(self, request):
+        form = CustomWhatsAppMessageTemplateForm(request.POST, prefix="custom-template")
+        if form.is_valid():
+            template = form.save(commit=False)
+            template.template_type = WhatsAppMessageTemplate.TemplateType.CUSTOM
+            template.updated_by = request.user
+            template.save()
+            messages.success(request, f"Modelo {template.title} criado. Agora vincule-o a uma automacao.")
+            return redirect(f"{reverse('integrations')}?tab=messages")
+        return self.render_with_forms(custom_template_form=form, active_tab="messages")
+
+    def create_automation_rule(self, request):
+        form = WhatsAppAutomationRuleForm(request.POST, prefix="rule")
+        if form.is_valid():
+            rule = form.save(commit=False)
+            rule.is_system = False
+            rule.save()
+            messages.success(request, f"Automacao {rule.name} salva com sucesso.")
+            return redirect(f"{reverse('integrations')}?tab=messages")
+        return self.render_with_forms(automation_rule_form=form, active_tab="messages")
+
+    def toggle_automation_rule(self, request, rule_id):
+        rule = get_object_or_404(WhatsAppAutomationRule, pk=rule_id)
+        rule.active = not rule.active
+        rule.save(update_fields=["active", "updated_at"])
+        messages.success(request, f"Automacao {'ativada' if rule.active else 'pausada'}.")
         return redirect(f"{reverse('integrations')}?tab=messages")
 
     def post(self, request):
@@ -1033,6 +1123,12 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 messages.success(request, "Automacoes do WhatsApp salvas com sucesso.")
                 return redirect(f"{reverse('integrations')}?tab=messages&message={self.get_active_message_type()}")
             return self.render_with_forms(automation_form=form, active_tab="messages")
+        elif action == "create_custom_template":
+            return self.create_custom_template(request)
+        elif action == "create_automation_rule":
+            return self.create_automation_rule(request)
+        elif action and action.startswith("toggle_automation_rule:"):
+            return self.toggle_automation_rule(request, action.split(":", 1)[1])
         elif action == "run_scheduled_whatsapp":
             enqueue_automatic_whatsapp_messages(limit=20)
             summary = process_scheduled_whatsapp_messages(limit=20)

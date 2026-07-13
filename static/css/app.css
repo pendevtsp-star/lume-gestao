@@ -2305,6 +2305,37 @@ td small {
   gap: 10px;
 }
 
+.reschedule-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  border-left: 4px solid var(--sage-dark);
+}
+
+.reschedule-context h2,
+.reschedule-context p {
+  margin-bottom: 0;
+}
+
+.reschedule-context p:not(.eyebrow) {
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.slot-choice-fieldset {
+  margin: 18px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.slot-choice-fieldset legend {
+  margin-bottom: 10px;
+  font-weight: 850;
+}
+
 .slot-button {
   display: grid;
   gap: 5px;
@@ -2317,6 +2348,28 @@ td small {
   cursor: pointer;
   text-align: left;
   transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.slot-button input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.slot-choice-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.slot-button:has(input:checked) {
+  border-color: var(--sage-dark);
+  background: #eef3e7;
+  box-shadow: 0 0 0 3px rgba(98, 105, 71, 0.16);
+}
+
+.slot-button:has(input:focus-visible) {
+  outline: 3px solid rgba(98, 105, 71, 0.3);
+  outline-offset: 2px;
 }
 
 .slot-button:hover,
@@ -2345,6 +2398,18 @@ td small {
 .slot-empty {
   padding: 26px 20px;
   color: var(--muted);
+}
+
+.slot-confirm-actions {
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+
+.slot-selection-hint {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .calendar-panel {
@@ -4112,6 +4177,78 @@ td small {
 
 .automation-panel .panel-header {
   margin: -18px -18px 14px;
+}
+
+.automation-workspace,
+.template-library-panel,
+.automation-advanced-panel {
+  background: linear-gradient(180deg, #fff, #fbfaf4);
+}
+
+.automation-rule-list,
+.template-library-list {
+  display: grid;
+  gap: 10px;
+}
+
+.automation-rule-row,
+.template-library-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fffdf7;
+}
+
+.automation-rule-row strong,
+.template-library-list strong,
+.automation-rule-row span,
+.template-library-list span {
+  display: block;
+}
+
+.automation-rule-row span,
+.template-library-list span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.automation-rule-row.is-paused {
+  opacity: 0.62;
+}
+
+.automation-create {
+  margin-top: 12px;
+  border: 1px solid #e3dccb;
+  border-radius: 12px;
+  background: #fffdf7;
+}
+
+.automation-create summary {
+  padding: 12px 14px;
+  color: var(--sage-dark);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.automation-create[open] {
+  padding-bottom: 14px;
+}
+
+.automation-create[open] summary {
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e8dfcd;
+}
+
+.automation-create form,
+.automation-create .form-help {
+  margin-right: 14px;
+  margin-left: 14px;
 }
 
 .message-selector {

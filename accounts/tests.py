@@ -267,9 +267,9 @@ class UserProfileTests(TestCase):
         self.assertFalse(user.profile.must_change_password)
 
     @patch("accounts.onboarding.send_whatsapp_text")
-    @patch("accounts.views.send_mail")
-    def test_password_recovery_falls_back_to_whatsapp_when_email_fails(self, send_mail_mock, whatsapp_mock):
-        send_mail_mock.side_effect = RuntimeError("SMTP indisponivel")
+    @patch("accounts.views.EmailMultiAlternatives")
+    def test_password_recovery_falls_back_to_whatsapp_when_email_fails(self, email_message_mock, whatsapp_mock):
+        email_message_mock.return_value.send.side_effect = RuntimeError("SMTP indisponivel")
         whatsapp_mock.return_value = {"messages": [{"id": "wa-2"}]}
         patient = Patient.objects.create(full_name="Paciente Fallback", phone="11999990000")
         user = get_user_model().objects.create_user(
@@ -285,7 +285,7 @@ class UserProfileTests(TestCase):
         response = self.client.post(reverse("password_reset"), {"identifier": "paciente-fallback"})
 
         self.assertEqual(response.status_code, 302)
-        send_mail_mock.assert_called_once()
+        email_message_mock.assert_called_once()
         whatsapp_mock.assert_called_once()
         user.refresh_from_db()
         self.assertFalse(user.check_password("Senha@123"))

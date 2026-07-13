@@ -3,8 +3,10 @@ from django.contrib import admin
 from core.models import (
     AuditLog,
     ClinicSettings,
+    EmailDeliveryEvent,
     GoogleCalendarIntegration,
     WhatsAppIntegration,
+    WhatsAppAutomationRule,
     WhatsAppAutomationSettings,
     WhatsAppMessageLog,
     WhatsAppMessageTemplate,
@@ -22,6 +24,14 @@ class AuditLogAdmin(admin.ModelAdmin):
     list_filter = ("action", "app_label", "model_name")
     search_fields = ("actor__username", "model_name", "object_repr")
     readonly_fields = ("actor", "action", "app_label", "model_name", "object_id", "object_repr", "changes", "created_at")
+
+
+@admin.register(EmailDeliveryEvent)
+class EmailDeliveryEventAdmin(admin.ModelAdmin):
+    list_display = ("occurred_at", "event_type", "recipient", "message_id", "provider")
+    list_filter = ("provider", "event_type")
+    search_fields = ("recipient", "message_id")
+    readonly_fields = ("provider", "event_type", "recipient", "message_id", "occurred_at", "payload", "created_at", "updated_at")
 
 
 @admin.register(GoogleCalendarIntegration)
@@ -52,6 +62,13 @@ class WhatsAppAutomationSettingsAdmin(admin.ModelAdmin):
         "birthday_send_time",
         "updated_at",
     )
+
+
+@admin.register(WhatsAppAutomationRule)
+class WhatsAppAutomationRuleAdmin(admin.ModelAdmin):
+    list_display = ("name", "template", "trigger", "hours_before", "active", "is_system", "updated_at")
+    list_filter = ("active", "is_system", "trigger")
+    search_fields = ("name", "template__title")
 
 
 @admin.register(WhatsAppMessageLog)

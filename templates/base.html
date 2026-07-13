@@ -12,9 +12,9 @@
   <link rel="manifest" href="{% url 'pwa_manifest' %}">
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260713-block8">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260713-automation-ux">
   <link rel="stylesheet" href="{% static 'css/quick-actions.css' %}?v=20260630-quick-actions-compact">
-  <script src="{% static 'js/app.js' %}?v=20260713-block8" defer></script>
+  <script src="{% static 'js/app.js' %}?v=20260713-automation-ux" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -287,7 +287,7 @@
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("{% url 'pwa_service_worker' %}").catch(function () {});
+        navigator.serviceWorker.register("{% url 'pwa_service_worker' %}?v=20260713-automation-ux").catch(function () {});
       });
     }
   </script>

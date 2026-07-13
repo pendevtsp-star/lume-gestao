@@ -46,6 +46,12 @@ class PatientModelTests(TestCase):
         with self.assertRaises(ValidationError):
             referral.full_clean()
 
+    def test_marketing_consent_is_disabled_by_default(self):
+        patient = Patient.objects.create(full_name="Paciente Sem Marketing", email="sem-marketing@lume.local")
+
+        self.assertFalse(patient.email_marketing_opt_in)
+        self.assertIsNone(patient.email_marketing_opt_in_at)
+
 
 class PatientAccessTests(TestCase):
     def test_public_referral_creates_lead_without_patient_record(self):

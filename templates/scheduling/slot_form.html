@@ -11,6 +11,17 @@
   <a class="button secondary" href="{{ back_url }}">Voltar</a>
 </section>
 
+{% if original_appointment %}
+  <section class="panel reschedule-context" aria-label="Sessao selecionada para reagendamento">
+    <div>
+      <p class="eyebrow">Sessao selecionada</p>
+      <h2>{{ original_appointment.patient.full_name }}</h2>
+      <p>{{ original_appointment.professional.full_name }} &middot; {{ original_appointment.starts_at|date:"d/m/Y H:i" }} a {{ original_appointment.ends_at|date:"H:i" }}</p>
+    </div>
+    <span class="status-pill">Reagendando apenas esta paciente</span>
+  </section>
+{% endif %}
+
 <form method="get" class="panel form-panel slot-search-panel">
   {% if form.non_field_errors %}
     <div class="form-errors">{{ form.non_field_errors }}</div>
@@ -84,18 +95,28 @@
           <textarea class="field-control" name="notes" rows="3">{{ booking_values.notes }}</textarea>
         </label>
 
-        <div class="slot-grid">
+        <fieldset class="slot-choice-fieldset">
+          <legend>Escolha o novo horario</legend>
+          <div class="slot-grid">
           {% for slot in slots %}
-            <button class="slot-button" type="submit" name="selected_start" value="{{ slot.start_value }}">
-              <strong>{{ slot.label }}</strong>
-              <span>
-                {{ slot_select_label }}
-                {% if slot.capacity > 1 %}
-                  &middot; {{ slot.remaining_capacity }} vaga(s) livre(s) de {{ slot.capacity }}
-                {% endif %}
+            <label class="slot-button">
+              <input type="radio" name="selected_start" value="{{ slot.start_value }}" required>
+              <span class="slot-choice-copy">
+                <strong>{{ slot.label }}</strong>
+                <span>
+                  {{ slot_select_label }}
+                  {% if slot.capacity > 1 %}
+                    &middot; {{ slot.remaining_capacity }} vaga(s) livre(s) de {{ slot.capacity }}
+                  {% endif %}
+                </span>
               </span>
-            </button>
+            </label>
           {% endfor %}
+          </div>
+        </fieldset>
+        <div class="form-actions slot-confirm-actions">
+          <span class="slot-selection-hint">Selecione um horario para confirmar.</span>
+          <button class="button primary" type="submit">{{ slot_confirm_label }}</button>
         </div>
       </form>
     {% else %}

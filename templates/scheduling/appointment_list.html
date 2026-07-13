@@ -12,7 +12,8 @@
   }
 
   .agenda-action-modal {
-    width: min(520px, calc(100% - 28px));
+    width: min(760px, calc(100% - 28px));
+    max-height: min(82vh, 820px);
     border: 0;
     border-radius: 22px;
     padding: 0;
@@ -151,7 +152,7 @@
 
   .agenda-modal-patient-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.5fr);
     gap: 12px;
     align-items: center;
     padding: 12px;
@@ -174,7 +175,7 @@
   .agenda-modal-patient-actions {
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 6px;
   }
 
@@ -189,6 +190,38 @@
     font-size: 13px;
   }
 
+  .agenda-modal-more-actions {
+    position: relative;
+  }
+
+  .agenda-modal-more-actions summary {
+    min-height: 34px;
+    padding: 7px 10px;
+    border: 1px solid rgba(96, 114, 79, 0.2);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 800;
+    list-style: none;
+  }
+
+  .agenda-modal-more-actions summary::-webkit-details-marker { display: none; }
+
+  .agenda-modal-more-actions[open] > div {
+    position: absolute;
+    z-index: 3;
+    right: 0;
+    top: 42px;
+    display: grid;
+    min-width: 180px;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid rgba(96, 114, 79, 0.18);
+    border-radius: 10px;
+    background: #fffdf7;
+    box-shadow: 0 14px 30px rgba(35, 46, 36, 0.14);
+  }
+
   @media (max-width: 680px) {
     .agenda-modal-facts {
       grid-template-columns: 1fr;
@@ -201,6 +234,8 @@
     .agenda-modal-patient-actions {
       justify-content: flex-start;
     }
+
+    .agenda-modal-more-actions[open] > div { left: 0; right: auto; }
   }
 </style>
 <div class="agenda-page">
@@ -446,37 +481,44 @@
                                   {% endif %}
                                   {% if item.status != "completed" and item.status != "canceled" and item.status != "rescheduled" %}
                                     <a class="table-action" href="{% url 'scheduling:appointment_reschedule' item.pk %}">Reagendar</a>
-                                    <a class="table-action" href="{% url 'scheduling:reschedule_request_create' item.pk %}">Solicitar remarcacao</a>
-                                    <form method="post" action="{% url 'scheduling:appointment_cancel' item.pk %}">
-                                      {% csrf_token %}
-                                      <button class="table-action button-link" type="submit">Cancelar</button>
-                                    </form>
                                   {% endif %}
-                                  {% if item.status != "completed" and item.status != "canceled" and item.status != "rescheduled" and request.user.profile.role != "patient" %}
-                                    <form method="post" action="{% url 'scheduling:appointment_complete' item.pk %}">
-                                      {% csrf_token %}
-                                      {% if item.needs_credit_adjustment %}
-                                        <input type="hidden" name="add_credit" value="1">
-                                        <button class="table-action button-link" type="submit" onclick="return confirm('O cliente nao tem creditos disponiveis. Gostaria de acrescentar um credito e continuar?')">Baixar + credito</button>
-                                      {% else %}
-                                        <button class="table-action button-link" type="submit">Baixar</button>
+                                  <details class="agenda-modal-more-actions">
+                                    <summary>Mais acoes</summary>
+                                    <div>
+                                      {% if item.status != "completed" and item.status != "canceled" and item.status != "rescheduled" %}
+                                        <a class="table-action" href="{% url 'scheduling:reschedule_request_create' item.pk %}">Solicitar remarcacao</a>
+                                        <form method="post" action="{% url 'scheduling:appointment_cancel' item.pk %}">
+                                          {% csrf_token %}
+                                          <button class="table-action button-link" type="submit">Cancelar</button>
+                                        </form>
                                       {% endif %}
-                                    </form>
-                                  {% endif %}
-                                  {% if request.user.profile.role != "patient" %}
-                                    <form method="post" action="{% url 'scheduling:appointment_absence' item.pk %}">
-                                      {% csrf_token %}
-                                      <input type="hidden" name="status" value="absent">
-                                      <button class="table-action button-link" type="submit">Falta</button>
-                                    </form>
-                                    <form method="post" action="{% url 'scheduling:appointment_absence' item.pk %}">
-                                      {% csrf_token %}
-                                      <input type="hidden" name="status" value="justified_absence">
-                                      <button class="table-action button-link" type="submit">Justificada</button>
-                                    </form>
-                                    <a class="table-action" href="{% url 'scheduling:appointment_update' item.pk %}">Editar</a>
-                                    <a class="table-action" href="{% url 'scheduling:patient_progress' item.patient_id %}">Progresso</a>
-                                  {% endif %}
+                                      {% if item.status != "completed" and item.status != "canceled" and item.status != "rescheduled" and request.user.profile.role != "patient" %}
+                                        <form method="post" action="{% url 'scheduling:appointment_complete' item.pk %}">
+                                          {% csrf_token %}
+                                          {% if item.needs_credit_adjustment %}
+                                            <input type="hidden" name="add_credit" value="1">
+                                            <button class="table-action button-link" type="submit" onclick="return confirm('O cliente nao tem creditos disponiveis. Gostaria de acrescentar um credito e continuar?')">Baixar + credito</button>
+                                          {% else %}
+                                            <button class="table-action button-link" type="submit">Baixar</button>
+                                          {% endif %}
+                                        </form>
+                                      {% endif %}
+                                      {% if request.user.profile.role != "patient" %}
+                                        <form method="post" action="{% url 'scheduling:appointment_absence' item.pk %}">
+                                          {% csrf_token %}
+                                          <input type="hidden" name="status" value="absent">
+                                          <button class="table-action button-link" type="submit">Falta</button>
+                                        </form>
+                                        <form method="post" action="{% url 'scheduling:appointment_absence' item.pk %}">
+                                          {% csrf_token %}
+                                          <input type="hidden" name="status" value="justified_absence">
+                                          <button class="table-action button-link" type="submit">Justificada</button>
+                                        </form>
+                                        <a class="table-action" href="{% url 'scheduling:appointment_update' item.pk %}">Editar</a>
+                                        <a class="table-action" href="{% url 'scheduling:patient_progress' item.patient_id %}">Progresso</a>
+                                      {% endif %}
+                                    </div>
+                                  </details>
                                 </div>
                               </article>
                             {% endfor %}

@@ -107,7 +107,7 @@ def send_patient_welcome_email(patient, username, temporary_password, login_url)
     subject = render_to_string("accounts/email/welcome_patient_subject.txt", context).strip()
     text_body = render_to_string("accounts/email/welcome_patient.txt", context)
     html_body = render_to_string("accounts/email/welcome_patient.html", context)
-    message = EmailMultiAlternatives(subject, text_body, settings.DEFAULT_FROM_EMAIL, [patient.email])
+    message = EmailMultiAlternatives(subject, text_body, settings.EMAIL_TRANSACTIONAL_FROM_EMAIL, [patient.email])
     message.attach_alternative(html_body, "text/html")
     message.send(fail_silently=False)
 
@@ -122,7 +122,7 @@ def send_user_welcome_email(user, temporary_password, login_url):
     subject = render_to_string("accounts/email/welcome_user_subject.txt", context).strip()
     text_body = render_to_string("accounts/email/welcome_user.txt", context)
     html_body = render_to_string("accounts/email/welcome_user.html", context)
-    message = EmailMultiAlternatives(subject, text_body, settings.DEFAULT_FROM_EMAIL, [user.email])
+    message = EmailMultiAlternatives(subject, text_body, settings.EMAIL_TRANSACTIONAL_FROM_EMAIL, [user.email])
     message.attach_alternative(html_body, "text/html")
     message.send(fail_silently=False)
 

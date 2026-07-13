@@ -545,6 +545,7 @@ class SlotSelectionMixin:
     back_url_name = "scheduling:appointments"
     submit_label = "Ver horarios livres"
     slot_select_label = "Agendar neste horario"
+    slot_confirm_label = "Confirmar agendamento"
 
     def get_context_data(self, form, slots=None, searched=False, booking_values=None):
         search_field_names = [
@@ -576,6 +577,8 @@ class SlotSelectionMixin:
             "back_url": reverse(self.back_url_name),
             "submit_label": self.submit_label,
             "slot_select_label": self.slot_select_label,
+            "slot_confirm_label": self.slot_confirm_label,
+            "original_appointment": getattr(self, "original_appointment", None),
         }
 
     def booking_values_from_form(self, form):
@@ -815,6 +818,7 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
     page_title = "Reagendamento"
     submit_label = "Ver novos horarios"
     slot_select_label = "Reagendar para este horario"
+    slot_confirm_label = "Confirmar reagendamento"
 
     def dispatch(self, request, *args, **kwargs):
         self.original_appointment = get_object_or_404(appointments_for_user(request.user), pk=kwargs["pk"])

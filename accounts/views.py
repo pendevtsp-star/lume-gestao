@@ -7,10 +7,10 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.shortcuts import redirect
 from django.template.loader import render_to_string
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.views.generic import CreateView, DeleteView, FormView, ListView, UpdateView
@@ -191,16 +191,35 @@ class PasswordRecoveryRequestView(FormView):
         return False
 
     def send_password_reset_email(self, user):
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        reset_url = self.request.build_absolute_uri(
+            reverse("password_reset_confirm", kwargs={
+                "uidb64": uid,
+                "token": token,
+            })
+        )
         context = {
             "user": user,
-            "uid": urlsafe_base64_encode(force_bytes(user.pk)),
-            "token": default_token_generator.make_token(user),
+            "uid": uid,
+            "token": token,
             "protocol": "https" if self.request.is_secure() else "http",
             "domain": self.request.get_host(),
+            "reset_url": reset_url,
         }
         subject = render_to_string("registration/password_reset_subject.txt", context).strip()
-        message = render_to_string("registration/password_reset_email.html", context)
-        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
+        text_body = render_to_string("registration/password_reset_email.txt", context)
+        html_body = render_to_string("registration/password_reset_email.html", context)
+        reply_to = [settings.EMAIL_REPLY_TO] if settings.EMAIL_REPLY_TO else None
+        message = EmailMultiAlternatives(
+            subject,
+            text_body,
+            settings.EMAIL_TRANSACTIONAL_FROM_EMAIL,
+            [user.email],
+            reply_to=reply_to,
+        )
+        message.attach_alternative(html_body, "text/html")
+        message.send(fail_silently=False)
 
     def send_temporary_password_by_whatsapp(self, user, phone_number):
         if not phone_number:

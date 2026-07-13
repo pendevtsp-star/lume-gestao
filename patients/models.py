@@ -18,6 +18,12 @@ class Patient(TimeStampedModel):
     birth_date = models.DateField("data de nascimento", null=True, blank=True)
     phone = models.CharField("telefone", max_length=30, blank=True)
     email = models.EmailField("e-mail", blank=True)
+    email_marketing_opt_in = models.BooleanField(
+        "autoriza comunicacoes promocionais por e-mail",
+        default=False,
+        help_text="Nao interfere em avisos operacionais, documentos, pagamentos ou recuperacao de acesso.",
+    )
+    email_marketing_opt_in_at = models.DateTimeField("consentimento de marketing em", null=True, blank=True)
     emergency_contact = models.CharField("contato de emergencia", max_length=180, blank=True)
     address = models.CharField("endereco", max_length=255, blank=True)
     clinical_notes = models.TextField("observacoes clinicas", blank=True)

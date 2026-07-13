@@ -77,7 +77,9 @@ if ($SshKey) {
 $remoteArchive = "/tmp/lume-gestao-vps.tar.gz"
 
 Write-Host "[deploy] Enviando pacote para $SshTarget..."
-& scp @sshArgs $ArchiveFullPath "${SshTarget}:$remoteArchive"
+# The VPS accepts legacy SCP reliably; Windows' SFTP-backed scp can report a
+# false remote stat error after completing the upload.
+& scp -O @sshArgs $ArchiveFullPath "${SshTarget}:$remoteArchive"
 if ($LASTEXITCODE -ne 0) {
   throw "Falha ao enviar o pacote para a VPS (scp exit code $LASTEXITCODE)."
 }
@@ -107,7 +109,7 @@ if ($SkipDockerBuildCachePrune) {
 }
 
 Write-Host "[deploy] Instalando script de limpeza segura em $RemoteCleanupScript..."
-& scp @sshArgs $LocalCleanupScript "${SshTarget}:$remoteArchive.cleanup"
+& scp -O @sshArgs $LocalCleanupScript "${SshTarget}:$remoteArchive.cleanup"
 if ($LASTEXITCODE -ne 0) {
   throw "Falha ao enviar o script de limpeza para a VPS (scp exit code $LASTEXITCODE)."
 }

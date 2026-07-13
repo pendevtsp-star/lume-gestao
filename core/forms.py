@@ -6,6 +6,7 @@ from core.models import (
     ClinicSettings,
     GoogleCalendarIntegration,
     WhatsAppAutomationSettings,
+    WhatsAppAutomationRule,
     WhatsAppIntegration,
     WhatsAppMessageTemplate,
 )
@@ -132,6 +133,13 @@ class WhatsAppMessageTemplateForm(StyledModelForm):
         }
 
 
+class CustomWhatsAppMessageTemplateForm(StyledModelForm):
+    class Meta:
+        model = WhatsAppMessageTemplate
+        fields = ["title", "description", "body", "active"]
+        widgets = {"body": forms.Textarea(attrs={"rows": 5})}
+
+
 class WhatsAppAutomationSettingsForm(StyledModelForm):
     class Meta:
         model = WhatsAppAutomationSettings
@@ -157,6 +165,21 @@ class WhatsAppAutomationSettingsForm(StyledModelForm):
         widgets = {
             "birthday_send_time": forms.TimeInput(attrs={"type": "time"}),
         }
+
+
+class WhatsAppAutomationRuleForm(StyledModelForm):
+    class Meta:
+        model = WhatsAppAutomationRule
+        fields = ["name", "template", "trigger", "hours_before", "active"]
+        widgets = {
+            "trigger": forms.Select(),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("trigger") == WhatsAppAutomationRule.Trigger.MANUAL:
+            cleaned_data["hours_before"] = 0
+        return cleaned_data
 
 
 class WhatsAppDeliveryForm(StyledForm):

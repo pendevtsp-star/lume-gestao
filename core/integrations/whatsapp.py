@@ -259,39 +259,12 @@ def send_whatsapp_text(to_number, message, integration=None):
         integration.last_error = ""
         integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
         return {"dry_run": True, "to": target, "message": message}
-    if integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY:
-        if not settings.WHATSAPP_WEB_GATEWAY_URL:
-            raise IntegrationError("Configure WHATSAPP_WEB_GATEWAY_URL para usar o WhatsApp Web temporario.")
-        response = post_json(
-            f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/send",
-            {"to": target, "message": message},
-            headers=whatsapp_web_gateway_headers(),
-            timeout=settings.WHATSAPP_TIMEOUT,
-        )
-        integration.last_test_at = timezone.now()
-        integration.last_error = ""
-        integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
-        return response
-    if integration.provider != WhatsAppIntegration.Provider.META:
-        raise IntegrationError("Twilio esta documentado como alternativa, mas ainda nao foi ativado neste modulo.")
-    access_token = first_configured_value(integration.access_token, settings.WHATSAPP_META_ACCESS_TOKEN)
-    if not access_token:
-        raise IntegrationError("Conecte o WhatsApp pela Meta ou configure WHATSAPP_META_ACCESS_TOKEN no .env.")
-    phone_number_id = first_configured_value(integration.phone_number_id, settings.WHATSAPP_META_PHONE_NUMBER_ID)
-    if not phone_number_id:
-        raise IntegrationError("Configure WHATSAPP_META_PHONE_NUMBER_ID ou o ID do numero na tela de integracoes.")
-
-    url = f"https://graph.facebook.com/{settings.WHATSAPP_META_API_VERSION}/{phone_number_id}/messages"
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": target,
-        "type": "text",
-        "text": {"body": message},
-    }
+    if not settings.WHATSAPP_WEB_GATEWAY_URL:
+        raise IntegrationError("O gateway do WhatsApp Web ainda nao esta configurado.")
     response = post_json(
-        url,
-        payload,
-        headers={"Authorization": f"Bearer {access_token}"},
+        f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/send",
+        {"to": target, "message": message},
+        headers=whatsapp_web_gateway_headers(),
         timeout=settings.WHATSAPP_TIMEOUT,
     )
     integration.last_test_at = timezone.now()

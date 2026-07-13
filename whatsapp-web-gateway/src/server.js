@@ -16,6 +16,8 @@ let latestQr = "";
 let ready = false;
 let connectedNumber = "";
 let lastError = "";
+let sendQueue = Promise.resolve();
+let lastSentAt = 0;
 
 async function clearStaleChromiumLocks() {
   const profileDir = path.join(sessionDir, "session");
@@ -43,6 +45,57 @@ function requireToken(request, response, next) {
 
 function onlyDigits(value) {
   return String(value || "").replace(/\D/g, "");
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function queueSend(callback) {
+  const next = sendQueue.then(callback, callback);
+  // Keep the queue usable even when an individual delivery fails.
+  sendQueue = next.catch(() => undefined);
+  return next;
+}
+
+async function resolveRecipientId(number) {
+  const fallback = `${number}@c.us`;
+
+  try {
+    const resolved = await client.getNumberId(fallback);
+    if (resolved?._serialized) {
+      return resolved._serialized;
+    }
+  } catch (error) {
+    console.warn("[whatsapp-web] Nao foi possivel resolver destinatario antes do envio:", error.message || error);
+  }
+
+  return fallback;
+}
+
+async function deliverMessage(number, message) {
+  const recipientId = await resolveRecipientId(number);
+  const elapsed = Date.now() - lastSentAt;
+  if (elapsed < 1100) {
+    await wait(1100 - elapsed);
+  }
+
+  try {
+    const sent = await client.sendMessage(recipientId, message);
+    lastSentAt = Date.now();
+    return sent;
+  } catch (error) {
+    if (!/No LID for user/i.test(error.message || "")) {
+      throw error;
+    }
+
+    // WhatsApp Web can refresh a contact from a LID to a phone JID between
+    // lookup and delivery. Retry once using the canonical phone JID.
+    await wait(900);
+    const sent = await client.sendMessage(`${number}@c.us`, message);
+    lastSentAt = Date.now();
+    return sent;
+  }
 }
 
 const client = new Client({
@@ -143,7 +196,8 @@ app.post("/send", requireToken, async (request, response) => {
   }
 
   try {
-    const sent = await client.sendMessage(`${to}@c.us`, message);
+    const sent = await queueSend(() => deliverMessage(to, message));
+    lastError = "";
     response.json({
       ok: true,
       provider: "whatsapp_web",

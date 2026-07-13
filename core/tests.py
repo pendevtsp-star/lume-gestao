@@ -432,7 +432,7 @@ class IntegrationsTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Integracoes")
 
-    def test_connections_tab_shows_meta_embedded_signup_when_configured(self):
+    def test_connections_tab_prioritizes_qr_flow_when_meta_credentials_exist(self):
         self.client.force_login(self.management)
         WhatsAppIntegration.objects.update_or_create(
             pk=1,
@@ -448,8 +448,8 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Conectar WhatsApp oficial")
-        self.assertContains(response, "Conectar WhatsApp oficial")
+        self.assertContains(response, "Como conectar")
+        self.assertNotContains(response, "Conectar WhatsApp oficial")
 
     def test_management_can_select_whatsapp_web_gateway_mode(self):
         self.client.force_login(self.management)
@@ -509,10 +509,9 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Conectado em modo teste")
-        self.assertContains(response, "Antes de abrir a Meta")
-        self.assertContains(response, "Diagnostico tecnico da conexao Meta")
-        self.assertContains(response, "Fazer teste controlado")
+        self.assertContains(response, "Como conectar")
+        self.assertContains(response, "Sessao pareada")
+        self.assertNotContains(response, "Diagnostico tecnico da conexao Meta")
 
     @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local", WHATSAPP_DRY_RUN=False)
     @patch("core.views.whatsapp_web_gateway_status")
@@ -533,8 +532,8 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertTrue(integration.is_connected)
-        self.assertContains(response, "WhatsApp Web temporario ativo")
-        self.assertContains(response, "Enviar mensagem")
+        self.assertContains(response, "WhatsApp Web")
+        self.assertContains(response, "Ver mensagens e automacoes")
         self.assertContains(response, "Escaneie o QR")
 
     def test_management_can_disconnect_whatsapp(self):
@@ -575,7 +574,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertFalse(integration.is_connected)
-        self.assertContains(response, "Conectar WhatsApp oficial")
+        self.assertContains(response, "Status do WhatsApp Web")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",
@@ -587,9 +586,8 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Aguardando conexao Meta")
-        self.assertContains(response, "priorizando o numero ja existente da clinica")
-        self.assertContains(response, "Conectar WhatsApp oficial")
+        self.assertContains(response, "Status do WhatsApp Web")
+        self.assertNotContains(response, "Aguardando conexao Meta")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",
@@ -611,8 +609,8 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "A Meta ainda nao liberou esse numero para envio real.")
-        self.assertContains(response, "numero ja existente")
+        self.assertContains(response, "Status do WhatsApp Web")
+        self.assertNotContains(response, "A Meta ainda nao liberou esse numero para envio real.")
 
     @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
     def test_connections_tab_shows_public_google_callback(self):
@@ -665,10 +663,9 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Configurar credenciais")
-        self.assertContains(response, "Configuracao tecnica pendente")
+        self.assertContains(response, "Status do WhatsApp Web")
         self.assertContains(response, "Conectar com Google")
-        self.assertContains(response, "Conectar WhatsApp oficial")
-        self.assertContains(response, "disabled")
+        self.assertNotContains(response, "Conectar WhatsApp oficial")
 
     @override_settings(
         GOOGLE_CALENDAR_CLIENT_ID="cole-o-client-id-google",

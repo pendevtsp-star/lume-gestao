@@ -92,36 +92,16 @@ class WhatsAppIntegrationForm(StyledModelForm):
         self.fields["default_country_code"].label = "DDI"
         self.fields["enabled"].label = "Ativar integracao"
         self.fields["dry_run"].label = "Manter em modo teste"
-        self.fields["provider"].help_text = (
-            "Use WhatsApp Web temporario para disparo automatico via sessao pareada por QR enquanto a Meta e estabilizada."
-        )
-        self.fields["embedded_app_id"].help_text = "Opcional se estiver configurado no .env da VPS."
-        self.fields["embedded_config_id"].help_text = "Opcional se estiver configurado no .env da VPS."
-        self.fields["embedded_app_secret"].help_text = "Opcional se estiver configurado no .env da VPS."
-
-    def clean_embedded_app_secret(self):
-        value = self.cleaned_data.get("embedded_app_secret")
-        if not value and self.instance and self.instance.pk:
-            return self.instance.embedded_app_secret
-        return value
+        self.fields["clinic_whatsapp_number"].help_text = "Use o numero do WhatsApp Business que sera pareado pelo QR."
 
     class Meta:
         model = WhatsAppIntegration
         fields = [
             "enabled",
             "dry_run",
-            "provider",
             "default_country_code",
             "clinic_whatsapp_number",
-            "phone_number_id",
-            "business_account_id",
-            "embedded_app_id",
-            "embedded_config_id",
-            "embedded_app_secret",
         ]
-        widgets = {
-            "embedded_app_secret": forms.PasswordInput(render_value=False),
-        }
 
 
 class WhatsAppMessageTemplateForm(StyledModelForm):

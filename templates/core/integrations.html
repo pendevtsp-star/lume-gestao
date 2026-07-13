@@ -387,9 +387,9 @@
         <section class="panel connection-card connection-card-feature integration-wizard-card embedded-signup-card connection-hero-card">
           <div class="connection-hero-top">
             <div>
-              <p class="eyebrow">{% if whatsapp_status.web_gateway_mode %}WhatsApp Web temporario{% else %}WhatsApp oficial{% endif %}</p>
+              <p class="eyebrow">WhatsApp Web</p>
               <h3>{{ whatsapp_status.label }}</h3>
-              <p>{% if whatsapp_status.web_gateway_mode %}Conecte por QR e mantenha uma sessao WhatsApp Web no servidor para disparos automaticos enquanto a API oficial e estabilizada.{% else %}Conecte a conta oficial da clinica para enviar lembretes, cobrancas e avisos automaticos.{% endif %}</p>
+              <p>Conecte o WhatsApp Business da clinica pelo QR para liberar os disparos automáticos desta instalação.</p>
             </div>
             <span class="status-pill {% if whatsapp_status.code == 'ready_live' or whatsapp_status.code == 'connected_test' or whatsapp_status.code == 'web_gateway_ready' %}is-success{% elif whatsapp_embedded_configured or whatsapp_status.code == 'web_gateway_setup' %}is-warning{% else %}is-muted{% endif %}">
               {{ whatsapp_status.label }}
@@ -403,47 +403,39 @@
           </div>
 
           <div class="connection-checklist" aria-label="Checklist da conexao do WhatsApp">
-            <article class="check-item {% if whatsapp_status.web_gateway_mode or whatsapp_embedded_configured %}is-done{% endif %}">
+            <article class="check-item is-done">
               <span>1</span>
               <div>
-                <strong>{% if whatsapp_status.web_gateway_mode %}Gateway selecionado{% else %}Conexao liberada{% endif %}</strong>
-                <p>{% if whatsapp_status.web_gateway_mode %}O Lume vai usar uma sessao WhatsApp Web isolada para envio automatico temporario.{% elif whatsapp_embedded_configured %}A tela oficial da Meta ja pode ser aberta pelo sistema.{% else %}Ainda falta liberar a configuracao segura antes do primeiro uso.{% endif %}</p>
+                <strong>Canal preparado</strong>
+                <p>O Lume usa uma sessao isolada do WhatsApp Web para os avisos automáticos.</p>
               </div>
             </article>
-            <article class="check-item {% if whatsapp_status.web_gateway_mode and whatsapp_web_gateway.ready or whatsapp.is_connected %}is-done{% endif %}">
+            <article class="check-item {% if whatsapp_web_gateway.ready %}is-done{% endif %}">
               <span>2</span>
               <div>
-                <strong>{% if whatsapp_status.web_gateway_mode %}Sessao pareada{% else %}Numero vinculado{% endif %}</strong>
-                <p>{% if whatsapp_status.web_gateway_mode and whatsapp_web_gateway.ready %}O WhatsApp Web esta conectado e pronto para enviar.{% elif whatsapp_status.web_gateway_mode %}Escaneie o QR com o WhatsApp Business da clinica uma vez.{% elif whatsapp.is_connected %}O numero da clinica ja voltou para o Lume como conectado.{% else %}Conclua a conexao na Meta usando o numero oficial da clinica.{% endif %}</p>
+                <strong>Sessao pareada</strong>
+                <p>{% if whatsapp_web_gateway.ready %}O WhatsApp Web está conectado e pronto para enviar.{% else %}Escaneie o QR abaixo com o WhatsApp Business da clinica.{% endif %}</p>
               </div>
             </article>
-            <article class="check-item {% if not whatsapp_status.dry_run and whatsapp_status.code != 'awaiting_meta' and whatsapp_status.code != 'missing_phone_number' %}is-done{% endif %}">
+            <article class="check-item {% if whatsapp_web_gateway.ready and not whatsapp_status.dry_run %}is-done{% endif %}">
               <span>3</span>
               <div>
                 <strong>Disparo automatico</strong>
-                <p>{% if whatsapp_status.dry_run %}Mantenha em modo teste ate validar a sessao e fazer o primeiro envio controlado.{% elif whatsapp_status.web_gateway_mode %}O Lume envia direto pelo gateway, sem confirmacao no celular.{% else %}Fluxo pronto para teste real controlado e liberacao gradual.{% endif %}</p>
+                <p>{% if whatsapp_status.dry_run %}Faça um teste controlado antes de liberar os avisos automáticos.{% else %}O Lume envia os avisos pela sessão pareada, sem confirmação no celular.{% endif %}</p>
               </div>
             </article>
           </div>
 
           <div class="setup-note">
-            <strong>Antes de abrir a Meta</strong>
-            {% for tip in whatsapp_connection_tips %}
-              <span>{{ forloop.counter }}. {{ tip }}</span>
-            {% endfor %}
+            <strong>Como conectar</strong>
+            <span>1. Abra o WhatsApp Business da clínica.</span>
+            <span>2. Acesse aparelhos conectados e escolha conectar aparelho.</span>
+            <span>3. Escaneie o QR exibido abaixo e aguarde o status mudar para conectado.</span>
           </div>
 
           <div class="connection-main-actions">
-            {% if whatsapp_status.web_gateway_mode %}
-              <a class="button primary" href="{% url 'integrations' %}?tab=messages">Enviar mensagem</a>
-            {% elif whatsapp_embedded_configured %}
-              <button class="button primary" id="whatsapp-connect-button" type="button" onclick="launchWhatsAppSignup()">
-                {% if whatsapp.is_connected %}Trocar WhatsApp Meta{% else %}Conectar WhatsApp oficial{% endif %}
-              </button>
-            {% else %}
-              <button class="button primary" type="button" disabled>Conectar WhatsApp oficial</button>
-            {% endif %}
-            {% if whatsapp.is_connected %}
+            <a class="button primary" href="{% url 'integrations' %}?tab=messages">Ver mensagens e automacoes</a>
+            {% if whatsapp.enabled %}
               <form method="post">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="disconnect_whatsapp">
@@ -452,24 +444,6 @@
               </form>
             {% endif %}
           </div>
-          <div class="setup-note" id="whatsapp-embedded-status" hidden></div>
-          {% if whatsapp_friendly_error_title %}
-            <div class="connection-alert">
-              <strong>{{ whatsapp_friendly_error_title }}</strong>
-              <span>{{ whatsapp_friendly_error_detail }}</span>
-            </div>
-          {% endif %}
-          <details class="setup-note slim-advanced" id="whatsapp-embedded-debug-panel" {% if not whatsapp_show_debug_hint %}hidden{% endif %}>
-            <summary>Diagnostico tecnico da conexao Meta</summary>
-            <div id="whatsapp-embedded-debug" style="display: grid; gap: 4px; overflow-wrap: anywhere; margin-top: 8px;">
-              <span>Etapa: aguardando novo teste</span>
-              <span>OAuth code recebido: nao</span>
-              <span>Evento Embedded Signup: nao recebido</span>
-              <span>WABA ID: nao</span>
-              <span>Phone Number ID: nao</span>
-              <span>Erro Meta: -</span>
-            </div>
-          </details>
 
           <div class="connection-summary-strip">
             <div>
@@ -492,11 +466,10 @@
 
           <div class="connection-expectation">
             <strong>Quando esta tela estiver certa</strong>
-            <p>{% if whatsapp_status.web_gateway_mode %}A sessao aparece conectada, o QR some e o teste controlado envia uma mensagem real pelo WhatsApp Web da clinica.{% else %}O botao principal abre a Meta, o numero retorna preenchido, o status sai de pendente e o teste controlado deixa de responder com erro de conta nao registrada.{% endif %}</p>
+            <p>A sessão aparece conectada, o QR some e o teste controlado envia uma mensagem real pelo WhatsApp Web da clínica.</p>
           </div>
 
-          {% if whatsapp_status.web_gateway_mode %}
-            <div class="whatsapp-web-box">
+          <div class="whatsapp-web-box">
               <strong>Status do WhatsApp Web</strong>
               <span data-whatsapp-web-status>
                 {% if whatsapp_web_gateway.ready %}
@@ -516,51 +489,19 @@
                   <span>O QR aparecera aqui quando o gateway estiver pronto.</span>
                 {% endif %}
               </div>
-              <small>Uso temporario: pode exigir novo pareamento se o WhatsApp encerrar a sessao. Para SaaS, mantenha a evolucao para Meta Cloud API.</small>
+              <small>Esta conexão é provisória: poderá pedir novo pareamento caso o WhatsApp encerre a sessão.</small>
             </div>
-          {% elif whatsapp_embedded_configured %}
-            <form id="whatsapp-embedded-form" method="post">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="finish_whatsapp_embedded">
-              <input type="hidden" name="tab" value="connections">
-              <input type="hidden" name="embedded_code" id="embedded-code">
-              <input type="hidden" name="embedded_access_token" id="embedded-access-token">
-              <input type="hidden" name="embedded_phone_number_id" id="embedded-phone-number-id">
-              <input type="hidden" name="embedded_business_account_id" id="embedded-business-account-id">
-              <input type="hidden" name="embedded_clinic_number" id="embedded-clinic-number">
-            </form>
-          {% else %}
-            <div class="google-setup-guide">
-              <strong>Conexao ainda nao liberada.</strong>
-              <span>O suporte precisa finalizar a configuracao segura antes do primeiro uso.</span>
-            </div>
-          {% endif %}
 
           {% if whatsapp.last_error %}
             <div class="setup-note">
               Ultimo erro: {{ whatsapp.last_error }}
             </div>
           {% endif %}
-          {% if whatsapp_template_readiness %}
-            <div class="setup-note">
-              <strong>Templates Meta</strong>
-              {% for item in whatsapp_template_readiness %}
-                <span>{{ item.template.title }}: {{ item.status }}</span>
-              {% endfor %}
-            </div>
-          {% endif %}
-          <details class="template-advanced connection-advanced slim-advanced" {% if whatsapp_status.web_gateway_mode %}open{% endif %}>
+          <details class="template-advanced connection-advanced slim-advanced" open>
             <summary>Configuracao do WhatsApp</summary>
             <div class="setup-note">
-              Para entrega provisoria com disparo automatico, escolha <strong>WhatsApp Web temporario</strong>, informe o numero oficial da clinica e mantenha a integracao ativa. Quando a Meta estabilizar, volte para <strong>Meta Cloud API</strong>.
+              Informe o número do WhatsApp Business que será pareado pelo QR. Este modo não usa a conexão oficial para os envios.
             </div>
-            <form method="post" class="provider-shortcut-form">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="select_whatsapp_web_gateway">
-              <input type="hidden" name="tab" value="connections">
-              <button class="button primary" type="submit">Usar WhatsApp Web temporario</button>
-              <small>Ativa o modo por QR com o numero ja configurado abaixo. Depois, escaneie o QR nesta tela.</small>
-            </form>
             <form method="post" class="integration-body compact-integration-body">
               {% csrf_token %}
               <input type="hidden" name="action" value="save_whatsapp">
@@ -761,7 +702,7 @@
     {% endif %}
   </article>
 </section>
-{% if active_tab == "connections" and whatsapp_embedded_configured %}
+{% if active_tab == "connections" and whatsapp_embedded_enabled %}
   <script async defer crossorigin="anonymous" src="https://connect.facebook.net/pt_BR/sdk.js"></script>
   <script>
     var whatsappSignupState = {

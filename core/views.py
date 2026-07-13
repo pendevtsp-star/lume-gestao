@@ -584,6 +584,12 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
     ):
         google_integration = GoogleCalendarIntegration.load()
         whatsapp_integration = WhatsAppIntegration.load()
+        if whatsapp_integration.provider != WhatsAppIntegration.Provider.WEB_GATEWAY:
+            # The provisional release has one delivery path only. Preserve the
+            # old Meta credentials in the database, but never route messages to
+            # them while the QR gateway is the active channel.
+            whatsapp_integration.provider = WhatsAppIntegration.Provider.WEB_GATEWAY
+            whatsapp_integration.save(update_fields=["provider", "updated_at"])
         google_client_id, google_client_secret = google_oauth_credentials(google_integration)
         whatsapp_app_id, whatsapp_config_id, whatsapp_app_secret = whatsapp_embedded_signup_credentials(
             whatsapp_integration
@@ -664,6 +670,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 and not google_integration.oauth_client_secret
             ),
             "whatsapp_embedded_configured": whatsapp_embedded_signup_configured(whatsapp_integration),
+            "whatsapp_embedded_enabled": False,
             "whatsapp_embedded_app_id": whatsapp_app_id,
             "whatsapp_embedded_config_id": whatsapp_config_id,
             "whatsapp_uses_env_credentials": bool(
@@ -932,6 +939,9 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             form = WhatsAppIntegrationForm(request.POST, prefix="whatsapp", instance=WhatsAppIntegration.load())
             if form.is_valid():
                 integration = form.save(commit=False)
+                # While the clinic uses the provisional channel, all deliveries
+                # must use the same QR-paired WhatsApp Web gateway.
+                integration.provider = WhatsAppIntegration.Provider.WEB_GATEWAY
                 if integration.enabled and integration.clinic_whatsapp_number and not integration.connected_at:
                     integration.connected_at = timezone.now()
                 if not integration.enabled:

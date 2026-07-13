@@ -10,7 +10,7 @@
     <p class="page-subtitle">Recebimentos de {{ today|date:"d/m/Y" }}, vencidos, proximos vencimentos e adiantamentos.</p>
   </div>
   <div class="panel-actions">
-    <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Receber mensalidade</a>
+    <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Cobrancas em aberto</a>
     <a class="button primary" href="{% url 'billing:payment_create' %}">Novo pagamento</a>
   </div>
 </section>
@@ -81,7 +81,7 @@
 <section class="panel stacked-panel">
   <div class="panel-header">
     <div>
-      <h2>Receber mensalidade adiantada</h2>
+      <h2>Receber proximo ciclo</h2>
       <p>Use quando o paciente quiser pagar o proximo ciclo antes de aparecer como vencimento.</p>
     </div>
   </div>

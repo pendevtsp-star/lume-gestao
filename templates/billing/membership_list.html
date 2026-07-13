@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Mensalidades | Lume Gestao{% endblock %}
+{% block title %}Planos e mensalidades | Lume Gestao{% endblock %}
 
 {% block content %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Financeiro</p>
-    <h1>Mensalidades</h1>
-    <p class="page-subtitle">Acompanhe planos ativos, vencimentos e valores mensais dos pacientes.</p>
+    <h1>Planos e mensalidades</h1>
+    <p class="page-subtitle">Acompanhe os vinculos recorrentes, vencimentos e valores mensais dos pacientes.</p>
   </div>
   <a class="button primary" href="{% url 'billing:membership_create' %}">Nova mensalidade</a>
 </section>

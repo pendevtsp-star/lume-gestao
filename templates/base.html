@@ -12,7 +12,7 @@
   <link rel="manifest" href="{% url 'pwa_manifest' %}">
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260713-automation-ux">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260713-finance-message-ux">
   <link rel="stylesheet" href="{% static 'css/quick-actions.css' %}?v=20260630-quick-actions-compact">
   <script src="{% static 'js/app.js' %}?v=20260713-automation-ux" defer></script>
 </head>
@@ -83,9 +83,9 @@
               </summary>
               <div class="nav-submenu">
                 <a href="{% url 'billing:cash_closing' %}"><span class="nav-icon icon-finance" aria-hidden="true"></span><span>Caixa do dia</span></a>
-                <a href="{% url 'billing:payment_quick_receive' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Receber mensalidade</span></a>
-                <a href="{% url 'billing:memberships' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Mensalidades</span></a>
-                <a href="{% url 'billing:payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Pagamentos</span></a>
+                <a href="{% url 'billing:payment_quick_receive' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Cobrancas em aberto</span></a>
+                <a href="{% url 'billing:memberships' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Planos e mensalidades</span></a>
+                <a href="{% url 'billing:payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Historico de pagamentos</span></a>
                 <a href="{% url 'billing:expenses' %}"><span class="nav-icon icon-expenses" aria-hidden="true"></span><span>Despesas</span></a>
                 {% if checkout_enabled %}
                   <a href="{% url 'checkout:dashboard' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Checkout</span></a>
@@ -277,7 +277,7 @@
   {% if request.user.is_authenticated and request.user.profile.role != "patient" %}
     <nav class="floating-actions" aria-label="Acoes rapidas">
       {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
-        <a class="floating-action primary" href="{% url 'billing:payment_quick_receive' %}">Receber mensalidade</a>
+        <a class="floating-action primary" href="{% url 'billing:payment_quick_receive' %}">Cobrancas em aberto</a>
       {% endif %}
       {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.profile.role == "professional" %}
         <a class="floating-action" href="{% url 'scheduling:appointment_create' %}">Novo agendamento</a>

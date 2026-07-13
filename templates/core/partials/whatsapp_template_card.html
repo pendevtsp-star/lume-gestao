@@ -10,7 +10,40 @@
       </span>
     </div>
 
-    <form method="post" class="template-send-form quick-send-form">
+    <section id="message-editor" class="template-editor template-editor-visible">
+      <div class="template-editor-heading">
+        <strong>Texto enviado ao paciente</strong>
+        <span>Edite este texto e salve antes de usar a regra automatica.</span>
+      </div>
+      <div class="token-row">
+        {% for token in template.variable_tokens %}
+          <span class="token-chip">{{ token }}</span>
+        {% endfor %}
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_template:{{ template.template_type }}">
+        <input type="hidden" name="tab" value="messages">
+        <input type="hidden" name="message" value="{{ template.template_type }}">
+        <div class="form-grid compact-form-grid">
+          {% for field in form %}
+            <label class="form-field">
+              <span>{{ field.label }}</span>
+              {{ field }}
+              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+              {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+            </label>
+          {% endfor %}
+        </div>
+        <div class="form-actions compact-actions">
+          <button class="button secondary" type="submit">Salvar mensagem</button>
+        </div>
+      </form>
+    </section>
+
+    <details class="template-advanced">
+      <summary>Enviar um teste ou agendar manualmente</summary>
+      <form method="post" class="template-send-form quick-send-form">
       {% csrf_token %}
       <input type="hidden" name="action" value="send_template:{{ template.template_type }}">
       <input type="hidden" name="tab" value="messages">
@@ -54,33 +87,6 @@
       <div class="form-actions compact-actions">
         <button class="button primary" type="submit">Enviar ou agendar</button>
       </div>
-    </form>
-
-    <details class="template-advanced">
-      <summary>Editar texto e variaveis</summary>
-      <div class="token-row">
-        {% for token in template.variable_tokens %}
-          <span class="token-chip">{{ token }}</span>
-        {% endfor %}
-      </div>
-      <form method="post" class="template-editor">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="save_template:{{ template.template_type }}">
-        <input type="hidden" name="tab" value="messages">
-        <input type="hidden" name="message" value="{{ template.template_type }}">
-        <div class="form-grid compact-form-grid">
-          {% for field in form %}
-            <label class="form-field">
-              <span>{{ field.label }}</span>
-              {{ field }}
-              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
-              {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-            </label>
-          {% endfor %}
-        </div>
-        <div class="form-actions compact-actions">
-          <button class="button secondary" type="submit">Salvar modelo</button>
-        </div>
       </form>
     </details>
   </div>

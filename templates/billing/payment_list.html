@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Pagamentos | Lume Gestao{% endblock %}
+{% block title %}Historico de pagamentos | Lume Gestao{% endblock %}
 
 {% block content %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Financeiro</p>
-    <h1>Pagamentos</h1>
-    <p class="page-subtitle">Controle recebimentos, vencimentos e status financeiro por paciente.</p>
+    <h1>Historico de pagamentos</h1>
+    <p class="page-subtitle">Consulte recebimentos ja registrados, vencimentos e status financeiro por paciente.</p>
   </div>
   <div class="panel-actions">
     <a class="button secondary" href="{% url 'billing:cash_closing' %}">Caixa do dia</a>
-    <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Receber mensalidade</a>
+    <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Cobrancas em aberto</a>
     <a class="button primary" href="{% url 'billing:payment_create' %}">Novo pagamento</a>
   </div>
 </section>

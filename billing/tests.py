@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -9,6 +10,7 @@ from django.urls import reverse
 from accounts.models import UserProfile
 from billing.forms import PaymentForm
 from billing.models import CashClosing, Expense, ExpenseCategory, Membership, Payment, ServicePlan
+from billing.services import membership_receivables_between, upcoming_membership_receivables
 from patients.models import Patient
 
 
@@ -314,7 +316,7 @@ class BillingModelTests(TestCase):
 
         response = self.client.get(reverse("billing:payment_quick_receive"), {"q": "Paciente"})
 
-        self.assertContains(response, "Receber mensalidade")
+        self.assertContains(response, "Cobrancas em aberto")
         self.assertContains(response, reverse("billing:payment_receive", args=[pending.pk]))
         self.assertNotContains(response, "07/2026")
         self.assertNotContains(response, "Massagem avulsa")
@@ -342,6 +344,36 @@ class BillingModelTests(TestCase):
         self.assertEqual(payment.paid_at, date(2026, 7, 2))
         self.assertEqual(payment.due_date, date(2026, 8, 10))
         self.assertEqual(payment.amount, Decimal("400.00"))
+
+    def test_virtual_membership_receivable_is_available_once_and_uses_due_date(self):
+        membership = Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+
+        with patch("billing.services.timezone.localdate", return_value=date(2026, 7, 13)):
+            rows = membership_receivables_between(date(2026, 7, 1), date(2026, 7, 31))
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].membership, membership)
+        self.assertEqual(rows[0].due_date, date(2026, 7, 10))
+        self.assertEqual(rows[0].status, Payment.Status.OVERDUE)
+
+        Payment.objects.create(
+            membership=membership,
+            reference_month=date(2026, 7, 1),
+            due_date=date(2026, 7, 10),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PENDING,
+        )
+        with patch("billing.services.timezone.localdate", return_value=date(2026, 7, 13)):
+            self.assertEqual(membership_receivables_between(date(2026, 7, 1), date(2026, 7, 31)), [])
+
+    def test_quick_receive_returns_only_the_next_open_cycle_per_membership(self):
+        Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)
+
+        with patch("billing.services.timezone.localdate", return_value=date(2026, 7, 13)):
+            rows = upcoming_membership_receivables(months_ahead=2)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["reference_month"], date(2026, 7, 1))
 
     def test_payment_list_renders_cash_and_delete_links(self):
         user = get_user_model().objects.create_user(username="financeiro-lista-pagamentos", password="Senha@123")

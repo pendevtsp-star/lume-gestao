@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
@@ -8,6 +9,31 @@ from billing.models import CashClosing, Charge, Expense, Membership, Payment, ad
 
 
 ZERO = Decimal("0.00")
+
+
+@dataclass(frozen=True)
+class MembershipReceivable:
+    """Uma mensalidade ainda sem lancamento financeiro materializado."""
+
+    membership: Membership
+    reference_month: date
+    due_date: date
+    amount: Decimal
+
+    @property
+    def patient_display(self):
+        return self.membership.patient.full_name
+
+    @property
+    def item_display(self):
+        return f"Mensalidade - {self.membership.plan.name}"
+
+    @property
+    def status(self):
+        return Payment.Status.OVERDUE if self.due_date < timezone.localdate() else Payment.Status.PENDING
+
+    def get_status_display(self):
+        return "Vencido" if self.status == Payment.Status.OVERDUE else "Pendente"
 
 
 def month_start(day):
@@ -60,9 +86,20 @@ def receive_membership_month(*, membership, reference_month, method, paid_at=Non
     return payment
 
 
-def upcoming_membership_receivables(query="", months_ahead=6):
+def membership_receivables_between(starts_on, ends_on, query="", limit=None):
+    """Lista mensalidades ativas sem Payment dentro do intervalo de vencimento.
+
+    O recebimento rapido cria o Payment apenas quando a gestora registra o
+    pagamento. Esta funcao evita que essa decisao esconda a cobranca do painel
+    e das automacoes antes do recebimento.
+    """
     today = timezone.localdate()
-    first_month = month_start(today)
+    starts_on = max(starts_on, month_start(today))
+    if ends_on < starts_on:
+        return []
+
+    first_month = month_start(starts_on)
+    last_month = month_start(ends_on)
     memberships = Membership.objects.select_related("patient", "plan").filter(status=Membership.Status.ACTIVE)
     query = (query or "").strip()
     if query:
@@ -73,23 +110,54 @@ def upcoming_membership_receivables(query="", months_ahead=6):
             | Q(plan__name__icontains=query)
         )
 
+    memberships = list(memberships.order_by("patient__full_name", "plan__name"))
+    membership_ids = [membership.pk for membership in memberships]
+    existing_pairs = set(
+        Payment.objects.filter(
+            membership_id__in=membership_ids,
+            reference_month__gte=first_month,
+            reference_month__lte=last_month,
+        ).values_list("membership_id", "reference_month")
+    )
+
     rows = []
-    for membership in memberships.order_by("patient__full_name", "plan__name")[:80]:
-        for offset in range(months_ahead + 1):
-            reference_month = add_months(first_month, offset)
-            existing = Payment.objects.filter(membership=membership, reference_month=reference_month).first()
-            if existing:
+    reference_month = first_month
+    while reference_month <= last_month:
+        for membership in memberships:
+            if (membership.pk, reference_month) in existing_pairs:
                 continue
-            rows.append(
-                {
-                    "membership": membership,
-                    "reference_month": reference_month,
-                    "due_date": cycle_due_date(membership, reference_month),
-                    "amount": membership.monthly_amount,
-                }
-            )
-            break
-    return rows[:24]
+            due_date = cycle_due_date(membership, reference_month)
+            if starts_on <= due_date <= ends_on:
+                rows.append(
+                    MembershipReceivable(
+                        membership=membership,
+                        reference_month=reference_month,
+                        due_date=due_date,
+                        amount=membership.monthly_amount,
+                    )
+                )
+        reference_month = add_months(reference_month, 1)
+
+    rows.sort(key=lambda row: (row.due_date, row.patient_display, row.item_display))
+    return rows[:limit] if limit else rows
+
+
+def upcoming_membership_receivables(query="", months_ahead=6):
+    today = timezone.localdate()
+    last_month = add_months(month_start(today), months_ahead)
+    rows = membership_receivables_between(month_start(today), last_month.replace(day=28), query=query)
+    next_rows = {}
+    for row in rows:
+        next_rows.setdefault(row.membership.pk, row)
+    return [
+        {
+            "membership": row.membership,
+            "reference_month": row.reference_month,
+            "due_date": row.due_date,
+            "amount": row.amount,
+        }
+        for row in list(next_rows.values())[:24]
+    ]
 
 
 def sum_amount(queryset):

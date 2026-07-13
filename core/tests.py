@@ -62,6 +62,24 @@ class DashboardAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f"{reverse('billing:payments')}?q=overdue")
 
+    def test_dashboard_lists_unmaterialized_overdue_membership(self):
+        user = get_user_model().objects.create_superuser(username="gestor-ciclo-vencido", password="Lume@12345")
+        patient = Patient.objects.create(full_name="Paciente com mensalidade em aberto")
+        plan = ServicePlan.objects.create(
+            name="Plano mensal em aberto",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("150.00"),
+            sessions_per_week=1,
+        )
+        Membership.objects.create(patient=patient, plan=plan, due_day=10)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, patient.full_name)
+        self.assertContains(response, "Mensalidade - Plano mensal em aberto")
+
     def test_dashboard_shows_weekly_birthdays_to_all_roles(self):
         today = timezone.localdate()
         birthday_patient = Patient.objects.create(

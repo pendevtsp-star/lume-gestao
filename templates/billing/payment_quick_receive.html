@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Receber mensalidade | Lume Gestao{% endblock %}
+{% block title %}Cobrancas em aberto | Lume Gestao{% endblock %}
 
 {% block content %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Financeiro</p>
-    <h1>Receber mensalidade</h1>
-    <p class="page-subtitle">Busque o paciente para receber mensalidades pendentes, vencidas ou adiantadas.</p>
+    <h1>Cobrancas em aberto</h1>
+    <p class="page-subtitle">Registre recebimentos de mensalidades pendentes, vencidas ou adiantadas.</p>
   </div>
-  <a class="button secondary" href="{% url 'billing:payments' %}">Ver pagamentos</a>
+  <a class="button secondary" href="{% url 'billing:payments' %}">Historico de pagamentos</a>
 </section>
 
 <section class="panel quick-receive-panel">
@@ -81,7 +81,7 @@
 <section class="panel stacked-panel">
   <header class="panel-header">
     <div>
-      <h2>Receber mensalidade adiantada</h2>
+      <h2>Receber proximo ciclo</h2>
       <p>Para pacientes que querem pagar o proximo ciclo antes do vencimento.</p>
     </div>
   </header>

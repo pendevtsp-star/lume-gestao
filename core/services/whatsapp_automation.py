@@ -3,6 +3,7 @@ from datetime import datetime, time, timedelta
 from django.utils import timezone
 
 from billing.models import Charge, Membership, Payment, ServicePlan
+from billing.services import membership_receivables_between
 from core.integrations.whatsapp import format_whatsapp_currency, render_whatsapp_template
 from core.models import (
     ClinicSettings,
@@ -110,11 +111,25 @@ def whatsapp_target_number(custom_number, patient=None):
 
 
 def _create_scheduled_log(
-    *, integration, template, patient, appointment=None, payment=None, charge=None, scheduled_for=None, automation_key=""
+    *,
+    integration,
+    template,
+    patient,
+    appointment=None,
+    payment=None,
+    charge=None,
+    scheduled_for=None,
+    automation_key="",
+    context_payment=None,
 ):
     rendered_message = render_whatsapp_template(
         template.body,
-        build_whatsapp_message_context(patient=patient, appointment=appointment, payment=payment, charge=charge),
+        build_whatsapp_message_context(
+            patient=patient,
+            appointment=appointment,
+            payment=context_payment or payment,
+            charge=charge,
+        ),
     )
     return WhatsAppMessageLog.objects.create(
         integration=integration,
@@ -279,6 +294,42 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     patient=patient,
                     payment=payment,
                     scheduled_for=now,
+                )
+                created[counter_key] += 1
+
+            # Mensalidades ainda nao recebidas so ganham um Payment quando a
+            # gestora confirma o recebimento. Mesmo assim, elas precisam entrar
+            # na rotina de cobranca e usar os mesmos dados no texto enviado.
+            receivables = membership_receivables_between(due_date, due_date, limit=limit)
+            for receivable in receivables:
+                patient = receivable.membership.patient
+                if not patient.phone:
+                    continue
+                automation_key = (
+                    f"membership-receivable:{receivable.membership.pk}:"
+                    f"{receivable.reference_month.isoformat()}:{counter_key}"
+                )
+                exists = WhatsAppMessageLog.objects.filter(automation_key=automation_key).exclude(
+                    status=WhatsAppMessageLog.Status.CANCELED
+                ).exists()
+                if exists:
+                    continue
+                context_payment = Payment(
+                    patient=patient,
+                    membership=receivable.membership,
+                    item_type=Payment.ItemType.MEMBERSHIP,
+                    description=receivable.membership.plan.name,
+                    reference_month=receivable.reference_month,
+                    due_date=receivable.due_date,
+                    amount=receivable.amount,
+                )
+                _create_scheduled_log(
+                    integration=integration,
+                    template=charge_template,
+                    patient=patient,
+                    scheduled_for=now,
+                    automation_key=automation_key,
+                    context_payment=context_payment,
                 )
                 created[counter_key] += 1
 

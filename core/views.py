@@ -1,4 +1,5 @@
 from datetime import datetime, time, timedelta
+from decimal import Decimal
 from datetime import timezone as datetime_timezone
 import hashlib
 import hmac
@@ -21,6 +22,7 @@ from django.views.generic import ListView, TemplateView, UpdateView
 from accounts.models import UserProfile
 from accounts.permissions import FinanceAccessMixin, ManagementAccessMixin, get_profile
 from billing.models import Charge, Membership, Payment, ServicePlan
+from billing.services import membership_receivables_between
 from core.forms import (
     ClinicSettingsForm,
     GoogleCalendarIntegrationForm,
@@ -312,19 +314,31 @@ class DashboardView(LoginRequiredMixin, TemplateView):
 
         pending_payments = Payment.objects.filter(status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE])
         paid_this_month = Payment.objects.filter(status=Payment.Status.PAID, paid_at__gte=month_start)
-        upcoming_payments = Payment.objects.filter(
+        upcoming_payment_rows = Payment.objects.filter(
             item_type=Payment.ItemType.MEMBERSHIP,
             membership__isnull=False,
             status=Payment.Status.PENDING,
             due_date__gte=today,
             due_date__lte=reminder_limit,
-        )
-        overdue_payments = Payment.objects.filter(status__in=[Payment.Status.OVERDUE, Payment.Status.PENDING], due_date__lt=today)
+        ).select_related("patient", "membership__patient", "membership__plan")
+        overdue_payment_rows = Payment.objects.filter(
+            status__in=[Payment.Status.OVERDUE, Payment.Status.PENDING], due_date__lt=today
+        ).select_related("patient", "membership__patient", "membership__plan")
+        upcoming_payments = []
+        overdue_payments = []
+        virtual_pending_total = Decimal("0.00")
         if not finance_visible:
             pending_payments = pending_payments.none()
             paid_this_month = paid_this_month.none()
-            upcoming_payments = upcoming_payments.none()
-            overdue_payments = overdue_payments.none()
+        else:
+            upcoming_virtual = membership_receivables_between(today, reminder_limit)
+            overdue_virtual = membership_receivables_between(month_start, today - timedelta(days=1))
+            pending_virtual = membership_receivables_between(month_start, today)
+            upcoming_payments = list(upcoming_payment_rows[:8]) + upcoming_virtual[:8]
+            overdue_payments = list(overdue_payment_rows[:8]) + overdue_virtual[:8]
+            upcoming_payments.sort(key=lambda payment: (payment.due_date, payment.patient_display))
+            overdue_payments.sort(key=lambda payment: (payment.due_date, payment.patient_display))
+            virtual_pending_total = sum((payment.amount for payment in pending_virtual), Decimal("0.00"))
 
         appointment_queryset = (
             Appointment.objects.select_related("patient", "professional")
@@ -349,11 +363,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 "active_professionals": Professional.objects.filter(active=True).count() if finance_visible else 0,
                 "employees": Employee.objects.filter(active=True).count() if finance_visible else 0,
                 "active_plans": ServicePlan.objects.filter(active=True).count() if finance_visible else 0,
-                "pending_total": pending_payments.aggregate(total=Sum("amount"))["total"] or 0,
+                "pending_total": (pending_payments.aggregate(total=Sum("amount"))["total"] or 0) + virtual_pending_total,
                 "paid_month_total": paid_this_month.aggregate(total=Sum("amount"))["total"] or 0,
                 "next_payments": pending_payments.select_related("patient", "membership__patient", "membership__plan")[:8],
-                "upcoming_payments": upcoming_payments.select_related("patient", "membership__patient", "membership__plan")[:8],
-                "overdue_payments": overdue_payments.select_related("patient", "membership__patient", "membership__plan")[:8],
+                "upcoming_payments": upcoming_payments[:8],
+                "overdue_payments": overdue_payments[:8],
                 "next_appointments": appointment_queryset[:8],
                 "reminder_days": settings.membership_due_reminder_days,
                 "connect_recent_posts": (

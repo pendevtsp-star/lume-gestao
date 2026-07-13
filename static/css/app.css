@@ -4222,6 +4222,11 @@ td small {
   opacity: 0.62;
 }
 
+.automation-rule-row > .form-actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .automation-create {
   margin-top: 12px;
   border: 1px solid #e3dccb;
@@ -4297,6 +4302,23 @@ td small {
 .template-send-form {
   display: grid;
   gap: 12px;
+}
+
+.template-editor-visible {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdf7;
+}
+
+.template-editor-heading {
+  display: grid;
+  gap: 3px;
+}
+
+.template-editor-heading span {
+  color: var(--muted);
+  font-size: 14px;
 }
 
 .message-template-head {

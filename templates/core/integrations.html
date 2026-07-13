@@ -616,18 +616,18 @@
         <section class="panel message-help-panel">
           <div class="panel-header">
             <div>
-              <h3>Mensagens prontas</h3>
-              <p>Escolha abaixo qual modelo deseja usar. A pagina mostra apenas uma mensagem por vez para ficar mais leve.</p>
+              <h3>Modelos de mensagem</h3>
+              <p>Escolha uma rotina, edite o texto que o paciente recebe e depois acompanhe ou pause a automacao correspondente.</p>
             </div>
           </div>
           <div class="message-selector">
             <a class="{% if active_message_type == 'appointment' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages&message=appointment">
               <strong>Agendamento</strong>
-              <span>Lembrete de 24 horas</span>
+              <span>Mensagem enviada 24 horas antes</span>
             </a>
             <a class="{% if active_message_type == 'session_soon' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages&message=session_soon">
               <strong>Sessao proxima</strong>
-              <span>Lembrete uma hora antes</span>
+              <span>Mensagem enviada uma hora antes</span>
             </a>
             <a class="{% if active_message_type == 'charge' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages&message=charge">
               <strong>Cobranca</strong>
@@ -655,12 +655,17 @@
                   <strong>{{ rule.name }}</strong>
                   <span>{{ rule.template.title }} · {% if rule.trigger == "appointment_before" %}{{ rule.hours_before }}h antes da sessao{% else %}Somente manual{% endif %}</span>
                 </div>
-                <form method="post">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="toggle_automation_rule:{{ rule.pk }}">
-                  <input type="hidden" name="tab" value="messages">
-                  <button class="button secondary compact" type="submit">{% if rule.active %}Pausar{% else %}Ativar{% endif %}</button>
-                </form>
+                <div class="form-actions compact-actions">
+                  {% if rule.template.template_type != "custom" %}
+                    <a class="button ghost compact" href="{% url 'integrations' %}?tab=messages&message={{ rule.template.template_type }}#message-editor">Editar mensagem</a>
+                  {% endif %}
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="toggle_automation_rule:{{ rule.pk }}">
+                    <input type="hidden" name="tab" value="messages">
+                    <button class="button secondary compact" type="submit">{% if rule.active %}Pausar{% else %}Ativar{% endif %}</button>
+                  </form>
+                </div>
               </article>
             {% empty %}
               <div class="empty-state soft"><strong>Nenhuma automacao ativa.</strong><span>Crie uma regra para iniciar os disparos automaticos.</span></div>

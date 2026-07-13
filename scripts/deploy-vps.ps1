@@ -145,17 +145,15 @@ docker compose -f docker-compose.prod.yml up -d --build
 echo '[deploy] Status dos containers'
 docker compose -f docker-compose.prod.yml ps
 
-echo '[deploy] Validando healthcheck local'
+echo '[deploy] Validando healthcheck publico'
 sleep 5
 health_host="`$(grep -E '^LUME_HEALTHCHECK_HOST=' .env | tail -n1 | cut -d= -f2-)"
 if [ -z "`$health_host" ] || [ "`$health_host" = '0.0.0.0' ] || [ "`$health_host" = '127.0.0.1' ] || [ "`$health_host" = 'localhost' ]; then
   health_host='sistema.clinicafisiolume.com.br'
 fi
-echo "[deploy] Healthcheck usando Host: `$health_host"
-curl --retry 6 --retry-delay 2 --retry-all-errors -fsS \
-  -H "Host: `$health_host" \
-  -H 'X-Forwarded-Proto: https' \
-  http://127.0.0.1:8000/healthz/
+health_url="https://`$health_host/healthz/"
+echo "[deploy] Healthcheck: `$health_url"
+curl --retry 6 --retry-delay 2 --retry-all-errors -fsS "`$health_url"
 
 echo '[deploy] Registrando versao efetivamente publicada'
 cat > PRODUCTION_VERSION <<'EOF'

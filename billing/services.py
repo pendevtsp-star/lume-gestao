@@ -126,6 +126,8 @@ def membership_receivables_between(starts_on, ends_on, query="", limit=None):
         for membership in memberships:
             if (membership.pk, reference_month) in existing_pairs:
                 continue
+            if membership.monthly_amount <= ZERO:
+                continue
             due_date = cycle_due_date(membership, reference_month)
             if starts_on <= due_date <= ends_on:
                 rows.append(

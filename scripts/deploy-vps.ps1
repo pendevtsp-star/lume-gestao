@@ -78,6 +78,9 @@ $remoteArchive = "/tmp/lume-gestao-vps.tar.gz"
 
 Write-Host "[deploy] Enviando pacote para $SshTarget..."
 & scp @sshArgs $ArchiveFullPath "${SshTarget}:$remoteArchive"
+if ($LASTEXITCODE -ne 0) {
+  throw "Falha ao enviar o pacote para a VPS (scp exit code $LASTEXITCODE)."
+}
 
 $backupCommand = "if [ -f scripts/backup-production.sh ]; then sh scripts/backup-production.sh; else echo '[deploy] backup script ainda nao existe no remoto'; fi"
 if ($SkipBackup) {
@@ -105,6 +108,9 @@ if ($SkipDockerBuildCachePrune) {
 
 Write-Host "[deploy] Instalando script de limpeza segura em $RemoteCleanupScript..."
 & scp @sshArgs $LocalCleanupScript "${SshTarget}:$remoteArchive.cleanup"
+if ($LASTEXITCODE -ne 0) {
+  throw "Falha ao enviar o script de limpeza para a VPS (scp exit code $LASTEXITCODE)."
+}
 
 $remoteScript = @"
 set -eu
@@ -145,7 +151,11 @@ health_host="`$(grep -E '^LUME_HEALTHCHECK_HOST=' .env | tail -n1 | cut -d= -f2-
 if [ -z "`$health_host" ] || [ "`$health_host" = '0.0.0.0' ] || [ "`$health_host" = '127.0.0.1' ] || [ "`$health_host" = 'localhost' ]; then
   health_host='sistema.clinicafisiolume.com.br'
 fi
-curl -fsS -H "Host: `$health_host" -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/healthz/
+echo "[deploy] Healthcheck usando Host: `$health_host"
+curl --retry 6 --retry-delay 2 --retry-all-errors -fsS \
+  -H "Host: `$health_host" \
+  -H 'X-Forwarded-Proto: https' \
+  http://127.0.0.1:8000/healthz/
 
 echo '[deploy] Registrando versao efetivamente publicada'
 cat > PRODUCTION_VERSION <<'EOF'
@@ -168,5 +178,8 @@ $remoteScript = $remoteScript -replace "`r`n", "`n"
 
 Write-Host "[deploy] Executando comandos remotos..."
 & ssh @sshArgs $SshTarget $remoteScript
+if ($LASTEXITCODE -ne 0) {
+  throw "Deploy remoto falhou (ssh exit code $LASTEXITCODE)."
+}
 
 Write-Host "[deploy] Pacote local: $ArchiveFullPath"

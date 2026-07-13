@@ -57,10 +57,18 @@ tar `
   --exclude='db.sqlite3' `
   --exclude='media' `
   --exclude='data' `
+  --exclude='backups' `
+  --exclude='tmp' `
   --exclude='dist' `
+  --exclude='.codex-tmp' `
+  --exclude='.codex-remote-attachments' `
   --exclude='desktop/node_modules' `
   --exclude='desktop/backend-bin' `
+  --exclude='apps/lume_app/.dart_tool' `
   --exclude='apps/lume_app/build' `
+  --exclude='apps/lume_app/android/.gradle' `
+  --exclude='apps/lume_app/.idea' `
+  --exclude='*.tar.gz' `
   --exclude='*.pyc' `
   --exclude='__pycache__' `
   -czf $ArchiveFullPath .

@@ -17,6 +17,12 @@
         <p class="section-text">
           {% if order.is_paid %}
             Pagamento confirmado. Se este foi seu primeiro acesso, suas credenciais serao enviadas por e-mail ou WhatsApp.
+          {% elif order.status == "failed" %}
+            Nao foi possivel iniciar ou confirmar este pagamento. Fale com a equipe da clinica para gerar um novo link.
+          {% elif order.status == "canceled" %}
+            Este pedido foi cancelado pela equipe da clinica.
+          {% elif order.status == "expired" %}
+            Este pedido expirou. Solicite um novo link para continuar.
           {% else %}
             Aguardando confirmacao do pagamento pelo provedor. Isso pode levar alguns instantes.
           {% endif %}

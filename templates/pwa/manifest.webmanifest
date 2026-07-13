@@ -1,0 +1,35 @@
+{
+  "name": "Lume Gestao",
+  "short_name": "Lume",
+  "description": "Gestao clinica, agenda, financeiro e Lume em casa.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "background_color": "#f5f0e5",
+  "theme_color": "#667955",
+  "orientation": "portrait-primary",
+  "categories": ["health", "productivity"],
+  "icons": [
+    {
+      "src": "/static/images/lume-favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Agenda",
+      "short_name": "Agenda",
+      "description": "Abrir agenda da clinica",
+      "url": "/agenda/"
+    },
+    {
+      "name": "Lume em casa",
+      "short_name": "Casa",
+      "description": "Abrir biblioteca do paciente",
+      "url": "/pilates-em-casa/biblioteca/"
+    }
+  ]
+}

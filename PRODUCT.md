@@ -14,6 +14,10 @@ Lume Gestao existe para centralizar a rotina da Clinica Fisio Lume em um unico s
 
 O sucesso do produto significa reduzir atrito operacional, dar visibilidade clara para a gestao, acelerar as tarefas mais frequentes da recepcao e dos profissionais, e manter a experiencia do paciente organizada e coerente. Em vez de parecer um software generico de clinica, a Lume deve refletir a operacao real da unidade e sustentar expansao futura para um modelo SaaS.
 
+## Current Product Plan
+
+O plano operacional priorizado esta em `docs/PROXIMOS_PASSOS.md`. Ele organiza os proximos blocos robustos de evolucao, incluindo PWA, checkout Asaas, remarcacao, presenca, notificacoes, feriados, metas, conquistas, programa de indicacao, check-ins e relatorio mensal.
+
 ## Brand Personality
 A personalidade da interface deve transmitir calma operacional, confianca profissional e clareza objetiva. A voz do sistema precisa soar acolhedora, organizada e segura, sem cair em tom infantil, hospitalar frio ou excesso de marketing.
 

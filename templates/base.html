@@ -5,11 +5,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Lume Gestao{% endblock %}</title>
+  <meta name="theme-color" content="#667955">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Lume">
+  <link rel="manifest" href="{% url 'pwa_manifest' %}">
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260711-operational-ui">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260712-pwa">
   <link rel="stylesheet" href="{% static 'css/quick-actions.css' %}?v=20260630-quick-actions-compact">
-  <script src="{% static 'js/app.js' %}?v=20260711-operational-ui" defer></script>
+  <script src="{% static 'js/app.js' %}?v=20260712-pwa" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -272,5 +277,12 @@
       {% endif %}
     </nav>
   {% endif %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("{% url 'pwa_service_worker' %}").catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>

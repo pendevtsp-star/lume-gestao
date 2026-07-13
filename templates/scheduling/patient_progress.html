@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Progresso do paciente | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Evolucao</p>
+    <h1>{{ patient.full_name }}</h1>
+    <p class="page-subtitle">Frequencia, presenca, metas, check-ins e avisos em uma leitura mensal.</p>
+  </div>
+  <div class="panel-actions">
+    <a class="button secondary" href="{% url 'scheduling:patient_checkin_create' patient.pk %}">Novo check-in</a>
+    <a class="button secondary" href="{% url 'scheduling:patient_goal_create' patient.pk %}">Nova meta</a>
+    <a class="button secondary" href="{% url 'scheduling:appointments' %}">Agenda</a>
+  </div>
+</section>
+
+<section class="metric-grid">
+  <article class="metric">
+    <span>Aulas no mes</span>
+    <strong>{{ summary.scheduled }}</strong>
+  </article>
+  <article class="metric">
+    <span>Presencas</span>
+    <strong>{{ summary.present }}</strong>
+  </article>
+  <article class="metric">
+    <span>Frequencia</span>
+    <strong>{{ summary.frequency }}%</strong>
+  </article>
+  <article class="metric">
+    <span>Metas ativas</span>
+    <strong>{{ summary.active_goals }}</strong>
+  </article>
+</section>
+
+<section class="dashboard-grid">
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Metas e conquistas</h2>
+        <p>Objetivos, queixa principal e progresso registrado pela equipe.</p>
+      </div>
+    </div>
+    <div class="stack-list">
+      {% for goal in goals %}
+        <article class="list-card">
+          <strong>{{ goal.title }}</strong>
+          <span>{{ goal.get_status_display }}{% if goal.target_date %} &middot; ate {{ goal.target_date|date:"d/m/Y" }}{% endif %}</span>
+          <p>{{ goal.objective|default:goal.main_complaint|default:"Sem detalhe registrado." }}</p>
+        </article>
+      {% empty %}
+        <p class="empty">Nenhuma meta registrada.</p>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Check-ins recentes</h2>
+        <p>Como o paciente relata dor e disposicao ao longo do acompanhamento.</p>
+      </div>
+    </div>
+    <div class="stack-list">
+      {% for checkin in checkins %}
+        <article class="list-card">
+          <strong>{{ checkin.get_feeling_display }}</strong>
+          <span>{{ checkin.created_at|date:"d/m/Y H:i" }} &middot; Dor {{ checkin.pain_level }}/10</span>
+          <p>{{ checkin.note|default:"Sem observacao." }}</p>
+        </article>
+      {% empty %}
+        <p class="empty">Nenhum check-in registrado.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Historico de presenca</h2>
+      <p>Base para relatorio mensal e acompanhamento de frequencia.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Status</th>
+          <th>Observacao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in attendance %}
+          <tr>
+            <td>{{ item.appointment.starts_at|date:"d/m/Y H:i" }}</td>
+            <td>{{ item.get_status_display }}</td>
+            <td>{{ item.notes|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="empty">Sem registros de presenca.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

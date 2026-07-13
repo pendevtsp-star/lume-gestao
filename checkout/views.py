@@ -16,7 +16,16 @@ from checkout.models import CheckoutMerchantAccount
 from checkout.models import CheckoutOrder
 from checkout.models import CheckoutPaymentEvent
 from checkout.providers import checkout_gateway_status
-from checkout.services import parse_asaas_payload, record_asaas_checkout_webhook, start_checkout_order
+from checkout.services import (
+    cancel_checkout_order,
+    ensure_order_payment_link,
+    expire_checkout_order,
+    get_reusable_patient_payment_order,
+    get_reusable_public_plan_order,
+    parse_asaas_payload,
+    record_asaas_checkout_webhook,
+    start_checkout_order,
+)
 from core.integrations.http import IntegrationError
 from core.views import SearchableListView
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
@@ -135,23 +144,25 @@ class PublicPlanCheckoutView(CheckoutFeatureMixin, FormView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        order = CheckoutOrder.objects.create(
-            kind=CheckoutOrder.Kind.SERVICE_PLAN,
-            plan=self.plan,
-            customer_name=form.cleaned_data["full_name"],
-            customer_document=form.cleaned_data["cpf"],
-            customer_birth_date=form.cleaned_data["birth_date"],
-            customer_email=form.cleaned_data["email"],
-            customer_phone=form.cleaned_data["phone"],
-            amount=self.plan.monthly_price,
-        )
+        order = get_reusable_public_plan_order(self.plan, form.cleaned_data)
+        if not order:
+            order = CheckoutOrder.objects.create(
+                kind=CheckoutOrder.Kind.SERVICE_PLAN,
+                plan=self.plan,
+                customer_name=form.cleaned_data["full_name"],
+                customer_document=form.cleaned_data["cpf"],
+                customer_birth_date=form.cleaned_data["birth_date"],
+                customer_email=form.cleaned_data["email"],
+                customer_phone=form.cleaned_data["phone"],
+                amount=self.plan.monthly_price,
+            )
         try:
-            start_checkout_order(order)
+            ensure_order_payment_link(order)
         except IntegrationError as exc:
             order.status = CheckoutOrder.Status.FAILED
             order.notes = f"Falha ao iniciar checkout: {exc}"
             order.save(update_fields=["status", "notes", "updated_at"])
-            messages.error(self.request, str(exc))
+            messages.error(self.request, f"Nao foi possivel iniciar o pagamento: {exc}")
             return redirect("checkout:plan", pk=self.plan.pk)
         if order.checkout_url:
             return redirect(order.checkout_url)
@@ -251,25 +262,27 @@ class PatientPaymentStartView(CheckoutFeatureMixin, LoginRequiredMixin, View):
             status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
         )
         patient = payment.membership.patient
-        order = CheckoutOrder.objects.create(
-            kind=CheckoutOrder.Kind.PAYMENT,
-            patient=patient,
-            plan=payment.membership.plan,
-            payment=payment,
-            customer_name=patient.full_name,
-            customer_document=patient.cpf or "",
-            customer_birth_date=patient.birth_date,
-            customer_email=patient.email,
-            customer_phone=patient.phone,
-            amount=payment.amount,
-        )
+        order = get_reusable_patient_payment_order(payment)
+        if not order:
+            order = CheckoutOrder.objects.create(
+                kind=CheckoutOrder.Kind.PAYMENT,
+                patient=patient,
+                plan=payment.membership.plan,
+                payment=payment,
+                customer_name=patient.full_name,
+                customer_document=patient.cpf or "",
+                customer_birth_date=patient.birth_date,
+                customer_email=patient.email,
+                customer_phone=patient.phone,
+                amount=payment.amount,
+            )
         try:
-            start_checkout_order(order)
+            ensure_order_payment_link(order)
         except IntegrationError as exc:
             order.status = CheckoutOrder.Status.FAILED
             order.notes = f"Falha ao iniciar checkout: {exc}"
             order.save(update_fields=["status", "notes", "updated_at"])
-            messages.error(request, str(exc))
+            messages.error(request, f"Nao foi possivel iniciar o pagamento: {exc}")
             return redirect("checkout:patient_payments")
         if order.checkout_url:
             return redirect(order.checkout_url)
@@ -306,6 +319,29 @@ class CheckoutPaymentEventListView(FinanceAccessMixin, SearchableListView, ListV
 
     def get_queryset(self):
         return super().get_queryset().select_related("order")
+
+
+class CheckoutOrderActionView(FinanceAccessMixin, View):
+    def post(self, request, pk, action):
+        order = get_object_or_404(CheckoutOrder, pk=pk)
+        try:
+            if action == "retry":
+                ensure_order_payment_link(order)
+                if order.checkout_url:
+                    messages.success(request, "Link de pagamento pronto para uso.")
+                else:
+                    messages.info(request, "Pedido atualizado, mas o provedor nao retornou link de pagamento.")
+            elif action == "cancel":
+                cancel_checkout_order(order)
+                messages.success(request, "Pedido cancelado com seguranca.")
+            elif action == "expire":
+                expire_checkout_order(order)
+                messages.success(request, "Pedido marcado como expirado.")
+            else:
+                raise Http404
+        except IntegrationError as exc:
+            messages.error(request, str(exc))
+        return redirect("checkout:orders")
 
 
 @method_decorator(csrf_exempt, name="dispatch")

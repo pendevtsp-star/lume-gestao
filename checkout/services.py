@@ -1,7 +1,9 @@
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from accounts.models import LGPD_CONSENT_VERSION
@@ -19,6 +21,11 @@ from scheduling.services import package_defaults_for_plan
 
 PAID_EVENTS = {"PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"}
 FAILED_EVENTS = {"PAYMENT_OVERDUE", "PAYMENT_DELETED", "PAYMENT_REFUNDED", "PAYMENT_CHARGEBACK_REQUESTED"}
+TERMINAL_ORDER_STATUSES = {
+    CheckoutOrder.Status.PAID,
+    CheckoutOrder.Status.CANCELED,
+    CheckoutOrder.Status.EXPIRED,
+}
 
 
 def parse_asaas_payload(request):
@@ -105,6 +112,8 @@ def checkout_description(order):
 
 
 def start_checkout_order(order):
+    if order.status in TERMINAL_ORDER_STATUSES:
+        raise IntegrationError("Este pedido ja foi finalizado e nao pode gerar nova cobranca.")
     merchant_account = assign_merchant_account(order)
     provider = get_checkout_provider()
     result = provider.create_payment(order)
@@ -125,6 +134,77 @@ def start_checkout_order(order):
         ]
     )
     return result
+
+
+def get_reusable_public_plan_order(plan, cleaned_data):
+    cutoff = timezone.now() - timedelta(hours=24)
+    identifiers = Q()
+    cpf = cleaned_data.get("cpf") or ""
+    email = cleaned_data.get("email") or ""
+    phone = cleaned_data.get("phone") or ""
+    if cpf:
+        identifiers |= Q(customer_document=cpf)
+    if email:
+        identifiers |= Q(customer_email__iexact=email)
+    if phone:
+        identifiers |= Q(customer_phone__contains=phone[-8:])
+    if not identifiers:
+        return None
+    return (
+        CheckoutOrder.objects.filter(
+            identifiers,
+            kind=CheckoutOrder.Kind.SERVICE_PLAN,
+            plan=plan,
+            status=CheckoutOrder.Status.PENDING,
+            created_at__gte=cutoff,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+
+
+def get_reusable_patient_payment_order(payment):
+    return (
+        CheckoutOrder.objects.filter(
+            kind=CheckoutOrder.Kind.PAYMENT,
+            payment=payment,
+            status=CheckoutOrder.Status.PENDING,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+
+
+def ensure_order_payment_link(order):
+    if order.is_paid:
+        raise IntegrationError("Este pedido ja esta pago.")
+    if order.status in {CheckoutOrder.Status.CANCELED, CheckoutOrder.Status.EXPIRED}:
+        raise IntegrationError("Este pedido foi encerrado. Crie uma nova cobranca para continuar.")
+    if order.status == CheckoutOrder.Status.PENDING and order.checkout_url:
+        return {"checkout_url": order.checkout_url, "reused": True}
+    return start_checkout_order(order)
+
+
+def cancel_checkout_order(order, reason="Cancelado manualmente pela gestao."):
+    if order.status == CheckoutOrder.Status.PAID:
+        raise IntegrationError("Pedido pago nao pode ser cancelado pelo painel.")
+    if order.status == CheckoutOrder.Status.CANCELED:
+        return order
+    order.status = CheckoutOrder.Status.CANCELED
+    order.notes = append_note(order.notes, reason)
+    order.save(update_fields=["status", "notes", "updated_at"])
+    return order
+
+
+def expire_checkout_order(order, reason="Expirado manualmente pela gestao."):
+    if order.status == CheckoutOrder.Status.PAID:
+        raise IntegrationError("Pedido pago nao pode ser expirado pelo painel.")
+    if order.status == CheckoutOrder.Status.EXPIRED:
+        return order
+    order.status = CheckoutOrder.Status.EXPIRED
+    order.notes = append_note(order.notes, reason)
+    order.save(update_fields=["status", "notes", "updated_at"])
+    return order
 
 
 def assign_merchant_account(order):

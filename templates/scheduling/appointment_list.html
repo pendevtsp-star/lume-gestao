@@ -213,6 +213,8 @@
   <div class="panel-actions">
     <a class="button secondary" href="{% url 'scheduling:appointments_ical' %}">Google Agenda .ics</a>
     {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
+      <a class="button secondary" href="{% url 'scheduling:reschedule_requests' %}">Remarcacoes</a>
+      <a class="button secondary" href="{% url 'scheduling:notifications' %}">Notificacoes</a>
       <a class="button secondary" href="{% url 'scheduling:agenda_settings' %}">Configuracoes</a>
       <a class="button secondary" href="{% url 'scheduling:availabilities' %}">Disponibilidade</a>
     {% endif %}
@@ -255,6 +257,18 @@
   <article class="metric">
     <span>Sessoes recorrentes</span>
     <strong>{{ recurring_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Faltas no mes</span>
+    <strong>{{ absence_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Remarcacoes abertas</span>
+    <strong>{{ reschedule_request_total }}</strong>
+  </article>
+  <article class="metric">
+    <span>Avisos pendentes</span>
+    <strong>{{ notification_total }}</strong>
   </article>
 </section>
 
@@ -390,6 +404,7 @@
                           {% endif %}
                           {% if session.appointment.status != "completed" and session.appointment.status != "canceled" and session.appointment.status != "rescheduled" %}
                             <a class="button primary" href="{% url 'scheduling:appointment_reschedule' session.appointment.pk %}">Reagendar</a>
+                            <a class="button secondary" href="{% url 'scheduling:reschedule_request_create' session.appointment.pk %}">Solicitar remarcacao</a>
                             <form method="post" action="{% url 'scheduling:appointment_cancel' session.appointment.pk %}">
                               {% csrf_token %}
                               <button class="button secondary" type="submit">Cancelar</button>
@@ -408,6 +423,7 @@
                           {% endif %}
                           {% if request.user.profile.role != "patient" %}
                             <a class="button secondary" href="{% url 'scheduling:appointment_update' session.appointment.pk %}">Editar detalhes</a>
+                            <a class="button secondary" href="{% url 'scheduling:patient_progress' session.appointment.patient_id %}">Progresso</a>
                           {% endif %}
                         {% endif %}
                       </div>
@@ -430,6 +446,7 @@
                                   {% endif %}
                                   {% if item.status != "completed" and item.status != "canceled" and item.status != "rescheduled" %}
                                     <a class="table-action" href="{% url 'scheduling:appointment_reschedule' item.pk %}">Reagendar</a>
+                                    <a class="table-action" href="{% url 'scheduling:reschedule_request_create' item.pk %}">Solicitar remarcacao</a>
                                     <form method="post" action="{% url 'scheduling:appointment_cancel' item.pk %}">
                                       {% csrf_token %}
                                       <button class="table-action button-link" type="submit">Cancelar</button>
@@ -447,7 +464,18 @@
                                     </form>
                                   {% endif %}
                                   {% if request.user.profile.role != "patient" %}
+                                    <form method="post" action="{% url 'scheduling:appointment_absence' item.pk %}">
+                                      {% csrf_token %}
+                                      <input type="hidden" name="status" value="absent">
+                                      <button class="table-action button-link" type="submit">Falta</button>
+                                    </form>
+                                    <form method="post" action="{% url 'scheduling:appointment_absence' item.pk %}">
+                                      {% csrf_token %}
+                                      <input type="hidden" name="status" value="justified_absence">
+                                      <button class="table-action button-link" type="submit">Justificada</button>
+                                    </form>
                                     <a class="table-action" href="{% url 'scheduling:appointment_update' item.pk %}">Editar</a>
+                                    <a class="table-action" href="{% url 'scheduling:patient_progress' item.patient_id %}">Progresso</a>
                                   {% endif %}
                                 </div>
                               </article>
@@ -525,10 +553,14 @@
           {% endif %}
           {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" %}
             <a class="table-action" href="{% url 'scheduling:appointment_reschedule' appointment.pk %}">Reagendar</a>
+            <a class="table-action" href="{% url 'scheduling:reschedule_request_create' appointment.pk %}">Solicitar remarcacao</a>
             <form method="post" action="{% url 'scheduling:appointment_cancel' appointment.pk %}">
               {% csrf_token %}
               <button class="table-action button-link" type="submit">Cancelar</button>
             </form>
+          {% endif %}
+          {% if request.user.profile.role != "patient" %}
+            <a class="table-action" href="{% url 'scheduling:patient_progress' appointment.patient_id %}">Progresso</a>
           {% endif %}
         </div>
       </article>
@@ -583,6 +615,7 @@
               {% endif %}
               {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" %}
                 <a class="table-action" href="{% url 'scheduling:appointment_reschedule' appointment.pk %}">Reagendar</a>
+                <a class="table-action" href="{% url 'scheduling:reschedule_request_create' appointment.pk %}">Solicitar remarcacao</a>
                 <form method="post" action="{% url 'scheduling:appointment_cancel' appointment.pk %}">
                   {% csrf_token %}
                   <button class="table-action button-link" type="submit">Cancelar</button>
@@ -598,6 +631,21 @@
                     <button class="table-action button-link" type="submit">Baixar</button>
                   {% endif %}
                 </form>
+              {% endif %}
+              {% if appointment.status != "completed" and appointment.status != "canceled" and appointment.status != "rescheduled" and request.user.profile.role != "patient" %}
+                <form method="post" action="{% url 'scheduling:appointment_absence' appointment.pk %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="status" value="absent">
+                  <button class="table-action button-link" type="submit">Falta</button>
+                </form>
+                <form method="post" action="{% url 'scheduling:appointment_absence' appointment.pk %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="status" value="justified_absence">
+                  <button class="table-action button-link" type="submit">Justificada</button>
+                </form>
+              {% endif %}
+              {% if request.user.profile.role != "patient" %}
+                <a class="table-action" href="{% url 'scheduling:patient_progress' appointment.patient_id %}">Progresso</a>
               {% endif %}
             </td>
           </tr>

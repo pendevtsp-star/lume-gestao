@@ -11,7 +11,13 @@ from core.forms import StyledModelForm
 from core.models import ClinicSettings
 from patients.models import Patient
 from patients.services import patient_professional_link_exists, patient_ids_for_professional, professional_ids_for_patient
-from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage
+from scheduling.models import Appointment
+from scheduling.models import AppointmentAttendance
+from scheduling.models import PatientCheckIn
+from scheduling.models import PatientGoal
+from scheduling.models import ProfessionalAvailability
+from scheduling.models import RescheduleRequest
+from scheduling.models import ServicePackage
 from scheduling.services import package_defaults_for_plan, register_membership_cycle_payment, resolve_membership_for_plan
 from team.models import Professional
 
@@ -319,6 +325,57 @@ class AppointmentRescheduleSlotForm(StyledForm):
 
     def clean_duration_minutes(self):
         return int(self.cleaned_data["duration_minutes"])
+
+
+class AppointmentAttendanceForm(StyledForm):
+    status = forms.ChoiceField(
+        label="Registro",
+        choices=[
+            (AppointmentAttendance.Status.ABSENT, "Falta"),
+            (AppointmentAttendance.Status.JUSTIFIED_ABSENCE, "Falta justificada"),
+            (AppointmentAttendance.Status.REPLACEMENT, "Reposicao"),
+        ],
+    )
+    notes = forms.CharField(label="Observacoes", required=False, widget=forms.Textarea(attrs={"rows": 3}))
+
+
+class RescheduleRequestForm(StyledModelForm):
+    class Meta:
+        model = RescheduleRequest
+        fields = ["preferred_date", "preferred_period", "reason"]
+        widgets = {
+            "preferred_date": forms.DateInput(attrs={"type": "date"}),
+            "reason": forms.Textarea(attrs={"rows": 4}),
+        }
+
+
+class PatientGoalForm(StyledModelForm):
+    class Meta:
+        model = PatientGoal
+        fields = ["title", "main_complaint", "objective", "target_date", "status", "progress_note"]
+        widgets = {
+            "target_date": forms.DateInput(attrs={"type": "date"}),
+            "main_complaint": forms.Textarea(attrs={"rows": 3}),
+            "objective": forms.Textarea(attrs={"rows": 3}),
+            "progress_note": forms.Textarea(attrs={"rows": 3}),
+        }
+
+
+class PatientCheckInForm(StyledModelForm):
+    class Meta:
+        model = PatientCheckIn
+        fields = ["appointment", "feeling", "pain_level", "note"]
+        widgets = {
+            "note": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.patient = kwargs.pop("patient", None)
+        super().__init__(*args, **kwargs)
+        self.fields["appointment"].required = False
+        if self.patient:
+            self.fields["appointment"].queryset = Appointment.objects.filter(patient=self.patient).order_by("-starts_at")
+        self.fields["pain_level"].widget.attrs.update({"min": 0, "max": 10})
 
 
 class ProfessionalAvailabilityForm(StyledModelForm):

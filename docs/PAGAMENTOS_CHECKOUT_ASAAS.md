@@ -148,6 +148,9 @@ Para producao real, trocar `ASAAS_BASE_URL` para a URL oficial de producao do As
 - Item 2 concluido localmente: tela `/checkout/conta-recebedora/` criada para cadastro financeiro da clinica.
 - Item 3 concluido localmente: homologacao dry-run automatizada por teste e comando de gestao.
 - Item 4 preparado localmente: comando de sandbox real criado e protegido.
+- Conciliacao administrativa reforcada localmente: pedidos agora podem reabrir/gerar link, cancelar ou expirar sem alterar pedidos pagos.
+- Reuso de cobrancas pendentes reforcado localmente: compra publica recente e mensalidade pendente do paciente reaproveitam pedido aberto em vez de duplicar cobranca.
+- Mensagens de erro do checkout foram padronizadas para orientar paciente e gestao sem expor chaves ou detalhes sensiveis.
 - Tentativa local do sandbox real bloqueada com seguranca por ausencia de `ASAAS_API_KEY` sandbox no `.env`.
 - Provedor escolhido: Asaas.
 - Deploy para VPS deve acontecer apenas junto da atualizacao completa de pagamentos.

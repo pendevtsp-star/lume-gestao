@@ -25,7 +25,7 @@ from core.models import (
 )
 from core.services.whatsapp_automation import enqueue_automatic_whatsapp_messages
 from patients.models import Patient, ProfessionalPatientAssignment
-from scheduling.models import Appointment, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.models import Appointment, PatientNotification, ProfessionalAvailability, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
 
 
@@ -993,6 +993,9 @@ class IntegrationsTests(TestCase):
         log = WhatsAppMessageLog.objects.get(appointment=appointment)
         self.assertEqual(log.status, WhatsAppMessageLog.Status.DRY_RUN)
         self.assertIn(self.patient.full_name, log.rendered_message)
+        notification = PatientNotification.objects.get(appointment=appointment)
+        self.assertEqual(notification.kind, PatientNotification.Kind.SESSION_CONFIRMATION)
+        self.assertEqual(notification.channel, PatientNotification.Channel.WHATSAPP)
 
     def test_management_can_send_birthday_message_from_dashboard(self):
         self.client.force_login(self.management)

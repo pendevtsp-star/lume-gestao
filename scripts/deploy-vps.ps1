@@ -47,6 +47,11 @@ if (Test-Path $ArchiveFullPath) {
 
 tar `
   --exclude='.git' `
+  --exclude='.agents' `
+  --exclude='.codex' `
+  --exclude='.impeccable' `
+  --exclude='.github/hooks' `
+  --exclude='.github/skills' `
   --exclude='.venv' `
   --exclude='.env' `
   --exclude='db.sqlite3' `
@@ -60,6 +65,9 @@ tar `
   --exclude='__pycache__' `
   -czf $ArchiveFullPath .
 Pop-Location
+
+$RemoteCleanupScript = "/srv/recovery/safe-vps-cleanup.sh"
+$LocalCleanupScript = Join-Path $Root "scripts\safe-vps-cleanup.sh"
 
 $sshArgs = @()
 if ($SshKey) {
@@ -82,16 +90,28 @@ if ($SkipNginxReload) {
 }
 
 $dockerBuildCachePruneCommand = @"
-echo '[deploy] Limpando cache antigo de build Docker'
-docker builder prune -f --filter 'until=$DockerBuildCacheMinAge' --keep-storage '$DockerBuildCacheKeepStorage' || echo '[deploy] aviso: limpeza de cache Docker falhou; deploy mantido'
-docker system df
+echo '[deploy] Executando limpeza segura pos-deploy'
+  RECOVERY_DIR='/srv/recovery' \
+  PROJECT_DIR='$RemoteDir' \
+  COMPOSE_FILE='docker-compose.prod.yml' \
+  HEALTH_URL='https://sistema.clinicafisiolume.com.br/healthz/' \
+  POST_DEPLOY_MIN_AGE='$DockerBuildCacheMinAge' \
+  POST_DEPLOY_RESERVED_SPACE='$DockerBuildCacheKeepStorage' \
+  '$RemoteCleanupScript' --mode post-deploy || echo '[deploy] aviso: limpeza de cache Docker falhou; deploy mantido'
 "@
 if ($SkipDockerBuildCachePrune) {
   $dockerBuildCachePruneCommand = "echo '[deploy] limpeza de cache Docker ignorada por parametro'"
 }
 
+Write-Host "[deploy] Instalando script de limpeza segura em $RemoteCleanupScript..."
+& scp @sshArgs $LocalCleanupScript "${SshTarget}:$remoteArchive.cleanup"
+
 $remoteScript = @"
 set -eu
+sudo mkdir -p '/srv/recovery/logs'
+sudo install -m 755 '$remoteArchive.cleanup' '$RemoteCleanupScript'
+rm -f '$remoteArchive.cleanup'
+
 echo '[deploy] Preparando diretorio $RemoteDir'
 sudo mkdir -p '$RemoteDir'
 sudo chown "`$USER:`$USER" '$RemoteDir'

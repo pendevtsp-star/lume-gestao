@@ -44,6 +44,8 @@ from homecare.services.access import active_subscription_for_user, homecare_acce
 from homecare.services.bunny import build_bunny_embed_url
 from homecare.services.payments import get_payment_provider, record_asaas_webhook, start_checkout_subscription
 from homecare.services.storage import build_homecare_storage_usage
+from scheduling.models import Appointment, PatientCheckIn, PatientGoal, PatientNotification
+from scheduling.services import patient_monthly_summary
 
 
 def public_video_q(prefix=""):
@@ -418,12 +420,13 @@ class HomecareLibraryView(HomecarePortalAccessMixin, ListView):
         context = super().get_context_data(**kwargs)
         selected_category = self.kwargs.get("category_slug") or self.request.GET.get("categoria", "")
         profile = get_profile(self.request.user)
+        patient = profile.patient if profile and profile.patient_id else None
         video_list = list(context["videos"])
-        if profile and profile.patient_id and video_list:
+        if patient and video_list:
             progress_by_video = {
                 progress.video_id: progress
                 for progress in HomecareVideoProgress.objects.filter(
-                    patient=profile.patient,
+                    patient=patient,
                     video_id__in=[video.pk for video in video_list],
                 )
             }
@@ -433,14 +436,37 @@ class HomecareLibraryView(HomecarePortalAccessMixin, ListView):
                 video.viewer_progress_percent = self.progress_percent(progress, video)
             context["videos"] = video_list
         continue_watching = []
-        if profile and profile.patient_id:
+        if patient:
             continue_watching = list(
                 HomecareVideoProgress.objects.select_related("video", "video__category", "video__author")
-                .filter(public_video_q("video__"), patient=profile.patient)
+                .filter(public_video_q("video__"), patient=patient)
                 .order_by("-last_watched_at")[:3]
             )
             for progress in continue_watching:
                 progress.progress_percent = self.progress_percent(progress, progress.video)
+        next_appointments = []
+        active_goals = []
+        achievements = []
+        pending_patient_notifications = []
+        monthly_summary = None
+        if patient:
+            now = timezone.now()
+            next_appointments = list(
+                Appointment.objects.select_related("professional")
+                .filter(
+                    patient=patient,
+                    starts_at__gte=now,
+                    status__in=[Appointment.Status.REQUESTED, Appointment.Status.SCHEDULED],
+                )
+                .order_by("starts_at")[:3]
+            )
+            active_goals = list(PatientGoal.objects.filter(patient=patient, status=PatientGoal.Status.ACTIVE)[:3])
+            achievements = list(patient.achievements.all()[:3])
+            pending_patient_notifications = list(
+                PatientNotification.objects.filter(patient=patient, status=PatientNotification.Status.PENDING)
+                .order_by("due_at")[:4]
+            )
+            monthly_summary = patient_monthly_summary(patient)
         context.update(
             {
                 "categories": HomecareCategory.objects.filter(active=True).annotate(
@@ -461,6 +487,13 @@ class HomecareLibraryView(HomecarePortalAccessMixin, ListView):
                     ("long", "Mais de 25 min"),
                 ],
                 "continue_watching": continue_watching,
+                "patient": patient,
+                "next_appointments": next_appointments,
+                "active_goals": active_goals,
+                "achievements": achievements,
+                "pending_patient_notifications": pending_patient_notifications,
+                "monthly_summary": monthly_summary,
+                "feeling_choices": PatientCheckIn.Feeling.choices,
                 "clear_filters_url": reverse("homecare_public:category", args=[selected_category])
                 if selected_category
                 else reverse("homecare_public:library"),
@@ -477,6 +510,46 @@ class HomecareLibraryView(HomecarePortalAccessMixin, ListView):
         if not video.duration_seconds:
             return 12
         return max(8, min(98, round((progress.watched_seconds / video.duration_seconds) * 100)))
+
+
+class HomecareQuickCheckInView(HomecarePortalAccessMixin, View):
+    def get(self, request, *args, **kwargs):
+        return HttpResponseNotAllowed(["POST"])
+
+    def post(self, request):
+        profile = get_profile(request.user)
+        patient = profile.patient if profile and profile.patient_id else None
+        if not patient:
+            messages.error(request, "Nao foi possivel vincular o check-in ao paciente.")
+            return redirect("homecare_public:library")
+        feeling = request.POST.get("feeling", "")
+        if feeling not in PatientCheckIn.Feeling.values:
+            messages.error(request, "Escolha como voce esta se sentindo hoje.")
+            return redirect("homecare_public:library")
+        appointment = (
+            Appointment.objects.filter(
+                patient=patient,
+                starts_at__date=timezone.localdate(),
+                status__in=[Appointment.Status.REQUESTED, Appointment.Status.SCHEDULED],
+            )
+            .order_by("starts_at")
+            .first()
+        )
+        pain_map = {
+            PatientCheckIn.Feeling.NO_PAIN: 0,
+            PatientCheckIn.Feeling.LIGHT_PAIN: 2,
+            PatientCheckIn.Feeling.MODERATE_PAIN: 5,
+            PatientCheckIn.Feeling.INTENSE_PAIN: 8,
+        }
+        PatientCheckIn.objects.create(
+            patient=patient,
+            appointment=appointment,
+            feeling=feeling,
+            pain_level=pain_map.get(feeling),
+            created_by=request.user,
+        )
+        messages.success(request, "Check-in registrado. Obrigado por atualizar sua evolucao.")
+        return redirect("homecare_public:library")
 
 
 class HomecareVideoDetailView(HomecarePortalAccessMixin, DetailView):

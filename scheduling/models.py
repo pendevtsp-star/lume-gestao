@@ -197,6 +197,248 @@ class Appointment(TimeStampedModel):
             self.completed_at = timezone.now()
 
 
+class AppointmentAttendance(TimeStampedModel):
+    class Status(models.TextChoices):
+        PRESENT = "present", "Presente"
+        ABSENT = "absent", "Falta"
+        JUSTIFIED_ABSENCE = "justified_absence", "Falta justificada"
+        RESCHEDULED = "rescheduled", "Reagendada"
+        CLINIC_CANCELED = "clinic_canceled", "Cancelada pela clinica"
+        REPLACEMENT = "replacement", "Reposicao"
+
+    appointment = models.OneToOneField(Appointment, on_delete=models.CASCADE, related_name="attendance")
+    patient = models.ForeignKey("patients.Patient", on_delete=models.PROTECT, related_name="attendance_records")
+    professional = models.ForeignKey("team.Professional", on_delete=models.PROTECT, related_name="attendance_records")
+    status = models.CharField("presenca", max_length=30, choices=Status.choices)
+    registered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="registered_attendance_records",
+    )
+    registered_at = models.DateTimeField("registrado em", default=timezone.now)
+    notes = models.TextField("observacoes", blank=True)
+
+    class Meta:
+        ordering = ["-appointment__starts_at"]
+        verbose_name = "presenca"
+        verbose_name_plural = "presencas"
+
+    def __str__(self):
+        return f"{self.patient} - {self.get_status_display()} em {self.appointment.starts_at:%d/%m/%Y}"
+
+    def save(self, *args, **kwargs):
+        if self.appointment_id:
+            self.patient = self.appointment.patient
+            self.professional = self.appointment.professional
+        super().save(*args, **kwargs)
+
+
+class RescheduleRequest(TimeStampedModel):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pendente"
+        APPROVED = "approved", "Aprovada"
+        DECLINED = "declined", "Recusada"
+        CANCELED = "canceled", "Cancelada"
+
+    class PreferredPeriod(models.TextChoices):
+        MORNING = "morning", "Manha"
+        AFTERNOON = "afternoon", "Tarde"
+        EVENING = "evening", "Noite"
+        ANY = "any", "Qualquer horario"
+
+    appointment = models.ForeignKey(Appointment, on_delete=models.PROTECT, related_name="reschedule_requests")
+    patient = models.ForeignKey("patients.Patient", on_delete=models.PROTECT, related_name="reschedule_requests")
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_reschedule_requests",
+    )
+    preferred_date = models.DateField("data preferida", null=True, blank=True)
+    preferred_period = models.CharField(
+        "periodo preferido",
+        max_length=20,
+        choices=PreferredPeriod.choices,
+        default=PreferredPeriod.ANY,
+    )
+    reason = models.TextField("motivo", blank=True)
+    status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.PENDING)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="decided_reschedule_requests",
+    )
+    decided_at = models.DateTimeField("decidido em", null=True, blank=True)
+    decision_note = models.TextField("observacao da equipe", blank=True)
+    resolved_appointment = models.ForeignKey(
+        Appointment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="resolved_reschedule_requests",
+    )
+
+    class Meta:
+        ordering = ["status", "appointment__starts_at"]
+        verbose_name = "solicitacao de remarcacao"
+        verbose_name_plural = "solicitacoes de remarcacao"
+
+    def __str__(self):
+        return f"{self.patient} - {self.get_status_display()}"
+
+    def clean(self):
+        super().clean()
+        if self.appointment_id and self.patient_id and self.appointment.patient_id != self.patient_id:
+            raise ValidationError({"patient": "A solicitacao deve pertencer ao paciente do agendamento."})
+
+
+class PatientGoal(TimeStampedModel):
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Ativa"
+        ACHIEVED = "achieved", "Concluida"
+        PAUSED = "paused", "Pausada"
+        CANCELED = "canceled", "Cancelada"
+
+    patient = models.ForeignKey("patients.Patient", on_delete=models.CASCADE, related_name="goals")
+    title = models.CharField("meta", max_length=160)
+    main_complaint = models.CharField("queixa principal", max_length=220, blank=True)
+    objective = models.TextField("objetivos", blank=True)
+    target_date = models.DateField("prazo", null=True, blank=True)
+    status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    progress_note = models.TextField("progresso", blank=True)
+    achieved_at = models.DateTimeField("concluida em", null=True, blank=True)
+
+    class Meta:
+        ordering = ["patient__full_name", "status", "target_date"]
+        verbose_name = "meta do paciente"
+        verbose_name_plural = "metas dos pacientes"
+
+    def __str__(self):
+        return f"{self.patient} - {self.title}"
+
+    def clean(self):
+        super().clean()
+        if self.status == self.Status.ACHIEVED and not self.achieved_at:
+            self.achieved_at = timezone.now()
+
+
+class PatientAchievement(TimeStampedModel):
+    patient = models.ForeignKey("patients.Patient", on_delete=models.CASCADE, related_name="achievements")
+    goal = models.ForeignKey(PatientGoal, on_delete=models.SET_NULL, null=True, blank=True, related_name="achievements")
+    title = models.CharField("conquista", max_length=160)
+    description = models.TextField("descricao", blank=True)
+    achieved_on = models.DateField("data da conquista", default=timezone.localdate)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_patient_achievements",
+    )
+
+    class Meta:
+        ordering = ["-achieved_on", "patient__full_name"]
+        verbose_name = "conquista do paciente"
+        verbose_name_plural = "conquistas dos pacientes"
+
+    def __str__(self):
+        return f"{self.patient} - {self.title}"
+
+
+class PatientCheckIn(TimeStampedModel):
+    class Feeling(models.TextChoices):
+        NO_PAIN = "no_pain", "Sem dor"
+        LIGHT_PAIN = "light_pain", "Dor leve"
+        MODERATE_PAIN = "moderate_pain", "Dor moderada"
+        INTENSE_PAIN = "intense_pain", "Dor intensa"
+
+    patient = models.ForeignKey("patients.Patient", on_delete=models.CASCADE, related_name="checkins")
+    appointment = models.ForeignKey(
+        Appointment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="checkins",
+    )
+    feeling = models.CharField("como esta se sentindo", max_length=30, choices=Feeling.choices)
+    pain_level = models.PositiveSmallIntegerField("nivel de dor", null=True, blank=True)
+    note = models.TextField("observacao", blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_patient_checkins",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "check-in do paciente"
+        verbose_name_plural = "check-ins dos pacientes"
+
+    def __str__(self):
+        return f"{self.patient} - {self.get_feeling_display()}"
+
+    def clean(self):
+        super().clean()
+        if self.pain_level is not None and not 0 <= self.pain_level <= 10:
+            raise ValidationError({"pain_level": "Informe um nivel de dor entre 0 e 10."})
+        if self.appointment_id and self.patient_id and self.appointment.patient_id != self.patient_id:
+            raise ValidationError({"appointment": "O check-in deve pertencer ao paciente do agendamento."})
+
+
+class PatientNotification(TimeStampedModel):
+    class Kind(models.TextChoices):
+        APPOINTMENT_DAY = "appointment_day", "Aula no dia"
+        SESSION_CONFIRMATION = "session_confirmation", "Confirmacao da sessao"
+        ABSENCE_WARNING = "absence_warning", "Aviso de falta"
+        PLAN_RENEWAL = "plan_renewal", "Renovacao do plano"
+        HOLIDAY = "holiday", "Feriado"
+        SCHEDULE_CHANGE = "schedule_change", "Mudanca de horario"
+        RESCHEDULE = "reschedule", "Remarcacao"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pendente"
+        SENT = "sent", "Enviada"
+        SKIPPED = "skipped", "Ignorada"
+        FAILED = "failed", "Falhou"
+
+    class Channel(models.TextChoices):
+        PANEL = "panel", "Painel"
+        WHATSAPP = "whatsapp", "WhatsApp"
+        PWA = "pwa", "PWA"
+
+    patient = models.ForeignKey("patients.Patient", on_delete=models.CASCADE, related_name="notifications")
+    appointment = models.ForeignKey(
+        Appointment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="patient_notifications",
+    )
+    kind = models.CharField("tipo", max_length=30, choices=Kind.choices)
+    channel = models.CharField("canal", max_length=20, choices=Channel.choices, default=Channel.PANEL)
+    status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.PENDING)
+    due_at = models.DateTimeField("programada para", db_index=True)
+    sent_at = models.DateTimeField("enviada em", null=True, blank=True)
+    idempotency_key = models.CharField("chave unica", max_length=180, unique=True)
+    message = models.TextField("mensagem")
+    error_message = models.TextField("erro", blank=True)
+
+    class Meta:
+        ordering = ["status", "due_at"]
+        verbose_name = "notificacao do paciente"
+        verbose_name_plural = "notificacoes dos pacientes"
+
+    def __str__(self):
+        return f"{self.patient} - {self.get_kind_display()}"
+
+
 class ProfessionalAvailabilityQuerySet(models.QuerySet):
     def slot_available(self, professional_id, starts_at, ends_at):
         local_start = timezone.localtime(starts_at)

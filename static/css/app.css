@@ -5204,6 +5204,105 @@ form.is-submitting button[type="submit"] { opacity: .72; }
   gap: 12px;
 }
 
+.homecare-care-panel {
+  display: grid;
+  gap: 16px;
+  margin: 22px 0;
+  padding: 20px;
+  border: 1px solid rgba(96, 114, 79, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 16px 34px rgba(37, 55, 42, 0.08);
+}
+
+.homecare-care-panel .homecare-section-head {
+  margin: 0;
+}
+
+.homecare-care-grid,
+.homecare-care-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.homecare-care-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.homecare-care-card,
+.homecare-routine-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(96, 114, 79, 0.16);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.homecare-care-card span,
+.homecare-routine-card header span {
+  color: var(--sage-dark);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.homecare-care-card strong,
+.homecare-routine-card header strong,
+.homecare-routine-item strong {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.homecare-care-card strong {
+  font-size: 24px;
+}
+
+.homecare-care-card p,
+.homecare-muted,
+.homecare-routine-item small {
+  margin: 0;
+  color: #5d695f;
+  line-height: 1.5;
+}
+
+.homecare-routine-card header,
+.homecare-routine-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.homecare-routine-list {
+  display: grid;
+  gap: 10px;
+}
+
+.homecare-routine-item {
+  min-height: 58px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(96, 114, 79, 0.14);
+}
+
+.homecare-routine-item:first-child {
+  border-top: 0;
+}
+
+.homecare-routine-item > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.homecare-checkin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .homecare-player-panel {
   overflow: hidden;
   border-radius: 8px;
@@ -6152,7 +6251,9 @@ form.is-submitting button[type="submit"] { opacity: .72; }
   .integration-stack,
   .zap-metrics,
   .zap-guide-grid,
-  .message-help-grid {
+  .message-help-grid,
+  .homecare-care-grid,
+  .homecare-care-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -6166,6 +6267,8 @@ form.is-submitting button[type="submit"] { opacity: .72; }
   .homecare-filter-bar,
   .homecare-glance,
   .homecare-library-summary,
+  .homecare-care-grid,
+  .homecare-care-columns,
   .video-media-grid {
     grid-template-columns: 1fr;
   }
@@ -6232,6 +6335,9 @@ form.is-submitting button[type="submit"] { opacity: .72; }
     .connect-filter-bar,
     .connect-composer-row,
     .homecare-filter-bar,
+    .homecare-care-grid,
+    .homecare-care-columns,
+    .homecare-checkin-grid,
     .checkout-health-grid,
     .checkout-webhook-box,
     .storage-overview,

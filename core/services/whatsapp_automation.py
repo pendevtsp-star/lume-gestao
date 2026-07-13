@@ -7,7 +7,8 @@ from core.integrations.whatsapp import format_whatsapp_currency, render_whatsapp
 from core.models import ClinicSettings, WhatsAppAutomationSettings, WhatsAppIntegration, WhatsAppMessageLog, WhatsAppMessageTemplate
 from patients.models import Patient, ProfessionalPatientAssignment
 from patients.services import professional_ids_for_patient
-from scheduling.models import Appointment
+from scheduling.models import Appointment, PatientNotification
+from scheduling.services import session_confirmation_message, upsert_patient_notification
 from team.models import Professional
 
 
@@ -154,6 +155,15 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     patient=appointment.patient,
                     appointment=appointment,
                     scheduled_for=now,
+                )
+                upsert_patient_notification(
+                    patient=appointment.patient,
+                    appointment=appointment,
+                    kind=PatientNotification.Kind.SESSION_CONFIRMATION,
+                    channel=PatientNotification.Channel.WHATSAPP,
+                    due_at=now,
+                    message=session_confirmation_message(appointment),
+                    key_parts=[appointment.pk, "session-confirmation"],
                 )
                 created["appointment"] += 1
 

@@ -32,19 +32,29 @@ from core.deletion import (
 )
 from core.models import ClinicSettings
 from core.views import FormContextMixin, SearchableListView
+from patients.models import Patient
 from scheduling.forms import (
     AgendaSettingsForm,
+    AppointmentAttendanceForm,
     AppointmentForm,
     AppointmentRescheduleSlotForm,
     AppointmentSlotSearchForm,
+    PatientCheckInForm,
+    PatientGoalForm,
     ProfessionalAvailabilityForm,
     ProfessionalAvailabilityBatchForm,
+    RescheduleRequestForm,
     ServicePackageForm,
 )
 from scheduling.models import (
     Appointment,
+    AppointmentAttendance,
     AppointmentSeries,
+    PatientCheckIn,
+    PatientGoal,
+    PatientNotification,
     ProfessionalAvailability,
+    RescheduleRequest,
     ServicePackage,
     ServicePackageAdjustment,
     ServiceUsage,
@@ -53,6 +63,12 @@ from scheduling.services import (
     completion_needs_credit_adjustment,
     completion_package_for_appointment,
     ensure_credit_for_appointment,
+    generate_operational_notifications,
+    mark_absence,
+    patient_monthly_summary,
+    record_attendance_for_canceled_appointment,
+    record_attendance_for_completed_appointment,
+    record_attendance_for_rescheduled_appointment,
 )
 from scheduling.slots import (
     availability_capacity_for_slot,
@@ -83,6 +99,14 @@ class AgendaSettingsAccessMixin(RoleRequiredMixin):
     ]
 
 
+class AgendaOperationalAccessMixin(RoleRequiredMixin):
+    allowed_roles = [
+        UserProfile.Role.PROFESSIONAL,
+        UserProfile.Role.ADMINISTRATION,
+        UserProfile.Role.MANAGEMENT,
+    ]
+
+
 def appointments_for_user(user):
     queryset = Appointment.objects.select_related("patient", "professional", "series")
     if user.is_superuser:
@@ -100,6 +124,21 @@ def appointments_for_user(user):
     return queryset.none()
 
 
+def visible_patient_ids_for_user(user):
+    if user.is_superuser:
+        return Patient.objects.values_list("pk", flat=True)
+    profile = get_profile(user)
+    if not profile:
+        return Patient.objects.none().values_list("pk", flat=True)
+    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
+        return Patient.objects.values_list("pk", flat=True)
+    if profile.is_patient and profile.patient_id:
+        return Patient.objects.filter(pk=profile.patient_id).values_list("pk", flat=True)
+    if profile.is_professional and profile.professional_id:
+        return Patient.objects.filter(appointments__professional=profile.professional).distinct().values_list("pk", flat=True)
+    return Patient.objects.none().values_list("pk", flat=True)
+
+
 def profile_booking_source(profile):
     if not profile:
         return Appointment.BookingSource.ADMINISTRATION
@@ -110,6 +149,21 @@ def profile_booking_source(profile):
     if profile.role == UserProfile.Role.MANAGEMENT:
         return Appointment.BookingSource.MANAGEMENT
     return Appointment.BookingSource.ADMINISTRATION
+
+
+def user_can_manage_agenda(user):
+    if user.is_superuser:
+        return True
+    profile = get_profile(user)
+    return bool(
+        profile
+        and profile.role
+        in {
+            UserProfile.Role.PROFESSIONAL,
+            UserProfile.Role.ADMINISTRATION,
+            UserProfile.Role.MANAGEMENT,
+        }
+    )
 
 
 def add_model_validation_errors(form, error):
@@ -391,6 +445,20 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
         base_queryset = appointments_for_user(self.request.user)
         today = timezone.localdate()
         request_queue = base_queryset.filter(status=Appointment.Status.REQUESTED).order_by("starts_at")[:6]
+        pending_reschedules = RescheduleRequest.objects.filter(status=RescheduleRequest.Status.PENDING)
+        if not user_can_manage_agenda(self.request.user):
+            profile = get_profile(self.request.user)
+            if profile and profile.is_patient and profile.patient_id:
+                pending_reschedules = pending_reschedules.filter(patient=profile.patient)
+            else:
+                pending_reschedules = pending_reschedules.none()
+        pending_notifications = PatientNotification.objects.filter(status=PatientNotification.Status.PENDING)
+        if not user_can_manage_agenda(self.request.user):
+            profile = get_profile(self.request.user)
+            if profile and profile.is_patient and profile.patient_id:
+                pending_notifications = pending_notifications.filter(patient=profile.patient)
+            else:
+                pending_notifications = pending_notifications.none()
 
         context.update(
             {
@@ -419,6 +487,16 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
                 "recurring_total": base_queryset.filter(series__isnull=False).exclude(
                     status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
                 ).count(),
+                "absence_total": AppointmentAttendance.objects.filter(
+                    appointment__in=base_queryset,
+                    appointment__starts_at__date__gte=today.replace(day=1),
+                    status__in=[
+                        AppointmentAttendance.Status.ABSENT,
+                        AppointmentAttendance.Status.JUSTIFIED_ABSENCE,
+                    ],
+                ).count(),
+                "reschedule_request_total": pending_reschedules.count(),
+                "notification_total": pending_notifications.count(),
                 "request_queue": request_queue,
             }
         )
@@ -721,6 +799,7 @@ class AppointmentCancelView(AppointmentAccessMixin, View):
         appointment.status = Appointment.Status.CANCELED
         appointment.full_clean()
         appointment.save(update_fields=["status", "updated_at"])
+        record_attendance_for_canceled_appointment(appointment, user=request.user)
         messages.success(request, "Agendamento cancelado sem consumo de credito.")
         return redirect("scheduling:appointments")
 
@@ -809,6 +888,7 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                 original.status = Appointment.Status.RESCHEDULED
                 original.full_clean()
                 original.save(update_fields=["status", "updated_at"])
+                record_attendance_for_rescheduled_appointment(original, user=self.request.user)
                 target_day = timezone.localtime(starts_at).date()
                 payload = build_occurrence_payloads(
                     professional=form.cleaned_data["professional"],
@@ -905,6 +985,7 @@ class AppointmentRescheduleView(SlotSelectionMixin, AppointmentAccessMixin, Form
                     source.status = Appointment.Status.RESCHEDULED
                     source.full_clean()
                     source.save(update_fields=["status", "updated_at"])
+                    record_attendance_for_rescheduled_appointment(source, user=self.request.user)
                     shifted_date = timezone.localtime(source.starts_at + delta).date()
                     payload = payload_by_date[shifted_date]
                     replacement = Appointment(
@@ -978,6 +1059,7 @@ class AppointmentCompleteView(AppointmentAccessMixin, View):
                 units=appointment.service_units,
                 registered_by=request.user,
             )
+            record_attendance_for_completed_appointment(appointment, user=request.user)
             package.used_sessions += appointment.service_units
             if package.used_sessions >= package.total_sessions:
                 package.status = ServicePackage.Status.FINISHED
@@ -986,6 +1068,211 @@ class AppointmentCompleteView(AppointmentAccessMixin, View):
 
         messages.success(request, "Atendimento baixado e adesao atualizada.")
         return redirect("scheduling:appointments")
+
+
+class AppointmentAbsenceView(AgendaOperationalAccessMixin, View):
+    def post(self, request, pk):
+        appointment = get_object_or_404(appointments_for_user(request.user), pk=pk)
+        form = AppointmentAttendanceForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "Nao foi possivel registrar a falta.")
+            return redirect("scheduling:appointments")
+        justified = form.cleaned_data["status"] == AppointmentAttendance.Status.JUSTIFIED_ABSENCE
+        try:
+            mark_absence(appointment, user=request.user, justified=justified, notes=form.cleaned_data.get("notes", ""))
+        except ValidationError as error:
+            messages.error(request, error.messages[0])
+            return redirect("scheduling:appointments")
+        messages.success(request, "Falta registrada sem consumo de credito.")
+        return redirect("scheduling:appointments")
+
+
+class RescheduleRequestCreateView(FormContextMixin, AppointmentAccessMixin, CreateView):
+    model = RescheduleRequest
+    form_class = RescheduleRequestForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("scheduling:appointments")
+    page_title = "Solicitar remarcacao"
+    section_label = "Agenda"
+    submit_label = "Enviar solicitacao"
+    back_url_name = "scheduling:appointments"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.appointment = get_object_or_404(appointments_for_user(request.user), pk=kwargs["pk"])
+        if self.appointment.status in {
+            Appointment.Status.COMPLETED,
+            Appointment.Status.CANCELED,
+            Appointment.Status.RESCHEDULED,
+        }:
+            messages.error(request, "Este agendamento nao pode receber solicitacao de remarcacao.")
+            return redirect("scheduling:appointments")
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.appointment = self.appointment
+        form.instance.patient = self.appointment.patient
+        form.instance.requested_by = self.request.user
+        messages.success(self.request, "Solicitacao de remarcacao registrada para a equipe.")
+        return super().form_valid(form)
+
+
+class RescheduleRequestListView(AgendaOperationalAccessMixin, SearchableListView, ListView):
+    model = RescheduleRequest
+    template_name = "scheduling/reschedule_request_list.html"
+    context_object_name = "requests"
+    paginate_by = 20
+    search_fields = ["patient__full_name", "reason", "decision_note"]
+
+    def get_queryset(self):
+        queryset = RescheduleRequest.objects.select_related("patient", "appointment", "requested_by", "decided_by")
+        query = self.request.GET.get("q", "").strip()
+        if query:
+            queryset = queryset.filter(
+                Q(patient__full_name__icontains=query)
+                | Q(reason__icontains=query)
+                | Q(decision_note__icontains=query)
+            )
+        selected_status = self.request.GET.get("status", "").strip()
+        if selected_status in RescheduleRequest.Status.values:
+            queryset = queryset.filter(status=selected_status)
+        return queryset.order_by("status", "-created_at")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["status_choices"] = RescheduleRequest.Status.choices
+        context["selected_status"] = self.request.GET.get("status", "").strip()
+        return context
+
+
+class RescheduleRequestDecisionView(AgendaOperationalAccessMixin, View):
+    allowed_actions = {
+        "aprovar": RescheduleRequest.Status.APPROVED,
+        "recusar": RescheduleRequest.Status.DECLINED,
+        "cancelar": RescheduleRequest.Status.CANCELED,
+    }
+
+    def post(self, request, pk, action):
+        reschedule_request = get_object_or_404(RescheduleRequest, pk=pk)
+        status = self.allowed_actions.get(action)
+        if not status:
+            messages.error(request, "Acao de remarcacao invalida.")
+            return redirect("scheduling:reschedule_requests")
+        reschedule_request.status = status
+        reschedule_request.decided_by = request.user
+        reschedule_request.decided_at = timezone.now()
+        reschedule_request.decision_note = request.POST.get("decision_note", "").strip()
+        reschedule_request.full_clean()
+        reschedule_request.save()
+        if status == RescheduleRequest.Status.APPROVED:
+            messages.success(request, "Solicitacao aprovada. Escolha o novo horario para concluir.")
+            return redirect("scheduling:appointment_reschedule", pk=reschedule_request.appointment_id)
+        messages.success(request, "Solicitacao atualizada.")
+        return redirect("scheduling:reschedule_requests")
+
+
+class PatientProgressView(AppointmentAccessMixin, View):
+    template_name = "scheduling/patient_progress.html"
+
+    def get(self, request, patient_pk):
+        patient = get_object_or_404(Patient.objects.filter(pk__in=visible_patient_ids_for_user(request.user)), pk=patient_pk)
+        context = {
+            "patient": patient,
+            "summary": patient_monthly_summary(patient),
+            "goals": PatientGoal.objects.filter(patient=patient).order_by("status", "-created_at"),
+            "checkins": PatientCheckIn.objects.filter(patient=patient).select_related("appointment").order_by("-created_at")[:12],
+            "attendance": AppointmentAttendance.objects.filter(patient=patient).select_related("appointment").order_by("-appointment__starts_at")[:20],
+            "notifications": PatientNotification.objects.filter(patient=patient).order_by("-due_at")[:12],
+        }
+        return render(request, self.template_name, context)
+
+
+class PatientCheckInCreateView(FormContextMixin, AppointmentAccessMixin, CreateView):
+    model = PatientCheckIn
+    form_class = PatientCheckInForm
+    template_name = "core/form.html"
+    page_title = "Check-in de progresso"
+    section_label = "Agenda"
+    submit_label = "Salvar check-in"
+    back_url_name = "scheduling:appointments"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.patient = get_object_or_404(Patient.objects.filter(pk__in=visible_patient_ids_for_user(request.user)), pk=kwargs["patient_pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["patient"] = self.patient
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.patient = self.patient
+        form.instance.created_by = self.request.user
+        messages.success(self.request, "Check-in registrado.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("scheduling:patient_progress", kwargs={"patient_pk": self.patient.pk})
+
+
+class PatientGoalCreateView(FormContextMixin, AppointmentAccessMixin, CreateView):
+    model = PatientGoal
+    form_class = PatientGoalForm
+    template_name = "core/form.html"
+    page_title = "Nova meta do paciente"
+    section_label = "Agenda"
+    submit_label = "Salvar meta"
+    back_url_name = "scheduling:appointments"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.patient = get_object_or_404(Patient.objects.filter(pk__in=visible_patient_ids_for_user(request.user)), pk=kwargs["patient_pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.patient = self.patient
+        form.instance.created_by = self.request.user
+        messages.success(self.request, "Meta registrada.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("scheduling:patient_progress", kwargs={"patient_pk": self.patient.pk})
+
+
+class NotificationCenterView(AppointmentAccessMixin, SearchableListView, ListView):
+    model = PatientNotification
+    template_name = "scheduling/notification_center.html"
+    context_object_name = "notifications"
+    paginate_by = 20
+    search_fields = ["patient__full_name", "message", "error_message"]
+
+    def get_queryset(self):
+        queryset = PatientNotification.objects.select_related("patient", "appointment").order_by("status", "due_at")
+        if not user_can_manage_agenda(self.request.user):
+            profile = get_profile(self.request.user)
+            if profile and profile.is_patient and profile.patient_id:
+                queryset = queryset.filter(patient=profile.patient)
+            else:
+                queryset = queryset.none()
+        query = self.request.GET.get("q", "").strip()
+        if query:
+            queryset = queryset.filter(Q(patient__full_name__icontains=query) | Q(message__icontains=query))
+        selected_status = self.request.GET.get("status", "").strip()
+        if selected_status in PatientNotification.Status.values:
+            queryset = queryset.filter(status=selected_status)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["status_choices"] = PatientNotification.Status.choices
+        context["selected_status"] = self.request.GET.get("status", "").strip()
+        return context
+
+
+class GenerateNotificationsView(AgendaOperationalAccessMixin, View):
+    def post(self, request):
+        created = generate_operational_notifications()
+        total = sum(created.values())
+        messages.success(request, f"Central atualizada com {total} novo(s) aviso(s).")
+        return redirect("scheduling:notifications")
 
 
 def availabilities_for_user(user):

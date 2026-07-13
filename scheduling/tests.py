@@ -14,13 +14,19 @@ from core.models import ClinicSettings
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import (
     Appointment,
+    AppointmentAttendance,
     AppointmentSeries,
+    PatientCheckIn,
+    PatientGoal,
+    PatientNotification,
     ProfessionalAvailability,
+    RescheduleRequest,
     ServicePackage,
     ServicePackageAdjustment,
     ServiceUsage,
 )
 from scheduling.forms import ServicePackageForm
+from scheduling.services import generate_operational_notifications
 from scheduling.slots import generate_available_slots
 from team.models import Professional
 
@@ -1093,6 +1099,177 @@ class SchedulingTests(TestCase):
         self.assertEqual(ics_response.status_code, 200)
         self.assertIn("text/calendar", ics_response["Content-Type"])
         self.assertIn("BEGIN:VCALENDAR", ics_response.content.decode())
+
+    def test_complete_appointment_creates_attendance_record(self):
+        user = get_user_model().objects.create_user(username="gestao-presenca", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        ServicePackage.objects.create(membership=self.membership, total_sessions=4, used_sessions=0)
+        start = timezone.now() + timedelta(days=1)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("scheduling:appointment_complete", args=[appointment.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        attendance = AppointmentAttendance.objects.get(appointment=appointment)
+        self.assertEqual(attendance.status, AppointmentAttendance.Status.PRESENT)
+
+    def test_management_can_mark_absence_without_consuming_credit(self):
+        user = get_user_model().objects.create_user(username="gestao-falta", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        package = ServicePackage.objects.create(membership=self.membership, total_sessions=4, used_sessions=0)
+        start = timezone.now() + timedelta(days=1)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:appointment_absence", args=[appointment.pk]),
+            {"status": AppointmentAttendance.Status.JUSTIFIED_ABSENCE, "notes": "Avisou antes."},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        appointment.refresh_from_db()
+        package.refresh_from_db()
+        self.assertEqual(appointment.status, Appointment.Status.NO_SHOW)
+        self.assertEqual(package.used_sessions, 0)
+        self.assertEqual(appointment.attendance.status, AppointmentAttendance.Status.JUSTIFIED_ABSENCE)
+
+    def test_patient_can_create_reschedule_request(self):
+        user = get_user_model().objects.create_user(username="paciente-remarcacao", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PATIENT, "patient": self.patient},
+        )
+        start = timezone.now() + timedelta(days=3)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("scheduling:reschedule_request_create", args=[appointment.pk]),
+            {
+                "preferred_date": (timezone.localdate() + timedelta(days=5)).isoformat(),
+                "preferred_period": RescheduleRequest.PreferredPeriod.AFTERNOON,
+                "reason": "Nao consigo chegar no horario atual.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        request = RescheduleRequest.objects.get(appointment=appointment)
+        self.assertEqual(request.patient, self.patient)
+        self.assertEqual(request.status, RescheduleRequest.Status.PENDING)
+
+    def test_management_can_approve_reschedule_request(self):
+        user = get_user_model().objects.create_user(username="gestao-aprova-remarcacao", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        start = timezone.now() + timedelta(days=3)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        request = RescheduleRequest.objects.create(
+            appointment=appointment,
+            patient=self.patient,
+            requested_by=user,
+            preferred_date=timezone.localdate() + timedelta(days=4),
+            reason="Ajuste de agenda.",
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("scheduling:reschedule_request_decision", args=[request.pk, "aprovar"]))
+
+        self.assertEqual(response.status_code, 302)
+        request.refresh_from_db()
+        self.assertEqual(request.status, RescheduleRequest.Status.APPROVED)
+        self.assertEqual(request.decided_by, user)
+
+    def test_generate_operational_notifications_creates_lesson_and_renewal_alerts(self):
+        settings = ClinicSettings.load()
+        settings.membership_due_reminder_days = 5
+        settings.save()
+        today = timezone.localdate()
+        today_start = timezone.make_aware(datetime.combine(today, time(9, 0)))
+        tomorrow_start = timezone.make_aware(datetime.combine(today + timedelta(days=1), time(10, 0)))
+        Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=today_start,
+            ends_at=today_start + timedelta(hours=1),
+        )
+        tomorrow_appointment = Appointment.objects.create(
+            patient=self.patient_two,
+            professional=self.professional,
+            starts_at=tomorrow_start,
+            ends_at=tomorrow_start + timedelta(hours=1),
+        )
+        Payment.objects.create(
+            membership=self.membership,
+            patient=self.patient,
+            item_type=Payment.ItemType.MEMBERSHIP,
+            description="Mensalidade",
+            reference_month=today.replace(day=1),
+            due_date=today + timedelta(days=5),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PENDING,
+        )
+
+        created = generate_operational_notifications(reference_date=today)
+
+        self.assertEqual(created["appointment_day"], 1)
+        self.assertEqual(created["session_confirmation"], 1)
+        self.assertEqual(created["absence_warning"], 1)
+        self.assertEqual(created["plan_renewal"], 1)
+        self.assertTrue(
+            PatientNotification.objects.filter(
+                appointment=tomorrow_appointment,
+                kind=PatientNotification.Kind.SESSION_CONFIRMATION,
+                channel=PatientNotification.Channel.WHATSAPP,
+            ).exists()
+        )
+        self.assertEqual(PatientNotification.objects.count(), 3)
+
+    def test_patient_progress_page_shows_monthly_summary_goal_and_checkin(self):
+        user = get_user_model().objects.create_user(username="gestao-progresso", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        start = timezone.now() - timedelta(days=1)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            status=Appointment.Status.COMPLETED,
+        )
+        AppointmentAttendance.objects.create(
+            appointment=appointment,
+            patient=self.patient,
+            professional=self.professional,
+            status=AppointmentAttendance.Status.PRESENT,
+        )
+        PatientGoal.objects.create(patient=self.patient, title="Melhorar postura", objective="Reduzir dor lombar.")
+        PatientCheckIn.objects.create(patient=self.patient, feeling=PatientCheckIn.Feeling.LIGHT_PAIN, pain_level=2)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("scheduling:patient_progress", args=[self.patient.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Melhorar postura")
+        self.assertContains(response, "Frequencia")
 
 
 @skipUnlessDBFeature("has_select_for_update")

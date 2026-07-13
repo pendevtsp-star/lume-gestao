@@ -5,7 +5,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Biblioteca | Fisioterapia em Casa</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-checkout-asaas">
+  <meta name="theme-color" content="#667955">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Lume em casa">
+  <link rel="manifest" href="{% url 'pwa_manifest' %}">
+  <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260712-pwa">
 </head>
 <body class="homecare-public">
   <main class="homecare-shell">
@@ -34,6 +40,121 @@
         <strong>{{ continue_watching|length }} em andamento</strong>
       </article>
     </section>
+
+    {% if patient %}
+      <section class="homecare-care-panel" aria-label="Minha rotina">
+        <div class="homecare-section-head">
+          <p class="eyebrow">Minha rotina</p>
+          <h2>Acompanhe sua semana</h2>
+        </div>
+        <div class="homecare-care-grid">
+          <article class="homecare-care-card">
+            <span>Presenca no mes</span>
+            <strong>{{ monthly_summary.frequency }}%</strong>
+            <p>{{ monthly_summary.present }} presenca(s) em {{ monthly_summary.scheduled }} aula(s) programada(s).</p>
+          </article>
+          <article class="homecare-care-card">
+            <span>Metas ativas</span>
+            <strong>{{ monthly_summary.active_goals }}</strong>
+            <p>{{ monthly_summary.achievements }} conquista(s) registrada(s) neste mes.</p>
+          </article>
+          <article class="homecare-care-card">
+            <span>Ultimo check-in</span>
+            <strong>{% if monthly_summary.latest_checkin %}{{ monthly_summary.latest_checkin.get_feeling_display }}{% else %}Pendente{% endif %}</strong>
+            <p>{% if monthly_summary.latest_checkin %}Registrado em {{ monthly_summary.latest_checkin.created_at|date:"d/m H:i" }}.{% else %}Conte como voce esta hoje para apoiar sua evolucao.{% endif %}</p>
+          </article>
+        </div>
+
+        <div class="homecare-care-columns">
+          <article class="homecare-routine-card">
+            <header>
+              <span>Proximas aulas</span>
+              <strong>{{ next_appointments|length }}</strong>
+            </header>
+            {% if next_appointments %}
+              <div class="homecare-routine-list">
+                {% for appointment in next_appointments %}
+                  <div class="homecare-routine-item">
+                    <div>
+                      <strong>{{ appointment.starts_at|date:"d/m" }} as {{ appointment.starts_at|date:"H:i" }}</strong>
+                      <small>{{ appointment.professional.full_name }}</small>
+                    </div>
+                    <a class="button ghost" href="{% url 'scheduling:reschedule_request_create' appointment.pk %}">Remarcar</a>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="homecare-muted">Nenhuma aula futura encontrada. Fale com a equipe para ajustar sua agenda.</p>
+            {% endif %}
+          </article>
+
+          <article class="homecare-routine-card">
+            <header>
+              <span>Check-in rapido</span>
+              <strong>Hoje</strong>
+            </header>
+            <form class="homecare-checkin-grid" method="post" action="{% url 'homecare_public:quick_checkin' %}">
+              {% csrf_token %}
+              {% for value,label in feeling_choices %}
+                <button class="button secondary" type="submit" name="feeling" value="{{ value }}">{{ label }}</button>
+              {% endfor %}
+            </form>
+          </article>
+        </div>
+
+        <div class="homecare-care-columns">
+          <article class="homecare-routine-card">
+            <header>
+              <span>Metas e conquistas</span>
+              <strong>Evolucao</strong>
+            </header>
+            {% if active_goals or achievements %}
+              <div class="homecare-routine-list">
+                {% for goal in active_goals %}
+                  <div class="homecare-routine-item">
+                    <div>
+                      <strong>{{ goal.title }}</strong>
+                      <small>{% if goal.main_complaint %}{{ goal.main_complaint }}{% else %}Meta ativa{% endif %}</small>
+                    </div>
+                  </div>
+                {% endfor %}
+                {% for achievement in achievements %}
+                  <div class="homecare-routine-item">
+                    <div>
+                      <strong>{{ achievement.title }}</strong>
+                      <small>Conquista em {{ achievement.achieved_on|date:"d/m/Y" }}</small>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="homecare-muted">Suas metas e conquistas vao aparecer aqui conforme a equipe registrar sua evolucao.</p>
+            {% endif %}
+          </article>
+
+          <article class="homecare-routine-card">
+            <header>
+              <span>Avisos</span>
+              <strong>{{ pending_patient_notifications|length }}</strong>
+            </header>
+            {% if pending_patient_notifications %}
+              <div class="homecare-routine-list">
+                {% for notification in pending_patient_notifications %}
+                  <div class="homecare-routine-item">
+                    <div>
+                      <strong>{{ notification.get_kind_display }}</strong>
+                      <small>{{ notification.message }}</small>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="homecare-muted">Sem avisos pendentes no momento.</p>
+            {% endif %}
+          </article>
+        </div>
+      </section>
+    {% endif %}
 
     <nav class="homecare-category-tabs">
       <a {% if not selected_category %}class="is-active"{% endif %} href="{% url 'homecare_public:library' %}">Todos</a>
@@ -121,5 +242,12 @@
       {% endfor %}
     </section>
   </main>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("{% url 'pwa_service_worker' %}").catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>

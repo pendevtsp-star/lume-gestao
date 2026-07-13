@@ -305,6 +305,23 @@ class CheckoutPublicTests(TestCase):
         self.assertEqual(order.amount, Decimal("320.00"))
         self.assertFalse(Patient.objects.filter(email="maria.checkout@example.com").exists())
 
+    def test_public_checkout_reuses_recent_pending_order_for_same_buyer(self):
+        payload = {
+            "full_name": "Maria Checkout",
+            "cpf": "12345678901",
+            "birth_date": "1990-01-10",
+            "phone": "11999990000",
+            "email": "maria.checkout@example.com",
+            "accept_terms": "on",
+        }
+
+        first = self.client.post(reverse("checkout:plan", args=[self.plan.pk]), payload)
+        second = self.client.post(reverse("checkout:plan", args=[self.plan.pk]), payload)
+
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(second.status_code, 302)
+        self.assertEqual(CheckoutOrder.objects.count(), 1)
+
     def test_webhook_confirms_plan_purchase_and_is_idempotent(self):
         order = CheckoutOrder.objects.create(
             kind=CheckoutOrder.Kind.SERVICE_PLAN,
@@ -409,3 +426,102 @@ class CheckoutPatientPaymentTests(TestCase):
         self.assertEqual(payment.status, Payment.Status.PAID)
         self.assertEqual(payment.method, Payment.Method.PIX)
         self.assertEqual(order.status, CheckoutOrder.Status.PAID)
+
+    def test_patient_payment_reuses_pending_checkout_order(self):
+        patient = Patient.objects.create(full_name="Paciente Reuso", email="reuso@example.com")
+        user = get_user_model().objects.create_user(username="reuso", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.PATIENT, "patient": patient})
+        plan = ServicePlan.objects.create(
+            name="Plano Reuso",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("280.00"),
+            sessions_per_week=2,
+        )
+        membership = Membership.objects.create(patient=patient, plan=plan, due_day=10)
+        payment = Payment.objects.create(
+            membership=membership,
+            reference_month=timezone.localdate().replace(day=1),
+            due_date=timezone.localdate(),
+            amount=Decimal("280.00"),
+            status=Payment.Status.PENDING,
+        )
+        self.client.force_login(user)
+
+        self.client.post(reverse("checkout:payment_start", args=[payment.pk]))
+        self.client.post(reverse("checkout:payment_start", args=[payment.pk]))
+
+        self.assertEqual(CheckoutOrder.objects.filter(payment=payment).count(), 1)
+
+
+@override_settings(**CHECKOUT_TEST_SETTINGS)
+class CheckoutOrderActionTests(TestCase):
+    def setUp(self):
+        self.management_user = get_user_model().objects.create_user(username="gestao-acoes", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=self.management_user,
+            defaults={"role": UserProfile.Role.MANAGEMENT},
+        )
+        self.client.force_login(self.management_user)
+
+    def test_management_can_cancel_pending_order(self):
+        order = CheckoutOrder.objects.create(
+            kind=CheckoutOrder.Kind.SERVICE_PLAN,
+            status=CheckoutOrder.Status.PENDING,
+            customer_name="Paciente Cancelar",
+            customer_email="cancelar@example.com",
+            amount=Decimal("200.00"),
+        )
+
+        response = self.client.post(reverse("checkout:order_action", args=[order.pk, "cancel"]), follow=True)
+
+        order.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(order.status, CheckoutOrder.Status.CANCELED)
+        self.assertIn("Cancelado manualmente", order.notes)
+
+    def test_management_can_expire_pending_order(self):
+        order = CheckoutOrder.objects.create(
+            kind=CheckoutOrder.Kind.SERVICE_PLAN,
+            status=CheckoutOrder.Status.PENDING,
+            customer_name="Paciente Expirar",
+            customer_email="expirar@example.com",
+            amount=Decimal("200.00"),
+        )
+
+        response = self.client.post(reverse("checkout:order_action", args=[order.pk, "expire"]), follow=True)
+
+        order.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(order.status, CheckoutOrder.Status.EXPIRED)
+        self.assertIn("Expirado manualmente", order.notes)
+
+    def test_management_cannot_cancel_paid_order(self):
+        order = CheckoutOrder.objects.create(
+            kind=CheckoutOrder.Kind.SERVICE_PLAN,
+            status=CheckoutOrder.Status.PAID,
+            customer_name="Paciente Pago",
+            customer_email="pago@example.com",
+            amount=Decimal("200.00"),
+        )
+
+        response = self.client.post(reverse("checkout:order_action", args=[order.pk, "cancel"]), follow=True)
+
+        order.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(order.status, CheckoutOrder.Status.PAID)
+
+    def test_management_can_generate_link_for_failed_order(self):
+        order = CheckoutOrder.objects.create(
+            kind=CheckoutOrder.Kind.SERVICE_PLAN,
+            status=CheckoutOrder.Status.FAILED,
+            customer_name="Paciente Link",
+            customer_email="link@example.com",
+            amount=Decimal("200.00"),
+        )
+
+        response = self.client.post(reverse("checkout:order_action", args=[order.pk, "retry"]), follow=True)
+
+        order.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(order.status, CheckoutOrder.Status.PENDING)
+        self.assertTrue(order.checkout_url)

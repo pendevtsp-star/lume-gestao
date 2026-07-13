@@ -196,6 +196,22 @@ Atualizacoes minimas do bloco:
 
 Criterio de pronto: comunicacao operacional fica rastreavel, previsivel e menos manual.
 
+Implementado em 2026-07-13:
+
+1. Central filtravel por status, categoria e canal, com contadores de pendencia, falha e envio.
+2. Historico unificado por notificacao com tentativa, erro, referencia do provedor e vinculo ao log de WhatsApp.
+3. Reenvio de falhas pela central, sem recriar o mesmo aviso.
+4. Lembrete de sessao 24 horas antes mantido e protegido por chave de automacao.
+5. Lembrete adicional no dia da aula, configuravel em horas e protegido contra duplicidade.
+6. Avisos de renovacao existentes agora respeitam preferencias financeiras do paciente.
+7. Avisos de validade proxima do pacote e saldo baixo de atendimentos, ambos configuraveis.
+8. Calendario operacional para feriados, recessos, horarios especiais e mudancas de horario.
+9. Bloqueio de novos agendamentos em feriados e recessos ativos.
+10. Geracao de comunicados individuais para aulas afetadas por um evento operacional.
+11. Preferencias por paciente para agenda, financeiro, comunicados, WhatsApp e futuro PWA.
+12. Canal PWA preparado por opt-in; o push nativo continua dependente da etapa posterior de assinatura do navegador.
+13. Testes de idempotencia, preferencia financeira, feriado e lembrete no dia ampliados.
+
 ## Bloco 6 - Programa de indicacao e crescimento
 
 Objetivo: criar mecanismo simples para pacientes indicarem novos alunos, sem complexidade de marketplace.

@@ -203,6 +203,26 @@ class CheckoutMerchantAccountTests(TestCase):
 
 @override_settings(**CHECKOUT_TEST_SETTINGS)
 class CheckoutDryRunHomologationCommandTests(TestCase):
+    def test_readiness_command_reports_local_readiness_without_secrets(self):
+        output = StringIO()
+
+        call_command("check_checkout_readiness", stdout=output)
+
+        result = output.getvalue()
+        self.assertIn("Prontidao do Checkout Asaas", result)
+        self.assertIn("Homologacao local: pronta", result)
+        self.assertNotIn("token-checkout", result)
+
+    def test_readiness_command_can_run_isolated_dry_run_without_env_flags(self):
+        output = StringIO()
+
+        call_command("check_checkout_readiness", "--verify-dry-run", stdout=output)
+
+        result = output.getvalue()
+        self.assertIn("Homologacao Checkout Asaas dry-run concluida.", result)
+        self.assertIn("Homologacao local isolada: concluida", result)
+        self.assertFalse(CheckoutOrder.objects.filter(customer_name__icontains="Homologacao Asaas").exists())
+
     def test_homologation_command_runs_full_flow_without_persisting_data(self):
         output = StringIO()
 

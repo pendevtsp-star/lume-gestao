@@ -56,12 +56,14 @@
             </summary>
             <div class="nav-submenu">
               <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Agenda</span></a>
+              <a href="{% url 'scheduling:notifications' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Central de avisos</span></a>
               <a href="{% url 'patients:list' %}"><span class="nav-icon icon-patients" aria-hidden="true"></span><span>Pacientes</span></a>
               {% if request.user.profile.role == "professional" %}
                 <a href="{% url 'patients:notes' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Prontuario</span></a>
               {% endif %}
               {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
                 <a href="{% url 'scheduling:availabilities' %}"><span class="nav-icon icon-clock" aria-hidden="true"></span><span>Disponibilidade</span></a>
+                <a href="{% url 'scheduling:operational_calendar' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Feriados e horarios</span></a>
               {% endif %}
               {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
                 <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Adesoes</span></a>

@@ -12,6 +12,7 @@
   <div class="panel-actions">
     <a class="button secondary" href="{% url 'scheduling:patient_checkin_create' patient.pk %}">Novo check-in</a>
     <a class="button secondary" href="{% url 'scheduling:patient_goal_create' patient.pk %}">Nova meta</a>
+    <a class="button secondary" href="{% url 'scheduling:patient_notification_preferences' patient.pk %}">Preferencias de aviso</a>
     <a class="button secondary" href="{% url 'scheduling:appointments' %}">Agenda</a>
   </div>
 </section>

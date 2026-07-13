@@ -41,6 +41,8 @@ from scheduling.forms import (
     AppointmentSlotSearchForm,
     PatientCheckInForm,
     PatientGoalForm,
+    PatientNotificationPreferenceForm,
+    OperationalCalendarEventForm,
     ProfessionalAvailabilityForm,
     ProfessionalAvailabilityBatchForm,
     RescheduleRequestForm,
@@ -53,6 +55,8 @@ from scheduling.models import (
     PatientCheckIn,
     PatientGoal,
     PatientNotification,
+    PatientNotificationPreference,
+    OperationalCalendarEvent,
     ProfessionalAvailability,
     RescheduleRequest,
     ServicePackage,
@@ -70,6 +74,7 @@ from scheduling.services import (
     record_attendance_for_completed_appointment,
     record_attendance_for_rescheduled_appointment,
 )
+from core.models import WhatsAppMessageLog
 from scheduling.slots import (
     availability_capacity_for_slot,
     generate_available_slots,
@@ -1258,12 +1263,27 @@ class NotificationCenterView(AppointmentAccessMixin, SearchableListView, ListVie
         selected_status = self.request.GET.get("status", "").strip()
         if selected_status in PatientNotification.Status.values:
             queryset = queryset.filter(status=selected_status)
+        selected_kind = self.request.GET.get("kind", "").strip()
+        if selected_kind in PatientNotification.Kind.values:
+            queryset = queryset.filter(kind=selected_kind)
+        selected_channel = self.request.GET.get("channel", "").strip()
+        if selected_channel in PatientNotification.Channel.values:
+            queryset = queryset.filter(channel=selected_channel)
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["status_choices"] = PatientNotification.Status.choices
         context["selected_status"] = self.request.GET.get("status", "").strip()
+        context["kind_choices"] = PatientNotification.Kind.choices
+        context["channel_choices"] = PatientNotification.Channel.choices
+        context["selected_kind"] = self.request.GET.get("kind", "").strip()
+        context["selected_channel"] = self.request.GET.get("channel", "").strip()
+        context["notification_summary"] = {
+            "pending": PatientNotification.objects.filter(status=PatientNotification.Status.PENDING).count(),
+            "failed": PatientNotification.objects.filter(status=PatientNotification.Status.FAILED).count(),
+            "sent": PatientNotification.objects.filter(status=PatientNotification.Status.SENT).count(),
+        }
         return context
 
 
@@ -1273,6 +1293,107 @@ class GenerateNotificationsView(AgendaOperationalAccessMixin, View):
         total = sum(created.values())
         messages.success(request, f"Central atualizada com {total} novo(s) aviso(s).")
         return redirect("scheduling:notifications")
+
+
+class RetryNotificationView(AgendaOperationalAccessMixin, View):
+    def post(self, request, pk):
+        notification = get_object_or_404(PatientNotification, pk=pk)
+        delivery_log = notification.delivery_log
+        if not delivery_log:
+            messages.info(request, "Este aviso ainda nao possui tentativa de envio para reenfileirar.")
+            return redirect("scheduling:notifications")
+        delivery_log.status = WhatsAppMessageLog.Status.SCHEDULED
+        delivery_log.scheduled_for = timezone.now()
+        delivery_log.error_message = ""
+        delivery_log.save(update_fields=["status", "scheduled_for", "error_message", "updated_at"])
+        notification.status = PatientNotification.Status.PENDING
+        notification.error_message = ""
+        notification.save(update_fields=["status", "error_message", "updated_at"])
+        messages.success(request, "Aviso reenfileirado para nova tentativa.")
+        return redirect("scheduling:notifications")
+
+
+class OperationalCalendarEventListView(AgendaOperationalAccessMixin, SearchableListView, ListView):
+    model = OperationalCalendarEvent
+    template_name = "scheduling/operational_calendar.html"
+    context_object_name = "events"
+    paginate_by = 20
+    search_fields = ["title", "message"]
+
+    def get_queryset(self):
+        queryset = OperationalCalendarEvent.objects.order_by("starts_on", "starts_at_time", "title")
+        selected_type = self.request.GET.get("type", "").strip()
+        if selected_type in OperationalCalendarEvent.EventType.values:
+            queryset = queryset.filter(event_type=selected_type)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["event_type_choices"] = OperationalCalendarEvent.EventType.choices
+        context["selected_type"] = self.request.GET.get("type", "").strip()
+        return context
+
+
+class OperationalCalendarEventCreateView(FormContextMixin, AgendaOperationalAccessMixin, CreateView):
+    model = OperationalCalendarEvent
+    form_class = OperationalCalendarEventForm
+    template_name = "core/form.html"
+    page_title = "Novo evento operacional"
+    section_label = "Agenda"
+    submit_label = "Salvar evento"
+    back_url_name = "scheduling:operational_calendar"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, "Evento operacional criado. Gere os avisos para comunicar pacientes afetados.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("scheduling:operational_calendar")
+
+
+class OperationalCalendarEventUpdateView(FormContextMixin, AgendaOperationalAccessMixin, UpdateView):
+    model = OperationalCalendarEvent
+    form_class = OperationalCalendarEventForm
+    template_name = "core/form.html"
+    page_title = "Evento operacional"
+    section_label = "Agenda"
+    submit_label = "Salvar evento"
+    back_url_name = "scheduling:operational_calendar"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Evento operacional atualizado.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("scheduling:operational_calendar")
+
+
+class PatientNotificationPreferenceUpdateView(FormContextMixin, AppointmentAccessMixin, UpdateView):
+    model = PatientNotificationPreference
+    form_class = PatientNotificationPreferenceForm
+    template_name = "core/form.html"
+    page_title = "Preferencias de notificacao"
+    section_label = "Agenda"
+    submit_label = "Salvar preferencias"
+    back_url_name = "scheduling:appointments"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.patient = get_object_or_404(
+            Patient.objects.filter(pk__in=visible_patient_ids_for_user(request.user)), pk=kwargs["patient_pk"]
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        preference, _created = PatientNotificationPreference.objects.get_or_create(patient=self.patient)
+        return preference
+
+    def form_valid(self, form):
+        messages.success(self.request, "Preferencias de notificacao atualizadas.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("scheduling:patient_progress", kwargs={"patient_pk": self.patient.pk})
 
 
 def availabilities_for_user(user):

@@ -996,6 +996,41 @@ class IntegrationsTests(TestCase):
         notification = PatientNotification.objects.get(appointment=appointment)
         self.assertEqual(notification.kind, PatientNotification.Kind.SESSION_CONFIRMATION)
         self.assertEqual(notification.channel, PatientNotification.Channel.WHATSAPP)
+        self.assertEqual(notification.status, PatientNotification.Status.SENT)
+        self.assertEqual(notification.attempts, 1)
+
+    def test_whatsapp_queue_creates_a_same_day_reminder_without_repeating_confirmation(self):
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"enabled": True, "dry_run": True, "phone_number_id": "123", "clinic_whatsapp_number": "5511999990000"},
+        )
+        automation = WhatsAppAutomationSettings.load()
+        automation.appointment_reminder_hours_before = 24
+        automation.appointment_day_reminders_enabled = True
+        automation.appointment_day_reminder_hours_before = 3
+        automation.save()
+        start = timezone.now() + timedelta(hours=3, minutes=10)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            status=Appointment.Status.SCHEDULED,
+        )
+
+        call_command("process_whatsapp_queue", limit=10, verbosity=0)
+        call_command("process_whatsapp_queue", limit=10, verbosity=0)
+
+        self.assertEqual(
+            WhatsAppMessageLog.objects.filter(automation_key=f"appointment-day:{appointment.pk}").count(),
+            1,
+        )
+        notification = PatientNotification.objects.get(
+            appointment=appointment,
+            kind=PatientNotification.Kind.APPOINTMENT_DAY,
+        )
+        self.assertEqual(notification.status, PatientNotification.Status.SENT)
+        self.assertEqual(notification.attempts, 1)
 
     def test_management_can_send_birthday_message_from_dashboard(self):
         self.client.force_login(self.management)

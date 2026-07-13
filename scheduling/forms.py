@@ -15,6 +15,8 @@ from scheduling.models import Appointment
 from scheduling.models import AppointmentAttendance
 from scheduling.models import PatientCheckIn
 from scheduling.models import PatientGoal
+from scheduling.models import PatientNotificationPreference
+from scheduling.models import OperationalCalendarEvent
 from scheduling.models import ProfessionalAvailability
 from scheduling.models import RescheduleRequest
 from scheduling.models import ServicePackage
@@ -523,6 +525,54 @@ class ProfessionalAvailabilityBatchForm(StyledForm):
         cleaned_data["valid_from"] = valid_from
         cleaned_data["valid_until"] = valid_until
         return cleaned_data
+
+
+class OperationalCalendarEventForm(StyledModelForm):
+    class Meta:
+        model = OperationalCalendarEvent
+        fields = [
+            "event_type",
+            "title",
+            "starts_on",
+            "ends_on",
+            "starts_at_time",
+            "ends_at_time",
+            "affects_schedule",
+            "send_notice",
+            "message",
+            "active",
+        ]
+        widgets = {
+            "starts_on": forms.DateInput(attrs={"type": "date"}),
+            "ends_on": forms.DateInput(attrs={"type": "date"}),
+            "starts_at_time": forms.TimeInput(attrs={"type": "time"}),
+            "ends_at_time": forms.TimeInput(attrs={"type": "time"}),
+            "message": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("event_type") in {
+            OperationalCalendarEvent.EventType.HOLIDAY,
+            OperationalCalendarEvent.EventType.RECESS,
+        } and not cleaned_data.get("message"):
+            cleaned_data["message"] = (
+                "A clinica tera uma alteracao operacional neste periodo. "
+                "A equipe entrara em contato caso seu horario seja afetado."
+            )
+        return cleaned_data
+
+
+class PatientNotificationPreferenceForm(StyledModelForm):
+    class Meta:
+        model = PatientNotificationPreference
+        fields = [
+            "whatsapp_enabled",
+            "pwa_enabled",
+            "appointment_enabled",
+            "financial_enabled",
+            "operational_enabled",
+        ]
 
 
 class ServicePackageForm(StyledModelForm):

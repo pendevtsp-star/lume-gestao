@@ -1,4 +1,5 @@
 from datetime import datetime
+from datetime import datetime
 from datetime import time
 from datetime import timedelta
 
@@ -7,12 +8,14 @@ from django.core.exceptions import ValidationError
 from django.db.models import F
 
 from billing.models import Membership, Payment
-from core.models import ClinicSettings
+from core.models import ClinicSettings, WhatsAppAutomationSettings
 from scheduling.models import Appointment
 from scheduling.models import AppointmentAttendance
 from scheduling.models import PatientAchievement
 from scheduling.models import PatientGoal
 from scheduling.models import PatientNotification
+from scheduling.models import PatientNotificationPreference
+from scheduling.models import OperationalCalendarEvent
 from scheduling.models import ServicePackage
 from scheduling.models import ServicePackageAdjustment
 
@@ -304,8 +307,58 @@ def renewal_message(payment):
     )
 
 
-def upsert_patient_notification(*, patient, kind, due_at, message, appointment=None, channel=None, key_parts=None):
-    channel = channel or PatientNotification.Channel.PANEL
+def package_expiry_message(package):
+    return (
+        f"Validade do plano: {package.membership.patient.full_name} possui "
+        f"{package.remaining_sessions} atendimento(s) restante(s) e o pacote vence em "
+        f"{package.expires_on:%d/%m/%Y}."
+    )
+
+
+def low_credit_message(package):
+    return (
+        f"Saldo de atendimentos: {package.membership.patient.full_name} possui apenas "
+        f"{package.remaining_sessions} atendimento(s) restante(s) no plano "
+        f"{package.membership.plan.name}."
+    )
+
+
+def operational_event_message(event, appointment):
+    local_start = timezone.localtime(appointment.starts_at)
+    return event.message.strip() or (
+        f"Aviso da clinica: {event.title}. A aula de {local_start:%d/%m as %H:%M} "
+        "pode precisar de ajuste. A equipe entrara em contato."
+    )
+
+
+def notification_preferences_for(patient):
+    preferences, _created = PatientNotificationPreference.objects.get_or_create(patient=patient)
+    return preferences
+
+
+def patient_allows_notification(patient, kind):
+    preferences = notification_preferences_for(patient)
+    if kind == PatientNotification.Kind.PLAN_RENEWAL:
+        return preferences.financial_enabled
+    if kind in {PatientNotification.Kind.HOLIDAY, PatientNotification.Kind.SCHEDULE_CHANGE}:
+        return preferences.operational_enabled
+    return preferences.appointment_enabled
+
+
+def preferred_notification_channel(patient, kind):
+    preferences = notification_preferences_for(patient)
+    if preferences.pwa_enabled:
+        return PatientNotification.Channel.PWA
+    if preferences.whatsapp_enabled and patient_allows_notification(patient, kind):
+        return PatientNotification.Channel.WHATSAPP
+    return PatientNotification.Channel.PANEL
+
+
+def upsert_patient_notification(
+    *, patient, kind, due_at, message, appointment=None, calendar_event=None, delivery_log=None,
+    channel=None, key_parts=None, metadata=None,
+):
+    channel = channel or preferred_notification_channel(patient, kind)
     key_parts = key_parts or []
     idempotency_key = ":".join([kind, str(patient.pk), *(str(part) for part in key_parts)])
     notification, created = PatientNotification.objects.get_or_create(
@@ -313,13 +366,20 @@ def upsert_patient_notification(*, patient, kind, due_at, message, appointment=N
         defaults={
             "patient": patient,
             "appointment": appointment,
+            "calendar_event": calendar_event,
+            "delivery_log": delivery_log,
             "kind": kind,
             "channel": channel,
             "status": PatientNotification.Status.PENDING,
             "due_at": due_at,
             "message": message,
+            "metadata": metadata or {},
         },
     )
+    if not created and delivery_log and not notification.delivery_log_id:
+        notification.delivery_log = delivery_log
+        notification.channel = channel
+        notification.save(update_fields=["delivery_log", "channel", "updated_at"])
     return notification, created
 
 
@@ -330,6 +390,9 @@ def generate_operational_notifications(*, reference_date=None, days_ahead=1):
         "session_confirmation": 0,
         "absence_warning": 0,
         "plan_renewal": 0,
+        "package_expiry": 0,
+        "low_credit": 0,
+        "operational_event": 0,
     }
     today_start = timezone.make_aware(datetime.combine(reference_date, time.min))
     today_end = timezone.make_aware(datetime.combine(reference_date, time.max))
@@ -362,7 +425,7 @@ def generate_operational_notifications(*, reference_date=None, days_ahead=1):
             patient=appointment.patient,
             appointment=appointment,
             kind=PatientNotification.Kind.SESSION_CONFIRMATION,
-            channel=PatientNotification.Channel.WHATSAPP,
+            channel=preferred_notification_channel(appointment.patient, PatientNotification.Kind.SESSION_CONFIRMATION),
             due_at=appointment.starts_at - timedelta(hours=24),
             message=session_confirmation_message(appointment),
             key_parts=[appointment.pk, "session-confirmation"],
@@ -378,6 +441,8 @@ def generate_operational_notifications(*, reference_date=None, days_ahead=1):
         due_date=due_date,
     ):
         patient = payment.patient or payment.membership.patient
+        if not patient_allows_notification(patient, PatientNotification.Kind.PLAN_RENEWAL):
+            continue
         _notification, was_created = upsert_patient_notification(
             patient=patient,
             kind=PatientNotification.Kind.PLAN_RENEWAL,
@@ -387,6 +452,79 @@ def generate_operational_notifications(*, reference_date=None, days_ahead=1):
         )
         if was_created:
             created["plan_renewal"] += 1
+
+    automation_settings = WhatsAppAutomationSettings.load()
+    package_expiry_date = reference_date + timedelta(days=automation_settings.package_expiry_days_before)
+    expiry_packages = ServicePackage.objects.select_related("membership__patient", "membership__plan").filter(
+        status=ServicePackage.Status.ACTIVE,
+        expires_on=package_expiry_date,
+    ) if automation_settings.package_expiry_reminders_enabled else ServicePackage.objects.none()
+    for package in expiry_packages:
+        patient = package.membership.patient
+        if not patient_allows_notification(patient, PatientNotification.Kind.PLAN_RENEWAL):
+            continue
+        _notification, was_created = upsert_patient_notification(
+            patient=patient,
+            kind=PatientNotification.Kind.PLAN_RENEWAL,
+            due_at=timezone.make_aware(datetime.combine(reference_date, time(9, 0))),
+            message=package_expiry_message(package),
+            channel=preferred_notification_channel(patient, PatientNotification.Kind.PLAN_RENEWAL),
+            key_parts=["package-expiry", package.pk, package_expiry_date.isoformat()],
+            metadata={"package_id": package.pk, "reason": "expiry"},
+        )
+        if was_created:
+            created["package_expiry"] += 1
+
+    low_credit_packages = ServicePackage.objects.select_related("membership__patient", "membership__plan").filter(
+        status=ServicePackage.Status.ACTIVE,
+        used_sessions__lt=F("total_sessions"),
+    ) if automation_settings.low_credit_reminders_enabled else ServicePackage.objects.none()
+    for package in low_credit_packages:
+        if package.remaining_sessions > automation_settings.low_credit_threshold:
+            continue
+        patient = package.membership.patient
+        if not patient_allows_notification(patient, PatientNotification.Kind.PLAN_RENEWAL):
+            continue
+        _notification, was_created = upsert_patient_notification(
+            patient=patient,
+            kind=PatientNotification.Kind.PLAN_RENEWAL,
+            due_at=timezone.make_aware(datetime.combine(reference_date, time(9, 0))),
+            message=low_credit_message(package),
+            channel=preferred_notification_channel(patient, PatientNotification.Kind.PLAN_RENEWAL),
+            key_parts=["low-credit", package.pk, reference_date.isoformat()],
+            metadata={"package_id": package.pk, "reason": "low_credit"},
+        )
+        if was_created:
+            created["low_credit"] += 1
+
+    events = OperationalCalendarEvent.objects.filter(active=True, send_notice=True, ends_on__gte=reference_date)
+    for event in events:
+        appointments = Appointment.objects.select_related("patient", "professional").filter(
+            status__in=[Appointment.Status.REQUESTED, Appointment.Status.SCHEDULED],
+            starts_at__date__gte=event.starts_on,
+            starts_at__date__lte=event.ends_on,
+        )
+        kind = (
+            PatientNotification.Kind.HOLIDAY
+            if event.event_type in {OperationalCalendarEvent.EventType.HOLIDAY, OperationalCalendarEvent.EventType.RECESS}
+            else PatientNotification.Kind.SCHEDULE_CHANGE
+        )
+        for appointment in appointments:
+            if not patient_allows_notification(appointment.patient, kind):
+                continue
+            _notification, was_created = upsert_patient_notification(
+                patient=appointment.patient,
+                appointment=appointment,
+                calendar_event=event,
+                kind=kind,
+                due_at=timezone.make_aware(datetime.combine(reference_date, time(9, 0))),
+                message=operational_event_message(event, appointment),
+                channel=preferred_notification_channel(appointment.patient, kind),
+                key_parts=["event", event.pk, appointment.pk],
+                metadata={"event_id": event.pk, "event_type": event.event_type},
+            )
+            if was_created:
+                created["operational_event"] += 1
     return created
 
 

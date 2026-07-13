@@ -158,6 +158,8 @@ class WhatsAppAutomationSettingsForm(StyledModelForm):
         fields = [
             "appointment_reminders_enabled",
             "appointment_reminder_hours_before",
+            "appointment_day_reminders_enabled",
+            "appointment_day_reminder_hours_before",
             "birthday_messages_enabled",
             "birthday_send_time",
             "membership_due_reminders_enabled",
@@ -167,6 +169,10 @@ class WhatsAppAutomationSettingsForm(StyledModelForm):
             "membership_overdue_days_after",
             "charge_overdue_enabled",
             "charge_overdue_days_after",
+            "package_expiry_reminders_enabled",
+            "package_expiry_days_before",
+            "low_credit_reminders_enabled",
+            "low_credit_threshold",
         ]
         widgets = {
             "birthday_send_time": forms.TimeInput(attrs={"type": "time"}),

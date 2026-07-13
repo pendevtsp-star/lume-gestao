@@ -15,7 +15,14 @@
       <button class="button secondary" type="submit">Gerar avisos</button>
     </form>
     <a class="button secondary" href="{% url 'scheduling:appointments' %}">Agenda</a>
+    <a class="button secondary" href="{% url 'scheduling:operational_calendar' %}">Calendario operacional</a>
   </div>
+</section>
+
+<section class="summary-strip" aria-label="Resumo das notificacoes">
+  <article><span>Pendentes</span><strong>{{ notification_summary.pending }}</strong></article>
+  <article><span>Falhas</span><strong>{{ notification_summary.failed }}</strong></article>
+  <article><span>Enviadas</span><strong>{{ notification_summary.sent }}</strong></article>
 </section>
 
 <section class="panel">
@@ -27,6 +34,24 @@
         <option value="">Todos</option>
         {% for value, label in status_choices %}
           <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Categoria</span>
+      <select class="field-control" name="kind">
+        <option value="">Todas</option>
+        {% for value, label in kind_choices %}
+          <option value="{{ value }}" {% if selected_kind == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-field">
+      <span>Canal</span>
+      <select class="field-control" name="channel">
+        <option value="">Todos</option>
+        {% for value, label in channel_choices %}
+          <option value="{{ value }}" {% if selected_channel == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </label>
@@ -42,6 +67,7 @@
           <th>Canal</th>
           <th>Status</th>
           <th>Mensagem</th>
+          <th>Acoes</th>
         </tr>
       </thead>
       <tbody>
@@ -53,9 +79,21 @@
             <td>{{ item.get_channel_display }}</td>
             <td><span class="badge {{ item.status }}">{{ item.get_status_display }}</span></td>
             <td>{{ item.message }}</td>
+            <td>
+              {% if item.status == "failed" and item.delivery_log_id %}
+                <form method="post" action="{% url 'scheduling:notification_retry' item.pk %}">
+                  {% csrf_token %}
+                  <button class="button compact secondary" type="submit">Tentar novamente</button>
+                </form>
+              {% elif item.delivery_log_id %}
+                <span class="muted">{{ item.attempts }} tentativa{{ item.attempts|pluralize:"s" }}</span>
+              {% else %}
+                <span class="muted">Painel/PWA</span>
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty">Nenhum aviso gerado.</td></tr>
+          <tr><td colspan="7" class="empty">Nenhum aviso gerado.</td></tr>
         {% endfor %}
       </tbody>
     </table>

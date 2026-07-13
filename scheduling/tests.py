@@ -19,6 +19,8 @@ from scheduling.models import (
     PatientCheckIn,
     PatientGoal,
     PatientNotification,
+    PatientNotificationPreference,
+    OperationalCalendarEvent,
     ProfessionalAvailability,
     RescheduleRequest,
     ServicePackage,
@@ -1243,6 +1245,85 @@ class SchedulingTests(TestCase):
             ).exists()
         )
         self.assertEqual(PatientNotification.objects.count(), 3)
+
+    def test_operational_event_blocks_new_scheduled_appointments_and_creates_patient_notice(self):
+        target_date = timezone.localdate() + timedelta(days=3)
+        existing_start = timezone.make_aware(datetime.combine(target_date, time(11, 0)))
+        appointment = Appointment.objects.create(
+            patient=self.patient_two,
+            professional=self.professional,
+            starts_at=existing_start,
+            ends_at=existing_start + timedelta(hours=1),
+        )
+        event = OperationalCalendarEvent.objects.create(
+            event_type=OperationalCalendarEvent.EventType.HOLIDAY,
+            title="Feriado municipal",
+            starts_on=target_date,
+            ends_on=target_date,
+            message="A clinica estara fechada no feriado municipal.",
+        )
+        blocked_start = timezone.make_aware(datetime.combine(target_date, time(9, 0)))
+        blocked_appointment = Appointment(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=blocked_start,
+            ends_at=blocked_start + timedelta(hours=1),
+        )
+
+        with self.assertRaises(ValidationError):
+            blocked_appointment.full_clean()
+
+        created = generate_operational_notifications(reference_date=timezone.localdate())
+
+        self.assertEqual(created["operational_event"], 1)
+        self.assertTrue(
+            PatientNotification.objects.filter(
+                appointment=appointment,
+                calendar_event=event,
+                kind=PatientNotification.Kind.HOLIDAY,
+            ).exists()
+        )
+
+    def test_notification_preferences_prevent_financial_automations(self):
+        preferences = PatientNotificationPreference.objects.create(
+            patient=self.patient,
+            financial_enabled=False,
+        )
+        today = timezone.localdate()
+        settings = ClinicSettings.load()
+        settings.membership_due_reminder_days = 5
+        settings.save()
+        Payment.objects.create(
+            membership=self.membership,
+            patient=self.patient,
+            reference_month=today.replace(day=1),
+            due_date=today + timedelta(days=5),
+            amount=Decimal("400.00"),
+            status=Payment.Status.PENDING,
+        )
+
+        generate_operational_notifications(reference_date=today)
+
+        preferences.refresh_from_db()
+        self.assertFalse(PatientNotification.objects.filter(patient=self.patient, kind=PatientNotification.Kind.PLAN_RENEWAL).exists())
+
+    def test_low_credit_alert_is_idempotent(self):
+        package = ServicePackage.objects.create(
+            membership=self.membership,
+            total_sessions=4,
+            used_sessions=3,
+            starts_on=timezone.localdate(),
+        )
+
+        first = generate_operational_notifications(reference_date=timezone.localdate())
+        second = generate_operational_notifications(reference_date=timezone.localdate())
+
+        self.assertEqual(first["low_credit"], 1)
+        self.assertEqual(second["low_credit"], 0)
+        self.assertEqual(
+            PatientNotification.objects.filter(metadata__package_id=package.pk, metadata__reason="low_credit").count(),
+            1,
+        )
 
     def test_patient_progress_page_shows_monthly_summary_goal_and_checkin(self):
         user = get_user_model().objects.create_user(username="gestao-progresso", password="Senha@123")

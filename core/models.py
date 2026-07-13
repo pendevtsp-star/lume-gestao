@@ -275,6 +275,8 @@ class WhatsAppMessageTemplate(TimeStampedModel):
 class WhatsAppAutomationSettings(TimeStampedModel):
     appointment_reminders_enabled = models.BooleanField("enviar lembretes de consulta automaticamente", default=True)
     appointment_reminder_hours_before = models.PositiveSmallIntegerField("horas antes da consulta", default=24)
+    appointment_day_reminders_enabled = models.BooleanField("enviar lembrete no dia da consulta", default=True)
+    appointment_day_reminder_hours_before = models.PositiveSmallIntegerField("horas antes do lembrete no dia", default=3)
     birthday_messages_enabled = models.BooleanField("enviar aniversarios automaticamente", default=True)
     birthday_send_time = models.TimeField("horario do aniversario", default=time(8, 0))
     membership_due_reminders_enabled = models.BooleanField("enviar lembretes de mensalidade a vencer", default=True)
@@ -284,6 +286,10 @@ class WhatsAppAutomationSettings(TimeStampedModel):
     membership_overdue_days_after = models.PositiveSmallIntegerField("dias apos o vencimento", default=1)
     charge_overdue_enabled = models.BooleanField("enviar aviso de cobranca avulsa vencida", default=True)
     charge_overdue_days_after = models.PositiveSmallIntegerField("dias apos vencimento avulso", default=1)
+    package_expiry_reminders_enabled = models.BooleanField("avisar pacote perto da validade", default=True)
+    package_expiry_days_before = models.PositiveSmallIntegerField("dias antes da validade do pacote", default=7)
+    low_credit_reminders_enabled = models.BooleanField("avisar saldo baixo de atendimentos", default=True)
+    low_credit_threshold = models.PositiveSmallIntegerField("saldo minimo para alerta", default=1)
 
     class Meta:
         verbose_name = "automacao WhatsApp"
@@ -357,6 +363,7 @@ class WhatsAppMessageLog(TimeStampedModel):
     provider_reference = models.CharField("referencia do provedor", max_length=120, blank=True)
     error_message = models.TextField("erro", blank=True)
     response_payload = models.JSONField("retorno da integracao", default=dict, blank=True)
+    automation_key = models.CharField("chave da automacao", max_length=180, blank=True, db_index=True)
 
     class Meta:
         ordering = ["-created_at"]

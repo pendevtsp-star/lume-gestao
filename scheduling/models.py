@@ -153,6 +153,18 @@ class Appointment(TimeStampedModel):
         if self.slot_capacity < 1:
             raise ValidationError({"slot_capacity": "A capacidade da sessao precisa ser de pelo menos 1."})
 
+        if self.starts_at and self.status in {self.Status.REQUESTED, self.Status.SCHEDULED}:
+            local_start = timezone.localtime(self.starts_at)
+            blocked_event = OperationalCalendarEvent.objects.filter(
+                active=True,
+                affects_schedule=True,
+                event_type__in=[OperationalCalendarEvent.EventType.HOLIDAY, OperationalCalendarEvent.EventType.RECESS],
+                starts_on__lte=local_start.date(),
+                ends_on__gte=local_start.date(),
+            ).first()
+            if blocked_event:
+                raise ValidationError({"starts_at": f"A agenda esta bloqueada por: {blocked_event.title}."})
+
         if self.professional_id and self.starts_at and self.ends_at and self.status in {
             self.Status.REQUESTED,
             self.Status.SCHEDULED,
@@ -421,6 +433,22 @@ class PatientNotification(TimeStampedModel):
         blank=True,
         related_name="patient_notifications",
     )
+    calendar_event = models.ForeignKey(
+        "OperationalCalendarEvent",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications",
+        verbose_name="evento operacional",
+    )
+    delivery_log = models.OneToOneField(
+        "core.WhatsAppMessageLog",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="delivery_notification",
+        verbose_name="registro de envio",
+    )
     kind = models.CharField("tipo", max_length=30, choices=Kind.choices)
     channel = models.CharField("canal", max_length=20, choices=Channel.choices, default=Channel.PANEL)
     status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.PENDING)
@@ -429,6 +457,10 @@ class PatientNotification(TimeStampedModel):
     idempotency_key = models.CharField("chave unica", max_length=180, unique=True)
     message = models.TextField("mensagem")
     error_message = models.TextField("erro", blank=True)
+    attempts = models.PositiveSmallIntegerField("tentativas", default=0)
+    last_attempt_at = models.DateTimeField("ultima tentativa", null=True, blank=True)
+    provider_reference = models.CharField("referencia do provedor", max_length=120, blank=True)
+    metadata = models.JSONField("dados operacionais", default=dict, blank=True)
 
     class Meta:
         ordering = ["status", "due_at"]
@@ -437,6 +469,69 @@ class PatientNotification(TimeStampedModel):
 
     def __str__(self):
         return f"{self.patient} - {self.get_kind_display()}"
+
+
+class PatientNotificationPreference(TimeStampedModel):
+    patient = models.OneToOneField("patients.Patient", on_delete=models.CASCADE, related_name="notification_preferences")
+    whatsapp_enabled = models.BooleanField("aceita WhatsApp", default=True)
+    pwa_enabled = models.BooleanField("aceita notificacoes do aplicativo", default=False)
+    appointment_enabled = models.BooleanField("aceita avisos de agenda", default=True)
+    financial_enabled = models.BooleanField("aceita avisos financeiros", default=True)
+    operational_enabled = models.BooleanField("aceita comunicados operacionais", default=True)
+
+    class Meta:
+        verbose_name = "preferencia de notificacao"
+        verbose_name_plural = "preferencias de notificacao"
+
+    def __str__(self):
+        return f"Preferencias de {self.patient}"
+
+
+class OperationalCalendarEvent(TimeStampedModel):
+    class EventType(models.TextChoices):
+        HOLIDAY = "holiday", "Feriado"
+        RECESS = "recess", "Recesso"
+        SPECIAL_HOURS = "special_hours", "Horario especial"
+        SCHEDULE_CHANGE = "schedule_change", "Mudanca de horario"
+
+    event_type = models.CharField("tipo", max_length=30, choices=EventType.choices)
+    title = models.CharField("titulo", max_length=160)
+    starts_on = models.DateField("inicio", default=timezone.localdate)
+    ends_on = models.DateField("fim", default=timezone.localdate)
+    starts_at_time = models.TimeField("horario de inicio", null=True, blank=True)
+    ends_at_time = models.TimeField("horario de fim", null=True, blank=True)
+    affects_schedule = models.BooleanField("bloqueia novos agendamentos", default=True)
+    send_notice = models.BooleanField("gerar aviso aos pacientes afetados", default=True)
+    message = models.TextField("comunicado", blank=True)
+    active = models.BooleanField("ativo", default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_operational_events",
+    )
+
+    class Meta:
+        ordering = ["starts_on", "starts_at_time", "title"]
+        verbose_name = "evento operacional"
+        verbose_name_plural = "eventos operacionais"
+
+    def __str__(self):
+        return f"{self.get_event_type_display()} - {self.title}"
+
+    @property
+    def blocks_entire_day(self):
+        return self.affects_schedule and self.event_type in {self.EventType.HOLIDAY, self.EventType.RECESS}
+
+    def clean(self):
+        super().clean()
+        if self.ends_on and self.starts_on and self.ends_on < self.starts_on:
+            raise ValidationError({"ends_on": "A data final nao pode ser anterior ao inicio."})
+        if bool(self.starts_at_time) != bool(self.ends_at_time):
+            raise ValidationError("Informe inicio e fim do horario especial.")
+        if self.starts_at_time and self.ends_at_time and self.ends_at_time <= self.starts_at_time:
+            raise ValidationError({"ends_at_time": "O horario final deve ser posterior ao inicial."})
 
 
 class ProfessionalAvailabilityQuerySet(models.QuerySet):

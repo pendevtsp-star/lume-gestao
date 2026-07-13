@@ -20,6 +20,7 @@ class Command(BaseCommand):
                 self.style.SUCCESS(
                     "Fila WhatsApp processada: "
                     f"{automation['appointment']} consulta(s) automatica(s), "
+                    f"{automation['appointment_day']} lembrete(s) no dia, "
                     f"{automation['birthday']} aniversario(s) automatico(s), "
                     f"{automation['membership_due']} mensalidade(s) a vencer, "
                     f"{automation['membership_overdue']} mensalidade(s) vencida(s), "

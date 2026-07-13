@@ -156,6 +156,33 @@ Para producao real, trocar `ASAAS_BASE_URL` para a URL oficial de producao do As
 - Deploy para VPS deve acontecer apenas junto da atualizacao completa de pagamentos.
 - Compra teste com possivel custo real continua adiada para o final da implementacao do modulo.
 
+## Estado Sem Credenciais
+
+O checkout esta deliberadamente desativado na VPS enquanto a conta e as credenciais do Asaas nao forem entregues. Isso nao impede o restante do sistema, nem cria cobrancas ou links reais.
+
+Ja pronto no codigo:
+
+- compra publica de plano e pagamento de mensalidade do paciente;
+- pedido criado antes da cobranca, reuso de pedido pendente e bloqueio de duplicidade;
+- baixa financeira, liberacao de pacote e criacao de acesso somente por webhook confirmado;
+- cancelamento, expiracao, reabertura de link, logs de webhook e painel de conciliacao;
+- cadastro da conta recebedora, sem armazenar token, cartao ou senha no banco;
+- homologacao local isolada que nao chama o Asaas e descarta todos os dados de teste.
+
+Comando seguro para conferir o estado atual sem revelar segredos:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py check_checkout_readiness
+```
+
+Comando seguro para validar o fluxo inteiro em dry-run, sem alterar o `.env`, sem criar cobranca e sem manter dados:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py check_checkout_readiness --verify-dry-run
+```
+
+Quando as credenciais chegarem, a proxima etapa e usar somente o sandbox do Asaas: cadastrar a conta recebedora, definir `ASAAS_API_KEY` e `ASAAS_WEBHOOK_TOKEN`, executar `homologate_checkout_sandbox` e conferir o webhook antes de habilitar qualquer flag publica ou de paciente em producao.
+
 ## Comando De Homologacao Dry-Run
 
 Para rodar localmente sem custo real:

@@ -106,6 +106,14 @@ def checkout_gateway_status(request=None):
     merchant_status = merchant_account_status()
     merchant_required = bool(getattr(settings, "CHECKOUT_REQUIRE_MERCHANT_ACCOUNT", False))
     merchant_ready = merchant_status["ready"] or not merchant_required
+    feature_flags = {
+        "CHECKOUT_ENABLED": checkout_enabled,
+        "CHECKOUT_PUBLIC_ENABLED": bool(settings.CHECKOUT_PUBLIC_ENABLED),
+        "CHECKOUT_PATIENT_ENABLED": bool(settings.CHECKOUT_PATIENT_ENABLED),
+        "CHECKOUT_WEBHOOK_ENABLED": webhook_enabled,
+    }
+    dry_run_blockers = [name for name, enabled in feature_flags.items() if not enabled]
+    can_run_dry_run = provider_supported and settings.ASAAS_DRY_RUN and not dry_run_blockers
     ready_for_remote = provider_supported and not settings.ASAAS_DRY_RUN and api_key_configured and merchant_ready
     ready_for_webhook = provider_supported and webhook_enabled and webhook_token_configured
 
@@ -138,6 +146,9 @@ def checkout_gateway_status(request=None):
         "merchant_status_label": merchant_status["status_label"],
         "merchant_account_type_label": merchant_status["account_type_label"],
         "merchant_receiver_configured": merchant_status["receiver_configured"],
+        "feature_flags": feature_flags,
+        "can_run_dry_run": can_run_dry_run,
+        "dry_run_blockers": dry_run_blockers,
         "api_key_configured": api_key_configured,
         "webhook_token_configured": webhook_token_configured,
         "can_create_remote_payment": ready_for_remote,

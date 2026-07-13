@@ -57,6 +57,17 @@
   </div>
   <div class="checkout-webhook-box">
     <div>
+      <strong>Homologacao local sem credenciais</strong>
+      {% if gateway.can_run_dry_run %}
+        <span>Pronta para validar compra, webhook e baixa automatica em dry-run.</span>
+      {% else %}
+        <span>Faltam ativar as flags locais: {{ gateway.dry_run_blockers|join:", " }}.</span>
+      {% endif %}
+    </div>
+    <code>manage.py check_checkout_readiness --verify-dry-run</code>
+  </div>
+  <div class="checkout-webhook-box">
+    <div>
       <strong>URL do webhook Asaas</strong>
       <span>Use esta rota quando formos para sandbox real ou producao.</span>
     </div>

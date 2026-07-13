@@ -395,6 +395,32 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
     )
     summary = {"processed": 0, "sent": 0, "dry_run": 0, "failed": 0}
 
+    def sync_notification_delivery(log, *, status, error_message="", reference=""):
+        try:
+            notification = log.delivery_notification
+        except Exception:
+            return
+        notification.attempts += 1
+        notification.last_attempt_at = timezone.now()
+        notification.error_message = error_message
+        notification.provider_reference = reference
+        if status == WhatsAppMessageLog.Status.FAILED:
+            notification.status = "failed"
+        elif status in {WhatsAppMessageLog.Status.SENT, WhatsAppMessageLog.Status.DRY_RUN}:
+            notification.status = "sent"
+            notification.sent_at = timezone.now()
+        notification.save(
+            update_fields=[
+                "attempts",
+                "last_attempt_at",
+                "error_message",
+                "provider_reference",
+                "status",
+                "sent_at",
+                "updated_at",
+            ]
+        )
+
     for log in due_logs:
         integration = log.integration or WhatsAppIntegration.load()
         try:
@@ -422,6 +448,7 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
             log.error_message = str(exc)
             log.response_payload = {}
             log.save(update_fields=["status", "error_message", "response_payload", "updated_at"])
+            sync_notification_delivery(log, status=log.status, error_message=str(exc))
             summary["failed"] += 1
             summary["processed"] += 1
             continue
@@ -445,6 +472,7 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
                 "updated_at",
             ]
         )
+        sync_notification_delivery(log, status=log.status, reference=log.provider_reference)
         key = "dry_run" if log.status == WhatsAppMessageLog.Status.DRY_RUN else "sent"
         summary[key] += 1
         summary["processed"] += 1

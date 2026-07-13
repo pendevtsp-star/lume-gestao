@@ -2635,20 +2635,19 @@ td small {
 }
 
 .agenda-toolbar {
-  grid-template-columns: minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(156px, 184px) auto;
+  align-items: end;
+  gap: 12px;
   padding: 16px 18px;
   background: #fffdf7;
 }
 
 .agenda-toolbar-search {
-  display: grid;
-  gap: 8px;
+  min-width: 0;
 }
 
 .agenda-toolbar-search small {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
+  display: none;
 }
 
 .agenda-toolbar-actions {
@@ -2656,11 +2655,11 @@ td small {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .agenda-status-filter {
-  width: min(168px, 100%);
+  width: 100%;
 }
 
 .agenda-calendar-toolbar {
@@ -6389,6 +6388,14 @@ form.is-submitting button[type="submit"] { opacity: .72; }
 }
 
 @media (max-width: 860px) {
+  .agenda-toolbar {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 184px);
+  }
+
+  .agenda-toolbar-actions {
+    grid-column: 1 / -1;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
   }
@@ -6533,6 +6540,19 @@ form.is-submitting button[type="submit"] { opacity: .72; }
 }
 
 @media (max-width: 680px) {
+  .agenda-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .agenda-toolbar-actions {
+    grid-column: auto;
+    justify-content: stretch;
+  }
+
+  .agenda-toolbar-actions .button {
+    flex: 1;
+  }
+
   .main {
     padding: 18px;
   }

@@ -1,5 +1,6 @@
 from datetime import datetime, time, timedelta
 
+from django.db.models import Q
 from django.utils import timezone
 
 from billing.models import Charge, Membership, Payment, ServicePlan
@@ -19,7 +20,7 @@ from scheduling.models import Appointment, PatientNotification
 from scheduling.services import (
     appointment_day_message,
     patient_allows_notification,
-    preferred_notification_channel,
+    notification_preferences_for,
     session_confirmation_message,
     upsert_patient_notification,
 )
@@ -174,6 +175,7 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
     for rule in appointment_rules:
         reminder_start = now + timedelta(hours=rule.hours_before)
         reminder_end = reminder_start + timedelta(minutes=60)
+        recovery_start = now + timedelta(minutes=10)
         kind = (
             PatientNotification.Kind.APPOINTMENT_DAY
             if rule.hours_before <= 3
@@ -183,36 +185,69 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
             Appointment.objects.select_related("patient", "professional")
             .filter(
                 status=Appointment.Status.SCHEDULED,
-                starts_at__gte=reminder_start,
-                starts_at__lt=reminder_end,
                 patient__phone__gt="",
+            )
+            .filter(
+                Q(starts_at__gte=reminder_start, starts_at__lt=reminder_end)
+                | Q(starts_at__gte=recovery_start, starts_at__lt=reminder_start)
             )
             .order_by("starts_at")[:limit]
         )
         for appointment in appointments:
             if not patient_allows_notification(appointment.patient, kind):
                 continue
-            if preferred_notification_channel(appointment.patient, kind) != PatientNotification.Channel.WHATSAPP:
+            if not notification_preferences_for(appointment.patient).whatsapp_enabled:
                 continue
             automation_key = f"appointment-rule:{rule.pk}:{appointment.pk}"
-            exists = WhatsAppMessageLog.objects.filter(automation_key=automation_key).exclude(
-                status=WhatsAppMessageLog.Status.CANCELED
-            ).exists()
-            if exists:
-                continue
-            log = _create_scheduled_log(
-                integration=integration,
-                template=rule.template,
-                patient=appointment.patient,
+            already_delivered = WhatsAppMessageLog.objects.filter(
                 appointment=appointment,
-                scheduled_for=now,
-                automation_key=automation_key,
+                template=rule.template,
+                status__in=[WhatsAppMessageLog.Status.SENT, WhatsAppMessageLog.Status.DRY_RUN],
+            ).exists()
+            if already_delivered:
+                continue
+            log = (
+                WhatsAppMessageLog.objects.filter(automation_key=automation_key)
+                .exclude(status=WhatsAppMessageLog.Status.CANCELED)
+                .order_by("-created_at")
+                .first()
             )
+            if log and log.status in [
+                WhatsAppMessageLog.Status.SENT,
+                WhatsAppMessageLog.Status.DRY_RUN,
+                WhatsAppMessageLog.Status.SCHEDULED,
+            ]:
+                continue
+            if log and log.status == WhatsAppMessageLog.Status.FAILED:
+                log.status = WhatsAppMessageLog.Status.SCHEDULED
+                log.scheduled_for = now
+                log.next_attempt_at = None
+                log.attempt_count = 0
+                log.error_message = ""
+                log.save(
+                    update_fields=[
+                        "status",
+                        "scheduled_for",
+                        "next_attempt_at",
+                        "attempt_count",
+                        "error_message",
+                        "updated_at",
+                    ]
+                )
+            elif not log:
+                log = _create_scheduled_log(
+                    integration=integration,
+                    template=rule.template,
+                    patient=appointment.patient,
+                    appointment=appointment,
+                    scheduled_for=now,
+                    automation_key=automation_key,
+                )
             upsert_patient_notification(
                 patient=appointment.patient,
                 appointment=appointment,
                 kind=kind,
-                channel=preferred_notification_channel(appointment.patient, kind),
+                channel=PatientNotification.Channel.WHATSAPP,
                 due_at=now,
                 message=(appointment_day_message(appointment) if kind == PatientNotification.Kind.APPOINTMENT_DAY else session_confirmation_message(appointment)),
                 key_parts=[appointment.pk, "automation-rule", rule.pk],

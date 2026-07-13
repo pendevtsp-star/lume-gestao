@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import F
 
 from billing.models import Membership, Payment
-from core.models import ClinicSettings, WhatsAppAutomationSettings
+from core.models import ClinicSettings, WhatsAppAutomationSettings, WhatsAppMessageLog
 from scheduling.models import Appointment
 from scheduling.models import AppointmentAttendance
 from scheduling.models import PatientAchievement
@@ -376,10 +376,20 @@ def upsert_patient_notification(
             "metadata": metadata or {},
         },
     )
-    if not created and delivery_log and not notification.delivery_log_id:
-        notification.delivery_log = delivery_log
-        notification.channel = channel
-        notification.save(update_fields=["delivery_log", "channel", "updated_at"])
+    if not created and delivery_log:
+        update_fields = ["updated_at"]
+        if notification.delivery_log_id != delivery_log.pk:
+            notification.delivery_log = delivery_log
+            notification.channel = channel
+            update_fields.extend(["delivery_log", "channel"])
+        if (
+            notification.status == PatientNotification.Status.FAILED
+            and delivery_log.status == WhatsAppMessageLog.Status.SCHEDULED
+        ):
+            notification.status = PatientNotification.Status.PENDING
+            notification.error_message = ""
+            update_fields.extend(["status", "error_message"])
+        notification.save(update_fields=update_fields)
     return notification, created
 
 

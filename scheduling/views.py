@@ -1308,8 +1308,19 @@ class RetryNotificationView(AgendaOperationalAccessMixin, View):
             return redirect("scheduling:notifications")
         delivery_log.status = WhatsAppMessageLog.Status.SCHEDULED
         delivery_log.scheduled_for = timezone.now()
+        delivery_log.next_attempt_at = None
+        delivery_log.attempt_count = 0
         delivery_log.error_message = ""
-        delivery_log.save(update_fields=["status", "scheduled_for", "error_message", "updated_at"])
+        delivery_log.save(
+            update_fields=[
+                "status",
+                "scheduled_for",
+                "next_attempt_at",
+                "attempt_count",
+                "error_message",
+                "updated_at",
+            ]
+        )
         notification.status = PatientNotification.Status.PENDING
         notification.error_message = ""
         notification.save(update_fields=["status", "error_message", "updated_at"])

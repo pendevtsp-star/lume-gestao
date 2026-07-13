@@ -29,6 +29,7 @@ class Command(BaseCommand):
                     f"{summary['processed']} item(ns), "
                     f"{summary['sent']} enviado(s), "
                     f"{summary['dry_run']} simulado(s), "
+                    f"{summary['retried']} reenfileirado(s), "
                     f"{summary['failed']} falha(s)."
                 )
             )

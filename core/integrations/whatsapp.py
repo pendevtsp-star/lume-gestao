@@ -1,4 +1,7 @@
+from datetime import timedelta
 from decimal import Decimal
+
+from django.db.models import Q
 from django.conf import settings
 from django.utils import timezone
 
@@ -355,6 +358,25 @@ def provider_reference_from_response(result):
     return messages_data[0].get("id", "")
 
 
+MAX_DELIVERY_ATTEMPTS = 4
+RETRY_DELAYS_MINUTES = (2, 5, 15)
+
+
+def transient_whatsapp_delivery_error(message):
+    normalized = str(message or "").lower()
+    transient_markers = (
+        "http 502",
+        "http 503",
+        "http 504",
+        "session not connected",
+        "sessao whatsapp web",
+        "sessao nao conectada",
+        "gateway",
+        "no lid for user",
+    )
+    return any(marker in normalized for marker in transient_markers)
+
+
 def process_scheduled_whatsapp_messages(limit=50, now=None):
     now = now or timezone.now()
     due_logs = list(
@@ -364,9 +386,10 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
             scheduled_for__isnull=False,
             scheduled_for__lte=now,
         )
+        .filter(Q(next_attempt_at__isnull=True) | Q(next_attempt_at__lte=now))
         .order_by("scheduled_for", "created_at")[:limit]
     )
-    summary = {"processed": 0, "sent": 0, "dry_run": 0, "failed": 0}
+    summary = {"processed": 0, "sent": 0, "dry_run": 0, "failed": 0, "retried": 0}
 
     def sync_notification_delivery(log, *, status, error_message="", reference=""):
         try:
@@ -396,6 +419,7 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
 
     for log in due_logs:
         integration = log.integration or WhatsAppIntegration.load()
+        log.attempt_count += 1
         try:
             if integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY:
                 result = send_whatsapp_text(log.recipient_number, log.rendered_message, integration=integration)
@@ -417,12 +441,37 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
                     integration=integration,
                 )
         except IntegrationError as exc:
-            log.status = WhatsAppMessageLog.Status.FAILED
-            log.error_message = str(exc)
+            error_message = str(exc)
+            can_retry = transient_whatsapp_delivery_error(error_message) and log.attempt_count < MAX_DELIVERY_ATTEMPTS
+            if can_retry:
+                delay_index = min(log.attempt_count - 1, len(RETRY_DELAYS_MINUTES) - 1)
+                log.status = WhatsAppMessageLog.Status.SCHEDULED
+                log.next_attempt_at = now + timedelta(minutes=RETRY_DELAYS_MINUTES[delay_index])
+                log.scheduled_for = log.next_attempt_at
+                log.error_message = (
+                    f"{error_message} Nova tentativa automatica em "
+                    f"{RETRY_DELAYS_MINUTES[delay_index]} minuto(s)."
+                )
+                summary["retried"] += 1
+            else:
+                log.status = WhatsAppMessageLog.Status.FAILED
+                log.next_attempt_at = None
+                log.error_message = error_message
             log.response_payload = {}
-            log.save(update_fields=["status", "error_message", "response_payload", "updated_at"])
-            sync_notification_delivery(log, status=log.status, error_message=str(exc))
-            summary["failed"] += 1
+            log.save(
+                update_fields=[
+                    "status",
+                    "scheduled_for",
+                    "next_attempt_at",
+                    "attempt_count",
+                    "error_message",
+                    "response_payload",
+                    "updated_at",
+                ]
+            )
+            sync_notification_delivery(log, status=log.status, error_message=error_message)
+            if not can_retry:
+                summary["failed"] += 1
             summary["processed"] += 1
             continue
 
@@ -432,6 +481,7 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
             else WhatsAppMessageLog.Status.SENT
         )
         log.sent_at = timezone.now()
+        log.next_attempt_at = None
         log.error_message = ""
         log.provider_reference = provider_reference_from_response(result)
         log.response_payload = result if isinstance(result, dict) else {}
@@ -439,6 +489,8 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
             update_fields=[
                 "status",
                 "sent_at",
+                "next_attempt_at",
+                "attempt_count",
                 "error_message",
                 "provider_reference",
                 "response_payload",

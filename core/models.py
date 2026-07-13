@@ -445,6 +445,8 @@ class WhatsAppMessageLog(TimeStampedModel):
     rendered_message = models.TextField("mensagem enviada")
     status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.DRY_RUN)
     scheduled_for = models.DateTimeField("agendada para", null=True, blank=True, db_index=True)
+    next_attempt_at = models.DateTimeField("proxima tentativa", null=True, blank=True, db_index=True)
+    attempt_count = models.PositiveSmallIntegerField("tentativas", default=0)
     sent_at = models.DateTimeField("enviada em", null=True, blank=True)
     provider_reference = models.CharField("referencia do provedor", max_length=120, blank=True)
     error_message = models.TextField("erro", blank=True)

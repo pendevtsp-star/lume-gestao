@@ -18,11 +18,14 @@ from core.models import (
     AuditLog,
     ClinicSettings,
     GoogleCalendarIntegration,
+    WhatsAppAutomationRule,
     WhatsAppAutomationSettings,
     WhatsAppIntegration,
     WhatsAppMessageLog,
     WhatsAppMessageTemplate,
 )
+from core.integrations.http import IntegrationError
+from core.integrations.whatsapp import process_scheduled_whatsapp_messages
 from core.services.whatsapp_automation import enqueue_automatic_whatsapp_messages
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import Appointment, PatientNotification, ProfessionalAvailability, ServicePackage, ServiceUsage
@@ -1041,6 +1044,11 @@ class IntegrationsTests(TestCase):
         automation.appointment_day_reminders_enabled = True
         automation.appointment_day_reminder_hours_before = 3
         automation.save()
+        WhatsAppAutomationRule.ensure_defaults()
+        WhatsAppAutomationRule.objects.filter(
+            name="Sessao proxima - 1 hora",
+            is_system=True,
+        ).update(hours_before=3)
         start = timezone.now() + timedelta(hours=3, minutes=10)
         appointment = Appointment.objects.create(
             patient=self.patient,
@@ -1053,16 +1061,58 @@ class IntegrationsTests(TestCase):
         call_command("process_whatsapp_queue", limit=10, verbosity=0)
         call_command("process_whatsapp_queue", limit=10, verbosity=0)
 
-        self.assertEqual(
-            WhatsAppMessageLog.objects.filter(automation_key=f"appointment-day:{appointment.pk}").count(),
-            1,
-        )
+        rule = WhatsAppAutomationRule.objects.get(name="Sessao proxima - 1 hora", is_system=True)
+        self.assertEqual(WhatsAppMessageLog.objects.filter(automation_key=f"appointment-rule:{rule.pk}:{appointment.pk}").count(), 1)
         notification = PatientNotification.objects.get(
             appointment=appointment,
             kind=PatientNotification.Kind.APPOINTMENT_DAY,
         )
         self.assertEqual(notification.status, PatientNotification.Status.SENT)
         self.assertEqual(notification.attempts, 1)
+
+    @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local", WHATSAPP_DRY_RUN=False)
+    @patch("core.integrations.whatsapp.send_whatsapp_text")
+    def test_queue_retries_transient_web_gateway_failure(self, send_whatsapp_text_mock):
+        integration = WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "provider": WhatsAppIntegration.Provider.WEB_GATEWAY,
+                "enabled": True,
+                "dry_run": False,
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )[0]
+        template = WhatsAppMessageTemplate.ensure_defaults()[0]
+        now = timezone.now()
+        log = WhatsAppMessageLog.objects.create(
+            integration=integration,
+            template=template,
+            patient=self.patient,
+            recipient_name=self.patient.full_name,
+            recipient_number=self.patient.phone,
+            rendered_message="Teste de retentativa",
+            status=WhatsAppMessageLog.Status.SCHEDULED,
+            scheduled_for=now,
+        )
+        send_whatsapp_text_mock.side_effect = [
+            IntegrationError("HTTP 503: sessao WhatsApp Web nao conectada."),
+            {"ok": True, "messageId": "retry-ok"},
+        ]
+
+        first_summary = process_scheduled_whatsapp_messages(now=now)
+        log.refresh_from_db()
+
+        self.assertEqual(first_summary["retried"], 1)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.SCHEDULED)
+        self.assertEqual(log.attempt_count, 1)
+        self.assertIsNotNone(log.next_attempt_at)
+
+        second_summary = process_scheduled_whatsapp_messages(now=log.next_attempt_at)
+        log.refresh_from_db()
+
+        self.assertEqual(second_summary["sent"], 1)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.SENT)
+        self.assertEqual(log.attempt_count, 2)
 
     def test_management_can_send_birthday_message_from_dashboard(self):
         self.client.force_login(self.management)

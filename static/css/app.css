@@ -407,6 +407,24 @@ textarea {
   text-transform: uppercase;
 }
 
+.topbar-install {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(96, 114, 79, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 253, 246, 0.86);
+  color: var(--sage-dark);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.topbar-install:hover,
+.topbar-install:focus-visible {
+  border-color: rgba(96, 114, 79, 0.46);
+  background: var(--sage-soft);
+}
+
 .topbar-title-group {
   display: grid;
   gap: 2px;
@@ -1402,6 +1420,55 @@ h2 {
   color: var(--sage-dark);
   font-size: 20px;
   font-weight: 500;
+}
+
+.empty-state .button {
+  justify-self: center;
+  margin-top: 10px;
+}
+
+.empty-state.is-success::before {
+  content: "✓";
+  border-color: rgba(49, 112, 91, 0.22);
+  background: rgba(49, 112, 91, 0.08);
+  color: var(--success);
+}
+
+.empty-state.is-warning::before {
+  content: "!";
+  border-color: rgba(167, 109, 27, 0.24);
+  background: rgba(167, 109, 27, 0.08);
+  color: var(--warning);
+}
+
+.operational-feedback {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--line);
+}
+
+.operational-feedback > div {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+  background: #fffdf8;
+}
+
+.operational-feedback span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.operational-feedback strong {
+  color: var(--ink);
+  font-size: 14px;
 }
 
 .list-overview-strip,
@@ -6365,6 +6432,10 @@ form.is-submitting button[type="submit"] { opacity: .72; }
   .list-toolbar-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .operational-feedback {
+    grid-template-columns: 1fr;
   }
 
   .filters {

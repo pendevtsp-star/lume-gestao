@@ -1,4 +1,6 @@
 import express from "express";
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import QRCode from "qrcode";
 import qrcodeTerminal from "qrcode-terminal";
 import pkg from "whatsapp-web.js";
@@ -14,6 +16,15 @@ let latestQr = "";
 let ready = false;
 let connectedNumber = "";
 let lastError = "";
+
+async function clearStaleChromiumLocks() {
+  const profileDir = path.join(sessionDir, "session");
+  await Promise.all(
+    ["SingletonLock", "SingletonSocket", "SingletonCookie"].map((name) =>
+      rm(path.join(profileDir, name), { force: true })
+    )
+  );
+}
 
 app.use(express.json({ limit: "256kb" }));
 
@@ -150,7 +161,9 @@ app.listen(port, () => {
   console.log(`[whatsapp-web] Gateway ouvindo na porta ${port}.`);
 });
 
-client.initialize().catch((error) => {
-  lastError = error.message || String(error);
-  console.error("[whatsapp-web] Falha ao iniciar cliente:", lastError);
-});
+clearStaleChromiumLocks()
+  .then(() => client.initialize())
+  .catch((error) => {
+    lastError = error.message || String(error);
+    console.error("[whatsapp-web] Falha ao iniciar cliente:", lastError);
+  });

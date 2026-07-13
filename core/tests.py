@@ -45,6 +45,23 @@ class DashboardAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Dashboard")
 
+    def test_dashboard_financial_notification_uses_existing_payment_route(self):
+        user = get_user_model().objects.create_superuser(username="gestor-financeiro", password="Lume@12345")
+        patient = Patient.objects.create(full_name="Paciente com pendencia")
+        Charge.objects.create(
+            patient=patient,
+            description="Mensalidade vencida",
+            due_date=timezone.localdate() - timedelta(days=1),
+            amount=Decimal("120.00"),
+            status=Charge.Status.OVERDUE,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f"{reverse('billing:payments')}?q=overdue")
+
     def test_dashboard_shows_weekly_birthdays_to_all_roles(self):
         today = timezone.localdate()
         birthday_patient = Patient.objects.create(

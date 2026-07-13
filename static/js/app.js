@@ -39,7 +39,8 @@
       form.querySelectorAll("button[type='submit']").forEach((button) => {
         button.disabled = true;
         button.dataset.label = button.textContent;
-        button.textContent = "Salvando...";
+        button.setAttribute("aria-busy", "true");
+        button.textContent = button.dataset.submittingLabel || "Salvando...";
       });
     });
   });
@@ -52,5 +53,35 @@
     close.textContent = "×";
     close.addEventListener("click", () => message.remove());
     message.appendChild(close);
+  });
+
+  let installPrompt = null;
+  const installButtons = document.querySelectorAll("[data-pwa-install]");
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    installPrompt = event;
+    installButtons.forEach((button) => {
+      button.hidden = false;
+    });
+  });
+
+  installButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!installPrompt) return;
+      await installPrompt.prompt();
+      await installPrompt.userChoice;
+      installPrompt = null;
+      installButtons.forEach((item) => {
+        item.hidden = true;
+      });
+    });
+  });
+
+  window.addEventListener("appinstalled", () => {
+    installPrompt = null;
+    installButtons.forEach((button) => {
+      button.hidden = true;
+    });
   });
 })();

@@ -12,9 +12,9 @@
   <link rel="manifest" href="{% url 'pwa_manifest' %}">
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260712-pwa">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260713-block8">
   <link rel="stylesheet" href="{% static 'css/quick-actions.css' %}?v=20260630-quick-actions-compact">
-  <script src="{% static 'js/app.js' %}?v=20260712-pwa" defer></script>
+  <script src="{% static 'js/app.js' %}?v=20260713-block8" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -209,6 +209,7 @@
           </div>
         </div>
         <div class="topbar-actions">
+          <button class="topbar-install" type="button" data-pwa-install hidden>Instalar app</button>
           {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
             <details class="notification-center">
               <summary aria-label="Abrir notificacoes operacionais" title="Notificacoes operacionais">

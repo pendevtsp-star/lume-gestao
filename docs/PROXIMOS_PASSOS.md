@@ -279,6 +279,19 @@ Atualizacoes minimas do bloco:
 
 Criterio de pronto: o sistema inteiro parece um produto unico, profissional e operavel.
 
+Status: concluido em 13/07/2026.
+
+Entrega realizada:
+
+- Hierarquia financeira e leitura executiva padronizadas com orientacao operacional.
+- Relatorios mensal e financeiro adaptados para tabelas responsivas e estados vazios guiados.
+- Lume em casa revisado para separar biblioteca, acesso, assinatura e operacao.
+- Checkout publico estruturado em etapas, com contexto de seguranca e retorno de status acionavel.
+- Padroes de botoes, badges, estados vazios, erros e acoes por linha consolidados no `DESIGN.md`.
+- Instalacao PWA disponibilizada no sistema e na biblioteca publica, mantendo dados sensiveis fora do cache.
+- Gateway temporario do WhatsApp protegido contra travas residuais do perfil Chromium apos recriacao do container.
+- Auditoria desktop e mobile executada antes da publicacao do bloco.
+
 ## Ordem recomendada
 
 1. Bloco 2: Checkout Asaas, porque impacta receita e compra de planos.

@@ -7,6 +7,7 @@
   <div>
     <p class="eyebrow">Relatorios</p>
     <h1>Financeiro</h1>
+    <p class="page-subtitle">Compare entradas, despesas, recebiveis e volume de atendimentos no mesmo recorte.</p>
   </div>
   <div class="panel-actions">
     <a class="button secondary" href="{% url 'reports:financial_pdf_preview' %}?preset={{ preset }}&start={{ start }}&end={{ end }}&plan={{ selected_plan }}&method={{ selected_method }}&kind={{ selected_kind }}&category={{ selected_category }}&include_charges={% if include_charges %}1{% else %}0{% endif %}">Pre-visualizar PDF</a>
@@ -119,6 +120,12 @@
   </article>
 </section>
 
+<section class="operational-feedback" aria-label="Como usar este relatorio">
+  <div><span>Leitura principal</span><strong>Resultado, margem e taxa de recebimento</strong></div>
+  <div><span>Atencao</span><strong>Vencidos e titulos pendentes no fim da pagina</strong></div>
+  <div><span>Proximo passo</span><strong>Ajuste o periodo antes de exportar PDF ou Excel</strong></div>
+</section>
+
 <section class="metric-grid">
   <article class="metric">
     <span>Recebido + em aberto</span>
@@ -170,7 +177,7 @@
         <p>Comparativo entre entrada e saida do periodo.</p>
       </div>
     </header>
-    <div class="table-wrap">
+    <div class="table-wrap responsive-table">
       <table class="compact-table">
         <thead>
           <tr>
@@ -184,14 +191,14 @@
         <tbody>
           {% for row in monthly_flow %}
             <tr>
-              <td>{{ row.month|date:"m/Y" }}</td>
-              <td class="right">R$ {{ row.revenue|floatformat:2 }}</td>
-              <td class="right">R$ {{ row.expenses|floatformat:2 }}</td>
-              <td class="right">R$ {{ row.net|floatformat:2 }}</td>
-              <td class="right">{{ row.margin|floatformat:1 }}%</td>
+              <td data-label="Mes">{{ row.month|date:"m/Y" }}</td>
+              <td class="right" data-label="Receita">R$ {{ row.revenue|floatformat:2 }}</td>
+              <td class="right" data-label="Despesa">R$ {{ row.expenses|floatformat:2 }}</td>
+              <td class="right" data-label="Resultado">R$ {{ row.net|floatformat:2 }}</td>
+              <td class="right" data-label="Margem">{{ row.margin|floatformat:1 }}%</td>
             </tr>
           {% empty %}
-            <tr><td colspan="5" class="empty">Nenhum movimento encontrado para o periodo.</td></tr>
+            <tr><td colspan="5" class="empty"><div class="empty-state soft"><strong>Sem movimento financeiro neste periodo.</strong><span>Amplie o recorte ou revise os filtros para comparar receitas e despesas.</span></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -278,7 +285,7 @@
         <p>Volume operacional no periodo filtrado.</p>
       </div>
     </header>
-    <div class="table-wrap">
+    <div class="table-wrap responsive-table">
       <table class="compact-table">
         <thead>
           <tr>
@@ -292,14 +299,14 @@
         <tbody>
           {% for row in appointments_by_professional %}
             <tr>
-              <td>{{ row.label }}</td>
-              <td class="right">{{ row.total }}</td>
-              <td class="right">{{ row.completed }}</td>
-              <td class="right">{{ row.canceled }}</td>
-              <td class="right">{{ row.no_show }}</td>
+              <td data-label="Profissional">{{ row.label }}</td>
+              <td class="right" data-label="Total">{{ row.total }}</td>
+              <td class="right" data-label="Realizados">{{ row.completed }}</td>
+              <td class="right" data-label="Cancelados">{{ row.canceled }}</td>
+              <td class="right" data-label="Faltas">{{ row.no_show }}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="5" class="empty">Nenhum atendimento no periodo.</td></tr>
+            <tr><td colspan="5" class="empty"><div class="empty-state soft"><strong>Sem atendimentos neste periodo.</strong><span>Revise o intervalo selecionado para acompanhar a producao da equipe.</span></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -337,7 +344,7 @@
       <p>Titulos pendentes ou vencidos dentro do recorte filtrado.</p>
     </div>
   </header>
-  <div class="table-wrap">
+  <div class="table-wrap responsive-table">
     <table>
       <thead>
         <tr>
@@ -352,15 +359,15 @@
       <tbody>
         {% for row in receivable_alerts %}
           <tr>
-            <td>{{ row.type }}</td>
-            <td>{{ row.patient }}</td>
-            <td>{{ row.description }}</td>
-            <td>{{ row.due_date|date:"d/m/Y" }}</td>
-            <td>{{ row.status }}</td>
-            <td class="right">R$ {{ row.amount|floatformat:2 }}</td>
+            <td data-label="Tipo">{{ row.type }}</td>
+            <td data-label="Paciente">{{ row.patient }}</td>
+            <td data-label="Descricao">{{ row.description }}</td>
+            <td data-label="Vencimento">{{ row.due_date|date:"d/m/Y" }}</td>
+            <td data-label="Status"><span class="badge pending">{{ row.status }}</span></td>
+            <td class="right" data-label="Valor">R$ {{ row.amount|floatformat:2 }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty">Nenhum titulo pendente no periodo selecionado.</td></tr>
+          <tr><td colspan="6" class="empty"><div class="empty-state soft is-success"><strong>Nenhum recebivel exige acao.</strong><span>O recorte atual nao possui titulos pendentes ou vencidos.</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

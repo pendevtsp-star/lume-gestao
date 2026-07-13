@@ -30,6 +30,12 @@
   </article>
 </section>
 
+<section class="operational-feedback" aria-label="Resumo da jornada">
+  <div><span>Pagamento</span><strong>Escolha apenas mensalidades em aberto</strong></div>
+  <div><span>Confirmacao</span><strong>A baixa acontece apos retorno do provedor</strong></div>
+  <div><span>Seguranca</span><strong>Dados de cartao nao ficam armazenados na Lume</strong></div>
+</section>
+
 <section class="panel">
   <header class="panel-header">
     <div>
@@ -37,25 +43,25 @@
       <p>Escolha uma mensalidade para pagar pelo checkout seguro.</p>
     </div>
   </header>
-  <div class="table-wrap">
+  <div class="table-wrap responsive-table">
     <table>
       <thead><tr><th>Plano</th><th>Vencimento</th><th>Status</th><th class="right">Valor</th><th class="right">Acao</th></tr></thead>
       <tbody>
         {% for payment in pending_payments %}
           <tr>
-            <td><strong>{{ payment.membership.plan.name }}</strong><div class="table-meta">{{ payment.reference_month|date:"m/Y" }}</div></td>
-            <td>{{ payment.due_date|date:"d/m/Y" }}</td>
-            <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
-            <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
-            <td class="right">
+            <td data-label="Plano"><strong>{{ payment.membership.plan.name }}</strong><div class="table-meta">{{ payment.reference_month|date:"m/Y" }}</div></td>
+            <td data-label="Vencimento">{{ payment.due_date|date:"d/m/Y" }}</td>
+            <td data-label="Status"><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
+            <td class="right" data-label="Valor">R$ {{ payment.amount|floatformat:2 }}</td>
+            <td class="right table-actions" data-label="Acao">
               <form method="post" action="{% url 'checkout:payment_start' payment.pk %}">
                 {% csrf_token %}
-                <button class="button primary compact" type="submit">Pagar</button>
+                <button class="button primary compact" type="submit" data-submitting-label="Abrindo pagamento...">Pagar</button>
               </form>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="empty">Nenhuma mensalidade pendente.</td></tr>
+          <tr><td colspan="5" class="empty"><div class="empty-state soft is-success"><strong>Nenhuma mensalidade pendente.</strong><span>Seus pagamentos estao em dia neste momento.</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -70,19 +76,19 @@
         <p>Saldo atual das suas adesoes ativas.</p>
       </div>
     </header>
-    <div class="table-wrap">
+    <div class="table-wrap responsive-table">
       <table class="compact-table">
         <thead><tr><th>Plano</th><th class="right">Usados</th><th class="right">Restantes</th><th>Validade</th></tr></thead>
         <tbody>
           {% for package in active_packages %}
             <tr>
-              <td>{{ package.membership.plan.name }}</td>
-              <td class="right">{{ package.used_sessions }}/{{ package.total_sessions }}</td>
-              <td class="right">{{ package.remaining_sessions }}</td>
-              <td>{% if package.expires_on %}{{ package.expires_on|date:"d/m/Y" }}{% else %}Sem validade{% endif %}</td>
+              <td data-label="Plano">{{ package.membership.plan.name }}</td>
+              <td class="right" data-label="Usados">{{ package.used_sessions }}/{{ package.total_sessions }}</td>
+              <td class="right" data-label="Restantes">{{ package.remaining_sessions }}</td>
+              <td data-label="Validade">{% if package.expires_on %}{{ package.expires_on|date:"d/m/Y" }}{% else %}Sem validade{% endif %}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="4" class="empty">Nenhum credito ativo no momento.</td></tr>
+            <tr><td colspan="4" class="empty"><div class="empty-state soft"><strong>Nenhum credito ativo.</strong><span>Quando um plano for liberado, o saldo de sessoes aparecera aqui.</span></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -106,7 +112,7 @@
           </div>
         </article>
       {% empty %}
-        <p class="empty">Nenhum atendimento futuro agendado.</p>
+        <div class="empty-state soft"><strong>Nenhum atendimento futuro.</strong><span>Novos horarios confirmados pela clinica aparecerao aqui.</span></div>
       {% endfor %}
     </div>
   </article>
@@ -120,19 +126,19 @@
         <p>Ultimos atendimentos baixados pela equipe.</p>
       </div>
     </header>
-    <div class="table-wrap">
+    <div class="table-wrap responsive-table">
       <table class="compact-table">
         <thead><tr><th>Data</th><th>Plano</th><th>Profissional</th><th class="right">Creditos</th></tr></thead>
         <tbody>
           {% for usage in recent_usages %}
             <tr>
-              <td>{{ usage.registered_at|date:"d/m/Y" }}</td>
-              <td>{{ usage.service_package.membership.plan.name }}</td>
-              <td>{{ usage.appointment.professional.full_name }}</td>
-              <td class="right">{{ usage.units }}</td>
+              <td data-label="Data">{{ usage.registered_at|date:"d/m/Y" }}</td>
+              <td data-label="Plano">{{ usage.service_package.membership.plan.name }}</td>
+              <td data-label="Profissional">{{ usage.appointment.professional.full_name }}</td>
+              <td class="right" data-label="Creditos">{{ usage.units }}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="4" class="empty">Nenhum atendimento registrado ainda.</td></tr>
+            <tr><td colspan="4" class="empty"><div class="empty-state soft"><strong>Nenhum atendimento registrado.</strong><span>O historico aparece depois da primeira presenca baixada pela equipe.</span></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -146,18 +152,18 @@
         <p>Ultimas mensalidades registradas como pagas.</p>
       </div>
     </header>
-    <div class="table-wrap">
+    <div class="table-wrap responsive-table">
       <table class="compact-table">
         <thead><tr><th>Plano</th><th>Pago em</th><th class="right">Valor</th></tr></thead>
         <tbody>
           {% for payment in paid_payments %}
             <tr>
-              <td>{{ payment.membership.plan.name }}</td>
-              <td>{{ payment.paid_at|date:"d/m/Y" }}</td>
-              <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
+              <td data-label="Plano">{{ payment.membership.plan.name }}</td>
+              <td data-label="Pago em">{{ payment.paid_at|date:"d/m/Y" }}</td>
+              <td class="right" data-label="Valor">R$ {{ payment.amount|floatformat:2 }}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="3" class="empty">Nenhum pagamento recente.</td></tr>
+            <tr><td colspan="3" class="empty"><div class="empty-state soft"><strong>Nenhum pagamento recente.</strong><span>Pagamentos confirmados aparecerao aqui para consulta.</span></div></td></tr>
           {% endfor %}
         </tbody>
       </table>

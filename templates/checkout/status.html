@@ -6,32 +6,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Status do pedido | Lume</title>
   <link rel="icon" type="image/svg+xml" href="{% static 'images/website/favicon-lume.svg' %}?v=20260628-lume">
-  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260628-slim">
+  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260713-checkout">
 </head>
-<body>
-  <main class="site-main">
-    <section class="contact-section shell-panel">
+<body class="checkout-page">
+  <main class="site-main checkout-shell">
+    <section class="checkout-status shell-panel">
       <div>
-        <p class="eyebrow">Pedido {{ order.get_status_display }}</p>
+        <p class="eyebrow">Status do pedido</p>
         <h1>{{ order.customer_name }}</h1>
-        <p class="section-text">
+        <span class="checkout-status-badge status-{{ order.status }}">{{ order.get_status_display }}</span>
+        <div class="checkout-status-copy">
           {% if order.is_paid %}
-            Pagamento confirmado. Se este foi seu primeiro acesso, suas credenciais serao enviadas por e-mail ou WhatsApp.
+            <strong>Pagamento confirmado.</strong><p>Se este foi seu primeiro acesso, suas credenciais serao enviadas por e-mail ou WhatsApp.</p><span>Proximo passo: aguarde a mensagem da clinica com a liberacao.</span>
           {% elif order.status == "failed" %}
-            Nao foi possivel iniciar ou confirmar este pagamento. Fale com a equipe da clinica para gerar um novo link.
+            <strong>Nao foi possivel confirmar o pagamento.</strong><p>O provedor recusou ou interrompeu a operacao.</p><span>Proximo passo: fale com a clinica para revisar ou gerar um novo link.</span>
           {% elif order.status == "canceled" %}
-            Este pedido foi cancelado pela equipe da clinica.
+            <strong>Este pedido foi cancelado.</strong><p>A operacao nao esta mais disponivel para pagamento.</p><span>Proximo passo: solicite um novo pedido para continuar.</span>
           {% elif order.status == "expired" %}
-            Este pedido expirou. Solicite um novo link para continuar.
+            <strong>Este pedido expirou.</strong><p>O prazo do link terminou antes da confirmacao.</p><span>Proximo passo: solicite um novo link para continuar.</span>
           {% else %}
-            Aguardando confirmacao do pagamento pelo provedor. Isso pode levar alguns instantes.
+            <strong>Aguardando confirmacao.</strong><p>O provedor ainda esta processando ou aguardando o pagamento.</p><span>Proximo passo: conclua o pagamento ou atualize esta pagina em alguns instantes.</span>
           {% endif %}
-        </p>
+        </div>
         <div class="hero-actions">
           {% if order.checkout_url and not order.is_paid %}
-            <a class="button primary" href="{{ order.checkout_url }}">Abrir pagamento</a>
+            <a class="button-primary" href="{{ order.checkout_url }}">Abrir pagamento</a>
           {% endif %}
-          <a class="button secondary" href="/">Voltar ao site</a>
+          <a class="button-secondary" href="/">Voltar ao site</a>
         </div>
       </div>
     </section>

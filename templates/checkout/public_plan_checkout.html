@@ -6,49 +6,68 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ browser_title|default:page_title }}</title>
   <link rel="icon" type="image/svg+xml" href="{% static 'images/website/favicon-lume.svg' %}?v=20260628-lume">
-  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260628-slim">
+  <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260713-checkout">
 </head>
-<body>
-  <main class="site-main">
-    <section class="contact-section shell-panel">
+<body class="checkout-page">
+  <main class="site-main checkout-shell">
+    <section class="checkout-head shell-panel">
       <div>
         <p class="eyebrow">Checkout seguro</p>
         <h1>{{ plan.name }}</h1>
         <p class="section-text">{{ plan.public_description|default:plan.description|default:"Finalize sua adesao online. A liberacao acontece apenas apos confirmacao do pagamento." }}</p>
       </div>
+      <ol class="checkout-steps" aria-label="Etapas do pagamento">
+        <li class="is-current"><span>1</span>Seus dados</li>
+        <li><span>2</span>Pagamento</li>
+        <li><span>3</span>Confirmacao</li>
+      </ol>
     </section>
 
-    <section class="plans-section shell-panel">
+    <section class="plans-section checkout-content">
       <div class="section-head">
         <p class="eyebrow">Dados essenciais</p>
         <h2>Informe seus dados para iniciar o pagamento.</h2>
       </div>
       <div class="plan-grid">
-        <article class="plan-card">
+        <article class="plan-card checkout-plan-summary">
           {% if plan.highlight_badge %}<span class="plan-badge">{{ plan.highlight_badge }}</span>{% endif %}
           <p class="plan-category">{{ plan.get_category_display }}</p>
           <h3>{{ plan.name }}</h3>
           <p class="plan-description">{{ plan.sessions_per_week }} sessoes por semana.</p>
           <div class="plan-footer">
             <strong>R$ {{ plan.monthly_price|floatformat:2 }}</strong>
-            <span>Pagamento processado pelo provedor configurado da Lume.</span>
+            <span>Valor apresentado antes do redirecionamento ao ambiente de pagamento.</span>
           </div>
+          <ul class="checkout-trust-list">
+            <li>Confirmacao automatica apos o pagamento</li>
+            <li>Ativacao somente depois da aprovacao</li>
+            <li>Suporte da clinica em caso de duvida</li>
+          </ul>
         </article>
-        <form method="post" class="plan-card">
+        <form method="post" class="plan-card checkout-form">
           {% csrf_token %}
-          {{ form.non_field_errors }}
+          {% if form.non_field_errors %}
+            <div class="checkout-feedback is-error" role="alert"><strong>Nao foi possivel continuar.</strong>{{ form.non_field_errors }}<span>Revise os dados e tente novamente.</span></div>
+          {% endif %}
           {% for field in form %}
-            <label>
-              <span class="plan-category">{{ field.label }}</span>
-              {{ field }}
-              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
-              {{ field.errors }}
-            </label>
+            {% if field.name == "accept_terms" %}
+              <label class="checkout-field checkout-field-checkbox">
+                {{ field }}
+                <span class="plan-category">{{ field.label }}</span>
+                {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                {% if field.errors %}<span class="checkout-field-error">{{ field.errors|striptags }}</span>{% endif %}
+              </label>
+            {% else %}
+              <label class="checkout-field">
+                <span class="plan-category">{{ field.label }}</span>
+                {{ field }}
+                {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                {% if field.errors %}<span class="checkout-field-error">{{ field.errors|striptags }}</span>{% endif %}
+              </label>
+            {% endif %}
           {% endfor %}
-          <button class="button primary" type="submit">Ir para pagamento</button>
-          <p class="plan-description">
-            Nao guardamos dados de cartao no sistema. O cadastro do paciente so e ativado apos confirmacao do pagamento.
-          </p>
+          <button class="button-primary checkout-submit" type="submit">Continuar para pagamento</button>
+          <div class="checkout-security-note"><strong>Pagamento protegido</strong><span>A Lume nao armazena dados de cartao. O paciente so e ativado apos a confirmacao do provedor.</span></div>
         </form>
       </div>
     </section>

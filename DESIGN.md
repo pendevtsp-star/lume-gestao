@@ -220,6 +220,31 @@ Lume usa um sistema hibrido de borda visivel e sombra ambiente suave. A profundi
 - **Tone:** mais acolhedor que o restante do sistema, mas ainda com disciplina visual de produto.
 - **Goal:** transformar uma tela fria de acesso em um ponto de entrada coerente com a marca, sem criar uma landing page paralela.
 
+### Operational Feedback
+- **Anatomia:** tres pontos curtos: leitura principal, atencao e proximo passo. O componente orienta decisao; nao repete o titulo da pagina.
+- **Desktop / mobile:** tres colunas no desktop e uma coluna no celular, sem rolagem horizontal.
+- **Uso:** relatorios, financeiro, checkout e modulos com fluxo menos frequente.
+
+### Empty States
+- **Anatomia:** resultado atual, contexto e uma acao recomendada quando houver algo util a fazer.
+- **Sucesso:** confirma que nao existe pendencia sem transformar a ausencia em alerta.
+- **Evitar:** linhas de tabela com apenas "nenhum registro" e sem explicar o proximo passo.
+
+### Responsive Tables
+- **Marcacao:** tabelas operacionais usam `responsive-table`; cada celula recebe `data-label` equivalente ao cabecalho.
+- **Mobile:** cada linha vira um bloco legivel, preservando a ordem dos dados e mantendo a acao por ultimo.
+- **Acoes:** ver, editar, receber, reagendar, confirmar e cancelar seguem esta ordem; a acao destrutiva nunca aparece como primaria.
+
+### Status And Sensitive Flows
+- **Badges:** verde para concluido/ativo, ambar para pendente/atencao, vermelho controlado para falha/cancelamento e neutro para estados informativos.
+- **Erros:** toda mensagem sensivel informa problema, causa provavel e proximo passo.
+- **Microcopy:** pagamento, remarcacao, presenca e integracoes dizem o que sera alterado antes da confirmacao.
+
+### PWA
+- **Instalacao:** o botao so aparece quando o navegador emite `beforeinstallprompt`; nunca prometa instalacao onde o recurso nao esta disponivel.
+- **Cache:** apenas shell e ativos estaticos. Dados clinicos, financeiros e respostas autenticadas permanecem online-first e fora do cache persistente.
+- **Continuidade:** o app instalado usa as mesmas rotas, permissoes e estados do navegador.
+
 ## 6. Do's and Don'ts
 
 ### Do:

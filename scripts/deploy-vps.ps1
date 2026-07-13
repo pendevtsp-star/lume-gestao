@@ -142,7 +142,7 @@ docker compose -f docker-compose.prod.yml ps
 echo '[deploy] Validando healthcheck local'
 sleep 5
 health_host="`$(grep -E '^LUME_HEALTHCHECK_HOST=' .env | tail -n1 | cut -d= -f2-)"
-if [ -z "`$health_host" ]; then
+if [ -z "`$health_host" ] || [ "`$health_host" = '0.0.0.0' ] || [ "`$health_host" = '127.0.0.1' ] || [ "`$health_host" = 'localhost' ]; then
   health_host='sistema.clinicafisiolume.com.br'
 fi
 curl -fsS -H "Host: `$health_host" -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/healthz/

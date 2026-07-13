@@ -60,7 +60,7 @@ def operational_notifications(request):
                 "tone": "danger",
                 "title": f"{overdue_total} pendencia(s) financeira(s)",
                 "detail": "Existem itens vencidos para acompanhar.",
-                "url": f"{reverse('billing:payment_list')}?q=overdue",
+                "url": f"{reverse('billing:payments')}?q=overdue",
             }
         )
 

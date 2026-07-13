@@ -11,6 +11,28 @@
   <label class="form-field"><span>Plano</span><select class="field-control" name="plan"><option value="">Todos</option>{% for plan in plan_choices %}<option value="{{ plan.pk }}" {% if selected_plan == plan.pk|stringformat:'s' %}selected{% endif %}>{{ plan.name }}</option>{% endfor %}</select></label><button class="button primary" type="submit">Atualizar</button>
 </form></section>
 <section class="metric-grid"><article class="metric"><span>Pacientes no recorte</span><strong>{{ rows|length }}</strong></article><article class="metric"><span>Aulas realizadas</span><strong>{{ attendance_total }}</strong></article><article class="metric"><span>Frequencia media</span><strong>{{ average_frequency|floatformat:1 }}%</strong></article><article class="metric"><span>Conquistas registradas</span><strong>{{ goals_completed }}</strong></article></section>
-<section class="panel"><header class="panel-header"><div><h2>Quem precisa de contato</h2><p>Faltas, metas vencidas ou pendencias financeiras no periodo filtrado.</p></div></header><div class="bar-list">{% for row in needs_contact %}<article class="bar-item"><div class="bar-copy"><strong>{{ row.patient.full_name }}</strong><span>{{ row.absences }} falta(s) | {{ row.overdue_goals|length }} meta(s) vencida(s) | {{ row.pending_payments|length }} pendencia(s)</span></div><a class="table-action" href="{% url 'patients:update' row.patient.pk %}">Abrir cadastro</a></article>{% empty %}<p class="bar-empty">Nenhum alerta operacional neste recorte.</p>{% endfor %}</div></section>
-<section class="panel"><div class="table-wrap"><table><thead><tr><th>Paciente</th><th>Aulas</th><th>Faltas</th><th>Remarcacoes</th><th>Frequencia</th><th>Dor / check-in</th><th>Metas</th><th>Pendencias</th></tr></thead><tbody>{% for row in rows %}<tr><td><strong>{{ row.patient.full_name }}</strong><small>{{ row.achievements|length }} conquista(s) no periodo</small></td><td>{{ row.attended }}</td><td>{{ row.absences }}{% if row.justified %}<small>{{ row.justified }} justificada(s)</small>{% endif %}</td><td>{{ row.rescheduled }}</td><td>{{ row.frequency|floatformat:1 }}%</td><td>{% if row.pain_latest is not None %}{{ row.pain_latest }}/10 <small>{{ row.checkin_count }} check-in(s)</small>{% else %}-{% endif %}</td><td>{{ row.active_goals|length }} aberta(s)</td><td>{{ row.pending_payments|length }}</td></tr>{% empty %}<tr><td colspan="8" class="empty">Nenhum paciente para os filtros escolhidos.</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="operational-feedback" aria-label="Leitura do acompanhamento">
+  <div><span>Contato prioritario</span><strong>Faltas, metas vencidas e pendencias</strong></div>
+  <div><span>Evolucao</span><strong>Frequencia, dor, check-ins e conquistas</strong></div>
+  <div><span>Saida</span><strong>PDF para conversa e Excel para analise</strong></div>
+</section>
+<section class="panel">
+  <header class="panel-header"><div><h2>Quem precisa de contato</h2><p>Faltas, metas vencidas ou pendencias financeiras no periodo filtrado.</p></div></header>
+  <div class="bar-list">
+    {% for row in needs_contact %}
+      <article class="bar-item"><div class="bar-copy"><strong>{{ row.patient.full_name }}</strong><span>{{ row.absences }} falta(s) | {{ row.overdue_goals|length }} meta(s) vencida(s) | {{ row.pending_payments|length }} pendencia(s)</span></div><a class="table-action" href="{% url 'patients:update' row.patient.pk %}">Abrir cadastro</a></article>
+    {% empty %}
+      <div class="empty-state soft is-success"><strong>Nenhum paciente exige contato neste recorte.</strong><span>Faltas, metas e pendencias estao sob controle para o periodo.</span></div>
+    {% endfor %}
+  </div>
+</section>
+<section class="panel">
+  <div class="table-wrap responsive-table"><table><thead><tr><th>Paciente</th><th>Aulas</th><th>Faltas</th><th>Remarcacoes</th><th>Frequencia</th><th>Dor / check-in</th><th>Metas</th><th>Pendencias</th></tr></thead><tbody>
+    {% for row in rows %}
+      <tr><td data-label="Paciente"><strong>{{ row.patient.full_name }}</strong><small>{{ row.achievements|length }} conquista(s) no periodo</small></td><td data-label="Aulas">{{ row.attended }}</td><td data-label="Faltas">{{ row.absences }}{% if row.justified %}<small>{{ row.justified }} justificada(s)</small>{% endif %}</td><td data-label="Remarcacoes">{{ row.rescheduled }}</td><td data-label="Frequencia">{{ row.frequency|floatformat:1 }}%</td><td data-label="Dor / check-in">{% if row.pain_latest is not None %}{{ row.pain_latest }}/10 <small>{{ row.checkin_count }} check-in(s)</small>{% else %}-{% endif %}</td><td data-label="Metas">{{ row.active_goals|length }} aberta(s)</td><td data-label="Pendencias">{{ row.pending_payments|length }}</td></tr>
+    {% empty %}
+      <tr><td colspan="8" class="empty"><div class="empty-state soft"><strong>Nenhum paciente corresponde aos filtros.</strong><span>Limpe um filtro ou amplie o periodo para recuperar o acompanhamento mensal.</span></div></td></tr>
+    {% endfor %}
+  </tbody></table></div>
+</section>
 {% endblock %}

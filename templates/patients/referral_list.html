@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Indicacoes | Lume Gestao{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Relacionamento</p>
+    <h1>Indicacoes</h1>
+    <p class="page-subtitle">Acompanhe cada contato indicado sem misturar leads com prontuarios clinicos.</p>
+  </div>
+</section>
+
+<section class="metric-grid">
+  <article class="metric"><span>Indicacoes registradas</span><strong>{{ summary.total }}</strong></article>
+  <article class="metric"><span>Em acompanhamento</span><strong>{{ summary.open }}</strong></article>
+  <article class="metric"><span>Convertidas</span><strong>{{ summary.converted }}</strong></article>
+</section>
+
+<section class="panel report-filter-panel">
+  <form class="filter-panel report-filter-grid" method="get">
+    <label class="form-field"><span>Buscar</span><input class="field-control" type="search" name="q" value="{{ q }}" placeholder="Indicado, telefone ou indicador"></label>
+    <label class="form-field"><span>Status</span><select class="field-control" name="status"><option value="">Todos</option>{% for value, label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <button class="button primary" type="submit">Atualizar</button>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Indicado</th><th>Indicado por</th><th>Status</th><th>Beneficio</th><th class="right">Acao</th></tr></thead>
+    <tbody>{% for referral in referrals %}
+      <tr>
+        <td><strong>{{ referral.prospect_name }}</strong><small>{{ referral.prospect_phone|default:referral.prospect_email|default:"Sem contato" }}</small></td>
+        <td>{{ referral.referrer.full_name }}</td>
+        <td><span class="badge active">{{ referral.get_status_display }}</span></td>
+        <td>{{ referral.benefit_note|default:"-" }}</td>
+        <td class="right"><a class="table-action" href="{% url 'patients:referral_update' referral.pk %}">Acompanhar</a></td>
+      </tr>
+    {% empty %}<tr><td colspan="5" class="empty">Nenhuma indicacao no filtro atual.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% include "core/pagination.html" %}
+</section>
+{% endblock %}

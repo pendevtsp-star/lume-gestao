@@ -1,12 +1,13 @@
 from django import forms
 from django.contrib import messages
+from django.db import IntegrityError
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.urls import reverse_lazy
 from django.views import View
-from django.views.generic import CreateView, DeleteView, ListView, UpdateView
+from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.onboarding import ensure_patient_user
@@ -15,8 +16,15 @@ from billing.models import Membership
 from core.deletion import DeletionDecisionMixin, hard_delete_patient, mark_active_object_for_deletion, set_patient_user_active
 from core.exports import pdf_response, xlsx_response
 from core.views import FormContextMixin, SearchableListView
-from patients.forms import PatientForm, ProfessionalNoteForm, ProfessionalPatientAssignmentForm, note_type_options
-from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
+from patients.forms import (
+    PatientForm,
+    PatientReferralForm,
+    ProfessionalNoteForm,
+    ProfessionalPatientAssignmentForm,
+    PublicReferralForm,
+    note_type_options,
+)
+from patients.models import Patient, PatientReferral, ProfessionalNote, ProfessionalPatientAssignment
 from patients.services import deactivate_patient_relationships, patient_ids_for_professional
 from scheduling.models import Appointment, ServicePackage
 from scheduling.services import create_service_package_for_plan
@@ -223,6 +231,100 @@ class PatientDeleteView(DeletionDecisionMixin, FormContextMixin, RoleRequiredMix
                 ),
             }
         )
+        return context
+
+
+class ReferralAccessMixin(RoleRequiredMixin):
+    allowed_roles = [UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT]
+
+
+class ReferralListView(ReferralAccessMixin, ListView):
+    model = PatientReferral
+    template_name = "patients/referral_list.html"
+    context_object_name = "referrals"
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = PatientReferral.objects.select_related("referrer", "converted_patient")
+        status = (self.request.GET.get("status") or "").strip()
+        q = (self.request.GET.get("q") or "").strip()
+        if status:
+            queryset = queryset.filter(status=status)
+        if q:
+            queryset = queryset.filter(
+                Q(prospect_name__icontains=q)
+                | Q(prospect_phone__icontains=q)
+                | Q(prospect_email__icontains=q)
+                | Q(referrer__full_name__icontains=q)
+            )
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        base = PatientReferral.objects.all()
+        context.update(
+            {
+                "q": self.request.GET.get("q", ""),
+                "selected_status": self.request.GET.get("status", ""),
+                "status_choices": PatientReferral.Status.choices,
+                "summary": {
+                    "total": base.count(),
+                    "open": base.exclude(status__in=[PatientReferral.Status.CONVERTED, PatientReferral.Status.LOST]).count(),
+                    "converted": base.filter(status=PatientReferral.Status.CONVERTED).count(),
+                },
+            }
+        )
+        return context
+
+
+class ReferralUpdateView(FormContextMixin, ReferralAccessMixin, UpdateView):
+    model = PatientReferral
+    form_class = PatientReferralForm
+    template_name = "core/form.html"
+    success_url = reverse_lazy("patients:referrals")
+    page_title = "Acompanhar indicacao"
+    section_label = "Indicacoes"
+    back_url_name = "patients:referrals"
+
+    def form_valid(self, form):
+        referral = form.save(commit=False)
+        if referral.status == PatientReferral.Status.CONTACTED and not referral.contacted_at:
+            from django.utils import timezone
+            referral.contacted_at = timezone.now()
+        if referral.status == PatientReferral.Status.CONVERTED and not referral.converted_at:
+            from django.utils import timezone
+            referral.converted_at = timezone.now()
+        referral.save()
+        messages.success(self.request, "Indicacao atualizada.")
+        return redirect(self.success_url)
+
+
+class ReferralPublicCreateView(CreateView):
+    template_name = "patients/referral_public.html"
+    form_class = PublicReferralForm
+
+    def dispatch(self, request, *args, **kwargs):
+        self.referrer = get_object_or_404(Patient, referral_code=kwargs["code"], active=True)
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        referral = form.save(commit=False)
+        referral.referrer = self.referrer
+        try:
+            referral.full_clean()
+            referral.save()
+        except (IntegrityError, ValidationError):
+            form.add_error(None, "Nao foi possivel registrar esta indicacao. Confira os dados e tente novamente.")
+            return self.form_invalid(form)
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("patients:referral_public", kwargs={"code": self.referrer.referral_code}) + "?enviado=1"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["referrer"] = self.referrer
+        context["submitted"] = self.request.GET.get("enviado") == "1"
         return context
 
 

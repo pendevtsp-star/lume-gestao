@@ -1,0 +1,22 @@
+{% extends "base_public.html" %}
+
+{% block title %}Indique uma pessoa | Lume{% endblock %}
+
+{% block content %}
+<main class="public-form-shell">
+  <section class="public-form-card">
+    <p class="eyebrow">Indicacao Lume</p>
+    <h1>Voce foi indicado por {{ referrer.full_name }}</h1>
+    <p>Deixe seus dados. A equipe entra em contato para entender o melhor cuidado para voce.</p>
+    {% if submitted %}
+      <div class="message success">Recebemos sua indicacao. Em breve a equipe Lume entra em contato.</div>
+    {% else %}
+      <form method="post" class="stack-form">{% csrf_token %}
+        {% for field in form %}<label class="form-field"><span>{{ field.label }}</span>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</label>{% endfor %}
+        {% for error in form.non_field_errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        <button class="button primary" type="submit">Enviar meus dados</button>
+      </form>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

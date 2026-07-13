@@ -10,7 +10,7 @@ from accounts.models import UserProfile
 from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
 from core.models import ClinicSettings
 from patients.models import Patient
-from scheduling.models import Appointment
+from scheduling.models import Appointment, AppointmentAttendance, PatientCheckIn, PatientGoal
 from team.models import Professional
 
 
@@ -129,3 +129,19 @@ class ReportsAccessTests(TestCase):
         response = self.client.get(reverse("reports:dashboard"))
 
         self.assertEqual(response.status_code, 302)
+
+    def test_monthly_report_aggregates_attendance_checkins_and_exports(self):
+        self.seed_report_data()
+        patient = Patient.objects.get(full_name="Paciente Relatorio")
+        appointment = Appointment.objects.get(patient=patient)
+        AppointmentAttendance.objects.create(appointment=appointment, patient=patient, professional=appointment.professional, status=AppointmentAttendance.Status.PRESENT)
+        PatientCheckIn.objects.create(patient=patient, feeling=PatientCheckIn.Feeling.LIGHT_PAIN, pain_level=2)
+        PatientGoal.objects.create(patient=patient, title="Meta mensal")
+        self.client.force_login(self.user)
+        params = {"preset": "custom", "start": "2026-06-01", "end": "2026-06-30"}
+        response = self.client.get(reverse("reports:monthly"), params)
+        export = self.client.get(reverse("reports:monthly_export", args=["xlsx"]), params)
+        self.assertContains(response, "Acompanhamento mensal")
+        self.assertContains(response, patient.full_name)
+        self.assertEqual(export.status_code, 200)
+        self.assertEqual(export["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

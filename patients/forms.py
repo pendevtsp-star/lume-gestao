@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 
 from billing.models import ServicePlan
 from core.forms import StyledModelForm
-from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
+from patients.models import Patient, PatientReferral, ProfessionalNote, ProfessionalPatientAssignment
 
 
 RECORD_TYPE_CONFIGS = {
@@ -223,6 +223,36 @@ class ProfessionalPatientAssignmentForm(StyledModelForm):
     class Meta:
         model = ProfessionalPatientAssignment
         fields = ["patient", "professional", "active", "notes"]
+
+
+class PatientReferralForm(StyledModelForm):
+    class Meta:
+        model = PatientReferral
+        fields = [
+            "prospect_name",
+            "prospect_phone",
+            "prospect_email",
+            "status",
+            "converted_patient",
+            "benefit_note",
+            "benefit_granted_at",
+            "notes",
+        ]
+        widgets = {
+            "benefit_granted_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "notes": forms.Textarea(attrs={"rows": 4}),
+        }
+
+
+class PublicReferralForm(StyledModelForm):
+    class Meta:
+        model = PatientReferral
+        fields = ["prospect_name", "prospect_phone", "prospect_email"]
+        widgets = {
+            "prospect_name": forms.TextInput(attrs={"placeholder": "Seu nome completo"}),
+            "prospect_phone": forms.TextInput(attrs={"placeholder": "Seu WhatsApp"}),
+            "prospect_email": forms.EmailInput(attrs={"placeholder": "Seu e-mail (opcional)"}),
+        }
 
 
 class ProfessionalNoteForm(StyledModelForm):

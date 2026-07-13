@@ -10,6 +10,8 @@ from reports.views import (
     FinancialReportExportView,
     FinancialReportPdfPreviewView,
     FinancialReportView,
+    MonthlyReportExportView,
+    MonthlyReportView,
     ReportsDashboardView,
 )
 
@@ -21,6 +23,8 @@ urlpatterns = [
     path("financeiro/preview/pdf/", FinancialReportPdfPreviewView.as_view(), name="financial_pdf_preview"),
     path("financeiro/exportar/<str:export_format>/", FinancialReportExportView.as_view(), name="financial_export"),
     path("adesao-clinica/", ClinicAdhesionReportView.as_view(), name="clinic"),
+    path("acompanhamento-mensal/", MonthlyReportView.as_view(), name="monthly"),
+    path("acompanhamento-mensal/exportar/<str:export_format>/", MonthlyReportExportView.as_view(), name="monthly_export"),
     path("adesao-clinica/preview/pdf/", ClinicAdhesionReportPdfPreviewView.as_view(), name="clinic_pdf_preview"),
     path(
         "adesao-clinica/exportar/<str:export_format>/",

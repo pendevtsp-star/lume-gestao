@@ -119,6 +119,12 @@
                       <p>Nenhum atendimento vinculado.</p>
                     {% endif %}
                   </div>
+                  {% if patient.referral_code %}
+                    <div class="detail-block">
+                      <strong>Link de indicacao</strong>
+                      <p><a class="table-action" href="{% url 'patients:referral_public' patient.referral_code %}" target="_blank" rel="noopener">Abrir link publico de {{ patient.full_name }}</a></p>
+                    </div>
+                  {% endif %}
                   {% if patient.clinical_notes %}
                     <div class="detail-block">
                       <strong>Observacoes clinicas</strong>

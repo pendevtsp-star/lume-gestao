@@ -1,3 +1,5 @@
+import secrets
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -19,6 +21,7 @@ class Patient(TimeStampedModel):
     emergency_contact = models.CharField("contato de emergencia", max_length=180, blank=True)
     address = models.CharField("endereco", max_length=255, blank=True)
     clinical_notes = models.TextField("observacoes clinicas", blank=True)
+    referral_code = models.CharField("codigo de indicacao", max_length=24, unique=True, null=True, blank=True)
     active = models.BooleanField("ativo", default=True)
     deletion_requested_at = models.DateTimeField("exclusao solicitada em", null=True, blank=True)
 
@@ -30,6 +33,21 @@ class Patient(TimeStampedModel):
     def __str__(self):
         return self.full_name
 
+    def save(self, *args, **kwargs):
+        if self.active and not self.referral_code:
+            while True:
+                code = f"LUME-{secrets.token_hex(4).upper()}"
+                if not Patient.objects.filter(referral_code=code).exists():
+                    self.referral_code = code
+                    break
+        super().save(*args, **kwargs)
+
+    def ensure_referral_code(self):
+        if self.referral_code:
+            return self.referral_code
+        self.save(update_fields=["referral_code", "updated_at"])
+        return self.referral_code
+
     def clean(self):
         super().clean()
         digits = only_digits(self.cpf)
@@ -39,6 +57,46 @@ class Patient(TimeStampedModel):
         if len(digits) != 11:
             raise ValidationError({"cpf": "Informe um CPF com 11 digitos."})
         self.cpf = digits
+
+
+class PatientReferral(TimeStampedModel):
+    class Status(models.TextChoices):
+        NEW = "new", "Novo contato"
+        CONTACTED = "contacted", "Contatado"
+        EVALUATION_SCHEDULED = "evaluation_scheduled", "Avaliacao agendada"
+        CONVERTED = "converted", "Convertido"
+        LOST = "lost", "Perdido"
+
+    referrer = models.ForeignKey(Patient, on_delete=models.PROTECT, related_name="referrals")
+    prospect_name = models.CharField("nome da pessoa indicada", max_length=180)
+    prospect_phone = models.CharField("telefone", max_length=30, blank=True)
+    prospect_email = models.EmailField("e-mail", blank=True)
+    status = models.CharField("status", max_length=30, choices=Status.choices, default=Status.NEW)
+    converted_patient = models.OneToOneField(
+        Patient, on_delete=models.SET_NULL, null=True, blank=True, related_name="referral_origin"
+    )
+    contacted_at = models.DateTimeField("contatado em", null=True, blank=True)
+    converted_at = models.DateTimeField("convertido em", null=True, blank=True)
+    benefit_note = models.CharField("beneficio concedido", max_length=220, blank=True)
+    benefit_granted_at = models.DateTimeField("beneficio concedido em", null=True, blank=True)
+    notes = models.TextField("observacoes internas", blank=True)
+
+    class Meta:
+        ordering = ["status", "-created_at"]
+        verbose_name = "indicacao"
+        verbose_name_plural = "indicacoes"
+
+    def __str__(self):
+        return f"{self.prospect_name} indicado por {self.referrer.full_name}"
+
+    def clean(self):
+        super().clean()
+        if self.referrer_id and self.prospect_phone and only_digits(self.prospect_phone) == only_digits(self.referrer.phone):
+            raise ValidationError({"prospect_phone": "A pessoa indicada nao pode usar o telefone do paciente indicador."})
+        if self.referrer_id and self.prospect_email and self.referrer.email and self.prospect_email.lower() == self.referrer.email.lower():
+            raise ValidationError({"prospect_email": "A pessoa indicada nao pode usar o e-mail do paciente indicador."})
+        if self.converted_patient_id and self.converted_patient_id == self.referrer_id:
+            raise ValidationError({"converted_patient": "O paciente indicador nao pode ser a propria indicacao."})
 
 
 class ProfessionalPatientAssignment(TimeStampedModel):

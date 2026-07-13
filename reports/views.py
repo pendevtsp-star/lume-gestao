@@ -15,7 +15,7 @@ from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment
 from core.exports import br_currency, pdf_response, xlsx_response
 from core.models import AuditLog
 from patients.models import Patient, ProfessionalPatientAssignment
-from scheduling.models import Appointment, ServiceUsage
+from scheduling.models import Appointment, AppointmentAttendance, PatientAchievement, PatientCheckIn, PatientGoal, ServiceUsage
 from team.models import Professional
 
 
@@ -208,6 +208,13 @@ class ReportsDashboardView(RoleRequiredMixin, TemplateView):
                         "url_name": "reports:clinic",
                         "metric_label": "Atendimentos realizados",
                         "metric_value": appointments.count(),
+                    },
+                    {
+                        "title": "Acompanhamento mensal",
+                        "description": "Frequencia, faltas, check-ins, metas e pendencias que pedem contato da equipe.",
+                        "url_name": "reports:monthly",
+                        "metric_label": "Pacientes ativos",
+                        "metric_value": active_patients,
                     },
                     {
                         "title": "Auditoria",
@@ -1114,6 +1121,115 @@ class ClinicAdhesionReportPdfPreviewView(PdfPreviewMixin, ClinicAdhesionReportVi
     export_name = "reports:clinic_export"
     page_title = "Pre-visualizar relatorio de adesao"
     back_name = "reports:clinic"
+
+
+def monthly_patient_snapshot(patient, start, end):
+    attendance = AppointmentAttendance.objects.filter(
+        patient=patient, appointment__starts_at__date__range=(start, end)
+    ).select_related("appointment", "professional")
+    counts = {status: attendance.filter(status=status).count() for status, _ in AppointmentAttendance.Status.choices}
+    attended = counts[AppointmentAttendance.Status.PRESENT] + counts[AppointmentAttendance.Status.REPLACEMENT]
+    absences = counts[AppointmentAttendance.Status.ABSENT]
+    justified = counts[AppointmentAttendance.Status.JUSTIFIED_ABSENCE]
+    eligible = attended + absences + justified
+    checkins = PatientCheckIn.objects.filter(patient=patient, created_at__date__range=(start, end)).order_by("created_at")
+    pain_values = [item.pain_level for item in checkins if item.pain_level is not None]
+    active_goals = PatientGoal.objects.filter(patient=patient, status=PatientGoal.Status.ACTIVE)
+    overdue_goals = active_goals.filter(target_date__lt=timezone.localdate())
+    achievements = PatientAchievement.objects.filter(patient=patient, achieved_on__range=(start, end))
+    payments = Payment.objects.filter(patient=patient, due_date__range=(start, end))
+    pending_payments = payments.filter(status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE])
+    latest_checkin = checkins.last()
+    return {
+        "patient": patient,
+        "attendance": attendance,
+        "attended": attended,
+        "absences": absences,
+        "justified": justified,
+        "rescheduled": counts[AppointmentAttendance.Status.RESCHEDULED],
+        "frequency": percent(attended, eligible),
+        "checkins": checkins,
+        "checkin_count": checkins.count(),
+        "pain_average": (sum(pain_values) / len(pain_values)) if pain_values else None,
+        "pain_first": pain_values[0] if pain_values else None,
+        "pain_latest": pain_values[-1] if pain_values else None,
+        "latest_checkin": latest_checkin,
+        "active_goals": active_goals,
+        "overdue_goals": overdue_goals,
+        "achievements": achievements,
+        "payments": payments,
+        "pending_payments": pending_payments,
+    }
+
+
+class MonthlyReportView(PeriodReportMixin, ManagementAccessMixin, TemplateView):
+    template_name = "reports/monthly_report.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        period = self.get_period()
+        selected_patient = (self.request.GET.get("patient") or "").strip()
+        selected_professional = (self.request.GET.get("professional") or "").strip()
+        selected_plan = (self.request.GET.get("plan") or "").strip()
+        patients = Patient.objects.filter(active=True).order_by("full_name")
+        if selected_professional:
+            patients = patients.filter(appointments__professional_id=selected_professional).distinct()
+        if selected_plan:
+            patients = patients.filter(memberships__plan_id=selected_plan).distinct()
+        if selected_patient:
+            patients = patients.filter(pk=selected_patient)
+        rows = [monthly_patient_snapshot(patient, period["start"], period["end"]) for patient in patients]
+        needs_contact = [
+            row for row in rows
+            if row["absences"] > 0 or row["overdue_goals"].exists() or row["pending_payments"].exists()
+        ]
+        context.update(
+            {
+                "report_section": "monthly",
+                "can_access_audit": user_can_access_audit(self.request.user),
+                "rows": rows,
+                "needs_contact": needs_contact,
+                "patients": Patient.objects.filter(active=True).order_by("full_name"),
+                "professional_choices": Professional.objects.filter(active=True).order_by("full_name"),
+                "plan_choices": ServicePlan.objects.filter(active=True).order_by("name"),
+                "selected_patient": selected_patient,
+                "selected_professional": selected_professional,
+                "selected_plan": selected_plan,
+                "attendance_total": sum(row["attended"] for row in rows),
+                "average_frequency": (sum(row["frequency"] for row in rows) / len(rows)) if rows else ZERO,
+                "goals_completed": sum(row["achievements"].count() for row in rows),
+                "start": period["start_iso"],
+                "end": period["end_iso"],
+                "preset": period["preset"],
+                "preset_choices": period["preset_choices"],
+            }
+        )
+        return context
+
+
+class MonthlyReportExportView(PeriodReportMixin, ManagementAccessMixin, View):
+    def get(self, request, *args, **kwargs):
+        view = MonthlyReportView()
+        view.request = request
+        context = view.get_context_data()
+        rows = context["rows"]
+        if kwargs["export_format"] == "xlsx":
+            return xlsx_response(
+                "acompanhamento_mensal_lume.xlsx",
+                [("Acompanhamento", ["Paciente", "Aulas", "Faltas", "Remarcacoes", "Frequencia", "Dor atual", "Metas abertas", "Pendencias"], [
+                    (row["patient"].full_name, row["attended"], row["absences"], row["rescheduled"], f"{row['frequency']}%", row["pain_latest"] if row["pain_latest"] is not None else "-", row["active_goals"].count(), row["pending_payments"].count()) for row in rows
+                ])],
+            )
+        return pdf_response(
+            "acompanhamento_mensal_lume.pdf",
+            "Acompanhamento mensal de pacientes - Lume",
+            sections=[("Periodo", [f"{br_date(context['start'])} a {br_date(context['end'])}", f"Pacientes no recorte: {len(rows)}"])],
+            tables=[("Pacientes", ["Paciente", "Aulas", "Faltas", "Frequencia", "Dor", "Metas abertas", "Pendencias"], [
+                (row["patient"].full_name, row["attended"], row["absences"], br_percent(row["frequency"]), row["pain_latest"] if row["pain_latest"] is not None else "-", row["active_goals"].count(), row["pending_payments"].count()) for row in rows
+            ])],
+            landscape_page=True,
+            disposition="inline" if request.GET.get("inline") == "1" else "attachment",
+        )
 
 
 class AuditReportView(ManagementAccessMixin, ListView):

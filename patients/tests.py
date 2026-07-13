@@ -11,7 +11,7 @@ from django.utils import timezone
 from accounts.models import UserProfile
 from billing.models import Membership, ServicePlan
 from patients.forms import PatientForm
-from patients.models import Patient
+from patients.models import Patient, PatientReferral
 from patients.models import ProfessionalNote
 from patients.models import ProfessionalPatientAssignment
 from scheduling.models import Appointment, ServicePackage
@@ -39,8 +39,24 @@ class PatientModelTests(TestCase):
 
         self.assertIsNone(patient.cpf)
 
+    def test_patient_referral_code_is_generated_and_blocks_self_referral(self):
+        patient = Patient.objects.create(full_name="Paciente Indicador", phone="11999990000")
+        self.assertTrue(patient.ensure_referral_code().startswith("LUME-"))
+        referral = PatientReferral(referrer=patient, prospect_name="Mesmo telefone", prospect_phone="11 99999-0000")
+        with self.assertRaises(ValidationError):
+            referral.full_clean()
+
 
 class PatientAccessTests(TestCase):
+    def test_public_referral_creates_lead_without_patient_record(self):
+        referrer = Patient.objects.create(full_name="Paciente Indicador Publico", phone="11999990001")
+        code = referrer.ensure_referral_code()
+        response = self.client.post(
+            reverse("patients:referral_public", args=[code]),
+            {"prospect_name": "Novo Contato", "prospect_phone": "11988887777", "prospect_email": "novo@lume.local"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(PatientReferral.objects.filter(referrer=referrer, prospect_name="Novo Contato").exists())
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_patient_creation_creates_first_access_user_and_sends_email(self):
         user = get_user_model().objects.create_user(username="gestao", password="Senha@123")

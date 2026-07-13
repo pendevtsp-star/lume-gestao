@@ -58,6 +58,9 @@
               <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Agenda</span></a>
               <a href="{% url 'scheduling:notifications' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Central de avisos</span></a>
               <a href="{% url 'patients:list' %}"><span class="nav-icon icon-patients" aria-hidden="true"></span><span>Pacientes</span></a>
+              {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+                <a href="{% url 'patients:referrals' %}"><span class="nav-icon icon-connect" aria-hidden="true"></span><span>Indicacoes</span></a>
+              {% endif %}
               {% if request.user.profile.role == "professional" %}
                 <a href="{% url 'patients:notes' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Prontuario</span></a>
               {% endif %}
@@ -104,6 +107,7 @@
               <a href="{% url 'reports:dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Visao geral</span></a>
               <a href="{% url 'reports:financial' %}"><span class="nav-icon icon-finance" aria-hidden="true"></span><span>Financeiro</span></a>
               <a href="{% url 'reports:clinic' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Gestao de adesao</span></a>
+              <a href="{% url 'reports:monthly' %}"><span class="nav-icon icon-reports" aria-hidden="true"></span><span>Acompanhamento mensal</span></a>
               {% if request.user.is_superuser or request.user.profile.role == "management" %}
                 <a href="{% url 'reports:audit' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Auditoria</span></a>
               {% endif %}

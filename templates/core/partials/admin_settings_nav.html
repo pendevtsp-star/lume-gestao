@@ -1,0 +1,18 @@
+<nav class="admin-settings-nav" aria-label="Areas de configuracao">
+  <a class="{% if request.resolver_match.url_name == 'settings' %}is-active{% endif %}" href="{% url 'settings' %}">
+    <strong>Clinica</strong>
+    <span>Identidade, horarios e politicas</span>
+  </a>
+  <a class="{% if request.resolver_match.url_name == 'integrations' and active_tab == 'connections' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=connections">
+    <strong>Conexoes</strong>
+    <span>WhatsApp e Google Agenda</span>
+  </a>
+  <a class="{% if request.resolver_match.url_name == 'integrations' and active_tab == 'messages' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages">
+    <strong>Mensagens</strong>
+    <span>Textos e automacoes</span>
+  </a>
+  <a class="{% if request.resolver_match.url_name == 'integrations' and active_tab == 'diagnostics' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=diagnostics">
+    <strong>Diagnostico</strong>
+    <span>Fila, falhas e saude dos canais</span>
+  </a>
+</nav>

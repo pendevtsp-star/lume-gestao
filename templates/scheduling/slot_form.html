@@ -13,12 +13,28 @@
 
 {% if original_appointment %}
   <section class="panel reschedule-context" aria-label="Sessao selecionada para reagendamento">
-    <div>
-      <p class="eyebrow">Sessao selecionada</p>
+    <div class="reschedule-context-copy">
+      <p class="eyebrow">Paciente selecionada para reagendamento</p>
       <h2>{{ original_appointment.patient.full_name }}</h2>
-      <p>{{ original_appointment.professional.full_name }} &middot; {{ original_appointment.starts_at|date:"d/m/Y H:i" }} a {{ original_appointment.ends_at|date:"H:i" }}</p>
+      <p>{{ original_appointment.service_plan.name|default:"Atendimento sem plano vinculado" }}</p>
     </div>
-    <span class="status-pill">Reagendando apenas esta paciente</span>
+    <dl class="reschedule-context-meta">
+      <div>
+        <dt>Origem</dt>
+        <dd>{{ original_appointment.starts_at|date:"d/m/Y H:i" }} ate {{ original_appointment.ends_at|date:"H:i" }}</dd>
+      </div>
+      <div>
+        <dt>Profissional</dt>
+        <dd>{{ original_appointment.professional.full_name }}</dd>
+      </div>
+      <div>
+        <dt>Tipo da sessao</dt>
+        <dd>{% if original_appointment.slot_capacity > 1 %}Grupo {{ original_appointment.slot_capacity }} vagas{% else %}Individual{% endif %}</dd>
+      </div>
+    </dl>
+    <p class="reschedule-context-note">
+      {% if has_future_series %}Escolha se esta sessao ou tambem as proximas serao reagendadas.{% else %}A alteracao sera aplicada apenas a esta sessao.{% endif %}
+    </p>
   </section>
 {% endif %}
 
@@ -90,11 +106,6 @@
           <input type="hidden" name="reschedule_scope" value="{{ booking_values.reschedule_scope }}">
         {% endif %}
 
-        <label class="form-field slot-notes">
-          <span>Observacoes</span>
-          <textarea class="field-control" name="notes" rows="3">{{ booking_values.notes }}</textarea>
-        </label>
-
         <fieldset class="slot-choice-fieldset">
           <legend>Escolha o novo horario</legend>
           <div class="slot-grid">
@@ -104,9 +115,11 @@
               <span class="slot-choice-copy">
                 <strong>{{ slot.label }}</strong>
                 <span>
-                  {{ slot_select_label }}
+                  {% if slot.group_slot %}Entrar nesta turma{% else %}Reservar este horario{% endif %}
                   {% if slot.capacity > 1 %}
-                    &middot; {{ slot.remaining_capacity }} vaga(s) livre(s) de {{ slot.capacity }}
+                    &middot; {{ slot.remaining_capacity }} vaga(s) disponivel(is) de {{ slot.capacity }}
+                  {% else %}
+                    &middot; Atendimento individual
                   {% endif %}
                 </span>
               </span>
@@ -114,6 +127,10 @@
           {% endfor %}
           </div>
         </fieldset>
+        <label class="form-field slot-notes">
+          <span>Observacoes para a equipe</span>
+          <textarea class="field-control" name="notes" rows="3" placeholder="Opcional. Ex.: motivo da troca ou orientacao para a equipe.">{{ booking_values.notes }}</textarea>
+        </label>
         <div class="form-actions slot-confirm-actions">
           <span class="slot-selection-hint">Selecione um horario para confirmar.</span>
           <button class="button primary" type="submit">{{ slot_confirm_label }}</button>

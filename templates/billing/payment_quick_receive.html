@@ -1,74 +1,112 @@
 {% extends "base.html" %}
 
-{% block title %}Cobrancas em aberto | Lume Gestao{% endblock %}
+{% block title %}Recebimentos | Lume Gestao{% endblock %}
 
 {% block content %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Financeiro</p>
-    <h1>Cobrancas em aberto</h1>
-    <p class="page-subtitle">Registre recebimentos de mensalidades pendentes, vencidas ou adiantadas.</p>
+    <h1>Recebimentos</h1>
+    <p class="page-subtitle">Uma fila unica para receber mensalidades vencidas, do ciclo atual e dos proximos ciclos.</p>
   </div>
-  <a class="button secondary" href="{% url 'billing:payments' %}">Historico de pagamentos</a>
+  <a class="button secondary" href="{% url 'billing:payments' %}">Historico financeiro</a>
+</section>
+
+<section class="list-overview-strip finance-work-queue-summary" aria-label="Resumo dos recebimentos">
+  <article>
+    <span>Itens para tratar</span>
+    <strong>{{ available_receive_count }}</strong>
+  </article>
+  <article>
+    <span>Em atraso</span>
+    <strong>{{ overdue_receive_count }}</strong>
+  </article>
+  <article>
+    <span>Mensalidades ainda sem lancamento</span>
+    <strong>{{ virtual_receive_count }}</strong>
+  </article>
 </section>
 
 <section class="panel quick-receive-panel">
-  <form class="toolbar quick-receive-search" method="get">
-    <input
-      class="search-input"
-      type="search"
-      name="q"
-      value="{{ q }}"
-      placeholder="Digite nome, CPF, telefone ou plano"
-      autofocus
-    >
-    <button class="button primary" type="submit">Buscar</button>
-  </form>
-
-  <div class="quick-receive-summary">
-    <strong>{{ available_receive_count }}</strong>
-    <span>opcoes de recebimento encontradas</span>
-  </div>
-
   <header class="panel-header">
     <div>
-      <h2>Pendentes e vencidas</h2>
-      <p>Use esta lista quando a mensalidade ja existe no financeiro.</p>
+      <h2>Fila de mensalidades</h2>
+      <p>Registre o pagamento no proprio item. Itens vencidos mostram ha quantos dias precisam de acompanhamento.</p>
     </div>
   </header>
-  <div class="table-wrap">
+
+  <form class="toolbar quick-receive-search" method="get" data-persist-filters="receivables">
+    <div class="list-toolbar-search">
+      <input
+        class="search-input"
+        type="search"
+        name="q"
+        value="{{ q }}"
+        placeholder="Buscar paciente, CPF, telefone ou plano"
+        autofocus
+      >
+      <small>A busca encontra tanto cobrancas ja registradas quanto mensalidades prontas para receber.</small>
+    </div>
+    <div class="list-toolbar-actions">
+      <button class="button primary" type="submit">Buscar</button>
+      {% if q %}<a class="button ghost" data-clear-filters href="{% url 'billing:payment_quick_receive' %}">Limpar</a>{% endif %}
+    </div>
+  </form>
+
+  <div class="table-wrap responsive-table">
     <table>
       <thead>
         <tr>
           <th>Paciente</th>
-          <th>Plano/servico</th>
+          <th>Plano</th>
           <th>Referencia</th>
           <th>Vencimento</th>
           <th>Status</th>
           <th class="right">Valor</th>
-          <th class="right">Acao</th>
+          <th class="right">Recebimento</th>
         </tr>
       </thead>
       <tbody>
-        {% for payment in payments %}
-          <tr class="{% if payment.status == 'overdue' %}table-row-danger{% else %}table-row-warning{% endif %}">
-            <td>
-              <strong>{{ payment.patient_display }}</strong>
-              <small>{{ payment.patient.phone|default:"Sem telefone" }}</small>
+        {% for row in receivable_rows %}
+          <tr class="{% if row.status == 'overdue' %}table-row-danger{% else %}table-row-warning{% endif %}">
+            <td data-label="Paciente">
+              <strong>{{ row.patient_display }}</strong>
+              <small>{{ row.phone|default:"Sem telefone" }}</small>
             </td>
-            <td>{{ payment.item_display }}</td>
-            <td>{{ payment.reference_month|date:"m/Y" }}</td>
-            <td>{{ payment.due_date|date:"d/m/Y" }}</td>
-            <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
-            <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
-            <td class="right">
-              <a class="button primary compact" href="{% url 'billing:payment_receive' payment.pk %}">Receber</a>
+            <td data-label="Plano">{{ row.item_display }}</td>
+            <td data-label="Referencia">{{ row.reference_month|date:"m/Y" }}</td>
+            <td data-label="Vencimento">
+              {{ row.due_date|date:"d/m/Y" }}
+              {% if row.days_overdue %}<small class="text-danger">{{ row.days_overdue }} dia{{ row.days_overdue|pluralize }} em atraso</small>{% endif %}
+            </td>
+            <td data-label="Status"><span class="badge {{ row.status }}">{{ row.status_display }}</span></td>
+            <td class="right" data-label="Valor">R$ {{ row.amount|floatformat:2 }}</td>
+            <td class="right table-actions" data-label="Recebimento">
+              {% if row.kind == "payment" %}
+                <a class="button primary compact" href="{% url 'billing:payment_receive' row.payment.pk %}">Receber</a>
+              {% else %}
+                <form class="inline-form quick-receive-inline" method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="membership" value="{{ row.membership.pk }}">
+                  <input type="hidden" name="reference_month" value="{{ row.reference_month|date:'Y-m-d' }}">
+                  <input type="hidden" name="paid_at" value="{% now 'Y-m-d' %}">
+                  <select class="field-control compact-control" name="method" aria-label="Metodo de pagamento de {{ row.patient_display }}">
+                    {% for value, label in quick_receive_form.fields.method.choices %}
+                      <option value="{{ value }}" {% if value == "pix" %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="button primary compact" type="submit">Receber</button>
+                </form>
+              {% endif %}
             </td>
           </tr>
         {% empty %}
           <tr>
             <td colspan="7" class="empty">
-              Nenhuma mensalidade pendente encontrada. Ajuste a busca ou confira a lista completa de pagamentos.
+              <div class="empty-state soft">
+                <strong>Nenhuma mensalidade para tratar.</strong>
+                <span>Revise a busca ou confira se os planos dos pacientes estao ativos.</span>
+              </div>
             </td>
           </tr>
         {% endfor %}
@@ -76,62 +114,5 @@
     </table>
   </div>
   {% include "core/pagination.html" %}
-</section>
-
-<section class="panel stacked-panel">
-  <header class="panel-header">
-    <div>
-      <h2>Receber proximo ciclo</h2>
-      <p>Para pacientes que querem pagar o proximo ciclo antes do vencimento.</p>
-    </div>
-  </header>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Paciente</th>
-          <th>Plano/servico</th>
-          <th>Referencia sugerida</th>
-          <th>Vencimento</th>
-          <th class="right">Valor</th>
-          <th class="right">Receber</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in upcoming_receivables %}
-          <tr>
-            <td>
-              <strong>{{ row.membership.patient.full_name }}</strong>
-              <small>{{ row.membership.patient.phone|default:"Sem telefone" }}</small>
-            </td>
-            <td>{{ row.membership.plan.name }}</td>
-            <td>{{ row.reference_month|date:"m/Y" }}</td>
-            <td>{{ row.due_date|date:"d/m/Y" }}</td>
-            <td class="right">R$ {{ row.amount|floatformat:2 }}</td>
-            <td class="right">
-              <form class="inline-form" method="post">
-                {% csrf_token %}
-                <input type="hidden" name="membership" value="{{ row.membership.pk }}">
-                <input type="hidden" name="reference_month" value="{{ row.reference_month|date:'Y-m-d' }}">
-                <input type="hidden" name="paid_at" value="{% now 'Y-m-d' %}">
-                <select class="field-control compact-control" name="method" aria-label="Metodo de pagamento">
-                  {% for value, label in quick_receive_form.fields.method.choices %}
-                    <option value="{{ value }}" {% if value == "pix" %}selected{% endif %}>{{ label }}</option>
-                  {% endfor %}
-                </select>
-                <button class="button primary compact" type="submit">Receber agora</button>
-              </form>
-            </td>
-          </tr>
-        {% empty %}
-          <tr>
-            <td colspan="6" class="empty">
-              Nenhuma mensalidade futura sugerida. Busque pelo paciente ou confira se ele possui mensalidade ativa.
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
 </section>
 {% endblock %}

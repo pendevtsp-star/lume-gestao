@@ -18,6 +18,12 @@
     }
 
     form.addEventListener("submit", () => {
+      form.classList.add("is-querying");
+      form.setAttribute("aria-busy", "true");
+      form.querySelectorAll("button[type='submit']").forEach((button) => {
+        button.dataset.label = button.textContent;
+        button.textContent = button.dataset.queryLabel || "Buscando...";
+      });
       const values = {};
       Array.from(form.elements).forEach((field) => {
         if (!field.name || field.disabled || ["submit", "button", "hidden"].includes(field.type)) return;

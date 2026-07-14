@@ -183,6 +183,18 @@ class ClinicSettingsTests(TestCase):
         self.assertEqual(settings.clinic_name, "Lume Pilates e Fisioterapia")
         self.assertEqual(settings.cnpj, "12345678000199")
 
+    def test_management_sees_grouped_clinic_settings(self):
+        user = get_user_model().objects.create_user(username="gestor-config-layout", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("settings"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Identidade e contato")
+        self.assertContains(response, "Funcionamento")
+        self.assertContains(response, "Cancelamentos e reagendamentos")
+
 
 class FunctionalRoleFlowTests(TestCase):
     def setUp(self):
@@ -441,17 +453,26 @@ class IntegrationsTests(TestCase):
         response = self.client.get(reverse("integrations"))
 
         self.assertContains(response, "Google Agenda")
-        self.assertContains(response, "ZapFisio")
+        self.assertContains(response, "Central de integracoes")
 
     def test_management_can_open_integration_tabs(self):
         self.client.force_login(self.management)
 
-        for tab in ["connections", "messages"]:
+        for tab in ["connections", "messages", "diagnostics"]:
             with self.subTest(tab=tab):
                 response = self.client.get(f"{reverse('integrations')}?tab={tab}")
 
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Integracoes")
+
+    def test_diagnostics_tab_separates_operational_health(self):
+        self.client.force_login(self.management)
+
+        response = self.client.get(f"{reverse('integrations')}?tab=diagnostics")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Verificacao dos canais")
+        self.assertContains(response, "Falhas recentes")
 
     def test_connections_tab_prioritizes_qr_flow_when_meta_credentials_exist(self):
         self.client.force_login(self.management)
@@ -989,6 +1010,8 @@ class IntegrationsTests(TestCase):
                 "message": "appointment",
                 "automation-appointment_reminders_enabled": "on",
                 "automation-appointment_reminder_hours_before": 12,
+                "automation-appointment_day_reminders_enabled": "on",
+                "automation-appointment_day_reminder_hours_before": 2,
                 "automation-birthday_messages_enabled": "on",
                 "automation-birthday_send_time": "07:30",
                 "automation-membership_due_reminders_enabled": "on",
@@ -998,6 +1021,10 @@ class IntegrationsTests(TestCase):
                 "automation-membership_overdue_days_after": 1,
                 "automation-charge_overdue_enabled": "on",
                 "automation-charge_overdue_days_after": 1,
+                "automation-package_expiry_reminders_enabled": "on",
+                "automation-package_expiry_days_before": 7,
+                "automation-low_credit_reminders_enabled": "on",
+                "automation-low_credit_threshold": 1,
             },
         )
 
@@ -1007,6 +1034,8 @@ class IntegrationsTests(TestCase):
         self.assertEqual(automation.appointment_reminder_hours_before, 12)
         self.assertTrue(automation.birthday_messages_enabled)
         self.assertEqual(automation.birthday_send_time, time(7, 30))
+        reminder_rule = WhatsAppAutomationRule.objects.get(name="Lembrete de sessao - 24 horas", is_system=True)
+        self.assertEqual(reminder_rule.hours_before, 12)
 
     def test_whatsapp_queue_command_creates_automatic_appointment_reminder(self):
         WhatsAppIntegration.objects.update_or_create(
@@ -1212,6 +1241,35 @@ class IntegrationsTests(TestCase):
         self.assertEqual(response.status_code, 302)
         log.refresh_from_db()
         self.assertEqual(log.status, WhatsAppMessageLog.Status.CANCELED)
+
+    def test_management_can_retry_failed_message_from_integration_panel(self):
+        self.client.force_login(self.management)
+        integration = WhatsAppIntegration.load()
+        template = WhatsAppMessageTemplate.ensure_defaults()[0]
+        log = WhatsAppMessageLog.objects.create(
+            integration=integration,
+            template=template,
+            patient=self.patient,
+            recipient_name=self.patient.full_name,
+            recipient_number="5511999990000",
+            rendered_message="Falha temporaria",
+            status=WhatsAppMessageLog.Status.FAILED,
+            error_message="Sessao do WhatsApp Web indisponivel.",
+        )
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": f"retry_failed:{log.pk}",
+                "tab": "panel",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log.refresh_from_db()
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.SCHEDULED)
+        self.assertIsNotNone(log.scheduled_for)
+        self.assertEqual(log.attempt_count, 0)
 
     @override_settings(
         GOOGLE_CALENDAR_CLIENT_ID="client-id",

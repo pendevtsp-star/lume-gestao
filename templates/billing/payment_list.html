@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Historico de pagamentos | Lume Gestao{% endblock %}
+{% block title %}Historico financeiro | Lume Gestao{% endblock %}
 
 {% block content %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Financeiro</p>
-    <h1>Historico de pagamentos</h1>
+    <h1>Historico financeiro</h1>
     <p class="page-subtitle">Consulte recebimentos ja registrados, vencimentos e status financeiro por paciente.</p>
   </div>
   <div class="panel-actions">
     <a class="button secondary" href="{% url 'billing:cash_closing' %}">Caixa do dia</a>
-    <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Cobrancas em aberto</a>
+    <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Recebimentos</a>
     <a class="button primary" href="{% url 'billing:payment_create' %}">Novo pagamento</a>
   </div>
 </section>
@@ -64,19 +64,22 @@
       </thead>
       <tbody>
         {% for payment in payments %}
-          <tr class="{% if payment.status == 'overdue' %}table-row-danger{% elif payment.status == 'pending' %}table-row-warning{% endif %}">
+          <tr class="{% if payment.effective_status == 'overdue' %}table-row-danger{% elif payment.effective_status == 'pending' %}table-row-warning{% endif %}">
             <td data-label="Paciente">
               <strong>{{ payment.patient_display }}</strong>
               <small>{{ payment.patient.phone|default:"-" }}</small>
             </td>
             <td data-label="Item">{{ payment.item_display }}</td>
             <td data-label="Referencia">{{ payment.reference_month|date:"m/Y" }}</td>
-            <td data-label="Vencimento">{{ payment.due_date|date:"d/m/Y" }}</td>
-            <td data-label="Status"><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
+            <td data-label="Vencimento">
+              {{ payment.due_date|date:"d/m/Y" }}
+              {% if payment.days_overdue %}<small class="text-danger">{{ payment.days_overdue }} dia{{ payment.days_overdue|pluralize }} em atraso</small>{% endif %}
+            </td>
+            <td data-label="Status"><span class="badge {{ payment.effective_status }}">{{ payment.effective_status_display }}</span></td>
             <td data-label="Metodo">{{ payment.get_method_display }}</td>
             <td class="right" data-label="Valor">R$ {{ payment.amount|floatformat:2 }}</td>
             <td class="right table-actions" data-label="Acoes">
-              {% if payment.status == "pending" or payment.status == "overdue" %}
+              {% if payment.effective_status == "pending" or payment.effective_status == "overdue" %}
                 <a class="table-action" href="{% url 'billing:payment_receive' payment.pk %}">Receber</a>
               {% endif %}
               <a class="table-action" href="{% url 'billing:payment_update' payment.pk %}">Editar</a>

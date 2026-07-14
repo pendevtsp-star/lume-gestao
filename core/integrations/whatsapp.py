@@ -231,15 +231,31 @@ def whatsapp_web_gateway_headers():
 
 def whatsapp_web_gateway_status():
     if not settings.WHATSAPP_WEB_GATEWAY_URL:
-        return {"ok": False, "ready": False, "error": "WHATSAPP_WEB_GATEWAY_URL ausente."}
+        return {
+            "ok": False,
+            "ready": False,
+            "error": "WHATSAPP_WEB_GATEWAY_URL ausente.",
+            "lastError": "",
+        }
     try:
-        return get_json(
+        status = get_json(
             f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/healthz",
             headers=whatsapp_web_gateway_headers(),
             timeout=min(settings.WHATSAPP_TIMEOUT, 5),
         )
+        if not isinstance(status, dict):
+            return {
+                "ok": False,
+                "ready": False,
+                "error": "Resposta invalida do gateway WhatsApp Web.",
+                "lastError": "",
+            }
+        status.setdefault("error", "")
+        status.setdefault("lastError", "")
+        status.setdefault("hasQr", bool(status.get("qr")))
+        return status
     except IntegrationError as exc:
-        return {"ok": False, "ready": False, "error": str(exc)}
+        return {"ok": False, "ready": False, "error": str(exc), "lastError": ""}
 
 
 def whatsapp_web_gateway_qr():

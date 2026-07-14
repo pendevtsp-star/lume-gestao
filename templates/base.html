@@ -12,9 +12,9 @@
   <link rel="manifest" href="{% url 'pwa_manifest' %}">
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
-    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260713-finance-message-ux">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260713-agenda-foundations">
   <link rel="stylesheet" href="{% static 'css/quick-actions.css' %}?v=20260630-quick-actions-compact">
-  <script src="{% static 'js/app.js' %}?v=20260713-automation-ux" defer></script>
+  <script src="{% static 'js/app.js' %}?v=20260713-agenda-foundations" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -49,15 +49,16 @@
           {% endif %}
         {% else %}
           <span class="nav-section-label">Rotina da clinica</span>
-          <details class="nav-menu" {% if request.resolver_match.app_name == "scheduling" or request.resolver_match.app_name == "patients" %}open{% endif %}>
+          <details class="nav-menu" {% if request.resolver_match.app_name == "patients" or request.resolver_match.app_name == "scheduling" and request.resolver_match.url_name != "packages" and request.resolver_match.url_name != "package_adjustments" and request.resolver_match.url_name != "package_create" and request.resolver_match.url_name != "package_update" and request.resolver_match.url_name != "package_delete" %}open{% endif %}>
             <summary>
               <span class="nav-icon icon-calendar" aria-hidden="true"></span>
               <span>Agenda e pacientes</span>
             </summary>
             <div class="nav-submenu">
               <a href="{% url 'scheduling:appointments' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Agenda</span></a>
-              <a href="{% url 'scheduling:notifications' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Central de avisos</span></a>
               <a href="{% url 'patients:list' %}"><span class="nav-icon icon-patients" aria-hidden="true"></span><span>Pacientes</span></a>
+              <a href="{% url 'scheduling:notifications' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Avisos aos pacientes</span></a>
+              <a href="{% url 'scheduling:reschedule_requests' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Solicitacoes de remarcacao</span></a>
               {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
                 <a href="{% url 'patients:referrals' %}"><span class="nav-icon icon-connect" aria-hidden="true"></span><span>Indicacoes</span></a>
               {% endif %}
@@ -65,18 +66,15 @@
                 <a href="{% url 'patients:notes' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Prontuario</span></a>
               {% endif %}
               {% if request.user.profile.role == "professional" or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.is_superuser %}
+                <span class="nav-subgroup-label">Configuracao da agenda</span>
                 <a href="{% url 'scheduling:availabilities' %}"><span class="nav-icon icon-clock" aria-hidden="true"></span><span>Disponibilidade</span></a>
                 <a href="{% url 'scheduling:operational_calendar' %}"><span class="nav-icon icon-calendar" aria-hidden="true"></span><span>Feriados e horarios</span></a>
-              {% endif %}
-              {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
-                <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Adesoes</span></a>
-                <a href="{% url 'scheduling:package_adjustments' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Ajustes de credito</span></a>
               {% endif %}
             </div>
           </details>
           {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
             <span class="nav-section-label">Financeiro</span>
-            <details class="nav-menu" {% if request.resolver_match.app_name == "billing" and request.resolver_match.url_name != "plans" and request.resolver_match.url_name != "plan_create" and request.resolver_match.url_name != "plan_update" and request.resolver_match.url_name != "plan_delete" or request.resolver_match.app_name == "checkout" or request.resolver_match.app_name == "fiscal" %}open{% endif %}>
+            <details class="nav-menu" {% if request.resolver_match.app_name == "billing" or request.resolver_match.app_name == "checkout" or request.resolver_match.app_name == "fiscal" or request.resolver_match.url_name == "packages" or request.resolver_match.url_name == "package_adjustments" or request.resolver_match.url_name == "package_create" or request.resolver_match.url_name == "package_update" or request.resolver_match.url_name == "package_delete" %}open{% endif %}>
               <summary>
                 <span class="nav-icon icon-finance" aria-hidden="true"></span>
                 <span>Financeiro</span>
@@ -84,7 +82,11 @@
               <div class="nav-submenu">
                 <a href="{% url 'billing:cash_closing' %}"><span class="nav-icon icon-finance" aria-hidden="true"></span><span>Caixa do dia</span></a>
                 <a href="{% url 'billing:payment_quick_receive' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Cobrancas em aberto</span></a>
+                <span class="nav-subgroup-label">Planos e creditos</span>
                 <a href="{% url 'billing:memberships' %}"><span class="nav-icon icon-memberships" aria-hidden="true"></span><span>Planos e mensalidades</span></a>
+                <a href="{% url 'scheduling:packages' %}"><span class="nav-icon icon-packages" aria-hidden="true"></span><span>Adesoes e creditos</span></a>
+                <a href="{% url 'scheduling:package_adjustments' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Historico de creditos</span></a>
+                <span class="nav-subgroup-label">Controle financeiro</span>
                 <a href="{% url 'billing:payments' %}"><span class="nav-icon icon-payments" aria-hidden="true"></span><span>Historico de pagamentos</span></a>
                 <a href="{% url 'billing:expenses' %}"><span class="nav-icon icon-expenses" aria-hidden="true"></span><span>Despesas</span></a>
                 {% if checkout_enabled %}
@@ -179,8 +181,11 @@
             <div class="nav-submenu">
               <a href="{% url 'billing:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos/Servicos</span></a>
               {% if request.user.is_superuser or request.user.profile.role == "management" %}
-                <a href="{% url 'settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Clinica</span></a>
-                <a href="{% url 'integrations' %}"><span class="nav-icon icon-integrations" aria-hidden="true"></span><span>Integracoes</span></a>
+                <a href="{% url 'settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Clinica e operacao</span></a>
+                <span class="nav-subgroup-label">Canais e comunicacao</span>
+                <a href="{% url 'integrations' %}?tab=connections"><span class="nav-icon icon-integrations" aria-hidden="true"></span><span>Conexoes</span></a>
+                <a href="{% url 'integrations' %}?tab=messages"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Mensagens automaticas</span></a>
+                <a href="{% url 'integrations' %}?tab=diagnostics"><span class="nav-icon icon-reports" aria-hidden="true"></span><span>Diagnostico</span></a>
                 <a href="{% url 'website:dashboard' %}"><span class="nav-icon icon-links" aria-hidden="true"></span><span>Site</span></a>
                 <a href="{% url 'website:settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Conteudo do site</span></a>
                 <a href="{% url 'website:faqs' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>FAQs</span></a>

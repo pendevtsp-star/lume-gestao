@@ -215,6 +215,23 @@ class Payment(TimeStampedModel):
             return f"{self.get_item_type_display()} - {self.membership.plan.name}"
         return self.description or self.get_item_type_display()
 
+    @property
+    def effective_status(self):
+        """Keeps a pending payment visibly overdue after its due date passes."""
+        if self.status == self.Status.PENDING and self.due_date < timezone.localdate():
+            return self.Status.OVERDUE
+        return self.status
+
+    @property
+    def effective_status_display(self):
+        return dict(self.Status.choices).get(self.effective_status, self.effective_status)
+
+    @property
+    def days_overdue(self):
+        if self.effective_status != self.Status.OVERDUE:
+            return 0
+        return max((timezone.localdate() - self.due_date).days, 0)
+
     def clean(self):
         super().clean()
         if self.membership_id:

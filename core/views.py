@@ -22,7 +22,7 @@ from django.views.generic import ListView, TemplateView, UpdateView
 from accounts.models import UserProfile
 from accounts.permissions import FinanceAccessMixin, ManagementAccessMixin, get_profile
 from billing.models import Charge, Membership, Payment, ServicePlan
-from billing.services import membership_receivables_between
+from billing.services import membership_receivables_between, month_start as membership_month_start
 from core.forms import (
     ClinicSettingsForm,
     GoogleCalendarIntegrationForm,
@@ -332,8 +332,9 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             paid_this_month = paid_this_month.none()
         else:
             upcoming_virtual = membership_receivables_between(today, reminder_limit)
-            overdue_virtual = membership_receivables_between(month_start, today - timedelta(days=1))
-            pending_virtual = membership_receivables_between(month_start, today)
+            receivables_start = membership_month_start(today - timedelta(days=62))
+            overdue_virtual = membership_receivables_between(receivables_start, today - timedelta(days=1))
+            pending_virtual = membership_receivables_between(receivables_start, today)
             upcoming_payments = list(upcoming_payment_rows[:8]) + upcoming_virtual[:8]
             overdue_payments = list(overdue_payment_rows[:8]) + overdue_virtual[:8]
             upcoming_payments.sort(key=lambda payment: (payment.due_date, payment.patient_display))
@@ -487,7 +488,7 @@ class AuditLogListView(ManagementAccessMixin, SearchableListView, ListView):
 class ClinicSettingsUpdateView(ManagementAccessMixin, UpdateView):
     model = ClinicSettings
     form_class = ClinicSettingsForm
-    template_name = "core/form.html"
+    template_name = "core/clinic_settings.html"
     success_url = reverse_lazy("settings")
 
     def get_object(self, queryset=None):
@@ -593,7 +594,7 @@ def whatsapp_target_number(custom_number, patient=None):
 class IntegrationsView(FinanceAccessMixin, TemplateView):
     template_name = "core/integrations.html"
 
-    WHATSAPP_TABS = {"panel", "connections", "messages"}
+    WHATSAPP_TABS = {"panel", "connections", "messages", "diagnostics"}
     MESSAGE_TABS = {
         WhatsAppMessageTemplate.TemplateType.APPOINTMENT,
         WhatsAppMessageTemplate.TemplateType.SESSION_SOON,
@@ -672,6 +673,90 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         )
         recent_logs = log_queryset.exclude(status=WhatsAppMessageLog.Status.CANCELED)[:12]
         scheduled_logs = log_queryset.filter(status=WhatsAppMessageLog.Status.SCHEDULED).order_by("scheduled_for", "created_at")[:8]
+        failed_logs = log_queryset.filter(
+            status=WhatsAppMessageLog.Status.FAILED,
+            created_at__gte=timezone.now() - timedelta(days=7),
+        )[:8]
+        last_processed_log = (
+            log_queryset.filter(
+                status__in=[
+                    WhatsAppMessageLog.Status.SENT,
+                    WhatsAppMessageLog.Status.DRY_RUN,
+                    WhatsAppMessageLog.Status.FAILED,
+                ]
+            )
+            .order_by("-updated_at")
+            .first()
+        )
+        queue_health = {
+            "state": "attention" if failed_logs else "healthy",
+            "label": "Precisa de atencao" if failed_logs else "Fila sem falhas recentes",
+            "detail": (
+                f"{len(failed_logs)} falha(s) nos ultimos 7 dias."
+                if failed_logs
+                else "Nenhuma falha registrada nos ultimos 7 dias."
+            ),
+            "last_processed_at": last_processed_log.updated_at if last_processed_log else None,
+        }
+        active_appointment_rules = list(
+            WhatsAppAutomationRule.objects.select_related("template")
+            .filter(
+                active=True,
+                trigger=WhatsAppAutomationRule.Trigger.APPOINTMENT_BEFORE,
+                template__active=True,
+            )
+            .order_by("hours_before", "name")
+        )
+        upcoming_automation_limit = timezone.now() + timedelta(
+            hours=max([rule.hours_before for rule in active_appointment_rules] or [24]) + 1
+        )
+        eligible_appointments = Appointment.objects.filter(
+            status=Appointment.Status.SCHEDULED,
+            patient__active=True,
+            patient__phone__gt="",
+            starts_at__gt=timezone.now(),
+            starts_at__lte=upcoming_automation_limit,
+        ).count()
+        recent_automatic_logs = log_queryset.exclude(automation_key="")[:10]
+        last_automatic_log = log_queryset.exclude(automation_key="").order_by("-updated_at").first()
+        worker_recent = bool(
+            last_processed_log
+            and last_processed_log.updated_at >= timezone.now() - timedelta(minutes=20)
+        )
+        automation_monitor = {
+            "checks": [
+                {
+                    "label": "Canal de envio",
+                    "ok": bool(whatsapp_integration.is_connected),
+                    "detail": (
+                        "WhatsApp conectado e liberado para a fila."
+                        if whatsapp_integration.is_connected
+                        else "Conecte o WhatsApp; sem canal ativo nenhuma automacao entra na fila."
+                    ),
+                },
+                {
+                    "label": "Regras da agenda",
+                    "ok": bool(active_appointment_rules),
+                    "detail": (
+                        f"{len(active_appointment_rules)} regra(s) ativa(s)."
+                        if active_appointment_rules
+                        else "Ative ao menos um lembrete de agenda."
+                    ),
+                },
+                {
+                    "label": "Ultimo processamento com resultado",
+                    "ok": worker_recent,
+                    "detail": (
+                        "A fila registrou envio, simulacao ou falha nos ultimos 20 minutos."
+                        if worker_recent
+                        else "Sem resultado recente; processe a fila agora se houver sessoes ou cobrancas elegiveis."
+                    ),
+                },
+            ],
+            "eligible_appointments": eligible_appointments,
+            "last_automatic_at": last_automatic_log.updated_at if last_automatic_log else None,
+            "recent_logs": recent_automatic_logs,
+        }
         previews = {
             template_type: render_whatsapp_template(template.body, whatsapp_preview_context(template_type))
             for template_type, template in templates.items()
@@ -712,7 +797,10 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             ("Google OAuth configurado", "Sim" if google_calendar_configured() else "Nao"),
             ("Google conectado", "Sim" if google_integration.is_connected else "Nao"),
             ("Link .ics ativo", "Sim" if google_integration.has_calendar_feed else "Nao"),
-            ("Ultimo processamento", scheduled_logs[0].created_at.strftime("%d/%m/%Y %H:%M") if scheduled_logs else "-"),
+            (
+                "Ultima atividade da fila",
+                last_processed_log.updated_at.strftime("%d/%m/%Y %H:%M") if last_processed_log else "-",
+            ),
         ]
         return {
             "google_form": google_form or GoogleCalendarIntegrationForm(prefix="google", instance=google_integration),
@@ -762,6 +850,9 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             "active_message_type": self.get_active_message_type(),
             "recent_logs": recent_logs,
             "scheduled_logs": scheduled_logs,
+            "failed_logs": failed_logs,
+            "queue_health": queue_health,
+            "automation_monitor": automation_monitor,
             "connected_numbers_total": 1 if whatsapp_integration.is_connected else 0,
             "sent_messages_total": log_queryset.filter(
                 status__in=[
@@ -971,6 +1062,18 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         messages.success(request, "Mensagem agendada cancelada.")
         return redirect(f"{reverse('integrations')}?tab=messages")
 
+    def retry_failed_message(self, request, log_id):
+        failed_log = get_object_or_404(WhatsAppMessageLog, pk=log_id, status=WhatsAppMessageLog.Status.FAILED)
+        failed_log.status = WhatsAppMessageLog.Status.SCHEDULED
+        failed_log.scheduled_for = timezone.now()
+        failed_log.next_attempt_at = None
+        failed_log.attempt_count = 0
+        failed_log.save(
+            update_fields=["status", "scheduled_for", "next_attempt_at", "attempt_count", "updated_at"]
+        )
+        messages.success(request, "Mensagem recolocada na fila para uma nova tentativa.")
+        return redirect(f"{reverse('integrations')}?tab=panel")
+
     def create_custom_template(self, request):
         form = CustomWhatsAppMessageTemplateForm(request.POST, prefix="custom-template")
         if form.is_valid():
@@ -1133,7 +1236,8 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 instance=WhatsAppAutomationSettings.load(),
             )
             if form.is_valid():
-                form.save()
+                automation_settings = form.save()
+                WhatsAppAutomationRule.sync_system_rules(automation_settings)
                 messages.success(request, "Automacoes do WhatsApp salvas com sucesso.")
                 return redirect(f"{reverse('integrations')}?tab=messages&message={self.get_active_message_type()}")
             return self.render_with_forms(automation_form=form, active_tab="messages")
@@ -1160,6 +1264,8 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             return self.send_template_message(request, action.split(":", 1)[1])
         elif action and action.startswith("cancel_scheduled:"):
             return self.cancel_scheduled_message(request, action.split(":", 1)[1])
+        elif action and action.startswith("retry_failed:"):
+            return self.retry_failed_message(request, action.split(":", 1)[1])
 
         messages.error(request, "Acao de integracao invalida.")
         return redirect(f"{reverse('integrations')}?tab={self.get_active_tab()}")

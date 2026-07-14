@@ -377,8 +377,11 @@
           <tr>
             <td>{{ payment.patient_display }}</td>
             <td>{{ payment.item_display }}</td>
-            <td>{{ payment.due_date|date:"d/m/Y" }}</td>
-            <td><span class="badge {{ payment.status }}">{{ payment.get_status_display }}</span></td>
+            <td>
+              {{ payment.due_date|date:"d/m/Y" }}
+              {% if payment.days_overdue %}<small class="text-danger">{{ payment.days_overdue }} dia{{ payment.days_overdue|pluralize }} em atraso</small>{% endif %}
+            </td>
+            <td><span class="badge {{ payment.effective_status }}">{{ payment.effective_status_display }}</span></td>
             <td class="right">R$ {{ payment.amount|floatformat:2 }}</td>
           </tr>
         {% empty %}

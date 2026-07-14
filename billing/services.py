@@ -32,8 +32,22 @@ class MembershipReceivable:
     def status(self):
         return Payment.Status.OVERDUE if self.due_date < timezone.localdate() else Payment.Status.PENDING
 
+    @property
+    def effective_status(self):
+        return self.status
+
     def get_status_display(self):
         return "Vencido" if self.status == Payment.Status.OVERDUE else "Pendente"
+
+    @property
+    def effective_status_display(self):
+        return self.get_status_display()
+
+    @property
+    def days_overdue(self):
+        if self.status != Payment.Status.OVERDUE:
+            return 0
+        return max((timezone.localdate() - self.due_date).days, 0)
 
 
 def month_start(day):
@@ -93,8 +107,6 @@ def membership_receivables_between(starts_on, ends_on, query="", limit=None):
     pagamento. Esta funcao evita que essa decisao esconda a cobranca do painel
     e das automacoes antes do recebimento.
     """
-    today = timezone.localdate()
-    starts_on = max(starts_on, month_start(today))
     if ends_on < starts_on:
         return []
 
@@ -124,6 +136,9 @@ def membership_receivables_between(starts_on, ends_on, query="", limit=None):
     reference_month = first_month
     while reference_month <= last_month:
         for membership in memberships:
+            # Do not infer debt for a cycle before the patient joined the plan.
+            if reference_month < month_start(membership.start_date):
+                continue
             if (membership.pk, reference_month) in existing_pairs:
                 continue
             if membership.monthly_amount <= ZERO:
@@ -142,6 +157,23 @@ def membership_receivables_between(starts_on, ends_on, query="", limit=None):
 
     rows.sort(key=lambda row: (row.due_date, row.patient_display, row.item_display))
     return rows[:limit] if limit else rows
+
+
+def open_membership_receivables(query="", months_back=2, months_ahead=2, limit=72):
+    """Return the actionable window for the finance work queue.
+
+    We intentionally limit the historical look-back. Older cycles can predate
+    Lume and should be reviewed by the clinic instead of being inferred as debt.
+    """
+    today = timezone.localdate()
+    starts_on = add_months(month_start(today), -months_back)
+    ends_on = add_months(month_start(today), months_ahead).replace(day=28)
+    return membership_receivables_between(
+        starts_on,
+        ends_on,
+        query=query,
+        limit=limit,
+    )
 
 
 def upcoming_membership_receivables(query="", months_ahead=6):

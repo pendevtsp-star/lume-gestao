@@ -83,6 +83,59 @@ def availability_capacity_for_slot(professional, starts_at, ends_at):
     return window.session_capacity if window else 1
 
 
+def slot_availability_snapshot(
+    professional,
+    starts_at,
+    ends_at,
+    *,
+    exclude_appointment_id=None,
+    exclude_appointment_ids=None,
+    incoming_count=1,
+):
+    """Return the single capacity decision used by the agenda and confirmation flows."""
+    if not professional or not starts_at or not ends_at or ends_at <= starts_at:
+        return {
+            "partial_overlap": False,
+            "exact_count": 0,
+            "existing_capacity": 0,
+            "availability_capacity": 1,
+            "capacity": 1,
+            "remaining_capacity": 0,
+            "slot_group": "",
+            "availability_matches": False,
+            "is_available": False,
+        }
+
+    snapshot = slot_capacity_snapshot(
+        professional.pk,
+        starts_at,
+        ends_at,
+        exclude_appointment_id=exclude_appointment_id,
+        exclude_appointment_ids=exclude_appointment_ids,
+    )
+    availability_capacity = availability_capacity_for_slot(professional, starts_at, ends_at)
+    capacity = max(snapshot["existing_capacity"], availability_capacity)
+    remaining_capacity = max(capacity - snapshot["exact_count"], 0)
+    availability_matches = ProfessionalAvailability.objects.slot_available(
+        professional_id=professional.pk,
+        starts_at=starts_at,
+        ends_at=ends_at,
+    )
+
+    return {
+        **snapshot,
+        "availability_capacity": availability_capacity,
+        "capacity": capacity,
+        "remaining_capacity": remaining_capacity,
+        "availability_matches": availability_matches,
+        "is_available": (
+            availability_matches
+            and not snapshot["partial_overlap"]
+            and remaining_capacity >= max(incoming_count, 1)
+        ),
+    }
+
+
 def appointment_overlaps(professional_id, starts_at, ends_at, exclude_appointment_id=None):
     snapshot = slot_capacity_snapshot(
         professional_id,
@@ -95,26 +148,15 @@ def appointment_overlaps(professional_id, starts_at, ends_at, exclude_appointmen
     return snapshot["existing_capacity"] > 0 and snapshot["remaining_capacity"] <= 0
 
 
-def slot_is_available(professional, starts_at, ends_at, exclude_appointment=None):
-    if not professional or not starts_at or not ends_at:
-        return False
-    if ends_at <= starts_at:
-        return False
-    snapshot = slot_capacity_snapshot(
-        professional.pk,
+def slot_is_available(professional, starts_at, ends_at, exclude_appointment=None, incoming_count=1):
+    snapshot = slot_availability_snapshot(
+        professional,
         starts_at,
         ends_at,
         exclude_appointment_id=getattr(exclude_appointment, "pk", None),
+        incoming_count=incoming_count,
     )
-    if snapshot["partial_overlap"]:
-        return False
-    if snapshot["existing_capacity"] > 0 and snapshot["remaining_capacity"] <= 0:
-        return False
-    return ProfessionalAvailability.objects.slot_available(
-        professional_id=professional.pk,
-        starts_at=starts_at,
-        ends_at=ends_at,
-    )
+    return snapshot["is_available"]
 
 
 def generate_available_slots(professional, day, duration_minutes, exclude_appointment=None):
@@ -140,23 +182,18 @@ def generate_available_slots(professional, day, duration_minutes, exclude_appoin
         while cursor + duration <= window_end:
             starts_at = cursor
             ends_at = cursor + duration
-            snapshot = slot_capacity_snapshot(
-                professional.pk,
+            snapshot = slot_availability_snapshot(
+                professional,
                 starts_at,
                 ends_at,
                 exclude_appointment_id=getattr(exclude_appointment, "pk", None),
             )
-            if (
-                starts_at not in seen
-                and not snapshot["partial_overlap"]
-                and (snapshot["existing_capacity"] == 0 or snapshot["remaining_capacity"] > 0)
-            ):
+            if starts_at not in seen and snapshot["is_available"]:
                 seen.add(starts_at)
                 local_start = timezone.localtime(starts_at)
                 local_end = timezone.localtime(ends_at)
-                slot_capacity = snapshot["existing_capacity"] or window.session_capacity
+                slot_capacity = snapshot["capacity"]
                 occupied = snapshot["exact_count"]
-                remaining = slot_capacity - occupied if snapshot["existing_capacity"] else window.session_capacity
                 slots.append(
                     {
                         "starts_at": starts_at,
@@ -165,7 +202,7 @@ def generate_available_slots(professional, day, duration_minutes, exclude_appoin
                         "label": f"{local_start:%H:%M} - {local_end:%H:%M}",
                         "capacity": slot_capacity,
                         "occupied": occupied,
-                        "remaining_capacity": remaining,
+                        "remaining_capacity": snapshot["remaining_capacity"],
                         "group_slot": snapshot["existing_capacity"] > 0,
                     }
                 )

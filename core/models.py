@@ -357,6 +357,46 @@ class WhatsAppAutomationRule(TimeStampedModel):
             rules.append(rule)
         return rules
 
+    @classmethod
+    def sync_system_rules(cls, automation_settings=None):
+        """Keep the two built-in appointment reminders aligned with the settings form."""
+        automation_settings = automation_settings or WhatsAppAutomationSettings.load()
+        templates = {template.template_type: template for template in WhatsAppMessageTemplate.ensure_defaults()}
+        defaults = [
+            (
+                "Lembrete de sessao - 24 horas",
+                WhatsAppMessageTemplate.TemplateType.APPOINTMENT,
+                automation_settings.appointment_reminder_hours_before,
+                automation_settings.appointment_reminders_enabled,
+            ),
+            (
+                "Sessao proxima - 1 hora",
+                WhatsAppMessageTemplate.TemplateType.SESSION_SOON,
+                automation_settings.appointment_day_reminder_hours_before,
+                automation_settings.appointment_day_reminders_enabled,
+            ),
+        ]
+        rules = []
+        for name, template_type, hours_before, active in defaults:
+            rule, _created = cls.objects.update_or_create(
+                name=name,
+                is_system=True,
+                defaults={
+                    "template": templates[template_type],
+                    "trigger": cls.Trigger.APPOINTMENT_BEFORE,
+                    "hours_before": hours_before,
+                    "active": active,
+                },
+            )
+            if not _created:
+                rule.template = templates[template_type]
+                rule.trigger = cls.Trigger.APPOINTMENT_BEFORE
+                rule.hours_before = hours_before
+                rule.active = active
+                rule.save(update_fields=["template", "trigger", "hours_before", "active", "updated_at"])
+            rules.append(rule)
+        return rules
+
 
 class WhatsAppAutomationSettings(TimeStampedModel):
     appointment_reminders_enabled = models.BooleanField("enviar lembretes de consulta automaticamente", default=True)

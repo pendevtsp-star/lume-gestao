@@ -5,17 +5,18 @@
 {% block content %}
 <section class="page-heading">
   <div>
-    <p class="eyebrow">Adesoes</p>
-    <h1>Ajustes de credito</h1>
-    <p class="page-subtitle">Historico de creditos adicionados ou corrigidos nas adesoes.</p>
+    <p class="eyebrow">Financeiro</p>
+    <h1>Historico de creditos</h1>
+    <p class="page-subtitle">Audite creditos adicionados, consumidos ou corrigidos nas adesoes.</p>
   </div>
   <a class="button secondary" href="{% url 'scheduling:packages' %}">Ver adesoes</a>
 </section>
 
 <section class="panel">
-  <form class="toolbar" method="get">
+  <form class="toolbar" method="get" data-persist-filters="package-adjustments">
     <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, plano ou motivo">
     <button class="button secondary" type="submit">Buscar</button>
+    {% if q %}<a class="button ghost" data-clear-filters href="{% url 'scheduling:package_adjustments' %}">Limpar</a>{% endif %}
   </form>
   <div class="table-wrap">
     <table>
@@ -50,7 +51,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="7" class="empty">Nenhum ajuste de credito encontrado.</td></tr>
+          <tr><td colspan="7" class="empty"><div class="empty-state soft"><strong>Nenhuma movimentacao de credito encontrada.</strong><span>Os ajustes e consumos das adesoes aparecerao aqui para auditoria.</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db.models.deletion import ProtectedError
 from django.db.models import Case, IntegerField, Sum, When
 from django.shortcuts import get_object_or_404
@@ -24,7 +25,12 @@ from billing.forms import (
     ServicePlanForm,
 )
 from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
-from billing.services import cash_summary_for_date, close_cash_for_date, receive_membership_month, upcoming_membership_receivables
+from billing.services import (
+    cash_summary_for_date,
+    close_cash_for_date,
+    open_membership_receivables,
+    receive_membership_month,
+)
 from core.deletion import (
     DELETE_ACTION_DEACTIVATE,
     DELETE_ACTION_NOW,
@@ -228,7 +234,8 @@ class PaymentQuickReceiveView(FinanceAccessMixin, SearchableListView, ListView):
     model = Payment
     template_name = "billing/payment_quick_receive.html"
     context_object_name = "payments"
-    paginate_by = 12
+    paginate_by = None
+    queue_page_size = 30
     search_fields = [
         "membership__patient__full_name",
         "membership__patient__phone",
@@ -258,11 +265,53 @@ class PaymentQuickReceiveView(FinanceAccessMixin, SearchableListView, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        quick_receivables = upcoming_membership_receivables(self.request.GET.get("q", "").strip())
+        query = self.request.GET.get("q", "").strip()
+        virtual_receivables = open_membership_receivables(query=query)
+        receivable_rows = []
+        for payment in context["payments"]:
+            receivable_rows.append(
+                {
+                    "kind": "payment",
+                    "payment": payment,
+                    "patient_display": payment.patient_display,
+                    "phone": payment.patient.phone if payment.patient_id else payment.membership.patient.phone,
+                    "item_display": payment.item_display,
+                    "reference_month": payment.reference_month,
+                    "due_date": payment.due_date,
+                    "amount": payment.amount,
+                    "status": payment.effective_status,
+                    "status_display": payment.effective_status_display,
+                    "days_overdue": payment.days_overdue,
+                }
+            )
+        for receivable in virtual_receivables:
+            receivable_rows.append(
+                {
+                    "kind": "virtual",
+                    "membership": receivable.membership,
+                    "patient_display": receivable.patient_display,
+                    "phone": receivable.membership.patient.phone,
+                    "item_display": receivable.item_display,
+                    "reference_month": receivable.reference_month,
+                    "due_date": receivable.due_date,
+                    "amount": receivable.amount,
+                    "status": receivable.status,
+                    "status_display": receivable.get_status_display(),
+                    "days_overdue": receivable.days_overdue,
+                }
+            )
+        receivable_rows.sort(key=lambda row: (row["due_date"], row["patient_display"], row["item_display"]))
+        paginator = Paginator(receivable_rows, self.queue_page_size)
+        page_obj = paginator.get_page(self.request.GET.get("page"))
         context["quick_receive_form"] = QuickMembershipReceiveForm()
-        context["upcoming_receivables"] = quick_receivables
-        context["pending_receive_count"] = context["paginator"].count if context.get("paginator") else len(context["payments"])
-        context["available_receive_count"] = context["pending_receive_count"] + len(quick_receivables)
+        context["receivable_rows"] = page_obj.object_list
+        context["page_obj"] = page_obj
+        context["paginator"] = paginator
+        context["is_paginated"] = page_obj.has_other_pages()
+        context["materialized_receive_count"] = sum(1 for row in receivable_rows if row["kind"] == "payment")
+        context["virtual_receive_count"] = len(virtual_receivables)
+        context["available_receive_count"] = len(receivable_rows)
+        context["overdue_receive_count"] = sum(1 for row in receivable_rows if row["status"] == Payment.Status.OVERDUE)
         return context
 
     def post(self, request, *args, **kwargs):
@@ -272,7 +321,7 @@ class PaymentQuickReceiveView(FinanceAccessMixin, SearchableListView, ListView):
         if query:
             redirect_url = f"{redirect_url}?q={query}"
         if not form.is_valid():
-            messages.error(request, "Nao foi possivel receber a mensalidade adiantada. Confira os dados e tente novamente.")
+            messages.error(request, "Nao foi possivel registrar o recebimento. Confira os dados e tente novamente.")
             return redirect(redirect_url)
         payment = receive_membership_month(
             membership=form.cleaned_data["membership"],

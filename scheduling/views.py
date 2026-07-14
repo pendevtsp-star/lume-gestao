@@ -76,10 +76,9 @@ from scheduling.services import (
 )
 from core.models import WhatsAppMessageLog
 from scheduling.slots import (
-    availability_capacity_for_slot,
     generate_available_slots,
     make_local_datetime,
-    slot_capacity_snapshot,
+    slot_availability_snapshot,
     slot_is_available,
 )
 
@@ -303,25 +302,21 @@ def build_occurrence_payloads(
         starts_at = make_local_datetime(current_date, selected_start)
         ends_at = starts_at + duration
         exclude_ids = exclude_ids_by_date.get(current_date.isoformat(), [])
-        snapshot = slot_capacity_snapshot(
-            professional.pk,
+        snapshot = slot_availability_snapshot(
+            professional,
             starts_at,
             ends_at,
             exclude_appointment_ids=exclude_ids,
+            incoming_count=len(patient_ids),
         )
         if snapshot["partial_overlap"]:
             raise ValidationError(f"{current_date:%d/%m/%Y}: o profissional ja possui atendimento nesse horario.")
-        if not ProfessionalAvailability.objects.slot_available(
-            professional_id=professional.pk,
-            starts_at=starts_at,
-            ends_at=ends_at,
-        ):
+        if not snapshot["availability_matches"]:
             raise ValidationError(f"{current_date:%d/%m/%Y}: horario fora da disponibilidade recorrente.")
         if duplicate_appointments_exist(patient_ids, professional, starts_at, ends_at, exclude_ids=exclude_ids):
             raise ValidationError(f"{current_date:%d/%m/%Y}: ao menos um paciente ja possui este horario.")
 
-        availability_capacity = availability_capacity_for_slot(professional, starts_at, ends_at)
-        slot_capacity = max(snapshot["existing_capacity"], requested_capacity, availability_capacity)
+        slot_capacity = max(snapshot["capacity"], requested_capacity)
         if snapshot["exact_count"] + len(patient_ids) > slot_capacity:
             raise ValidationError(f"{current_date:%d/%m/%Y}: capacidade da sessao excedida para este horario.")
 
@@ -486,20 +481,6 @@ class AppointmentListView(AppointmentAccessMixin, SearchableListView, ListView):
                     status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
                 ).count(),
                 "pending_total": base_queryset.filter(status=Appointment.Status.REQUESTED).count(),
-                "group_total": base_queryset.filter(slot_capacity__gt=1).exclude(
-                    status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
-                ).count(),
-                "recurring_total": base_queryset.filter(series__isnull=False).exclude(
-                    status__in=[Appointment.Status.CANCELED, Appointment.Status.RESCHEDULED]
-                ).count(),
-                "absence_total": AppointmentAttendance.objects.filter(
-                    appointment__in=base_queryset,
-                    appointment__starts_at__date__gte=today.replace(day=1),
-                    status__in=[
-                        AppointmentAttendance.Status.ABSENT,
-                        AppointmentAttendance.Status.JUSTIFIED_ABSENCE,
-                    ],
-                ).count(),
                 "reschedule_request_total": pending_reschedules.count(),
                 "notification_total": pending_notifications.count(),
                 "request_queue": request_queue,
@@ -579,6 +560,7 @@ class SlotSelectionMixin:
             "slot_select_label": self.slot_select_label,
             "slot_confirm_label": self.slot_confirm_label,
             "original_appointment": getattr(self, "original_appointment", None),
+            "has_future_series": getattr(self, "has_future_series", False),
         }
 
     def booking_values_from_form(self, form):
@@ -643,14 +625,16 @@ class SlotSelectionMixin:
         ends_at = starts_at + timedelta(minutes=form.cleaned_data["duration_minutes"])
         exclude_appointment = getattr(self, "original_appointment", None)
         if not slot_is_available(form.cleaned_data["professional"], starts_at, ends_at, exclude_appointment):
-            snapshot = slot_capacity_snapshot(
-                form.cleaned_data["professional"].pk,
+            snapshot = slot_availability_snapshot(
+                form.cleaned_data["professional"],
                 starts_at,
                 ends_at,
                 exclude_appointment_id=getattr(exclude_appointment, "pk", None),
             )
-            if snapshot["existing_capacity"] and snapshot["remaining_capacity"] <= 0:
+            if snapshot["capacity"] and snapshot["remaining_capacity"] <= 0:
                 form.add_error(None, "Esta sessao ja atingiu a capacidade maxima. Escolha outro horario livre.")
+            elif not snapshot["availability_matches"]:
+                form.add_error(None, "Este horario esta fora da disponibilidade do profissional. Escolha outro horario livre.")
             else:
                 form.add_error(None, "Este horario acabou de ficar indisponivel. Escolha outro horario livre.")
             return None, None

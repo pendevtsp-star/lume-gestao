@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Notificacoes | Lume Gestao{% endblock %}
+{% block title %}Avisos aos pacientes | Lume Gestao{% endblock %}
 
 {% block content %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Central operacional</p>
-    <h1>Notificacoes</h1>
-    <p class="page-subtitle">Avisos de aula, faltas, renovacoes e mudancas de horario em um painel unico.</p>
+    <h1>Avisos aos pacientes</h1>
+    <p class="page-subtitle">Acompanhe mensagens operacionais, falhas de envio e comunicacoes que exigem atencao.</p>
   </div>
   <div class="panel-actions">
     <form method="post" action="{% url 'scheduling:generate_notifications' %}">
@@ -15,6 +15,7 @@
       <button class="button secondary" type="submit">Gerar avisos</button>
     </form>
     <a class="button secondary" href="{% url 'scheduling:appointments' %}">Agenda</a>
+    <a class="button secondary" href="{% url 'scheduling:reschedule_requests' %}">Remarcacoes</a>
     <a class="button secondary" href="{% url 'scheduling:operational_calendar' %}">Calendario operacional</a>
   </div>
 </section>
@@ -56,6 +57,7 @@
       </select>
     </label>
     <button class="button secondary" type="submit">Filtrar</button>
+    {% if q or selected_status or selected_kind or selected_channel %}<a class="button ghost" data-clear-filters href="{% url 'scheduling:notifications' %}">Limpar</a>{% endif %}
   </form>
   <div class="table-wrap">
     <table>
@@ -93,7 +95,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="7" class="empty">Nenhum aviso gerado.</td></tr>
+          <tr><td colspan="7" class="empty"><div class="empty-state soft"><strong>Nenhum aviso neste filtro.</strong><span>Altere os filtros ou gere os avisos para atualizar a fila operacional.</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

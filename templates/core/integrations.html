@@ -89,13 +89,15 @@
   <a class="button secondary" href="{% url 'settings' %}">Configuracoes da clinica</a>
 </section>
 
+{% include "core/partials/admin_settings_nav.html" %}
+
 <section class="integration-stack integration-stack-single">
   <article class="panel zap-panel">
     <div class="zap-header">
       <div>
         <p class="eyebrow">Central de integracoes</p>
         <h2>WhatsApp e Google Agenda</h2>
-        <p class="zap-subtitle">Configure os canais da clinica em poucos passos. O painel mostra o status, Conexoes cuida das contas e Mensagens organiza os envios pelo ZapFisio.</p>
+        <p class="zap-subtitle">Escolha uma tarefa por vez: conecte os canais, prepare as mensagens ou investigue uma falha.</p>
       </div>
       <div class="integration-status-row">
         <span class="status-pill {% if whatsapp.is_connected %}is-success{% else %}is-muted{% endif %}">
@@ -108,9 +110,10 @@
     </div>
 
     <nav class="zap-tabs" aria-label="Abas de integracoes">
-      <a class="{% if active_tab == 'panel' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=panel">Painel</a>
+      <a class="{% if active_tab == 'panel' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=panel">Visao geral</a>
       <a class="{% if active_tab == 'connections' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=connections">Conexoes</a>
       <a class="{% if active_tab == 'messages' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages">Mensagens</a>
+      <a class="{% if active_tab == 'diagnostics' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=diagnostics">Diagnostico</a>
     </nav>
 
     <div class="workflow-strip" aria-label="Etapas de configuracao">
@@ -147,6 +150,38 @@
             <span class="metric-label">Modelos ativos</span>
             <strong>{{ active_templates_total }}</strong>
           </article>
+          <article class="metric-card queue-health-card is-{{ queue_health.state }}">
+            <span class="metric-label">Saude da fila</span>
+            <strong>{{ queue_health.label }}</strong>
+            <small>{{ queue_health.detail }}</small>
+          </article>
+        </section>
+
+        <section class="panel automation-monitor-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Monitor das automacoes</h3>
+              <p>Mostra por que um lembrete pode nao ter sido enviado e qual foi a ultima atividade automatica.</p>
+            </div>
+            <span class="status-pill {% if automation_monitor.eligible_appointments %}is-warning{% else %}is-muted{% endif %}">
+              {{ automation_monitor.eligible_appointments }} sessoes elegiveis
+            </span>
+          </div>
+          <div class="automation-monitor-grid">
+            {% for check in automation_monitor.checks %}
+              <article class="automation-monitor-check {% if check.ok %}is-ready{% else %}is-blocked{% endif %}">
+                <span aria-hidden="true">{% if check.ok %}OK{% else %}!{% endif %}</span>
+                <div>
+                  <strong>{{ check.label }}</strong>
+                  <p>{{ check.detail }}</p>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+          <div class="automation-monitor-foot">
+            <span>Ultima automacao: {% if automation_monitor.last_automatic_at %}{{ automation_monitor.last_automatic_at|date:"d/m/Y H:i" }}{% else %}nenhuma registrada{% endif %}</span>
+            <a class="button ghost compact" href="{% url 'integrations' %}?tab=messages">Revisar regras e textos</a>
+          </div>
         </section>
 
         <section class="panel zap-guide-panel">
@@ -206,6 +241,36 @@
           {% endif %}
         </section>
 
+        <section class="panel zap-log-panel queue-failures-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Falhas que precisam de revisao</h3>
+              <p>Veja o motivo registrado e tente novamente somente depois de confirmar que a sessao do WhatsApp esta conectada.</p>
+            </div>
+            {% if queue_health.last_processed_at %}<span class="status-pill {% if queue_health.state == 'attention' %}is-danger{% else %}is-success{% endif %}">Ultima atividade {{ queue_health.last_processed_at|date:"d/m H:i" }}</span>{% endif %}
+          </div>
+          {% if failed_logs %}
+            <div class="queue-list failure-list">
+              {% for item in failed_logs %}
+                <article class="queue-card queue-failure-card">
+                  <div>
+                    <strong>{{ item.template.title|default:"Mensagem automatica" }} para {{ item.recipient_name }}</strong>
+                    <p>{{ item.error_message|default:"O provedor nao retornou um detalhe." }}</p>
+                    <span>{{ item.updated_at|date:"d/m/Y H:i" }} · tentativa {{ item.attempt_count|default:1 }}</span>
+                  </div>
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="retry_failed:{{ item.pk }}">
+                    <button class="button secondary compact" type="submit">Tentar novamente</button>
+                  </form>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="slot-empty"><strong>Sem falhas recentes.</strong> A fila esta livre para processar os proximos envios.</div>
+          {% endif %}
+        </section>
+
         <section class="panel zap-log-panel">
           <div class="panel-header">
             <div>
@@ -238,6 +303,7 @@
                         <span class="status-pill {% if item.status == 'failed' %}is-danger{% elif item.status == 'sent' %}is-success{% elif item.status == 'scheduled' %}is-warning{% elif item.status == 'canceled' %}is-muted{% else %}is-warning{% endif %}">
                           {{ item.get_status_display }}
                         </span>
+                        {% if item.status == 'failed' and item.error_message %}<small class="log-error">{{ item.error_message }}</small>{% endif %}
                       </td>
                     </tr>
                   {% endfor %}
@@ -611,6 +677,22 @@
           </section>
         {% endif %}
       </div>
+    {% elif active_tab == "diagnostics" %}
+      <div class="zap-panel-body settings-diagnostics-page">
+        <section class="zap-metrics">
+          <article class="metric-card queue-health-card is-{{ queue_health.state }}"><span class="metric-label">Saude da fila</span><strong>{{ queue_health.label }}</strong><small>{{ queue_health.detail }}</small></article>
+          <article class="metric-card"><span class="metric-label">Mensagens agendadas</span><strong>{{ scheduled_messages_total }}</strong></article>
+          <article class="metric-card"><span class="metric-label">Sessoes elegiveis</span><strong>{{ automation_monitor.eligible_appointments }}</strong></article>
+        </section>
+        <section class="panel zap-log-panel">
+          <div class="panel-header"><div><h3>Verificacao dos canais</h3><p>Resumo tecnico para suporte. Nenhuma credencial sensivel e exibida.</p></div></div>
+          <div class="diagnostic-grid">{% for label, value in diagnostics %}<article class="diagnostic-item"><span>{{ label }}</span><strong>{{ value }}</strong></article>{% endfor %}</div>
+        </section>
+        <section class="panel zap-log-panel queue-failures-panel">
+          <div class="panel-header"><div><h3>Falhas recentes</h3><p>Corrija a conexao antes de reenviar mensagens que falharam.</p></div><a class="button secondary compact" href="{% url 'integrations' %}?tab=connections">Revisar conexoes</a></div>
+          {% if failed_logs %}<div class="queue-list">{% for item in failed_logs %}<article class="queue-card queue-failure-card"><div><strong>{{ item.template.title|default:"Mensagem automatica" }} para {{ item.recipient_name }}</strong><p>{{ item.error_message|default:"Sem detalhe retornado pelo provedor." }}</p><span>{{ item.updated_at|date:"d/m/Y H:i" }}</span></div></article>{% endfor %}</div>{% else %}<div class="empty-state soft"><strong>Nenhuma falha recente.</strong><span>A fila nao registrou erros nos ultimos sete dias.</span></div>{% endif %}
+        </section>
+      </div>
     {% else %}
       <div class="zap-message-list">
         <section class="panel message-help-panel">
@@ -640,11 +722,45 @@
           </div>
         </section>
 
+        <section class="panel automation-panel automation-timing-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Regras da agenda</h3>
+              <p>Defina o horario de cada lembrete. O texto usado em cada regra e editado nos modelos acima: Agendamento ou Sessao proxima.</p>
+            </div>
+          </div>
+          <form method="post" class="integration-body compact-integration-body automation-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_automation">
+            <input type="hidden" name="tab" value="messages">
+            <input type="hidden" name="message" value="{{ active_message_type }}">
+            <div class="friendly-form-grid agenda-automation-grid">
+              {% for field in automation_form %}
+                {% if field.name in 'appointment_reminders_enabled appointment_reminder_hours_before appointment_day_reminders_enabled appointment_day_reminder_hours_before' %}
+                  <label class="form-field {% if field.field.widget.input_type == 'checkbox' %}toggle-card{% endif %}">
+                    {% if field.field.widget.input_type == 'checkbox' %}
+                      {{ field }}
+                      <span>{{ field.label }}</span>
+                    {% else %}
+                      <span>{{ field.label }}</span>
+                      {{ field }}
+                    {% endif %}
+                    {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
+                  </label>
+                {% endif %}
+              {% endfor %}
+            </div>
+            <div class="form-actions compact-actions">
+              <button class="button primary" type="submit">Salvar regras da agenda</button>
+            </div>
+          </form>
+        </section>
+
         <section class="panel automation-panel automation-workspace">
           <div class="panel-header">
             <div>
               <h3>Automacoes de mensagens</h3>
-              <p>Defina o que sera enviado, com qual texto e quanto tempo antes da sessao. Cada regra evita reenvio para a mesma sessao.</p>
+              <p>Cada regra usa um modelo de mensagem e evita reenvio para a mesma sessao. Abra o texto correspondente pelo botao Editar mensagem.</p>
             </div>
             <span class="status-pill is-success">{{ automation_rules|length }} regra{{ automation_rules|length|pluralize:"s" }}</span>
           </div>

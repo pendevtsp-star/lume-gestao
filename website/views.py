@@ -8,6 +8,7 @@ from django.db.models import F
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.views.generic import CreateView, DeleteView, ListView, TemplateView, UpdateView, View
 
 from accounts.permissions import ManagementAccessMixin
@@ -15,8 +16,16 @@ from billing.models import ServicePlan
 from core.views import FormContextMixin, SearchableListView
 from core.models import ClinicSettings
 from website.content import INSTAGRAM_HIGHLIGHTS, REEL_FEATURES
-from website.forms import WebsiteFAQForm, WebsiteSettingsForm, WebsiteTestimonialForm
-from website.models import WebsiteFAQ, WebsiteSettings, WebsiteTestimonial
+from website.brevo import sync_newsletter_contact
+from website.forms import WebsiteFAQForm, WebsiteNewsletterForm, WebsiteSettingsForm, WebsiteTestimonialForm
+from website.models import (
+    WebsiteFAQ,
+    WebsiteGalleryItem,
+    WebsiteNewsletterSubscriber,
+    WebsiteService,
+    WebsiteSettings,
+    WebsiteTestimonial,
+)
 
 
 class WebsitePublicContextMixin:
@@ -165,9 +174,12 @@ class WebsiteHomeView(WebsitePublicContextMixin, TemplateView):
                 "display_order", "monthly_price", "name"
             )[:4]
         )
+        featured_plan = next((plan for plan in plans if plan.highlight_badge), None)
         faqs = list(WebsiteFAQ.objects.filter(active=True)[:6])
         public_faqs = faqs or self.default_faqs
         testimonials = list(WebsiteTestimonial.objects.filter(active=True)[:3])
+        configured_services = list(WebsiteService.objects.filter(active=True)[:6])
+        gallery_items = list(WebsiteGalleryItem.objects.filter(active=True)[:8])
         assistant_questions = [faq.question for faq in faqs[:3]] or [
             "Quais atendimentos vocês oferecem?",
             "Como faço para agendar?",
@@ -184,12 +196,14 @@ class WebsiteHomeView(WebsitePublicContextMixin, TemplateView):
                 "plans": plans,
                 "landing_hero_title": self.landing_hero_title,
                 "landing_hero_subtitle": self.landing_hero_subtitle,
-                "service_cards": self.service_cards,
+                "service_cards": configured_services or self.service_cards,
                 "journey_steps": self.journey_steps,
                 "quick_benefits": self.quick_benefits,
                 "trust_points": self.trust_points,
                 "faqs": public_faqs,
                 "testimonials": testimonials,
+                "gallery_items": gallery_items,
+                "newsletter_form": WebsiteNewsletterForm(),
                 "assistant_questions": assistant_questions,
                 "assistant_faq_map_json": assistant_answers,
                 "reel_features": REEL_FEATURES,
@@ -203,12 +217,43 @@ class WebsiteHomeView(WebsitePublicContextMixin, TemplateView):
             }
         )
         for plan in plans:
+            plan.landing_featured = plan == featured_plan
             sessions_text = "1 sessão por semana" if plan.sessions_per_week == 1 else f"{plan.sessions_per_week} sessões por semana"
             plan.whatsapp_sessions_text = sessions_text
             plan.whatsapp_url = self.whatsapp_redirect_url(
                 message=f"Olá, equipe Lume. Tenho interesse no plano {plan.name} ({sessions_text})."
             )
         return context
+
+
+class WebsiteNewsletterSubscribeView(View):
+    def post(self, request):
+        form = WebsiteNewsletterForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "Informe um e-mail valido e confirme o consentimento.")
+            return redirect(f"{reverse('website_home')}#newsletter")
+
+        website_settings = WebsiteSettings.load()
+        subscriber, _ = WebsiteNewsletterSubscriber.objects.update_or_create(
+            email=form.cleaned_data["email"].strip().lower(),
+            defaults={
+                "active": True,
+                "consented_at": timezone.now(),
+                "source": "landing",
+            },
+        )
+        synced, error = sync_newsletter_contact(
+            subscriber.email,
+            website_settings.brevo_marketing_list_id,
+        )
+        subscriber.brevo_contact_synced = synced
+        subscriber.brevo_error = error
+        subscriber.save(update_fields=["brevo_contact_synced", "brevo_error", "updated_at"])
+        messages.success(
+            request,
+            "Cadastro realizado. Voce recebera apenas novidades da Lume e podera sair quando quiser.",
+        )
+        return redirect(f"{reverse('website_home')}#newsletter")
 
 
 class WebsiteRobotsTxtView(View):

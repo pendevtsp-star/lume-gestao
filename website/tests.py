@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -6,7 +7,7 @@ from django.urls import reverse
 
 from accounts.models import UserProfile
 from billing.models import ServicePlan
-from website.models import WebsiteFAQ, WebsiteSettings, WebsiteTestimonial
+from website.models import WebsiteFAQ, WebsiteNewsletterSubscriber, WebsiteSettings, WebsiteTestimonial
 
 
 @override_settings(
@@ -100,6 +101,34 @@ class WebsitePublicTests(TestCase):
         self.assertContains(robots, "Sitemap: https://clinicafisiolume.com.br/sitemap.xml")
         self.assertContains(sitemap, "<loc>https://clinicafisiolume.com.br/</loc>")
 
+    @patch("website.views.sync_newsletter_contact", return_value=(True, ""))
+    def test_newsletter_subscription_is_saved_and_synced(self, sync_contact):
+        response = self.client.post(
+            "/newsletter/inscrever/",
+            {"email": "paciente@example.com", "consent": "on"},
+            HTTP_HOST="clinicafisiolume.com.br",
+        )
+
+        self.assertRedirects(
+            response,
+            "/#newsletter",
+            fetch_redirect_response=False,
+        )
+        subscriber = WebsiteNewsletterSubscriber.objects.get(email="paciente@example.com")
+        self.assertTrue(subscriber.active)
+        self.assertTrue(subscriber.brevo_contact_synced)
+        sync_contact.assert_called_once_with("paciente@example.com", None)
+
+    def test_newsletter_requires_explicit_consent(self):
+        response = self.client.post(
+            "/newsletter/inscrever/",
+            {"email": "paciente@example.com"},
+            HTTP_HOST="clinicafisiolume.com.br",
+        )
+
+        self.assertRedirects(response, "/#newsletter", fetch_redirect_response=False)
+        self.assertFalse(WebsiteNewsletterSubscriber.objects.exists())
+
 
 @override_settings(
     ALLOWED_HOSTS=["testserver", "clinicafisiolume.com.br", "sistema.clinicafisiolume.com.br"],
@@ -118,10 +147,28 @@ class WebsiteManagementTests(TestCase):
             reverse("website:settings"),
             {
                 "clinic_name": "Lume Studio Fisio",
+                "hero_eyebrow": "Pilates em Penedo",
                 "hero_title": "Seu corpo em movimento com apoio especializado.",
                 "hero_subtitle": "Texto comercial do site.",
+                "services_title": "Atendimentos",
+                "services_text": "Texto dos atendimentos.",
                 "institutional_title": "Sobre a Lume",
                 "institutional_text": "Texto institucional editavel.",
+                "gallery_title": "Galeria",
+                "gallery_text": "Texto da galeria.",
+                "testimonials_title": "Depoimentos",
+                "homecare_title": "Lume em casa",
+                "homecare_text": "Texto do Lume em casa.",
+                "homecare_video_url": "",
+                "plans_title": "Planos",
+                "plans_text": "Texto dos planos.",
+                "faq_title": "Duvidas",
+                "contact_title": "Contato",
+                "contact_text": "Texto de contato.",
+                "footer_text": "Texto do rodape.",
+                "newsletter_title": "Novidades",
+                "newsletter_text": "Texto da lista.",
+                "brevo_marketing_list_id": "",
                 "primary_cta_text": "Agendar agora",
                 "system_cta_text": "Entrar no sistema",
                 "whatsapp_url": "https://wa.me/message/GTYUJB6MIJJUJ1",

@@ -4,6 +4,7 @@ from core.views import HealthCheckView
 from website.views import (
     WebsiteHomeView,
     WebsiteInstagramRedirectView,
+    WebsiteNewsletterSubscribeView,
     WebsiteRobotsTxtView,
     WebsiteSitemapView,
     WebsiteSystemRedirectView,
@@ -18,4 +19,5 @@ urlpatterns = [
     path("ir/instagram/", WebsiteInstagramRedirectView.as_view(), name="website_instagram_redirect"),
     path("ir/whatsapp/", WebsiteWhatsAppRedirectView.as_view(), name="website_whatsapp_redirect"),
     path("ir/sistema/", WebsiteSystemRedirectView.as_view(), name="website_system_redirect"),
+    path("newsletter/inscrever/", WebsiteNewsletterSubscribeView.as_view(), name="website_newsletter_subscribe"),
 ]

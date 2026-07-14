@@ -7002,6 +7002,410 @@ form.is-submitting button[type="submit"] { opacity: .72; }
   }
 }
 
+/* Global visual foundation: applies the Lume redesign across existing modules. */
+.lume-app {
+  --ink: #24342d;
+  --ink-soft: #536258;
+  --panel: #fffdfa;
+  --page: #f5f6f1;
+  --muted-panel: #f8f7f1;
+  --line: #dedfd4;
+  --text: #2d3933;
+  --muted: #69756d;
+  --sage: #899870;
+  --sage-dark: #5e714d;
+  --sage-soft: #edf1e6;
+  --sand: #af8a55;
+  --sand-soft: #f7eee0;
+  --shadow: 0 12px 28px rgba(38, 51, 43, 0.07);
+  --shadow-soft: 0 4px 14px rgba(38, 51, 43, 0.05);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  background: var(--page);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.lume-app h1,
+.lume-app h2,
+.lume-app h3,
+.lume-app .brand strong {
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+}
+
+.lume-app .app-shell {
+  grid-template-columns: 264px minmax(0, 1fr);
+  background: var(--page);
+}
+
+.lume-app .sidebar {
+  gap: 16px;
+  padding: 20px 14px;
+  background: #fbfaf6;
+  border-right-color: var(--line);
+  box-shadow: none;
+}
+
+.lume-app .brand {
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  padding: 2px 8px 8px;
+}
+
+.lume-app .brand-logo {
+  width: 42px;
+  height: 42px;
+  border-color: #d8d8c9;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.lume-app .brand strong {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.lume-app .brand small,
+.lume-app .nav-section-label {
+  color: #798174;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.lume-app .nav-section-label {
+  margin: 16px 10px 5px;
+}
+
+.lume-app .nav a,
+.lume-app .nav-menu summary {
+  min-height: 40px;
+  border-radius: 7px;
+  color: #4f5b52;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.lume-app .nav a:hover,
+.lume-app .nav a:focus-visible,
+.lume-app .nav-menu summary:hover,
+.lume-app .nav-menu summary:focus-visible {
+  background: #f0f2e9;
+  color: var(--ink);
+}
+
+.lume-app .nav-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #eff1e9;
+  color: #627152;
+}
+
+.lume-app .nav-submenu {
+  margin-left: 12px;
+  padding-left: 10px;
+  border-left-color: #dedfd4;
+}
+
+.lume-app .nav-submenu a {
+  min-height: 34px;
+  color: #677268;
+  font-size: 13px;
+}
+
+.lume-app .nav-submenu .nav-icon {
+  width: 22px;
+  height: 22px;
+  background: transparent;
+}
+
+.lume-app .main {
+  padding: 20px 28px 116px;
+}
+
+.lume-app .topbar {
+  min-height: 70px;
+  margin: 0 0 24px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 250, 0.94);
+  box-shadow: none;
+}
+
+.lume-app .topbar-badge {
+  border-radius: 6px;
+  background: var(--sage-soft);
+  color: #526344;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+}
+
+.lume-app .topbar-title-group strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.lume-app .topbar-title-group small,
+.lume-app .topbar-user strong {
+  color: var(--muted);
+}
+
+.lume-app .topbar-settings,
+.lume-app .topbar-logout,
+.lume-app .notification-center summary {
+  border-radius: 7px;
+}
+
+.lume-app .page-heading {
+  align-items: flex-end;
+  margin: 0 0 20px;
+  padding: 0 2px;
+}
+
+.lume-app .page-heading h1 {
+  font-size: clamp(28px, 2.4vw, 38px);
+  line-height: 1.05;
+}
+
+.lume-app .eyebrow {
+  color: #6a7a58;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.lume-app .page-subtitle {
+  max-width: 680px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.lume-app .panel,
+.lume-app .metric,
+.lume-app .dashboard-command-panel article,
+.lume-app .stat-card,
+.lume-app .form-intro-card {
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: none;
+}
+
+.lume-app .panel:hover,
+.lume-app .metric:hover,
+.lume-app .dashboard-command-panel article:hover {
+  border-color: #cfd5c7;
+}
+
+.lume-app .panel-header,
+.lume-app .agenda-calendar-toolbar,
+.lume-app .agenda-toolbar,
+.lume-app .agenda-filter-bar,
+.lume-app .ui-toolbar {
+  border-color: var(--line);
+  background: transparent;
+}
+
+.lume-app .panel-header h2,
+.lume-app .panel-header h3 {
+  font-size: 21px;
+}
+
+.lume-app .metric {
+  min-height: 108px;
+  padding: 16px;
+}
+
+.lume-app .metric strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.lume-app .metric span,
+.lume-app .dashboard-command-panel span,
+.lume-app .table-meta,
+.lume-app .muted-copy {
+  color: var(--muted);
+}
+
+.lume-app .dashboard-command-panel article {
+  min-height: 108px;
+  padding: 16px;
+}
+
+.lume-app .dashboard-command-panel strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.lume-app .button,
+.lume-app .table-action {
+  min-height: 40px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.lume-app .button.primary {
+  background: var(--sage-dark);
+  color: #fffef9;
+}
+
+.lume-app .button.primary:hover,
+.lume-app .button.primary:focus-visible {
+  background: #475b3b;
+}
+
+.lume-app .button.secondary,
+.lume-app .button.ghost,
+.lume-app .table-action {
+  border-color: #d7d8cd;
+  background: #fffdfa;
+  color: var(--ink);
+}
+
+.lume-app .button.secondary:hover,
+.lume-app .button.ghost:hover,
+.lume-app .table-action:hover {
+  border-color: #aeb9a4;
+  background: #f3f5ed;
+}
+
+.lume-app .button.compact {
+  min-height: 34px;
+}
+
+.lume-app .search-input,
+.lume-app .field-control,
+.lume-app .form-field input,
+.lume-app .form-field select,
+.lume-app .form-field textarea,
+.lume-app input:not([type="checkbox"]):not([type="radio"]),
+.lume-app select,
+.lume-app textarea {
+  border-color: #d4d7ce;
+  border-radius: 7px;
+  background: #fffefb;
+  box-shadow: none;
+}
+
+.lume-app .search-input:focus,
+.lume-app .field-control:focus,
+.lume-app .form-field input:focus,
+.lume-app .form-field select:focus,
+.lume-app .form-field textarea:focus,
+.lume-app input:not([type="checkbox"]):not([type="radio"]):focus,
+.lume-app select:focus,
+.lume-app textarea:focus {
+  border-color: var(--sage-dark);
+  outline: 3px solid rgba(94, 113, 77, 0.14);
+  outline-offset: 0;
+}
+
+.lume-app .filters,
+.lume-app .agenda-toolbar,
+.lume-app .agenda-filter-bar,
+.lume-app .ui-toolbar,
+.lume-app .connect-filter-bar {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.lume-app .filters,
+.lume-app .agenda-toolbar,
+.lume-app .agenda-filter-bar,
+.lume-app .ui-toolbar {
+  padding: 14px;
+}
+
+.lume-app .table-wrap,
+.lume-app .responsive-table {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: none;
+}
+
+.lume-app table th {
+  background: #f3f4ed;
+  color: #5c685d;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.lume-app table td,
+.lume-app table th {
+  border-color: #e4e5dc;
+}
+
+.lume-app table tbody tr:hover td {
+  background: #fafbf7;
+}
+
+.lume-app .empty-state,
+.lume-app .ui-empty {
+  min-height: 144px;
+  border: 1px dashed #cfd4c8;
+  border-radius: 8px;
+  background: #fbfcf8;
+}
+
+.lume-app .form-panel,
+.lume-app .form-intro-card {
+  border-radius: 8px;
+}
+
+.lume-app .form-grid {
+  gap: 16px;
+}
+
+.lume-app .form-actions,
+.lume-app .panel-actions,
+.lume-app .table-actions {
+  gap: 8px;
+}
+
+.lume-app .floating-actions {
+  padding: 8px;
+  border: 1px solid #d9ddd2;
+  border-radius: 8px;
+  background: rgba(255, 253, 250, 0.96);
+  box-shadow: var(--shadow);
+}
+
+.lume-app .floating-action {
+  min-height: 38px;
+  border-radius: 6px;
+}
+
+@media (max-width: 1100px) {
+  .lume-app .app-shell { grid-template-columns: 232px minmax(0, 1fr); }
+  .lume-app .main { padding: 18px 20px 108px; }
+  .lume-app .sidebar { padding-inline: 12px; }
+}
+
+@media (max-width: 760px) {
+  .lume-app .main { padding: 12px 12px 96px; }
+  .lume-app .topbar { margin-bottom: 18px; border-radius: 7px; }
+  .lume-app .page-heading { align-items: flex-start; }
+  .lume-app .page-heading h1 { font-size: 29px; }
+  .lume-app .panel-header h2,
+  .lume-app .panel-header h3 { font-size: 19px; }
+  .lume-app .metric-grid,
+  .lume-app .dashboard-command-panel { gap: 10px; }
+  .lume-app .filters,
+  .lume-app .agenda-toolbar,
+  .lume-app .agenda-filter-bar,
+  .lume-app .ui-toolbar { padding: 12px; }
+  .lume-app .button { min-height: 42px; }
+}
+
 .automation-monitor-panel {
   display: grid;
   gap: 16px;
@@ -7626,6 +8030,334 @@ form.is-submitting button[type="submit"] { opacity: .72; }
   }
 
   .agenda-modal-more-actions[open] > div {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Global redesign: consolidate the shared operational surfaces at the end of
+   the cascade so legacy page-specific rules cannot fragment the experience. */
+.lume-app .page-heading,
+.lume-app .dashboard-command-panel,
+.lume-app .panel,
+.lume-app .content-panel,
+.lume-app .connection-card,
+.lume-app .google-panel,
+.lume-app .connect-composer,
+.lume-app .connect-post,
+.lume-app .connect-notifications,
+.lume-app .zap-panel,
+.lume-app .settings-section,
+.lume-app .agenda-modal-card,
+.lume-app .reschedule-context,
+.lume-app .slot-grid,
+.lume-app .table-wrap {
+  border-color: #dfe4d9;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.lume-app .page-heading,
+.lume-app .dashboard-command-panel,
+.lume-app .panel,
+.lume-app .content-panel,
+.lume-app .connection-card,
+.lume-app .google-panel,
+.lume-app .connect-composer,
+.lume-app .connect-post,
+.lume-app .connect-notifications,
+.lume-app .zap-panel,
+.lume-app .settings-section,
+.lume-app .agenda-modal-card,
+.lume-app .reschedule-context,
+.lume-app .slot-grid,
+.lume-app .table-wrap {
+  background: #fffdfa;
+}
+
+.lume-app .page-heading {
+  padding: 24px 28px;
+  margin-bottom: 20px;
+}
+
+.lume-app .page-heading h1,
+.lume-app .dashboard-command-panel h2,
+.lume-app .panel h2,
+.lume-app .content-panel h2,
+.lume-app .zap-header h2,
+.lume-app .connection-hero-top h3,
+.lume-app .settings-section-heading h2 {
+  color: #24342d;
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: 0;
+}
+
+.lume-app .dashboard-command-panel {
+  padding: 20px;
+  gap: 18px;
+}
+
+.lume-app .dashboard-command-panel a,
+.lume-app .quick-action-card {
+  border-radius: 8px;
+  border-color: #dfe4d9;
+  background: #fffdfa;
+  box-shadow: none;
+}
+
+.lume-app .dashboard-command-panel a:hover,
+.lume-app .quick-action-card:hover {
+  border-color: #81906b;
+  transform: none;
+  box-shadow: 0 4px 16px rgba(36, 52, 45, 0.08);
+}
+
+.lume-app .metric-card,
+.lume-app .agenda-page .metric-card,
+.lume-app .stat-card {
+  min-height: 132px;
+  padding: 18px;
+  border: 1px solid #dfe4d9;
+  border-radius: 8px;
+  background: #fbfcf8;
+  box-shadow: none;
+}
+
+.lume-app .metric-card strong,
+.lume-app .stat-card strong {
+  color: #24342d;
+  font-size: clamp(26px, 2.4vw, 34px);
+}
+
+.lume-app .zap-header,
+.lume-app .zap-guide-panel,
+.lume-app .message-help-panel,
+.lume-app .embedded-signup-card,
+.lume-app .connection-hero-card,
+.lume-app .google-connection-card {
+  background: #f4f6ef;
+  box-shadow: none;
+}
+
+.lume-app .zap-header {
+  padding: 24px 26px 18px;
+  border-bottom: 1px solid #dfe4d9;
+}
+
+.lume-app .zap-tabs {
+  gap: 4px;
+  padding: 0 26px 14px;
+  border-bottom-color: #dfe4d9;
+}
+
+.lume-app .zap-tabs a {
+  border-radius: 6px;
+}
+
+.lume-app .zap-tabs a.is-active {
+  background: #637752;
+}
+
+.lume-app .zap-panel-body,
+.lume-app .zap-connections,
+.lume-app .zap-message-list {
+  padding: 20px 26px 26px;
+}
+
+.lume-app .connection-card,
+.lume-app .google-panel,
+.lume-app .queue-card,
+.lume-app .zap-guide-grid article,
+.lume-app .message-help-grid article {
+  border-radius: 8px;
+  border-color: #dfe4d9;
+  background: #fffdfa;
+  box-shadow: none;
+}
+
+.lume-app .settings-section-heading {
+  padding: 18px 20px;
+  border-bottom-color: #dfe4d9;
+  background: #f7f8f3;
+}
+
+.lume-app .settings-section > .form-grid {
+  padding: 20px;
+}
+
+.lume-app .connect-layout {
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(276px, 320px);
+}
+
+.lume-app .connect-composer,
+.lume-app .connect-post,
+.lume-app .connect-notifications {
+  padding: 18px;
+}
+
+.lume-app .connect-filter-bar {
+  padding: 12px;
+  border: 1px solid #dfe4d9;
+  border-radius: 8px;
+  background: #f7f8f3;
+}
+
+.lume-app .connect-post:hover {
+  border-color: #b9c6aa;
+  box-shadow: none;
+}
+
+.lume-app .agenda-action-modal {
+  width: min(680px, 100vw);
+  height: auto;
+  max-height: min(860px, calc(100dvh - 32px));
+  margin: auto;
+  border: 1px solid #dfe4d9;
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgba(36, 52, 45, 0.2);
+}
+
+.lume-app .agenda-modal-card {
+  min-height: 0;
+  max-height: min(860px, calc(100dvh - 32px));
+  overflow: auto;
+  gap: 16px;
+  padding: 24px;
+}
+
+.lume-app .agenda-modal-head {
+  position: static;
+  margin: 0;
+  padding: 0 0 16px;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.lume-app .agenda-modal-facts div,
+.lume-app .agenda-modal-patients,
+.lume-app .agenda-modal-patient-row,
+.lume-app .reschedule-context-meta div {
+  border-radius: 8px;
+  border-color: #dfe4d9;
+  background: #fbfcf8;
+}
+
+.lume-app .agenda-modal-patient-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.lume-app .agenda-modal-more-actions {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.lume-app .agenda-modal-more-actions summary {
+  width: auto;
+}
+
+.lume-app .agenda-modal-more-actions[open] > div {
+  grid-template-columns: 1fr;
+  min-width: 188px;
+}
+
+.lume-app .agenda-filter-bar {
+  grid-template-columns: minmax(0, 1fr) minmax(156px, 184px) max-content;
+  padding: 14px;
+  border: 1px solid #dfe4d9;
+  border-radius: 8px;
+  background: #f7f8f3;
+}
+
+.lume-app .agenda-grid-table .calendar-event {
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.lume-app .reschedule-context {
+  padding: 20px;
+}
+
+.lume-app .slot-grid .slot-button {
+  min-height: 84px;
+  border-radius: 8px;
+}
+
+.lume-app .table-wrap {
+  overflow: auto;
+}
+
+.lume-app table thead th {
+  background: #f4f6ef;
+  color: #596550;
+}
+
+.lume-app table tbody tr:hover td {
+  background: #fbfcf8;
+}
+
+@media (max-width: 960px) {
+  .lume-app .connect-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .lume-app .agenda-action-modal {
+    width: min(680px, calc(100vw - 24px));
+  }
+}
+
+@media (max-width: 680px) {
+  .lume-app .page-heading,
+  .lume-app .zap-header,
+  .lume-app .zap-panel-body,
+  .lume-app .zap-connections,
+  .lume-app .zap-message-list,
+  .lume-app .agenda-modal-card,
+  .lume-app .reschedule-context,
+  .lume-app .connect-composer,
+  .lume-app .connect-post,
+  .lume-app .connect-notifications {
+    padding: 16px;
+  }
+
+  .lume-app .zap-tabs {
+    overflow-x: auto;
+    padding: 0 16px 12px;
+  }
+
+  .lume-app .zap-tabs a {
+    white-space: nowrap;
+  }
+
+  .lume-app .zap-metrics,
+  .lume-app .connection-grid,
+  .lume-app .zap-guide-grid,
+  .lume-app .message-help-grid,
+  .lume-app .agenda-modal-patient-row,
+  .lume-app .reschedule-context,
+  .lume-app .reschedule-context-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .lume-app .agenda-action-modal {
+    width: 100vw;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .lume-app .agenda-modal-card {
+    max-height: 100dvh;
+  }
+
+  .lume-app .agenda-modal-patient-actions {
+    justify-content: flex-start;
+  }
+
+  .lume-app .agenda-modal-more-actions,
+  .lume-app .agenda-modal-more-actions summary {
+    width: 100%;
+  }
+
+  .lume-app .agenda-filter-bar {
     grid-template-columns: 1fr;
   }
 }

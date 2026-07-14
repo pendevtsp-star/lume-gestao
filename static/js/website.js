@@ -1,39 +1,34 @@
 (function () {
-  var faqDataElement = document.getElementById("website-faq-data");
-  var faqData = {};
-  if (faqDataElement) {
-    try {
-      faqData = JSON.parse(faqDataElement.textContent);
-    } catch (_error) {
-      faqData = {};
-    }
-  }
-
-  var widget = document.querySelector("[data-assistant]");
-  if (!widget) {
-    return;
-  }
-
-  var toggle = widget.querySelector("[data-assistant-toggle]");
-  var panel = widget.querySelector("[data-assistant-panel]");
-  var answer = widget.querySelector("[data-assistant-answer]");
-  var questionButtons = widget.querySelectorAll("[data-assistant-question]");
-
-  if (toggle && panel) {
-    toggle.addEventListener("click", function () {
-      var isHidden = panel.hasAttribute("hidden");
-      if (isHidden) {
-        panel.removeAttribute("hidden");
-      } else {
-        panel.setAttribute("hidden", "");
-      }
+  var navToggle = document.querySelector(".nav-toggle");
+  var nav = document.getElementById("site-nav");
+  if (navToggle && nav) {
+    navToggle.addEventListener("click", function () {
+      var isOpen = nav.classList.toggle("open");
+      navToggle.setAttribute("aria-expanded", String(isOpen));
+      navToggle.querySelector(".material-symbols-rounded").textContent = isOpen ? "close" : "menu";
+      document.body.classList.toggle("menu-open", isOpen);
+    });
+    nav.querySelectorAll("a").forEach(function (link) {
+      link.addEventListener("click", function () {
+        nav.classList.remove("open");
+        navToggle.setAttribute("aria-expanded", "false");
+        navToggle.querySelector(".material-symbols-rounded").textContent = "menu";
+        document.body.classList.remove("menu-open");
+      });
     });
   }
 
-  questionButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      var question = button.getAttribute("data-assistant-question");
-      answer.textContent = faqData[question] || "Posso te ajudar melhor no WhatsApp. Clique abaixo para falar com a equipe.";
-    });
+  var gallery = document.querySelector("[data-gallery-track]");
+  var previous = document.querySelector("[data-gallery-prev]");
+  var next = document.querySelector("[data-gallery-next]");
+  function moveGallery(direction) {
+    if (!gallery) return;
+    gallery.scrollBy({ left: direction * Math.max(320, gallery.clientWidth * 0.72), behavior: "smooth" });
+  }
+  if (previous) previous.addEventListener("click", function () { moveGallery(-1); });
+  if (next) next.addEventListener("click", function () { moveGallery(1); });
+
+  document.querySelectorAll(".site-message").forEach(function (message) {
+    window.setTimeout(function () { message.remove(); }, 7000);
   });
 })();

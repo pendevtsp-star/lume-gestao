@@ -28,7 +28,14 @@ from core.integrations.http import IntegrationError
 from core.integrations.whatsapp import process_scheduled_whatsapp_messages
 from core.services.whatsapp_automation import enqueue_automatic_whatsapp_messages
 from patients.models import Patient, ProfessionalPatientAssignment
-from scheduling.models import Appointment, PatientNotification, ProfessionalAvailability, ServicePackage, ServiceUsage
+from scheduling.models import (
+    Appointment,
+    PatientNotification,
+    ProfessionalAvailability,
+    ServicePackage,
+    ServicePackageAdjustment,
+    ServiceUsage,
+)
 from team.models import Employee, Professional
 
 
@@ -133,6 +140,37 @@ class DashboardAccessTests(TestCase):
         self.assertEqual(response.json(), {"status": "ok"})
         self.assertNotIn("database_engine", response.json())
         self.assertNotIn("environment", response.json())
+
+
+class PendingDeletionCleanupTests(TestCase):
+    def test_keeps_canceled_package_with_credit_adjustment_without_stopping_cleanup(self):
+        from core.deletion import cleanup_pending_deletions
+
+        patient = Patient.objects.create(full_name="Paciente com ajuste preservado")
+        plan = ServicePlan.objects.create(
+            name="Plano historico preservado",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("100.00"),
+        )
+        membership = Membership.objects.create(patient=patient, plan=plan, due_day=10)
+        package = ServicePackage.objects.create(
+            membership=membership,
+            total_sessions=1,
+            status=ServicePackage.Status.CANCELED,
+            deletion_requested_at=timezone.now(),
+        )
+        ServicePackageAdjustment.objects.create(
+            service_package=package,
+            delta_sessions=1,
+            reason=ServicePackageAdjustment.Reason.MANUAL_CORRECTION,
+        )
+
+        result = cleanup_pending_deletions()
+
+        package.refresh_from_db()
+        self.assertEqual(result["deleted"], 0)
+        self.assertEqual(package.status, ServicePackage.Status.CANCELED)
+        self.assertIsNone(package.deletion_requested_at)
 
 
 class AuditLogTests(TestCase):

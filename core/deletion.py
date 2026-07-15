@@ -91,10 +91,19 @@ def hard_delete_expense(expense):
 
 
 def hard_delete_service_package(package):
-    from scheduling.models import ServiceUsage
+    from scheduling.models import ServicePackageAdjustment, ServiceUsage
+
+    # Credit adjustments are part of the clinic's financial/audit history.
+    # Keep a canceled package when that history exists instead of repeatedly
+    # crashing the background worker on a protected foreign key.
+    if ServicePackageAdjustment.objects.filter(service_package=package).exists():
+        package.deletion_requested_at = None
+        package.save(update_fields=["deletion_requested_at", "updated_at"])
+        return False
 
     ServiceUsage.objects.filter(service_package=package).delete()
     package.delete()
+    return True
 
 
 def hard_delete_availability(availability):
@@ -246,8 +255,8 @@ def cleanup_pending_deletions(limit=25):
 
     for package in ServicePackage.objects.filter(deletion_requested_at__isnull=False).order_by("deletion_requested_at")[:limit]:
         if not service_package_has_pending_obligations(package):
-            hard_delete_service_package(package)
-            deleted += 1
+            if hard_delete_service_package(package):
+                deleted += 1
 
     return {"deleted": deleted}
 

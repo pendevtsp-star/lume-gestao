@@ -41,3 +41,18 @@ jobs:
 
       - name: Run tests
         run: python manage.py test
+        
+      - name: Security scan (Semgrep)
+        run: |
+          pip install semgrep
+          semgrep --config=auto .
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get install -y wget
+          wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.1_Linux-64bit.deb
+          sudo dpkg -i trivy_0.50.1_Linux-64bit.deb
+
+      - name: Scan Dockerfile
+        run: |
+          trivy config .

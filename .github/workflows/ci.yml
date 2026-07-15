@@ -45,7 +45,7 @@ jobs:
       - name: Security scan (Semgrep)
         run: |
           pip install semgrep
-          semgrep --config=auto .
+          semgrep --config=auto --error .
 
       - name: Install Trivy
         run: |

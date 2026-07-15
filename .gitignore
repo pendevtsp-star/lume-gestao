@@ -40,3 +40,7 @@ apps/**/ios/.symlinks/
 docs/meta_review/screencasts/frames/
 deploy/nginx/certs/*
 !deploy/nginx/certs/.gitkeep
+.codex/
+.agents/
+*.log
+.impeccable/

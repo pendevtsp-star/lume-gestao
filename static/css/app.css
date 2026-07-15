@@ -8361,3 +8361,139 @@ form.is-submitting button[type="submit"] { opacity: .72; }
     grid-template-columns: 1fr;
   }
 }
+
+/* Mobile shell guardrail. This deliberately comes last because the global
+   redesign overrides the earlier responsive shell declaration. Keep the
+   application in one column before any page-specific layout is evaluated. */
+@media (max-width: 860px) {
+  .lume-app {
+    overflow-x: clip;
+  }
+
+  .lume-app .app-shell {
+    display: block;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lume-app .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 80;
+    box-sizing: border-box;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    min-width: 0;
+    overflow: visible;
+    padding: 12px;
+    gap: 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .lume-app .brand {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .lume-app .brand-logo {
+    width: 42px;
+    height: 42px;
+  }
+
+  .lume-app .brand strong { font-size: 20px; }
+  .lume-app .brand small { font-size: 10px; }
+
+  .lume-app .mobile-nav-label {
+    display: grid;
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  .lume-app .nav {
+    max-height: min(64dvh, 560px);
+  }
+
+  .lume-app .main {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    padding: 12px 12px 96px;
+  }
+
+  .lume-app .topbar {
+    align-items: center;
+    min-width: 0;
+    min-height: 56px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+  }
+
+  .lume-app .topbar-context,
+  .lume-app .topbar-actions {
+    min-width: 0;
+  }
+
+  .lume-app .topbar-title-group strong {
+    overflow: hidden;
+    font-size: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lume-app .topbar-title-group small,
+  .lume-app .topbar-user,
+  .lume-app .topbar-install {
+    display: none;
+  }
+
+  .lume-app .topbar-actions { gap: 6px; }
+  .lume-app .topbar-settings { width: 38px; height: 38px; font-size: 26px; }
+  .lume-app .topbar-logout { min-width: 48px; min-height: 38px; padding: 0 9px; }
+
+  .lume-app .page-heading,
+  .lume-app .panel-header,
+  .lume-app .calendar-toolbar,
+  .lume-app .form-actions,
+  .lume-app .panel-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lume-app .page-heading { padding: 16px; }
+  .lume-app .page-heading h1 { font-size: clamp(26px, 8vw, 32px); }
+
+  .lume-app .metric-grid,
+  .lume-app .split-grid,
+  .lume-app .patient-summary,
+  .lume-app .card-grid,
+  .lume-app .form-grid,
+  .lume-app .dashboard-command-panel,
+  .lume-app .list-overview-strip,
+  .lume-app .operation-overview-strip,
+  .lume-app .agenda-page .agenda-metrics,
+  .lume-app .agenda-overview-strip,
+  .lume-app .agenda-modal-facts,
+  .lume-app .agenda-modal-patient-row,
+  .lume-app .reschedule-context-meta,
+  .lume-app .settings-compact-grid,
+  .lume-app .admin-settings-nav,
+  .lume-app .automation-monitor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lume-app .filters,
+  .lume-app .agenda-toolbar,
+  .lume-app .agenda-filter-bar,
+  .lume-app .ui-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  .lume-app .button,
+  .lume-app .form-actions .button,
+  .lume-app .panel-actions .button {
+    width: 100%;
+  }
+}

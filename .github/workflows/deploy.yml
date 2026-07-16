@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Conectar na VPS e atualizar
+      - name: Conectar na VPS e atualizar com rollback seguro
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -18,7 +18,140 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           script: |
-            cd /srv/lume-gestao
-            git pull
-            docker compose down
-            docker compose up -d --build
+            set -Eeuo pipefail
+
+            APP_DIR="/srv/lume-gestao"
+            DEPLOY_BRANCH="${{ github.ref_name }}"
+            EXPECTED_COMMIT="${{ github.sha }}"
+            HEALTH_RETRIES=20
+            HEALTH_DELAY=6
+
+            cd "$APP_DIR"
+
+            if [ -f docker-compose.prod.yml ]; then
+              COMPOSE_FILE="docker-compose.prod.yml"
+            else
+              COMPOSE_FILE="docker-compose.yml"
+            fi
+
+            compose() {
+              docker compose -f "$COMPOSE_FILE" "$@"
+            }
+
+            fail() {
+              echo "::error::$1"
+              exit "${2:-1}"
+            }
+
+            git_status="$(git status --porcelain)"
+            if [ -n "$git_status" ]; then
+              echo "[deploy] ERRO: worktree da VPS tem alteracoes locais. Deploy cancelado."
+              git status --short
+              exit 10
+            fi
+
+            previous_commit="$(git rev-parse HEAD)"
+            echo "[deploy] Commit anterior: $previous_commit"
+            echo "[deploy] Branch alvo: $DEPLOY_BRANCH"
+            echo "[deploy] Commit esperado: $EXPECTED_COMMIT"
+            echo "[deploy] Compose: $COMPOSE_FILE"
+
+            wait_for_web_health() {
+              echo "[deploy] Aguardando healthcheck do servico web..."
+              for attempt in $(seq 1 "$HEALTH_RETRIES"); do
+                web_container="$(compose ps -q web || true)"
+                if [ -n "$web_container" ]; then
+                  web_status="$(docker inspect -f '{{.State.Status}}' "$web_container" 2>/dev/null || true)"
+                  web_health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$web_container" 2>/dev/null || true)"
+                  echo "[deploy] web tentativa $attempt/$HEALTH_RETRIES: status=${web_status:-unknown} health=${web_health:-unknown}"
+
+                  if [ "$web_status" = "running" ] && { [ "$web_health" = "healthy" ] || [ "$web_health" = "no-healthcheck" ]; }; then
+                    return 0
+                  fi
+                else
+                  echo "[deploy] web tentativa $attempt/$HEALTH_RETRIES: container ainda nao existe"
+                fi
+                sleep "$HEALTH_DELAY"
+              done
+              return 1
+            }
+
+            validate_required_services() {
+              echo "[deploy] Validando servicos obrigatorios..."
+
+              db_container="$(compose ps -q db || true)"
+              worker_container="$(compose ps -q worker || true)"
+              web_container="$(compose ps -q web || true)"
+
+              [ -n "$db_container" ] || return 1
+              [ -n "$worker_container" ] || return 1
+              [ -n "$web_container" ] || return 1
+
+              db_status="$(docker inspect -f '{{.State.Status}}' "$db_container" 2>/dev/null || true)"
+              worker_status="$(docker inspect -f '{{.State.Status}}' "$worker_container" 2>/dev/null || true)"
+              web_status="$(docker inspect -f '{{.State.Status}}' "$web_container" 2>/dev/null || true)"
+
+              echo "[deploy] db=$db_status worker=$worker_status web=$web_status"
+
+              [ "$db_status" = "running" ] || return 1
+              [ "$worker_status" = "running" ] || return 1
+              [ "$web_status" = "running" ] || return 1
+            }
+
+            validate_public_health() {
+              health_host="$(grep -E '^LUME_HEALTHCHECK_HOST=' .env 2>/dev/null | tail -n1 | cut -d= -f2- || true)"
+              if [ -z "$health_host" ] || [ "$health_host" = "0.0.0.0" ] || [ "$health_host" = "127.0.0.1" ] || [ "$health_host" = "localhost" ]; then
+                health_host="sistema.clinicafisiolume.com.br"
+              fi
+
+              health_url="https://$health_host/healthz/"
+              echo "[deploy] Validando health publico: $health_url"
+              curl --retry 6 --retry-delay 2 --retry-all-errors -fsS "$health_url" >/dev/null
+            }
+
+            validate_release() {
+              compose ps
+              wait_for_web_health
+              validate_required_services
+              validate_public_health
+            }
+
+            rollback() {
+              echo "[rollback] Retornando para commit anterior: $previous_commit"
+              git reset --hard "$previous_commit"
+              compose up -d --build --remove-orphans
+
+              if validate_release; then
+                echo "[rollback] Rollback validado com sucesso."
+                return 0
+              fi
+
+              echo "[rollback] ERRO: rollback falhou ou servicos nao validaram."
+              return 1
+            }
+
+            echo "[deploy] Atualizando codigo com git pull --ff-only..."
+            git fetch --prune origin "$DEPLOY_BRANCH"
+            git checkout "$DEPLOY_BRANCH"
+            git pull --ff-only origin "$DEPLOY_BRANCH"
+
+            current_commit="$(git rev-parse HEAD)"
+            echo "[deploy] Commit publicado no diretorio da VPS: $current_commit"
+            if [ "$current_commit" != "$EXPECTED_COMMIT" ]; then
+              echo "[deploy] ERRO: commit atualizado ($current_commit) difere do esperado ($EXPECTED_COMMIT)."
+              rollback || fail "Deploy falhou e rollback tambem falhou." 20
+              fail "Deploy cancelado: commit atualizado nao corresponde ao commit do workflow." 21
+            fi
+
+            echo "[deploy] Recriando containers sem derrubar volumes..."
+            if compose up -d --build --remove-orphans && validate_release; then
+              echo "[deploy] Deploy validado com sucesso."
+              exit 0
+            fi
+
+            echo "[deploy] ERRO: nova versao falhou. Iniciando rollback."
+            if rollback; then
+              fail "Deploy falhou, rollback foi aplicado e validado." 30
+            fi
+
+            fail "Deploy falhou e rollback nao validou. Intervencao manual necessaria." 31

@@ -3,39 +3,141 @@ name: Deploy VPS
 on:
   push:
     branches:
-      - deploy/vps-production
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  APP_IMAGE: ghcr.io/${{ github.repository }}/app
+  WHATSAPP_WEB_IMAGE: ghcr.io/${{ github.repository }}/whatsapp-web
+  IMAGE_TAG: ${{ github.sha }}
+  PRODUCTION_TAG: production
 
 jobs:
-  deploy:
+  test-build-publish:
+    name: Testar e publicar imagens imutaveis
     runs-on: ubuntu-latest
 
+    env:
+      SECRET_KEY: ci-secret-key-2026-long-random-value-for-security-checks-9f84a21b
+      DEBUG: "False"
+      ENVIRONMENT: production
+      LUME_STRICT_PRODUCTION: "False"
+      ALLOWED_HOSTS: 127.0.0.1,localhost,testserver
+      CSRF_TRUSTED_ORIGINS: http://127.0.0.1:8000,http://localhost:8000
+      DB_ENGINE: sqlite
+      SECURE_SSL_REDIRECT: "False"
+      GOOGLE_CALENDAR_SYNC_ENABLED: "True"
+      WHATSAPP_DRY_RUN: "True"
+
     steps:
-      - name: Conectar na VPS e atualizar com rollback seguro
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validar Django
+        run: |
+          python manage.py check
+          python manage.py check --deploy
+
+      - name: Rodar testes
+        run: python manage.py test
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push da imagem principal
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.APP_IMAGE }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha,scope=lume-app
+          cache-to: type=gha,mode=max,scope=lume-app
+
+      - name: Build e push da imagem WhatsApp Web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./whatsapp-web-gateway/Dockerfile
+          push: true
+          tags: |
+            ${{ env.WHATSAPP_WEB_IMAGE }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha,scope=lume-whatsapp-web
+          cache-to: type=gha,mode=max,scope=lume-whatsapp-web
+
+  deploy:
+    name: Atualizar VPS por imagens imutaveis
+    runs-on: ubuntu-latest
+    needs: test-build-publish
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enviar compose de producao para VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: docker-compose.prod.yml
+          target: /srv/lume-gestao
+          overwrite: true
+
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: 22
+          port: ${{ secrets.VPS_PORT || 22 }}
           script: |
             set -Eeuo pipefail
 
             APP_DIR="/srv/lume-gestao"
-            DEPLOY_BRANCH="${{ github.ref_name }}"
-            EXPECTED_COMMIT="${{ github.sha }}"
-            HEALTH_RETRIES=20
+            COMPOSE_FILE="docker-compose.prod.yml"
+            HEALTH_RETRIES=30
             HEALTH_DELAY=6
+
+            TARGET_APP_IMAGE="${{ env.APP_IMAGE }}:${{ env.IMAGE_TAG }}"
+            TARGET_WHATSAPP_WEB_IMAGE="${{ env.WHATSAPP_WEB_IMAGE }}:${{ env.IMAGE_TAG }}"
+            GHCR_USERNAME="${{ secrets.GHCR_USERNAME }}"
+            GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
 
             cd "$APP_DIR"
 
-            if [ -f docker-compose.prod.yml ]; then
-              COMPOSE_FILE="docker-compose.prod.yml"
-            else
-              COMPOSE_FILE="docker-compose.yml"
-            fi
-
             compose() {
-              docker compose -f "$COMPOSE_FILE" "$@"
+              LUME_APP_IMAGE="$ACTIVE_APP_IMAGE" \
+              LUME_WHATSAPP_WEB_IMAGE="$ACTIVE_WHATSAPP_WEB_IMAGE" \
+                docker compose -f "$COMPOSE_FILE" "$@"
             }
 
             fail() {
@@ -43,33 +145,29 @@ jobs:
               exit "${2:-1}"
             }
 
-            git_status="$(git status --porcelain)"
-            if [ -n "$git_status" ]; then
-              echo "[deploy] ERRO: worktree da VPS tem alteracoes locais. Deploy cancelado."
-              git status --short
-              exit 10
-            fi
+            current_image_for() {
+              service="$1"
+              container="$(LUME_APP_IMAGE="$ACTIVE_APP_IMAGE" LUME_WHATSAPP_WEB_IMAGE="$ACTIVE_WHATSAPP_WEB_IMAGE" docker compose -f "$COMPOSE_FILE" ps -q "$service" || true)"
+              if [ -n "$container" ]; then
+                docker inspect -f '{{.Config.Image}}' "$container" 2>/dev/null || true
+              fi
+            }
 
-            previous_commit="$(git rev-parse HEAD)"
-            echo "[deploy] Commit anterior: $previous_commit"
-            echo "[deploy] Branch alvo: $DEPLOY_BRANCH"
-            echo "[deploy] Commit esperado: $EXPECTED_COMMIT"
-            echo "[deploy] Compose: $COMPOSE_FILE"
-
-            wait_for_web_health() {
-              echo "[deploy] Aguardando healthcheck do servico web..."
+            wait_for_service_health() {
+              service="$1"
+              echo "[deploy] Aguardando $service..."
               for attempt in $(seq 1 "$HEALTH_RETRIES"); do
-                web_container="$(compose ps -q web || true)"
-                if [ -n "$web_container" ]; then
-                  web_status="$(docker inspect -f '{{.State.Status}}' "$web_container" 2>/dev/null || true)"
-                  web_health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$web_container" 2>/dev/null || true)"
-                  echo "[deploy] web tentativa $attempt/$HEALTH_RETRIES: status=${web_status:-unknown} health=${web_health:-unknown}"
+                container="$(compose ps -q "$service" || true)"
+                if [ -n "$container" ]; then
+                  status="$(docker inspect -f '{{.State.Status}}' "$container" 2>/dev/null || true)"
+                  health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$container" 2>/dev/null || true)"
+                  echo "[deploy] $service tentativa $attempt/$HEALTH_RETRIES: status=${status:-unknown} health=${health:-unknown}"
 
-                  if [ "$web_status" = "running" ] && { [ "$web_health" = "healthy" ] || [ "$web_health" = "no-healthcheck" ]; }; then
+                  if [ "$status" = "running" ] && { [ "$health" = "healthy" ] || [ "$health" = "no-healthcheck" ]; }; then
                     return 0
                   fi
                 else
-                  echo "[deploy] web tentativa $attempt/$HEALTH_RETRIES: container ainda nao existe"
+                  echo "[deploy] $service tentativa $attempt/$HEALTH_RETRIES: container ainda nao existe"
                 fi
                 sleep "$HEALTH_DELAY"
               done
@@ -78,24 +176,13 @@ jobs:
 
             validate_required_services() {
               echo "[deploy] Validando servicos obrigatorios..."
-
-              db_container="$(compose ps -q db || true)"
-              worker_container="$(compose ps -q worker || true)"
-              web_container="$(compose ps -q web || true)"
-
-              [ -n "$db_container" ] || return 1
-              [ -n "$worker_container" ] || return 1
-              [ -n "$web_container" ] || return 1
-
-              db_status="$(docker inspect -f '{{.State.Status}}' "$db_container" 2>/dev/null || true)"
-              worker_status="$(docker inspect -f '{{.State.Status}}' "$worker_container" 2>/dev/null || true)"
-              web_status="$(docker inspect -f '{{.State.Status}}' "$web_container" 2>/dev/null || true)"
-
-              echo "[deploy] db=$db_status worker=$worker_status web=$web_status"
-
-              [ "$db_status" = "running" ] || return 1
-              [ "$worker_status" = "running" ] || return 1
-              [ "$web_status" = "running" ] || return 1
+              for service in db web worker whatsapp-web; do
+                container="$(compose ps -q "$service" || true)"
+                [ -n "$container" ] || return 1
+                status="$(docker inspect -f '{{.State.Status}}' "$container" 2>/dev/null || true)"
+                echo "[deploy] $service=$status"
+                [ "$status" = "running" ] || return 1
+              done
             }
 
             validate_public_health() {
@@ -106,20 +193,32 @@ jobs:
 
               health_url="https://$health_host/healthz/"
               echo "[deploy] Validando health publico: $health_url"
-              curl --retry 6 --retry-delay 2 --retry-all-errors -fsS "$health_url" >/dev/null
+              curl --retry 8 --retry-delay 3 --retry-all-errors -fsS "$health_url" >/dev/null
             }
 
             validate_release() {
               compose ps
-              wait_for_web_health
+              wait_for_service_health db
+              wait_for_service_health web
+              wait_for_service_health whatsapp-web
               validate_required_services
               validate_public_health
             }
 
+            run_migrations() {
+              echo "[deploy] Executando checks, collectstatic e migrations em container efemero..."
+              compose run --rm --no-deps \
+                -e LUME_RUN_MIGRATIONS_ON_START=False \
+                web sh /app/scripts/deploy-migrate.sh
+            }
+
             rollback() {
-              echo "[rollback] Retornando para commit anterior: $previous_commit"
-              git reset --hard "$previous_commit"
-              compose up -d --build --remove-orphans
+              echo "[rollback] Restaurando imagens anteriores..."
+              ACTIVE_APP_IMAGE="$PREVIOUS_APP_IMAGE"
+              ACTIVE_WHATSAPP_WEB_IMAGE="$PREVIOUS_WHATSAPP_WEB_IMAGE"
+              export ACTIVE_APP_IMAGE ACTIVE_WHATSAPP_WEB_IMAGE
+
+              compose up -d --remove-orphans
 
               if validate_release; then
                 echo "[rollback] Rollback validado com sucesso."
@@ -130,21 +229,40 @@ jobs:
               return 1
             }
 
-            echo "[deploy] Atualizando codigo com git pull --ff-only..."
-            git fetch --prune origin "$DEPLOY_BRANCH"
-            git checkout "$DEPLOY_BRANCH"
-            git pull --ff-only origin "$DEPLOY_BRANCH"
+            ACTIVE_APP_IMAGE="${LUME_APP_IMAGE:-${{ env.APP_IMAGE }}:${{ env.PRODUCTION_TAG }}}"
+            ACTIVE_WHATSAPP_WEB_IMAGE="${LUME_WHATSAPP_WEB_IMAGE:-${{ env.WHATSAPP_WEB_IMAGE }}:${{ env.PRODUCTION_TAG }}}"
+            export ACTIVE_APP_IMAGE ACTIVE_WHATSAPP_WEB_IMAGE
 
-            current_commit="$(git rev-parse HEAD)"
-            echo "[deploy] Commit publicado no diretorio da VPS: $current_commit"
-            if [ "$current_commit" != "$EXPECTED_COMMIT" ]; then
-              echo "[deploy] ERRO: commit atualizado ($current_commit) difere do esperado ($EXPECTED_COMMIT)."
-              rollback || fail "Deploy falhou e rollback tambem falhou." 20
-              fail "Deploy cancelado: commit atualizado nao corresponde ao commit do workflow." 21
+            PREVIOUS_APP_IMAGE="$(current_image_for web)"
+            PREVIOUS_WHATSAPP_WEB_IMAGE="$(current_image_for whatsapp-web)"
+
+            if [ -z "$PREVIOUS_APP_IMAGE" ]; then
+              PREVIOUS_APP_IMAGE="$ACTIVE_APP_IMAGE"
+            fi
+            if [ -z "$PREVIOUS_WHATSAPP_WEB_IMAGE" ]; then
+              PREVIOUS_WHATSAPP_WEB_IMAGE="$ACTIVE_WHATSAPP_WEB_IMAGE"
             fi
 
-            echo "[deploy] Recriando containers sem derrubar volumes..."
-            if compose up -d --build --remove-orphans && validate_release; then
+            echo "[deploy] Imagem app anterior: $PREVIOUS_APP_IMAGE"
+            echo "[deploy] Imagem WhatsApp anterior: $PREVIOUS_WHATSAPP_WEB_IMAGE"
+            echo "[deploy] Imagem app alvo: $TARGET_APP_IMAGE"
+            echo "[deploy] Imagem WhatsApp alvo: $TARGET_WHATSAPP_WEB_IMAGE"
+
+            if [ -n "$GHCR_USERNAME" ] && [ -n "$GHCR_TOKEN" ]; then
+              echo "[deploy] Autenticando no GHCR para pull privado..."
+              printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin >/dev/null
+            else
+              echo "[deploy] GHCR_USERNAME/GHCR_TOKEN ausentes; tentando pull anonimo/publico."
+            fi
+
+            ACTIVE_APP_IMAGE="$TARGET_APP_IMAGE"
+            ACTIVE_WHATSAPP_WEB_IMAGE="$TARGET_WHATSAPP_WEB_IMAGE"
+            export ACTIVE_APP_IMAGE ACTIVE_WHATSAPP_WEB_IMAGE
+
+            echo "[deploy] Baixando imagens imutaveis..."
+            compose pull web worker whatsapp-web
+
+            if run_migrations && compose up -d --remove-orphans && validate_release; then
               echo "[deploy] Deploy validado com sucesso."
               exit 0
             fi
@@ -155,3 +273,75 @@ jobs:
             fi
 
             fail "Deploy falhou e rollback nao validou. Intervencao manual necessaria." 31
+
+  promote-production-tags:
+    name: Promover tags production
+    runs-on: ubuntu-latest
+    needs: deploy
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Atualizar tag production apos deploy validado
+        run: |
+          docker buildx imagetools create \
+            -t "${APP_IMAGE}:${PRODUCTION_TAG}" \
+            "${APP_IMAGE}:${IMAGE_TAG}"
+
+          docker buildx imagetools create \
+            -t "${WHATSAPP_WEB_IMAGE}:${PRODUCTION_TAG}" \
+            "${WHATSAPP_WEB_IMAGE}:${IMAGE_TAG}"
+
+  notify-telegram:
+    name: Notificar resultado no Telegram
+    runs-on: ubuntu-latest
+    needs:
+      - test-build-publish
+      - deploy
+      - promote-production-tags
+    if: always()
+
+    steps:
+      - name: Enviar notificacao Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BUILD_RESULT: ${{ needs.test-build-publish.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          PROMOTE_RESULT: ${{ needs.promote-production-tags.result }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -eu
+
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "[telegram] Secrets TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID ausentes. Notificacao ignorada."
+            exit 0
+          fi
+
+          if [ "$DEPLOY_RESULT" = "success" ]; then
+            status="[OK] Deploy Lume concluido"
+          else
+            status="[ERRO] Deploy Lume falhou"
+          fi
+
+          message="$status
+          Build: $BUILD_RESULT
+          Deploy: $DEPLOY_RESULT
+          Production tag: $PROMOTE_RESULT
+          Commit: $COMMIT_SHA
+          Run: $RUN_URL"
+
+          curl -fsS \
+            -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "disable_web_page_preview=true" \
+            --data-urlencode "text=${message}"

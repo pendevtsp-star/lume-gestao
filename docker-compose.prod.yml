@@ -17,7 +17,7 @@ services:
       retries: 10
 
   web:
-    build: .
+    image: ${LUME_APP_IMAGE:-ghcr.io/pendevtsp-star/lume-gestao/app:production}
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
@@ -41,7 +41,7 @@ services:
       retries: 5
 
   worker:
-    build: .
+    image: ${LUME_APP_IMAGE:-ghcr.io/pendevtsp-star/lume-gestao/app:production}
     command: ["sh", "/app/scripts/start-worker.sh"]
     restart: unless-stopped
     env_file:
@@ -58,9 +58,7 @@ services:
         condition: service_healthy
 
   whatsapp-web:
-    build:
-      context: .
-      dockerfile: whatsapp-web-gateway/Dockerfile
+    image: ${LUME_WHATSAPP_WEB_IMAGE:-ghcr.io/pendevtsp-star/lume-gestao/whatsapp-web:production}
     restart: unless-stopped
     env_file:
       - .env

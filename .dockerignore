@@ -20,5 +20,6 @@ apps/lume_app/.dart_tool
 apps/lume_app/build
 apps/lume_app/android/.gradle
 apps/lume_app/.idea
+apps/lume_app
 *.tar.gz
 *.sqlite3

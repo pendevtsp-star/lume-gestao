@@ -1,6 +1,13 @@
 # Lume App
 
-Cliente Flutter para Android e macOS consumindo a API mobile do Django.
+Cliente Flutter para Android e iOS consumindo a API mobile do Django.
+
+## Estado no monorepo
+
+Este aplicativo faz parte da estrategia futura do Lume, mas o desenvolvimento esta pausado temporariamente.
+Ele permanece versionado em `apps/lume_app/` para preservar o codigo-fonte, porem nao participa do build, do deploy da VPS nem dos workflows da aplicacao web em producao.
+
+Quando o mobile for retomado, o ideal e criar um workflow proprio, separado do deploy web, para validar Flutter, gerar APK/AAB e publicar artefatos.
 
 ## Preparar ambiente
 
@@ -58,7 +65,7 @@ build/app/outputs/flutter-apk/app-release.apk
 
 Esse APK pode ser distribuido manualmente, sem Play Store. No Android, habilite a instalacao de apps da origem usada para abrir o arquivo.
 
-O build macOS final precisa ser feito em um Mac.
+O build iOS final precisa ser feito em um Mac.
 
 Para producao, use sempre HTTPS:
 

@@ -375,10 +375,9 @@ class BillingModelTests(TestCase):
 
         with patch("billing.services.timezone.localdate", return_value=date(2026, 7, 13)):
             rows = membership_receivables_between(date(2026, 5, 1), date(2026, 7, 31))
-
-        self.assertEqual([row.reference_month for row in rows], [date(2026, 6, 1), date(2026, 7, 1)])
-        self.assertTrue(all(row.membership == membership for row in rows))
-        self.assertEqual(rows[0].days_overdue, 34)
+            self.assertEqual([row.reference_month for row in rows], [date(2026, 6, 1), date(2026, 7, 1)])
+            self.assertTrue(all(row.membership == membership for row in rows))
+            self.assertEqual(rows[0].days_overdue, 33)
 
     def test_quick_receive_returns_only_the_next_open_cycle_per_membership(self):
         Membership.objects.create(patient=self.patient, plan=self.plan, due_day=10)

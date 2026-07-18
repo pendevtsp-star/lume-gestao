@@ -48,6 +48,7 @@ jobs:
 
       - name: Validate Docker Compose files
         run: |
+          cp .env.example .env
           docker compose -f docker-compose.yml config --quiet
           LUME_APP_IMAGE=ghcr.io/pendevtsp-star/lume-gestao/app:ci \
           LUME_WHATSAPP_WEB_IMAGE=ghcr.io/pendevtsp-star/lume-gestao/whatsapp-web:ci \

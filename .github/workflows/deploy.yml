@@ -106,7 +106,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          key: ${{ secrets.DEPLOY_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           source: docker-compose.prod.yml
           target: /srv/lume-gestao
@@ -117,7 +117,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          key: ${{ secrets.DEPLOY_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
             set -Eeuo pipefail
@@ -129,7 +129,7 @@ jobs:
 
             TARGET_APP_IMAGE="${{ env.APP_IMAGE }}:${{ env.IMAGE_TAG }}"
             TARGET_WHATSAPP_WEB_IMAGE="${{ env.WHATSAPP_WEB_IMAGE }}:${{ env.IMAGE_TAG }}"
-            GHCR_USERNAME="${{ secrets.GHCR_USERNAME }}"
+            GHCR_USERNAME="pendevtsp-star"
             GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
 
             cd "$APP_DIR"

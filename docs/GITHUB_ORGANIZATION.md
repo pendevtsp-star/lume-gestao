@@ -4,28 +4,27 @@ Este repositorio atende um sistema em producao com dados reais. O GitHub deve re
 
 ## Branches
 
-- `main`: linha historica/base do projeto. Nao usar para alteracoes diretas de producao.
-- `deploy/vps-production`: branch de referencia para producao.
+- `main`: linha principal do projeto e origem do deploy de producao.
 - `codex/<tema-curto>`: branches temporarias de trabalho, sempre com escopo pequeno.
 - `chore/<tema-curto>`: ajustes documentais, organizacionais ou operacionais sem mudanca funcional.
 
 ## Regras
 
-- Nao fazer alteracoes diretas na `main`.
-- Toda mudanca funcional deve sair de branch dedicada e passar por PR antes de entrar na branch de deploy.
+- Como ha um unico desenvolvedor no momento, a rotina prioritaria e trabalhar em `main` com commits pequenos e validaveis.
+- Branch dedicada continua recomendada para mudancas grandes, experimentais, arriscadas ou quando houver revisao por PR.
 - Branch temporaria deve ser removida depois que o conteudo estiver incorporado ao deploy ou arquivado em outra branch de referencia.
 - Nao deixar branches antigas abertas apenas como memoria. O historico do Git preserva commits incorporados.
 - Antes de apagar branch remota, confirmar que:
-  - o commit da branch esta contido em `deploy/vps-production`, ou
+  - o commit da branch esta contido em `main`, ou
   - o trabalho foi substituido por outra branch/PR, ou
   - o usuario autorizou arquivar/remover a linha de trabalho.
 
 ## Producao
 
-- A VPS em operacao deve ser comparada com o GitHub antes de qualquer deploy.
-- Se a VPS estiver em commit diferente da branch remota, primeiro classificar:
-  - mesmo conteudo com hash diferente: registrar e alinhar no proximo deploy controlado;
-  - conteudo diferente: preservar o commit em branch remota antes de qualquer mudanca.
+- O deploy de producao parte de `main` pelo GitHub Actions.
+- A VPS em operacao nao deve depender de checkout Git local. Ela consome imagens imutaveis publicadas no GHCR.
+- O diretorio `/srv/lume-gestao` guarda `docker-compose.prod.yml`, `.env` real e dados persistentes da producao.
+- `.env`, `data`, `media`, backups e volumes pertencem exclusivamente a VPS e nunca devem ser versionados.
 - Nunca usar force-push em branch de producao sem plano de rollback e autorizacao explicita.
 
 ## Revisao rapida antes de trabalhar
@@ -33,9 +32,13 @@ Este repositorio atende um sistema em producao com dados reais. O GitHub deve re
 1. `git fetch --all --prune --tags`
 2. `git status --short --branch`
 3. `git branch -r --sort=-committerdate`
-4. Comparar branches ativas com `deploy/vps-production`.
-5. Confirmar healthcheck e commit da VPS quando a tarefa envolver producao.
+4. Comparar branches ativas com `main`.
+5. Confirmar healthcheck, imagens e commit publicado quando a tarefa envolver producao.
 
 ## Limpeza recomendada
 
-Branches ja incorporadas ao deploy devem ser candidatas a remocao remota depois de confirmacao. Branches com trabalho unico devem virar PR ou ser agrupadas em uma branch de estabilizacao.
+Branches ja incorporadas a `main` devem ser candidatas a remocao remota depois de confirmacao. Branches com trabalho unico devem virar PR, ser agrupadas em uma branch de estabilizacao ou ser preservadas explicitamente.
+
+## Aplicativo mobile
+
+`apps/lume_app/` e o cliente Flutter futuro para Android/iOS. O projeto esta pausado temporariamente e deve permanecer versionado, mas fora do deploy web e dos workflows obrigatorios ate ser retomado.

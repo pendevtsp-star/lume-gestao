@@ -1,5 +1,7 @@
 # Deploy VPS Linux
 
+> Estado atual: o deploy de producao e feito por GitHub Actions a partir da branch `main`, publicando imagens imutaveis no GHCR e atualizando a VPS por SSH. A VPS em `/srv/lume-gestao` nao precisa ser um repositorio Git.
+
 Guia de producao do Lume Gestao para VPS Linux com Docker Compose, PostgreSQL em container, Nginx, HTTPS com Certbot/Let's Encrypt e DNS pela Cloudflare.
 
 Este guia considera desenvolvimento em Windows e producao em Ubuntu 24.04 LTS. Nao coloque senhas reais em arquivos versionados. O arquivo real `.env` deve existir apenas na VPS.
@@ -22,6 +24,12 @@ Arquivos relevantes:
 - `scripts/restore-production.sh`
 - `docs/UPDATE_PRODUCTION.md`
 - `docs/SECURITY_PRODUCTION_CHECKLIST.md`
+
+Arquivos e dados que nunca devem ser versionados ou substituidos pelo deploy:
+
+- `.env` real da VPS
+- diretorios `data`, `media`, `backups`
+- volumes Docker de banco, midia e artefatos persistentes
 
 ## 2. Compra/configuracao da VPS
 
@@ -116,23 +124,19 @@ sudo ufw enable
 sudo ufw status
 ```
 
-## 6. Clonagem do projeto
+## 6. Estrutura de producao na VPS
 
-Use um caminho previsivel para combinar com o Nginx:
+Use um caminho previsivel para combinar com o Nginx e o workflow:
 
 ```bash
 sudo mkdir -p /srv
 sudo chown "$USER":"$USER" /srv
 cd /srv
-git clone https://github.com/pendevtsp-star/lume-gestao.git
+mkdir -p /srv/lume-gestao
 cd /srv/lume-gestao
 ```
 
-Se estiver trabalhando na branch de deploy:
-
-```bash
-git checkout deploy/vps-production
-```
+O workflow envia `docker-compose.prod.yml` para este diretorio e usa as variaveis `LUME_APP_IMAGE` e `LUME_WHATSAPP_WEB_IMAGE` para escolher as imagens publicadas no GHCR.
 
 ## 7. Criacao do .env
 
@@ -324,19 +328,15 @@ Nao considere backup confiavel antes de testar restauracao em ambiente separado.
 
 O roteiro detalhado fica em `docs/UPDATE_PRODUCTION.md`.
 
-Antes de atualizar:
+Fluxo automatico atual:
 
-```bash
-sh scripts/backup-production.sh
-```
-
-Atualize:
-
-```bash
-git pull
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml ps
-```
+- GitHub Actions testa Django.
+- GitHub Actions cria imagens `app:<sha>` e `whatsapp-web:<sha>` no GHCR.
+- A VPS executa `docker compose pull`.
+- As migrations rodam de forma controlada em container efemero.
+- O compose sobe com `docker compose up -d --remove-orphans`.
+- O workflow valida healthchecks de `db`, `web`, `worker`, `whatsapp-web` e `/healthz/`.
+- Se falhar, o workflow restaura as imagens anteriores e valida rollback.
 
 Valide:
 
@@ -352,28 +352,13 @@ Dados persistem em:
 
 ## 14. Rollback
 
-Se uma atualizacao falhar:
-
-1. Pare os containers:
+O rollback automatico do workflow troca as tags de imagem de volta para os valores anteriores e executa:
 
 ```bash
-docker compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
 ```
 
-2. Volte para o commit/tag anterior:
-
-```bash
-git log --oneline -5
-git checkout HASH_ANTERIOR
-```
-
-3. Suba novamente:
-
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-4. Se houver corrupcao de dados, restaure backup em ambiente controlado:
+Se houver corrupcao de dados, restaure backup em ambiente controlado:
 
 ```bash
 sh scripts/restore-production.sh backups/lume_db_YYYYMMDD_HHMMSS.sql backups/lume_media_YYYYMMDD_HHMMSS.tar.gz

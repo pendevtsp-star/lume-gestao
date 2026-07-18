@@ -303,6 +303,7 @@ jobs:
   notify-telegram:
     name: Notificar resultado no Telegram
     runs-on: ubuntu-latest
+    continue-on-error: true
     needs:
       - test-build-publish
       - deploy
@@ -311,6 +312,7 @@ jobs:
 
     steps:
       - name: Enviar notificacao Telegram
+        continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -344,4 +346,5 @@ jobs:
             -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
             -d "disable_web_page_preview=true" \
-            --data-urlencode "text=${message}"
+            --data-urlencode "text=${message}" \
+            || echo "::warning::Falha ao enviar notificacao Telegram. Deploy nao sera bloqueado."

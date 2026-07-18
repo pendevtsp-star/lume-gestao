@@ -1,5 +1,7 @@
 # Lume App
 
+**Status: projeto pausado temporariamente.**
+
 Cliente Flutter para Android e iOS consumindo a API mobile do Django.
 
 ## Estado no monorepo

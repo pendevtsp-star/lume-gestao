@@ -4,8 +4,9 @@ Este projeto esta em producao com dados reais da clinica em `sistema.clinicafisi
 
 ## Regras obrigatorias
 
-- Nao faca alteracoes diretas na `main`.
-- Toda mudanca deve ser feita em branch dedicada e enviada por Pull Request.
+- `main` e a linha principal de trabalho e producao.
+- Como ha um unico desenvolvedor no momento, commits diretos em `main` sao permitidos quando o usuario autorizar explicitamente commit/push/deploy.
+- Use branch dedicada apenas para mudancas longas, experimentais, arriscadas ou quando o usuario pedir PR.
 - Antes de qualquer deploy em producao, faca backup validado do banco de dados e dos arquivos de midia.
 - Nunca execute `docker compose down -v` em producao.
 - Trate migrations com cuidado especial. Avalie risco de perda de dados, locks, reversibilidade e impacto em dados reais antes de aplicar.
@@ -39,4 +40,4 @@ Mudancas nas areas abaixo exigem revisao cuidadosa de seguranca, dados e comport
 - Evitar alteracoes oportunistas fora do pedido.
 - Nao executar deploy, comandos destrutivos ou scripts de migracao em producao sem autorizacao explicita.
 - Preservar dados reais como prioridade maxima.
-- Antes de limpar branches ou reorganizar GitHub, comparar `deploy/vps-production`, branches `codex/*` e o commit real da VPS; nao usar force-push em producao sem autorizacao explicita.
+- Antes de limpar branches ou reorganizar GitHub, comparar branches `codex/*`, commits remotos e o commit real da VPS; nao usar force-push em producao sem autorizacao explicita.

@@ -1,0 +1,65 @@
+name: Quality - Coverage
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  django-coverage:
+    name: Django test coverage
+    runs-on: ubuntu-latest
+
+    env:
+      SECRET_KEY: ci-secret-key-2026-long-random-value-for-security-checks-9f84a21b
+      DEBUG: "False"
+      ENVIRONMENT: production
+      LUME_STRICT_PRODUCTION: "False"
+      ALLOWED_HOSTS: 127.0.0.1,localhost,testserver
+      CSRF_TRUSTED_ORIGINS: http://127.0.0.1:8000,http://localhost:8000
+      DB_ENGINE: sqlite
+      SECURE_SSL_REDIRECT: "False"
+      GOOGLE_CALENDAR_SYNC_ENABLED: "True"
+      WHATSAPP_DRY_RUN: "True"
+      COVERAGE_FAIL_UNDER: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install coverage
+
+      - name: Run tests with coverage
+        run: |
+          coverage run \
+            --source=accounts,billing,checkout,core,fiscal,homecare,lume_connect,mobile,patients,reports,scheduling,team,website \
+            manage.py test
+          coverage report --fail-under="$COVERAGE_FAIL_UNDER"
+          coverage xml -o coverage.xml
+          coverage json -o coverage.json
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: django-coverage
+          path: |
+            coverage.xml
+            coverage.json
+          if-no-files-found: warn

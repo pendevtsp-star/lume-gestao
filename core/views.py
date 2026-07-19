@@ -45,18 +45,12 @@ from core.integrations.google_calendar import (
 )
 from core.integrations.http import IntegrationError
 from core.integrations.whatsapp import (
-    connect_whatsapp_embedded_signup,
     format_whatsapp_currency,
-    meta_template_parameters,
     process_scheduled_whatsapp_messages,
     provider_reference_from_response,
     render_whatsapp_template,
-    send_whatsapp_template,
     send_whatsapp_text,
-    subscribe_whatsapp_business_account,
     whatsapp_connection_guidance,
-    whatsapp_embedded_signup_credentials,
-    whatsapp_embedded_signup_configured,
     whatsapp_web_gateway_qr,
     whatsapp_web_gateway_status,
     whatsapp_runtime_state,
@@ -657,9 +651,6 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             whatsapp_integration.provider = WhatsAppIntegration.Provider.WEB_GATEWAY
             whatsapp_integration.save(update_fields=["provider", "updated_at"])
         google_client_id, google_client_secret = google_oauth_credentials(google_integration)
-        whatsapp_app_id, whatsapp_config_id, whatsapp_app_secret = whatsapp_embedded_signup_credentials(
-            whatsapp_integration
-        )
         templates = self.get_whatsapp_templates()
         WhatsAppAutomationRule.ensure_defaults()
         template_forms = template_forms or self.default_template_forms(templates)
@@ -765,35 +756,29 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
         if google_integration.has_calendar_feed:
             path = reverse("integrations_google_ics_feed", args=[google_integration.calendar_feed_token])
             google_ics_url = f"{settings.PUBLIC_BASE_URL.rstrip('/')}{path}" if settings.PUBLIC_BASE_URL else self.request.build_absolute_uri(path)
-        whatsapp_templates_ready = all(
-            template.meta_template_name
-            for template in templates.values()
-            if template.active and template.template_type != WhatsAppMessageTemplate.TemplateType.CUSTOM
-        )
         whatsapp_guidance = whatsapp_connection_guidance(whatsapp_integration, templates.values())
         whatsapp_status = whatsapp_guidance["state"]
-        whatsapp_web_gateway = whatsapp_web_gateway_status() if whatsapp_status["web_gateway_mode"] else {}
+        whatsapp_web_gateway = whatsapp_web_gateway_status()
         whatsapp_template_readiness = [
             {
                 "template": template,
-                "ready": bool(template.meta_template_name),
-                "status": "Pronto" if template.meta_template_name else "Nome Meta pendente",
+                "ready": bool(template.active),
+                "status": "Ativo" if template.active else "Pausado",
             }
             for template in templates.values()
             if template.active
         ]
         diagnostics = [
-            ("WhatsApp configurado", "Sim" if whatsapp_embedded_signup_configured(whatsapp_integration) else "Nao"),
+            ("Canal WhatsApp", "WhatsApp Web"),
             ("Status WhatsApp", whatsapp_status["label"]),
-            ("Phone Number ID", "Sim" if whatsapp_status["phone_number_id_configured"] else "Nao"),
-            ("Token Meta", "Sim" if whatsapp_status["access_token_configured"] else "Nao"),
             ("Modo teste WhatsApp", "Sim" if whatsapp_status["dry_run"] else "Nao"),
-            ("Gateway WhatsApp Web", "Sim" if whatsapp_status["web_gateway_mode"] else "Nao"),
+            ("Numero da clinica", whatsapp_integration.clinic_whatsapp_number or "Nao informado"),
+            ("Gateway WhatsApp Web", "Sim" if settings.WHATSAPP_WEB_GATEWAY_URL else "Nao"),
             (
                 "Sessao WhatsApp Web",
-                "Conectada" if whatsapp_web_gateway.get("ready") else "Aguardando QR" if whatsapp_status["web_gateway_mode"] else "-",
+                "Conectada" if whatsapp_web_gateway.get("ready") else "Aguardando QR",
             ),
-            ("Templates Meta", "Sim" if whatsapp_templates_ready else "Pendente"),
+            ("Modelos ativos", str(whatsapp_status["active_templates_total"])),
             ("Google OAuth configurado", "Sim" if google_calendar_configured() else "Nao"),
             ("Google conectado", "Sim" if google_integration.is_connected else "Nao"),
             ("Link .ics ativo", "Sim" if google_integration.has_calendar_feed else "Nao"),
@@ -823,18 +808,11 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 and not google_integration.oauth_client_id
                 and not google_integration.oauth_client_secret
             ),
-            "whatsapp_embedded_configured": whatsapp_embedded_signup_configured(whatsapp_integration),
+            "whatsapp_embedded_configured": False,
             "whatsapp_embedded_enabled": False,
-            "whatsapp_embedded_app_id": whatsapp_app_id,
-            "whatsapp_embedded_config_id": whatsapp_config_id,
-            "whatsapp_uses_env_credentials": bool(
-                whatsapp_app_id
-                and whatsapp_config_id
-                and whatsapp_app_secret
-                and not whatsapp_integration.embedded_app_id
-                and not whatsapp_integration.embedded_config_id
-                and not whatsapp_integration.embedded_app_secret
-            ),
+            "whatsapp_embedded_app_id": "",
+            "whatsapp_embedded_config_id": "",
+            "whatsapp_uses_env_credentials": False,
             "whatsapp_templates": templates,
             "custom_whatsapp_templates": WhatsAppMessageTemplate.objects.filter(
                 template_type=WhatsAppMessageTemplate.TemplateType.CUSTOM
@@ -1004,17 +982,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             return redirect(f"{reverse('integrations')}?tab=messages&message={template_type}")
 
         try:
-            if integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY:
-                result = send_whatsapp_text(target_number, rendered_message, integration=integration)
-            elif integration.dry_run or settings.WHATSAPP_DRY_RUN:
-                result = send_whatsapp_text(target_number, rendered_message, integration=integration)
-            else:
-                result = send_whatsapp_template(
-                    target_number,
-                    template,
-                    meta_template_parameters(template, message_context),
-                    integration=integration,
-                )
+            result = send_whatsapp_text(target_number, rendered_message, integration=integration)
         except IntegrationError as exc:
             self.create_whatsapp_log(
                 integration=integration,
@@ -1165,7 +1133,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
                 integration.connected_at = timezone.now()
             integration.last_error = ""
             integration.save(update_fields=["provider", "enabled", "connected_at", "last_error", "updated_at"])
-            messages.success(request, "WhatsApp Web temporario selecionado. Escaneie o QR nesta tela para parear a sessao.")
+            messages.success(request, "WhatsApp Web selecionado. Escaneie o QR nesta tela para parear a sessao.")
             return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "disconnect_whatsapp":
             integration = WhatsAppIntegration.load()
@@ -1177,32 +1145,7 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             messages.success(request, "WhatsApp desconectado com sucesso.")
             return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "finish_whatsapp_embedded":
-            integration = WhatsAppIntegration.load()
-            code = request.POST.get("embedded_code", "")
-            browser_access_token = request.POST.get("embedded_access_token", "")
-            phone_number_id = request.POST.get("embedded_phone_number_id", "").strip()
-            business_account_id = request.POST.get("embedded_business_account_id", "").strip()
-            clinic_number = request.POST.get("embedded_clinic_number", "").strip()
-            if phone_number_id:
-                integration.phone_number_id = phone_number_id
-            if business_account_id:
-                integration.business_account_id = business_account_id
-            if clinic_number:
-                integration.clinic_whatsapp_number = clinic_number
-            try:
-                connect_whatsapp_embedded_signup(code=code, browser_access_token=browser_access_token, integration=integration)
-                if integration.business_account_id:
-                    subscribe_whatsapp_business_account(integration)
-            except IntegrationError as exc:
-                integration.last_error = str(exc)
-                integration.save(update_fields=["phone_number_id", "business_account_id", "clinic_whatsapp_number", "last_error", "updated_at"])
-                messages.error(request, str(exc))
-            else:
-                integration.save(update_fields=["phone_number_id", "business_account_id", "clinic_whatsapp_number", "updated_at"])
-                messages.success(
-                    request,
-                    "WhatsApp autorizado pela Meta. Agora valide o status da conexao e faca um teste controlado antes de liberar automacoes.",
-                )
+            messages.info(request, "A conexao oficial da Meta esta desativada nesta versao. Use o QR do WhatsApp Web.")
             return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "test_whatsapp":
             number = request.POST.get("test_number", "")
@@ -1305,18 +1248,7 @@ class BirthdayWhatsAppSendView(FinanceAccessMixin, View):
             return redirect("dashboard")
 
         try:
-            message_context = build_whatsapp_message_context(patient=patient)
-            if integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY:
-                result = send_whatsapp_text(target_number, rendered_message, integration=integration)
-            elif integration.dry_run or settings.WHATSAPP_DRY_RUN:
-                result = send_whatsapp_text(target_number, rendered_message, integration=integration)
-            else:
-                result = send_whatsapp_template(
-                    target_number,
-                    template,
-                    meta_template_parameters(template, message_context),
-                    integration=integration,
-                )
+            result = send_whatsapp_text(target_number, rendered_message, integration=integration)
         except IntegrationError as exc:
             WhatsAppMessageLog.objects.create(
                 integration=integration,

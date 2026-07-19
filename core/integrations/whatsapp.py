@@ -36,79 +36,31 @@ def whatsapp_runtime_state(integration=None, templates=None):
     integration = integration or WhatsAppIntegration.load()
     templates = list(templates if templates is not None else WhatsAppMessageTemplate.ensure_defaults())
     dry_run = bool(integration.dry_run or settings.WHATSAPP_DRY_RUN)
-    embedded_configured = whatsapp_embedded_signup_configured(integration)
-    phone_number_id_configured = bool(
-        first_configured_value(integration.phone_number_id, settings.WHATSAPP_META_PHONE_NUMBER_ID)
-    )
-    access_token_configured = bool(first_configured_value(integration.access_token, settings.WHATSAPP_META_ACCESS_TOKEN))
     active_templates = [template for template in templates if template.active]
-    templates_ready = all(template.meta_template_name for template in active_templates)
-    web_gateway_mode = integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY
+    templates_ready = bool(active_templates)
+    web_gateway_mode = True
 
     blockers = []
-    if web_gateway_mode:
-        if not integration.enabled:
-            blockers.append("not_connected")
-        if not integration.clinic_whatsapp_number:
-            blockers.append("clinic_number")
-        if not settings.WHATSAPP_WEB_GATEWAY_URL:
-            blockers.append("web_gateway_url")
-    elif not embedded_configured:
-        blockers.append("embedded_signup")
-    if not web_gateway_mode and not integration.enabled:
+    if integration.provider != WhatsAppIntegration.Provider.WEB_GATEWAY:
+        integration.provider = WhatsAppIntegration.Provider.WEB_GATEWAY
+        integration.save(update_fields=["provider", "updated_at"])
+    if not integration.enabled:
         blockers.append("not_connected")
-    if not web_gateway_mode and not phone_number_id_configured:
-        blockers.append("phone_number_id")
-    if not web_gateway_mode and not dry_run and not access_token_configured:
-        blockers.append("access_token")
-    if not web_gateway_mode and not dry_run and not templates_ready:
-        blockers.append("meta_templates")
+    if not integration.clinic_whatsapp_number:
+        blockers.append("clinic_number")
+    if not settings.WHATSAPP_WEB_GATEWAY_URL:
+        blockers.append("web_gateway_url")
 
-    if web_gateway_mode and integration.enabled and integration.clinic_whatsapp_number and settings.WHATSAPP_WEB_GATEWAY_URL:
+    if integration.enabled and integration.clinic_whatsapp_number and settings.WHATSAPP_WEB_GATEWAY_URL:
         code = "web_gateway_ready"
-        label = "WhatsApp Web temporario ativo"
+        label = "WhatsApp Web ativo"
         detail = "O Lume envia mensagens automaticamente por uma sessao WhatsApp Web pareada por QR."
-        next_step = "Abrir o QR do gateway, parear o celular uma vez e fazer um teste controlado."
-    elif web_gateway_mode:
-        code = "web_gateway_setup"
-        label = "WhatsApp Web temporario pendente"
-        detail = "Informe o numero oficial da clinica e mantenha a integracao ativa para usar o gateway."
-        next_step = "Selecionar WhatsApp Web temporario, informar o numero da clinica e salvar a configuracao."
-    elif not embedded_configured:
-        code = "config_missing"
-        label = "Configuracao tecnica pendente"
-        detail = "Configure App ID, Configuration ID e App Secret para liberar a conexao pela Meta."
-        next_step = "Preencher credenciais do Embedded Signup no .env ou na configuracao tecnica."
-    elif not integration.enabled:
-        code = "awaiting_meta"
-        label = "Aguardando conexao Meta"
-        detail = "A tela de conexao esta pronta, mas a Meta ainda nao devolveu os dados finais da conta oficial."
-        next_step = "Abrir a Meta e concluir a conexao, priorizando o numero ja existente da clinica quando ele ja estiver em uso."
-    elif not phone_number_id_configured:
-        code = "missing_phone_number"
-        label = "Numero nao vinculado"
-        detail = "A conexao foi iniciada, mas a Meta ainda nao devolveu o identificador final do numero."
-        next_step = "Reconectar pela Meta e, se o numero ja existir em outra conta, concluir pelo caminho de numero existente em vez de cadastrar um novo."
-    elif dry_run:
-        code = "connected_test"
-        label = "Conectado em modo teste"
-        detail = "O sistema pode simular envios sem disparar mensagens reais para pacientes."
-        next_step = "Fazer teste controlado e manter WHATSAPP_DRY_RUN=True ate validar templates e numero."
-    elif not access_token_configured:
-        code = "missing_token"
-        label = "Token Meta ausente"
-        detail = "O envio real esta ligado, mas nao ha token disponivel para chamar a Cloud API."
-        next_step = "Reconectar pela Meta ou configurar token valido antes de testar em producao."
-    elif not templates_ready:
-        code = "templates_pending"
-        label = "Templates Meta pendentes"
-        detail = "Ha modelos ativos sem nome de template aprovado na Meta."
-        next_step = "Cadastrar os nomes aprovados na aba Mensagens antes de automacoes reais."
+        next_step = "Mantenha a sessao pareada e acompanhe a fila de mensagens."
     else:
-        code = "ready_live"
-        label = "Pronto para envio real"
-        detail = "Numero, token e templates ativos estao configurados."
-        next_step = "Executar um teste real controlado antes de liberar automacoes."
+        code = "web_gateway_setup"
+        label = "WhatsApp Web pendente"
+        detail = "Informe o numero oficial da clinica e mantenha a integracao ativa para usar o gateway."
+        next_step = "Informe o numero, salve a configuracao e escaneie o QR do WhatsApp Web."
 
     return {
         "code": code,
@@ -116,9 +68,9 @@ def whatsapp_runtime_state(integration=None, templates=None):
         "detail": detail,
         "next_step": next_step,
         "dry_run": dry_run,
-        "embedded_configured": embedded_configured,
-        "phone_number_id_configured": phone_number_id_configured,
-        "access_token_configured": access_token_configured,
+        "embedded_configured": False,
+        "phone_number_id_configured": False,
+        "access_token_configured": False,
         "templates_ready": templates_ready,
         "active_templates_total": len(active_templates),
         "web_gateway_mode": web_gateway_mode,
@@ -133,28 +85,16 @@ def whatsapp_connection_guidance(integration=None, templates=None):
     normalized_error = raw_error.lower()
 
     tips = [
-        "Para entrega provisoria com disparo automatico, use WhatsApp Web temporario e mantenha a sessao pareada no servidor.",
-        "Se a clinica ja usa esse WhatsApp no app Business, prefira conectar o numero existente em vez de cadastrar um novo.",
-        "Use a mesma empresa/portfolio da Meta que ja e dona do numero para evitar bloqueios de propriedade.",
-        "Depois que a Meta concluir a autorizacao, volte para esta tela e faca um teste controlado antes de liberar automacoes.",
+        "Mantenha a sessao do WhatsApp Web pareada no servidor para a fila automatica funcionar.",
+        "Use o numero oficial da clinica salvo nesta tela.",
+        "Se a sessao cair, escaneie o QR novamente antes de liberar novas automacoes.",
     ]
 
     error_title = ""
     error_detail = ""
-    if "133010" in normalized_error or "account not registered" in normalized_error:
-        error_title = "A Meta ainda nao liberou esse numero para envio real."
-        error_detail = (
-            "Isso costuma acontecer quando o numero foi conectado, mas ainda nao ficou registrado na conta certa da Cloud API, "
-            "ou quando o fluxo foi concluido como novo numero em vez de numero ja existente."
-        )
-    elif "ja esta registrado" in normalized_error or "já está registrado" in normalized_error:
-        error_title = "Esse numero ja existe em outra conta da Meta."
-        error_detail = (
-            "Para seguir sem conflito, conclua a conexao usando o portfolio que ja possui o numero ou escolha o caminho de numero existente/migracao."
-        )
-    elif raw_error:
-        error_title = "A Meta devolveu um erro na etapa final da conexao."
-        error_detail = "Abra o diagnostico tecnico apenas se precisar conferir os detalhes para suporte."
+    if raw_error:
+        error_title = "O WhatsApp Web devolveu um erro."
+        error_detail = "Confira se a sessao esta pareada e se o gateway esta em execucao antes de tentar novo envio."
 
     return {
         "state": state,
@@ -271,6 +211,9 @@ def whatsapp_web_gateway_qr():
 def send_whatsapp_text(to_number, message, integration=None):
     integration = integration or WhatsAppIntegration.load()
     target = normalize_whatsapp_number(to_number, integration.default_country_code)
+    if integration.provider != WhatsAppIntegration.Provider.WEB_GATEWAY:
+        integration.provider = WhatsAppIntegration.Provider.WEB_GATEWAY
+        integration.save(update_fields=["provider", "updated_at"])
     if not integration.enabled:
         raise IntegrationError("Integracao WhatsApp esta desativada.")
     if integration.dry_run or settings.WHATSAPP_DRY_RUN:
@@ -437,25 +380,7 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
         integration = log.integration or WhatsAppIntegration.load()
         log.attempt_count += 1
         try:
-            if integration.provider == WhatsAppIntegration.Provider.WEB_GATEWAY:
-                result = send_whatsapp_text(log.recipient_number, log.rendered_message, integration=integration)
-            elif integration.dry_run or settings.WHATSAPP_DRY_RUN or not log.template:
-                result = send_whatsapp_text(log.recipient_number, log.rendered_message, integration=integration)
-            else:
-                from core.services.whatsapp_automation import build_whatsapp_message_context
-
-                context = build_whatsapp_message_context(
-                    patient=log.patient,
-                    appointment=log.appointment,
-                    payment=log.payment,
-                    charge=log.charge,
-                )
-                result = send_whatsapp_template(
-                    log.recipient_number,
-                    log.template,
-                    meta_template_parameters(log.template, context),
-                    integration=integration,
-                )
+            result = send_whatsapp_text(log.recipient_number, log.rendered_message, integration=integration)
         except IntegrationError as exc:
             error_message = str(exc)
             can_retry = transient_whatsapp_delivery_error(error_message) and log.attempt_count < MAX_DELIVERY_ATTEMPTS

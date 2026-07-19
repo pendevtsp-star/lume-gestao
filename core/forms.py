@@ -106,16 +106,6 @@ class WhatsAppIntegrationForm(StyledModelForm):
 
 
 class WhatsAppMessageTemplateForm(StyledModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["meta_template_name"].required = False
-        self.fields["meta_template_language"].required = False
-        self.fields["meta_template_name"].help_text = "Obrigatorio apenas para envio real fora do modo teste."
-        self.fields["meta_template_language"].help_text = "Use o idioma cadastrado no template da Meta. Padrao: pt_BR."
-
-    def clean_meta_template_language(self):
-        return self.cleaned_data.get("meta_template_language") or "pt_BR"
-
     class Meta:
         model = WhatsAppMessageTemplate
         fields = [
@@ -123,8 +113,6 @@ class WhatsAppMessageTemplateForm(StyledModelForm):
             "title",
             "description",
             "body",
-            "meta_template_name",
-            "meta_template_language",
             "send_time",
         ]
         widgets = {

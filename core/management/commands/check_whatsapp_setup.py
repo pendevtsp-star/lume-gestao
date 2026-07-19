@@ -1,20 +1,17 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from core.integrations.credentials import configured_value
 from core.integrations.http import IntegrationError
 from core.integrations.whatsapp import (
     send_whatsapp_text,
-    whatsapp_embedded_signup_configured,
-    whatsapp_embedded_signup_credentials,
-    whatsapp_web_gateway_status,
     whatsapp_runtime_state,
+    whatsapp_web_gateway_status,
 )
 from core.models import WhatsAppIntegration, WhatsAppMessageTemplate
 
 
 class Command(BaseCommand):
-    help = "Valida a configuracao do WhatsApp sem expor tokens."
+    help = "Valida a configuracao do WhatsApp Web sem expor tokens."
 
     def add_arguments(self, parser):
         parser.add_argument("--to", help="Opcional: envia ou simula mensagem para este numero.")
@@ -29,50 +26,35 @@ class Command(BaseCommand):
         integration = WhatsAppIntegration.load()
         templates = WhatsAppMessageTemplate.ensure_defaults()
         state = whatsapp_runtime_state(integration, templates)
-        app_id, config_id, app_secret = whatsapp_embedded_signup_credentials(integration)
-        meta_token_configured = bool(configured_value(integration.access_token) or configured_value(settings.WHATSAPP_META_ACCESS_TOKEN))
-        phone_number_id_configured = bool(
-            configured_value(integration.phone_number_id) or configured_value(settings.WHATSAPP_META_PHONE_NUMBER_ID)
-        )
+        gateway = whatsapp_web_gateway_status()
 
-        self.stdout.write(f"[whatsapp] Provedor: {integration.get_provider_display()}")
+        self.stdout.write("[whatsapp] Provedor: WhatsApp Web")
         self.stdout.write(f"[whatsapp] Integracao ativa: {'sim' if integration.enabled else 'nao'}")
-        self.stdout.write(f"[whatsapp] Modo teste: {'sim' if integration.dry_run or settings.WHATSAPP_DRY_RUN else 'nao'}")
+        self.stdout.write(f"[whatsapp] Modo teste: {'sim' if state['dry_run'] else 'nao'}")
         self.stdout.write(f"[whatsapp] Numero da clinica: {integration.clinic_whatsapp_number or '-'}")
-        self.stdout.write(f"[whatsapp] Phone Number ID configurado: {'sim' if phone_number_id_configured else 'nao'}")
-        self.stdout.write(f"[whatsapp] Token Meta configurado: {'sim' if meta_token_configured else 'nao'}")
+        self.stdout.write(f"[whatsapp] Gateway Web configurado: {'sim' if settings.WHATSAPP_WEB_GATEWAY_URL else 'nao'}")
+        self.stdout.write(f"[whatsapp] Sessao Web conectada: {'sim' if gateway.get('ready') else 'nao'}")
+        self.stdout.write(f"[whatsapp] Modelos ativos: {state['active_templates_total']}")
         self.stdout.write(f"[whatsapp] Status operacional: {state['label']}")
         self.stdout.write(f"[whatsapp] Proximo passo: {state['next_step']}")
-        self.stdout.write(f"[whatsapp] Templates ativos prontos: {'sim' if state['templates_ready'] else 'nao'}")
-        self.stdout.write(f"[whatsapp] Embedded Signup: {'sim' if whatsapp_embedded_signup_configured(integration) else 'nao'}")
-        self.stdout.write(f"[whatsapp] App ID: {'sim' if app_id else 'nao'}")
-        self.stdout.write(f"[whatsapp] Configuration ID: {'sim' if config_id else 'nao'}")
-        self.stdout.write(f"[whatsapp] App Secret: {'sim' if app_secret else 'nao'}")
-        if state["web_gateway_mode"]:
-            gateway = whatsapp_web_gateway_status()
-            self.stdout.write(f"[whatsapp] Gateway Web configurado: {'sim' if settings.WHATSAPP_WEB_GATEWAY_URL else 'nao'}")
-            self.stdout.write(f"[whatsapp] Sessao Web conectada: {'sim' if gateway.get('ready') else 'nao'}")
-
-        if not whatsapp_embedded_signup_configured(integration):
-            self.stdout.write("[whatsapp] Configure Embedded Signup para permitir conexao por botao na tela.")
 
         if not integration.is_connected:
-            self.stdout.write("[whatsapp] Ainda nao conectado para envio real. A tela pode conectar pela Meta ou salvar dados tecnicos.")
+            self.stdout.write("[whatsapp] Ainda nao conectado. Ative a integracao, salve o numero e escaneie o QR.")
         else:
-            self.stdout.write(self.style.SUCCESS("[whatsapp] Status conectado para o modo configurado."))
+            self.stdout.write(self.style.SUCCESS("[whatsapp] Status conectado para WhatsApp Web."))
 
         recipient = (options.get("to") or "").strip()
         if not recipient:
             return
         if not state["dry_run"] and not options["allow_live"]:
             raise CommandError(
-                "Envio real bloqueado pelo comando. Use --allow-live apenas depois de validar numero e templates."
+                "Envio real bloqueado pelo comando. Use --allow-live apenas depois de validar numero e sessao Web."
             )
 
         try:
             result = send_whatsapp_text(recipient, options["message"], integration=integration)
         except IntegrationError as exc:
-            raise CommandError(f"Falha no teste de WhatsApp: {exc}") from exc
+            raise CommandError(f"Falha no teste de WhatsApp Web: {exc}") from exc
 
         if result.get("dry_run"):
             mode = "simulada"

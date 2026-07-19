@@ -164,10 +164,10 @@ class GoogleCalendarIntegration(TimeStampedModel):
 class WhatsAppIntegration(TimeStampedModel):
     class Provider(models.TextChoices):
         META = "meta", "Meta Cloud API"
-        WEB_GATEWAY = "web_gateway", "WhatsApp Web temporario"
+        WEB_GATEWAY = "web_gateway", "WhatsApp Web"
         TWILIO = "twilio", "Twilio"
 
-    provider = models.CharField("provedor", max_length=20, choices=Provider.choices, default=Provider.META)
+    provider = models.CharField("provedor", max_length=20, choices=Provider.choices, default=Provider.WEB_GATEWAY)
     enabled = models.BooleanField("ativa", default=False)
     dry_run = models.BooleanField("modo teste", default=True)
     default_country_code = models.CharField("codigo do pais", max_length=4, default="55")
@@ -194,17 +194,14 @@ class WhatsAppIntegration(TimeStampedModel):
     def is_connected(self):
         if not self.enabled:
             return False
-        if self.provider == self.Provider.WEB_GATEWAY:
-            return bool(self.clinic_whatsapp_number)
-        if self.provider != self.Provider.META:
-            return False
-        phone_number_id = configured_value(self.phone_number_id) or configured_value(settings.WHATSAPP_META_PHONE_NUMBER_ID)
-        access_token = configured_value(self.access_token) or configured_value(settings.WHATSAPP_META_ACCESS_TOKEN)
-        return bool(phone_number_id and (self.dry_run or access_token))
+        return bool(self.clinic_whatsapp_number)
 
     @classmethod
     def load(cls):
-        integration, _ = cls.objects.get_or_create(pk=1)
+        integration, _ = cls.objects.get_or_create(pk=1, defaults={"provider": cls.Provider.WEB_GATEWAY})
+        if integration.provider != cls.Provider.WEB_GATEWAY:
+            integration.provider = cls.Provider.WEB_GATEWAY
+            integration.save(update_fields=["provider", "updated_at"])
         return integration
 
 
@@ -495,6 +492,13 @@ class WhatsAppMessageLog(TimeStampedModel):
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["automation_key"],
+                condition=~models.Q(automation_key="") & ~models.Q(status="canceled"),
+                name="unique_active_whatsapp_automation_key",
+            )
+        ]
         verbose_name = "historico de WhatsApp"
         verbose_name_plural = "historico de WhatsApp"
 

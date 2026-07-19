@@ -457,7 +457,7 @@
               <h3>{{ whatsapp_status.label }}</h3>
               <p>Conecte o WhatsApp Business da clinica pelo QR para liberar os disparos automáticos desta instalação.</p>
             </div>
-            <span class="status-pill {% if whatsapp_status.code == 'ready_live' or whatsapp_status.code == 'connected_test' or whatsapp_status.code == 'web_gateway_ready' %}is-success{% elif whatsapp_embedded_configured or whatsapp_status.code == 'web_gateway_setup' %}is-warning{% else %}is-muted{% endif %}">
+            <span class="status-pill {% if whatsapp_status.code == 'web_gateway_ready' %}is-success{% elif whatsapp_status.code == 'web_gateway_setup' %}is-warning{% else %}is-muted{% endif %}">
               {{ whatsapp_status.label }}
             </span>
           </div>
@@ -566,7 +566,7 @@
           <details class="template-advanced connection-advanced slim-advanced" open>
             <summary>Configuracao do WhatsApp</summary>
             <div class="setup-note">
-              Informe o número do WhatsApp Business que será pareado pelo QR. Este modo não usa a conexão oficial para os envios.
+              Informe o número do WhatsApp Business que será pareado pelo QR. Os envios automáticos usam somente esta sessão.
             </div>
             <form method="post" class="integration-body compact-integration-body">
               {% csrf_token %}
@@ -647,7 +647,7 @@
               <div>
                 <p class="eyebrow">Teste rapido</p>
                 <h3>Enviar mensagem de teste</h3>
-                <p>Valide se o numero e a API estao respondendo antes de usar com pacientes.</p>
+                <p>Valide se o numero e a sessão do WhatsApp Web estao respondendo antes de usar com pacientes.</p>
               </div>
             </div>
             <form method="post" class="integration-body compact-integration-body">
@@ -869,7 +869,7 @@
           <div class="panel-header">
             <div>
               <h3>Checklist para producao</h3>
-              <p>{% if whatsapp_status.web_gateway_mode %}No modo WhatsApp Web temporario, o Lume envia o texto renderizado e nao depende dos nomes aprovados na Meta.{% else %}Antes de desligar o modo teste, todos os modelos ativos precisam apontar para um template aprovado na Meta.{% endif %}</p>
+              <p>O Lume envia o texto renderizado pelo WhatsApp Web. As automacoes usam os modelos ativos abaixo e a protecao anti-duplicidade da fila.</p>
             </div>
           </div>
           <div class="diagnostic-grid">
@@ -903,7 +903,7 @@
     {% endif %}
   </article>
 </section>
-{% if active_tab == "connections" and whatsapp_embedded_enabled %}
+{% if False %}
   <script async defer crossorigin="anonymous" src="https://connect.facebook.net/pt_BR/sdk.js"></script>
   <script>
     var whatsappSignupState = {

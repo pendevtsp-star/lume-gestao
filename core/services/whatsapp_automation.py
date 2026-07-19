@@ -1,5 +1,6 @@
 from datetime import datetime, time, timedelta
 
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -132,20 +133,31 @@ def _create_scheduled_log(
             charge=charge,
         ),
     )
-    return WhatsAppMessageLog.objects.create(
-        integration=integration,
-        template=template,
-        patient=patient,
-        appointment=appointment,
-        payment=payment,
-        charge=charge,
-        recipient_name=patient.full_name,
-        recipient_number=patient.phone,
-        rendered_message=rendered_message,
-        status=WhatsAppMessageLog.Status.SCHEDULED,
-        scheduled_for=scheduled_for,
-        automation_key=automation_key,
-    )
+    try:
+        with transaction.atomic():
+            return WhatsAppMessageLog.objects.create(
+                integration=integration,
+                template=template,
+                patient=patient,
+                appointment=appointment,
+                payment=payment,
+                charge=charge,
+                recipient_name=patient.full_name,
+                recipient_number=patient.phone,
+                rendered_message=rendered_message,
+                status=WhatsAppMessageLog.Status.SCHEDULED,
+                scheduled_for=scheduled_for,
+                automation_key=automation_key,
+            )
+    except IntegrityError:
+        if not automation_key:
+            raise
+        return (
+            WhatsAppMessageLog.objects.filter(automation_key=automation_key)
+            .exclude(status=WhatsAppMessageLog.Status.CANCELED)
+            .order_by("-created_at")
+            .first()
+        )
 
 
 def enqueue_automatic_whatsapp_messages(now=None, limit=100):
@@ -219,22 +231,8 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
             ]:
                 continue
             if log and log.status == WhatsAppMessageLog.Status.FAILED:
-                log.status = WhatsAppMessageLog.Status.SCHEDULED
-                log.scheduled_for = now
-                log.next_attempt_at = None
-                log.attempt_count = 0
-                log.error_message = ""
-                log.save(
-                    update_fields=[
-                        "status",
-                        "scheduled_for",
-                        "next_attempt_at",
-                        "attempt_count",
-                        "error_message",
-                        "updated_at",
-                    ]
-                )
-            elif not log:
+                continue
+            if not log:
                 log = _create_scheduled_log(
                     integration=integration,
                     template=rule.template,
@@ -269,15 +267,10 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                 phone__gt="",
             ).order_by("full_name")[:limit]
             for patient in patients:
-                exists = (
-                    WhatsAppMessageLog.objects.filter(
-                        template=template,
-                        patient=patient,
-                        scheduled_for__date=today,
-                    )
-                    .exclude(status=WhatsAppMessageLog.Status.CANCELED)
-                    .exists()
-                )
+                automation_key = f"birthday:{patient.pk}:{today.isoformat()}"
+                exists = WhatsAppMessageLog.objects.filter(automation_key=automation_key).exclude(
+                    status=WhatsAppMessageLog.Status.CANCELED
+                ).exists()
                 if exists:
                     continue
                 _create_scheduled_log(
@@ -285,6 +278,7 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     template=template,
                     patient=patient,
                     scheduled_for=now,
+                    automation_key=automation_key,
                 )
                 created["birthday"] += 1
 
@@ -312,15 +306,10 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
             )
             for payment in payments:
                 patient = payment.membership.patient
-                exists = (
-                    WhatsAppMessageLog.objects.filter(
-                        template=charge_template,
-                        payment=payment,
-                        scheduled_for__date=today,
-                    )
-                    .exclude(status=WhatsAppMessageLog.Status.CANCELED)
-                    .exists()
-                )
+                automation_key = f"payment:{payment.pk}:{counter_key}:{today.isoformat()}"
+                exists = WhatsAppMessageLog.objects.filter(automation_key=automation_key).exclude(
+                    status=WhatsAppMessageLog.Status.CANCELED
+                ).exists()
                 if exists:
                     continue
                 _create_scheduled_log(
@@ -329,6 +318,7 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     patient=patient,
                     payment=payment,
                     scheduled_for=now,
+                    automation_key=automation_key,
                 )
                 created[counter_key] += 1
 
@@ -382,15 +372,10 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
             )
             for charge in charges:
                 patient = charge.patient
-                exists = (
-                    WhatsAppMessageLog.objects.filter(
-                        template=charge_template,
-                        charge=charge,
-                        scheduled_for__date=today,
-                    )
-                    .exclude(status=WhatsAppMessageLog.Status.CANCELED)
-                    .exists()
-                )
+                automation_key = f"charge:{charge.pk}:charge_overdue:{today.isoformat()}"
+                exists = WhatsAppMessageLog.objects.filter(automation_key=automation_key).exclude(
+                    status=WhatsAppMessageLog.Status.CANCELED
+                ).exists()
                 if exists:
                     continue
                 _create_scheduled_log(
@@ -399,6 +384,7 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     patient=patient,
                     charge=charge,
                     scheduled_for=now,
+                    automation_key=automation_key,
                 )
                 created["charge_overdue"] += 1
 

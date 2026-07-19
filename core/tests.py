@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
@@ -503,6 +504,47 @@ class IntegrationsTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Integracoes")
 
+    def test_whatsapp_load_forces_web_gateway_provider(self):
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "provider": WhatsAppIntegration.Provider.META,
+                "enabled": True,
+                "dry_run": False,
+                "phone_number_id": "meta-phone-id",
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )
+
+        integration = WhatsAppIntegration.load()
+
+        self.assertEqual(integration.provider, WhatsAppIntegration.Provider.WEB_GATEWAY)
+        self.assertTrue(integration.is_connected)
+
+    def test_whatsapp_automation_key_cannot_be_duplicated_for_active_logs(self):
+        integration = WhatsAppIntegration.objects.create(
+            provider=WhatsAppIntegration.Provider.WEB_GATEWAY,
+            enabled=True,
+            clinic_whatsapp_number="5511999990000",
+        )
+        template = WhatsAppMessageTemplate.ensure_defaults()[0]
+        payload = {
+            "integration": integration,
+            "template": template,
+            "patient": self.patient,
+            "recipient_name": self.patient.full_name,
+            "recipient_number": self.patient.phone,
+            "rendered_message": "Mensagem unica",
+            "status": WhatsAppMessageLog.Status.SCHEDULED,
+            "scheduled_for": timezone.now(),
+            "automation_key": "appointment-rule:1:99",
+        }
+        WhatsAppMessageLog.objects.create(**payload)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                WhatsAppMessageLog.objects.create(**payload)
+
     def test_diagnostics_tab_separates_operational_health(self):
         self.client.force_login(self.management)
 
@@ -638,8 +680,10 @@ class IntegrationsTests(TestCase):
         self.assertFalse(integration.access_token)
         self.assertIsNone(integration.connected_at)
 
-    @override_settings(WHATSAPP_META_PHONE_NUMBER_ID="cole-o-phone-number-id", WHATSAPP_META_ACCESS_TOKEN="cole-o-token")
-    def test_whatsapp_number_only_does_not_count_as_connected(self):
+    @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local")
+    @patch("core.views.whatsapp_web_gateway_status")
+    def test_whatsapp_number_and_enabled_count_as_web_connected(self, gateway_status):
+        gateway_status.return_value = {"ok": True, "ready": True, "hasQr": False}
         self.client.force_login(self.management)
         WhatsAppIntegration.objects.update_or_create(
             pk=1,
@@ -653,7 +697,7 @@ class IntegrationsTests(TestCase):
         integration = WhatsAppIntegration.load()
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertFalse(integration.is_connected)
+        self.assertTrue(integration.is_connected)
         self.assertContains(response, "Status do WhatsApp Web")
 
     @override_settings(
@@ -661,20 +705,21 @@ class IntegrationsTests(TestCase):
         WHATSAPP_EMBEDDED_CONFIG_ID="env-config-id",
         WHATSAPP_EMBEDDED_APP_SECRET="env-secret",
     )
-    def test_connections_tab_uses_meta_embedded_signup_from_env(self):
+    def test_connections_tab_ignores_meta_embedded_signup_from_env(self):
         self.client.force_login(self.management)
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertContains(response, "Status do WhatsApp Web")
         self.assertNotContains(response, "Aguardando conexao Meta")
+        self.assertNotContains(response, "Conectar WhatsApp oficial")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",
         WHATSAPP_EMBEDDED_CONFIG_ID="env-config-id",
         WHATSAPP_EMBEDDED_APP_SECRET="env-secret",
     )
-    def test_connections_tab_translates_common_meta_errors_to_friendly_guidance(self):
+    def test_connections_tab_uses_web_guidance_for_previous_meta_errors(self):
         self.client.force_login(self.management)
         WhatsAppIntegration.objects.update_or_create(
             pk=1,
@@ -691,6 +736,7 @@ class IntegrationsTests(TestCase):
 
         self.assertContains(response, "Status do WhatsApp Web")
         self.assertNotContains(response, "A Meta ainda nao liberou esse numero para envio real.")
+        self.assertContains(response, "Ultimo erro")
 
     @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
     def test_connections_tab_shows_public_google_callback(self):
@@ -772,19 +818,17 @@ class IntegrationsTests(TestCase):
         WHATSAPP_EMBEDDED_CONFIG_ID="meta-config-real-fake",
         WHATSAPP_EMBEDDED_APP_SECRET="meta-app-secret-real-fake",
     )
-    def test_check_whatsapp_setup_reports_embedded_signup(self):
+    def test_check_whatsapp_setup_reports_web_only_channel(self):
         output = StringIO()
 
         call_command("check_whatsapp_setup", stdout=output)
 
-        self.assertIn("Embedded Signup: sim", output.getvalue())
+        self.assertIn("Provedor: WhatsApp Web", output.getvalue())
+        self.assertIn("Gateway Web configurado", output.getvalue())
+        self.assertNotIn("Embedded Signup", output.getvalue())
 
-    @patch("core.views.subscribe_whatsapp_business_account")
-    @patch("core.views.connect_whatsapp_embedded_signup")
-    def test_management_can_finish_whatsapp_embedded_signup(self, connect_mock, subscribe_mock):
+    def test_management_ignores_legacy_embedded_signup_finish(self):
         self.client.force_login(self.management)
-        connect_mock.return_value = {"access_token": "token"}
-        subscribe_mock.return_value = {"success": True}
 
         response = self.client.post(
             reverse("integrations"),
@@ -799,18 +843,13 @@ class IntegrationsTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         integration = WhatsAppIntegration.load()
-        self.assertEqual(integration.phone_number_id, "phone-123")
-        self.assertEqual(integration.business_account_id, "waba-123")
-        self.assertEqual(integration.clinic_whatsapp_number, "5511999990000")
-        connect_mock.assert_called_once()
-        subscribe_mock.assert_called_once()
+        self.assertEqual(integration.provider, WhatsAppIntegration.Provider.WEB_GATEWAY)
+        self.assertEqual(integration.phone_number_id, "")
+        self.assertEqual(integration.business_account_id, "")
+        self.assertEqual(integration.clinic_whatsapp_number, "")
 
-    @patch("core.views.subscribe_whatsapp_business_account")
-    @patch("core.views.connect_whatsapp_embedded_signup")
-    def test_management_can_finish_whatsapp_embedded_signup_with_browser_token(self, connect_mock, subscribe_mock):
+    def test_management_ignores_legacy_embedded_signup_browser_token(self):
         self.client.force_login(self.management)
-        connect_mock.return_value = {"access_token": "browser-token", "source": "browser_auth_response"}
-        subscribe_mock.return_value = {"success": True}
 
         response = self.client.post(
             reverse("integrations"),
@@ -824,9 +863,9 @@ class IntegrationsTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        connect_mock.assert_called_once()
-        self.assertEqual(connect_mock.call_args.kwargs["browser_access_token"], "browser-token")
-        subscribe_mock.assert_called_once()
+        integration = WhatsAppIntegration.load()
+        self.assertEqual(integration.provider, WhatsAppIntegration.Provider.WEB_GATEWAY)
+        self.assertEqual(integration.access_token, "")
 
     def test_messages_tab_filters_single_template(self):
         self.client.force_login(self.management)
@@ -1376,16 +1415,22 @@ class IntegrationsTests(TestCase):
         self.assertNotContains(response, "super-secret-google")
         self.assertNotContains(response, "super-secret-meta")
 
-    @override_settings(WHATSAPP_DRY_RUN=False)
-    def test_real_whatsapp_send_requires_meta_template_name(self):
+    @override_settings(WHATSAPP_DRY_RUN=False, WHATSAPP_WEB_GATEWAY_URL="http://gateway.local")
+    @patch("core.views.send_whatsapp_text")
+    def test_real_whatsapp_send_uses_web_text_without_meta_template_name(self, send_whatsapp_text_mock):
+        send_whatsapp_text_mock.return_value = {
+            "ok": True,
+            "provider": "whatsapp_web",
+            "to": "5511999990000",
+            "messageId": "web-msg-real-1",
+        }
         self.client.force_login(self.management)
         WhatsAppIntegration.objects.update_or_create(
             pk=1,
             defaults={
+                "provider": WhatsAppIntegration.Provider.WEB_GATEWAY,
                 "enabled": True,
                 "dry_run": False,
-                "phone_number_id": "phone-id",
-                "access_token": "access-token",
                 "clinic_whatsapp_number": "5511999990000",
             },
         )
@@ -1403,8 +1448,9 @@ class IntegrationsTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         log = WhatsAppMessageLog.objects.get(template__template_type=WhatsAppMessageTemplate.TemplateType.APPOINTMENT)
-        self.assertEqual(log.status, WhatsAppMessageLog.Status.FAILED)
-        self.assertIn("Template nao configurado", log.error_message)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.SENT)
+        self.assertEqual(log.provider_reference, "web-msg-real-1")
+        send_whatsapp_text_mock.assert_called_once()
 
     def test_financial_whatsapp_automation_schedules_due_and_overdue_messages(self):
         WhatsAppIntegration.objects.update_or_create(

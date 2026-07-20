@@ -18,6 +18,7 @@ let connectedNumber = "";
 let lastError = "";
 let sendQueue = Promise.resolve();
 let lastSentAt = 0;
+let restartQueue = Promise.resolve();
 
 async function clearStaleChromiumLocks() {
   const profileDir = path.join(sessionDir, "session");
@@ -96,6 +97,22 @@ async function deliverMessage(number, message) {
     lastSentAt = Date.now();
     return sent;
   }
+}
+
+async function restartClientSession() {
+  latestQr = "";
+  ready = false;
+  connectedNumber = "";
+  lastError = "";
+
+  try {
+    await client.destroy();
+  } catch (error) {
+    console.warn("[whatsapp-web] Cliente nao estava pronto para encerrar:", error.message || error);
+  }
+
+  await clearStaleChromiumLocks();
+  await client.initialize();
 }
 
 const client = new Client({
@@ -180,6 +197,17 @@ app.get("/qr", requireToken, async (_request, response) => {
     connectedNumber,
     lastError
   });
+});
+
+app.post("/restart", requireToken, async (_request, response) => {
+  restartQueue = restartQueue.then(restartClientSession, restartClientSession);
+  try {
+    await restartQueue;
+    response.json({ ok: true, ready, hasQr: Boolean(latestQr), lastError });
+  } catch (error) {
+    lastError = error.message || String(error);
+    response.status(502).json({ ok: false, ready: false, hasQr: false, error: lastError });
+  }
 });
 
 app.post("/send", requireToken, async (request, response) => {

@@ -208,6 +208,17 @@ def whatsapp_web_gateway_qr():
     )
 
 
+def whatsapp_web_gateway_restart():
+    if not settings.WHATSAPP_WEB_GATEWAY_URL:
+        raise IntegrationError("WHATSAPP_WEB_GATEWAY_URL ausente.")
+    return post_json(
+        f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/restart",
+        {},
+        headers=whatsapp_web_gateway_headers(),
+        timeout=max(settings.WHATSAPP_TIMEOUT, 20),
+    )
+
+
 def send_whatsapp_text(to_number, message, integration=None):
     integration = integration or WhatsAppIntegration.load()
     target = normalize_whatsapp_number(to_number, integration.default_country_code)

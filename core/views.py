@@ -52,6 +52,7 @@ from core.integrations.whatsapp import (
     send_whatsapp_text,
     whatsapp_connection_guidance,
     whatsapp_web_gateway_qr,
+    whatsapp_web_gateway_restart,
     whatsapp_web_gateway_status,
     whatsapp_runtime_state,
 )
@@ -1134,6 +1135,14 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             integration.last_error = ""
             integration.save(update_fields=["provider", "enabled", "connected_at", "last_error", "updated_at"])
             messages.success(request, "WhatsApp Web selecionado. Escaneie o QR nesta tela para parear a sessao.")
+            return redirect(f"{reverse('integrations')}?tab=connections")
+        elif action == "restart_whatsapp_web_gateway":
+            try:
+                whatsapp_web_gateway_restart()
+            except IntegrationError as exc:
+                messages.error(request, f"Nao foi possivel gerar um novo QR agora: {exc}")
+            else:
+                messages.success(request, "Sessao do WhatsApp Web reiniciada. Aguarde alguns segundos para o QR aparecer.")
             return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "disconnect_whatsapp":
             integration = WhatsAppIntegration.load()

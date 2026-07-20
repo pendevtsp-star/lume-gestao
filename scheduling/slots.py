@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 from django.db.models import Q
 from django.utils import timezone
@@ -121,6 +121,7 @@ def slot_availability_snapshot(
         starts_at=starts_at,
         ends_at=ends_at,
     )
+    can_join_existing_group = existing_group_slot_has_capacity(snapshot, incoming_count=incoming_count)
 
     return {
         **snapshot,
@@ -129,11 +130,19 @@ def slot_availability_snapshot(
         "remaining_capacity": remaining_capacity,
         "availability_matches": availability_matches,
         "is_available": (
-            availability_matches
-            and not snapshot["partial_overlap"]
+            not snapshot["partial_overlap"]
+            and (availability_matches or can_join_existing_group)
             and remaining_capacity >= max(incoming_count, 1)
         ),
     }
+
+
+def existing_group_slot_has_capacity(snapshot, *, incoming_count=1):
+    return (
+        snapshot["existing_capacity"] > 1
+        and not snapshot["partial_overlap"]
+        and snapshot["remaining_capacity"] >= max(incoming_count, 1)
+    )
 
 
 def appointment_overlaps(professional_id, starts_at, ends_at, exclude_appointment_id=None):
@@ -176,6 +185,26 @@ def generate_available_slots(professional, day, duration_minutes, exclude_appoin
     )
     slots = []
     seen = set()
+
+    def add_slot(starts_at, ends_at, snapshot):
+        if starts_at in seen or not snapshot["is_available"]:
+            return
+        seen.add(starts_at)
+        local_start = timezone.localtime(starts_at)
+        local_end = timezone.localtime(ends_at)
+        slots.append(
+            {
+                "starts_at": starts_at,
+                "ends_at": ends_at,
+                "start_value": local_start.strftime("%H:%M"),
+                "label": f"{local_start:%H:%M} - {local_end:%H:%M}",
+                "capacity": snapshot["capacity"],
+                "occupied": snapshot["exact_count"],
+                "remaining_capacity": snapshot["remaining_capacity"],
+                "group_slot": snapshot["existing_capacity"] > 0,
+            }
+        )
+
     for window in windows:
         cursor = make_local_datetime(day, window.starts_at)
         window_end = make_local_datetime(day, window.ends_at)
@@ -188,24 +217,32 @@ def generate_available_slots(professional, day, duration_minutes, exclude_appoin
                 ends_at,
                 exclude_appointment_id=getattr(exclude_appointment, "pk", None),
             )
-            if starts_at not in seen and snapshot["is_available"]:
-                seen.add(starts_at)
-                local_start = timezone.localtime(starts_at)
-                local_end = timezone.localtime(ends_at)
-                slot_capacity = snapshot["capacity"]
-                occupied = snapshot["exact_count"]
-                slots.append(
-                    {
-                        "starts_at": starts_at,
-                        "ends_at": ends_at,
-                        "start_value": local_start.strftime("%H:%M"),
-                        "label": f"{local_start:%H:%M} - {local_end:%H:%M}",
-                        "capacity": slot_capacity,
-                        "occupied": occupied,
-                        "remaining_capacity": snapshot["remaining_capacity"],
-                        "group_slot": snapshot["existing_capacity"] > 0,
-                    }
-                )
+            add_slot(starts_at, ends_at, snapshot)
             cursor += duration
+
+    day_start = make_local_datetime(day, time.min)
+    day_end = day_start + timedelta(days=1)
+    existing_group_slots = (
+        Appointment.objects.filter(
+            professional=professional,
+            status__in=ACTIVE_APPOINTMENT_STATUSES,
+            starts_at__gte=day_start,
+            starts_at__lt=day_end,
+            slot_capacity__gt=1,
+        )
+        .order_by("starts_at", "ends_at")
+        .values_list("starts_at", "ends_at")
+        .distinct()
+    )
+    for starts_at, ends_at in existing_group_slots:
+        if ends_at - starts_at != duration:
+            continue
+        snapshot = slot_availability_snapshot(
+            professional,
+            starts_at,
+            ends_at,
+            exclude_appointment_id=getattr(exclude_appointment, "pk", None),
+        )
+        add_slot(starts_at, ends_at, snapshot)
 
     return sorted(slots, key=lambda slot: slot["starts_at"])

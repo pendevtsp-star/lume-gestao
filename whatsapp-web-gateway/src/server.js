@@ -19,6 +19,8 @@ let lastError = "";
 let sendQueue = Promise.resolve();
 let lastSentAt = 0;
 let restartQueue = Promise.resolve();
+let resettingSession = false;
+let reconnectTimer = null;
 
 async function clearStaleChromiumLocks() {
   const profileDir = path.join(sessionDir, "session");
@@ -104,6 +106,17 @@ async function restartClientSession() {
   ready = false;
   connectedNumber = "";
   lastError = "";
+  resettingSession = true;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
+  try {
+    await client.logout();
+  } catch (error) {
+    console.warn("[whatsapp-web] Sessao nao estava autenticada para logout:", error.message || error);
+  }
 
   try {
     await client.destroy();
@@ -111,8 +124,14 @@ async function restartClientSession() {
     console.warn("[whatsapp-web] Cliente nao estava pronto para encerrar:", error.message || error);
   }
 
+  await rm(sessionDir, { recursive: true, force: true });
   await clearStaleChromiumLocks();
-  await client.initialize();
+  await wait(800);
+  try {
+    await client.initialize();
+  } finally {
+    resettingSession = false;
+  }
 }
 
 const client = new Client({
@@ -165,7 +184,11 @@ client.on("disconnected", (reason) => {
   connectedNumber = "";
   lastError = reason || "Sessao desconectada.";
   console.warn("[whatsapp-web] Sessao desconectada:", lastError);
-  setTimeout(() => {
+  if (resettingSession) {
+    return;
+  }
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
     client.initialize().catch((error) => {
       lastError = error.message || String(error);
       console.error("[whatsapp-web] Falha ao reiniciar cliente:", lastError);

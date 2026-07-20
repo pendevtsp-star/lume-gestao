@@ -182,9 +182,20 @@ class Appointment(TimeStampedModel):
                 raise ValidationError("Este profissional ja possui atendimento nesse horario.")
 
             exact_overlaps = overlaps.filter(starts_at=self.starts_at, ends_at=self.ends_at)
+            has_availability = ProfessionalAvailability.objects.filter(
+                professional_id=self.professional_id,
+                active=True,
+            ).exists()
+            availability_matches = True
+            if has_availability:
+                availability_matches = ProfessionalAvailability.objects.slot_available(
+                    professional_id=self.professional_id,
+                    starts_at=self.starts_at,
+                    ends_at=self.ends_at,
+                )
             if exact_overlaps.exists():
                 existing_capacity = max(appointment.slot_capacity for appointment in exact_overlaps)
-                desired_capacity = max(existing_capacity, self.slot_capacity)
+                desired_capacity = max(existing_capacity, self.slot_capacity) if availability_matches else existing_capacity
                 if exact_overlaps.count() + 1 > desired_capacity:
                     raise ValidationError("Este horario ja atingiu a capacidade configurada.")
                 existing_group = next((appointment.slot_group for appointment in exact_overlaps if appointment.slot_group), "")
@@ -194,15 +205,7 @@ class Appointment(TimeStampedModel):
                 self.slot_group = self.slot_group or existing_group or uuid.uuid4().hex
             elif self.slot_capacity > 1 and not self.slot_group:
                 self.slot_group = uuid.uuid4().hex
-            has_availability = ProfessionalAvailability.objects.filter(
-                professional_id=self.professional_id,
-                active=True,
-            ).exists()
-            if has_availability and not ProfessionalAvailability.objects.slot_available(
-                professional_id=self.professional_id,
-                starts_at=self.starts_at,
-                ends_at=self.ends_at,
-            ):
+            if has_availability and not availability_matches and not exact_overlaps.exists():
                 raise ValidationError("Este horario esta fora da disponibilidade recorrente do profissional.")
 
         if self.status == self.Status.COMPLETED and not self.completed_at:

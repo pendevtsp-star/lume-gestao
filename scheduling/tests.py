@@ -695,6 +695,59 @@ class SchedulingTests(TestCase):
         self.assertEqual(replacement.slot_group, target.slot_group)
         self.assertEqual(replacement.slot_capacity, target.slot_capacity)
 
+    def test_reschedule_lists_existing_group_slot_with_capacity_even_after_availability_changes(self):
+        user = get_user_model().objects.create_user(username="gestao-reagenda-grupo-fora-janela", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        day = timezone.localdate() + timedelta(days=8)
+        ProfessionalAvailability.objects.filter(professional=self.professional, weekday=day.weekday()).update(
+            starts_at=time(8, 0),
+            ends_at=time(18, 0),
+            session_capacity=4,
+        )
+        source_start = timezone.make_aware(datetime.combine(day, time(9, 0)))
+        target_start = timezone.make_aware(datetime.combine(day, time(7, 0)))
+        source = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=source_start,
+            ends_at=source_start + timedelta(hours=1),
+            slot_capacity=4,
+            slot_group="grupo-origem-7h",
+        )
+        target_group = "grupo-destino-7h"
+        for patient in [self.patient_two, Patient.objects.create(full_name="Paciente Terceira"), Patient.objects.create(full_name="Paciente Quarta")]:
+            Appointment.objects.create(
+                patient=patient,
+                professional=self.professional,
+                starts_at=target_start,
+                ends_at=target_start + timedelta(hours=1),
+                slot_capacity=4,
+                slot_group=target_group,
+            )
+        self.client.force_login(user)
+
+        slots = generate_available_slots(self.professional, day, 60, exclude_appointment=source)
+        target_slot = next((slot for slot in slots if slot["start_value"] == "07:00"), None)
+        self.assertIsNotNone(target_slot)
+        self.assertTrue(target_slot["group_slot"])
+        self.assertEqual(target_slot["remaining_capacity"], 1)
+
+        response = self.client.post(
+            reverse("scheduling:appointment_reschedule", args=[source.pk]),
+            {
+                "professional": self.professional.pk,
+                "appointment_date": day.isoformat(),
+                "duration_minutes": "60",
+                "selected_start": "07:00",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        replacement = Appointment.objects.get(rescheduled_from=source)
+        self.assertEqual(replacement.starts_at, target_start)
+        self.assertEqual(replacement.slot_group, target_group)
+        self.assertEqual(replacement.slot_capacity, 4)
+
     def test_reschedule_uses_the_same_capacity_rule_shown_in_available_slots(self):
         user = get_user_model().objects.create_user(username="gestao-capacidade-unificada", password="Senha@123")
         UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})

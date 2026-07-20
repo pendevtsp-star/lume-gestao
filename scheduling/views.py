@@ -76,6 +76,7 @@ from scheduling.services import (
 )
 from core.models import WhatsAppMessageLog
 from scheduling.slots import (
+    existing_group_slot_has_capacity,
     generate_available_slots,
     make_local_datetime,
     slot_availability_snapshot,
@@ -311,12 +312,17 @@ def build_occurrence_payloads(
         )
         if snapshot["partial_overlap"]:
             raise ValidationError(f"{current_date:%d/%m/%Y}: o profissional ja possui atendimento nesse horario.")
-        if not snapshot["availability_matches"]:
+        joins_existing_group = existing_group_slot_has_capacity(snapshot, incoming_count=len(patient_ids))
+        if not snapshot["availability_matches"] and not joins_existing_group:
             raise ValidationError(f"{current_date:%d/%m/%Y}: horario fora da disponibilidade recorrente.")
         if duplicate_appointments_exist(patient_ids, professional, starts_at, ends_at, exclude_ids=exclude_ids):
             raise ValidationError(f"{current_date:%d/%m/%Y}: ao menos um paciente ja possui este horario.")
 
-        slot_capacity = max(snapshot["capacity"], requested_capacity)
+        slot_capacity = (
+            snapshot["existing_capacity"]
+            if joins_existing_group and not snapshot["availability_matches"]
+            else max(snapshot["capacity"], requested_capacity)
+        )
         if snapshot["exact_count"] + len(patient_ids) > slot_capacity:
             raise ValidationError(f"{current_date:%d/%m/%Y}: capacidade da sessao excedida para este horario.")
 

@@ -1151,7 +1151,15 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
             integration.connected_at = None
             integration.last_error = ""
             integration.save(update_fields=["enabled", "access_token", "connected_at", "last_error", "updated_at"])
-            messages.success(request, "WhatsApp desconectado com sucesso.")
+            try:
+                whatsapp_web_gateway_restart()
+            except IntegrationError as exc:
+                messages.warning(
+                    request,
+                    f"WhatsApp desligado no Lume, mas nao foi possivel limpar a sessao do gateway agora: {exc}",
+                )
+            else:
+                messages.success(request, "WhatsApp desconectado. Aguarde alguns segundos para o novo QR aparecer.")
             return redirect(f"{reverse('integrations')}?tab=connections")
         elif action == "finish_whatsapp_embedded":
             messages.info(request, "A conexao oficial da Meta esta desativada nesta versao. Use o QR do WhatsApp Web.")

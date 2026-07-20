@@ -79,12 +79,87 @@
     color: var(--muted);
     font-weight: 800;
   }
+
+  .connection-simple-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+    align-items: start;
+  }
+
+  .whatsapp-focus-card {
+    grid-row: span 3;
+  }
+
+  .whatsapp-qr-stage {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.9fr) minmax(220px, 0.65fr);
+    gap: 18px;
+    align-items: stretch;
+    margin-top: 16px;
+  }
+
+  .whatsapp-focus-card .whatsapp-web-qr {
+    min-height: 330px;
+    border-radius: 8px;
+    background: #fffefa;
+  }
+
+  .whatsapp-focus-card .whatsapp-web-qr img {
+    width: min(330px, 100%);
+  }
+
+  .whatsapp-qr-aside {
+    display: grid;
+    align-content: start;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fbfcf8;
+  }
+
+  .whatsapp-qr-aside > span {
+    color: var(--ink);
+    font-weight: 900;
+  }
+
+  .whatsapp-qr-aside ol {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding-left: 20px;
+    color: var(--muted);
+    font-weight: 750;
+    line-height: 1.45;
+  }
+
+  .connection-side-card {
+    align-self: start;
+  }
+
+  .connection-side-card .connection-hero-top {
+    align-items: flex-start;
+  }
+
+  .connection-side-card h3 {
+    font-size: 22px;
+  }
+
+  .google-connection-card {
+    background: #f7f8f3;
+  }
+
+  @media (max-width: 980px) {
+    .connection-simple-grid,
+    .whatsapp-qr-stage {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 <section class="page-heading">
   <div>
     <p class="eyebrow">{{ section_label }}</p>
     <h1>{{ page_title }}</h1>
-    <p class="page-subtitle">Conecte canais, valide a operacao e acompanhe o que ja esta pronto para uso sem depender de leitura tecnica.</p>
+    <p class="page-subtitle">Conecte o WhatsApp da clinica por QR Code e acompanhe as automacoes em uma rotina simples.</p>
   </div>
   <a class="button secondary" href="{% url 'settings' %}">Configuracoes da clinica</a>
 </section>
@@ -96,40 +171,25 @@
     <div class="zap-header">
       <div>
         <p class="eyebrow">Central de integracoes</p>
-        <h2>WhatsApp e Google Agenda</h2>
-        <p class="zap-subtitle">Escolha uma tarefa por vez: conecte os canais, prepare as mensagens ou investigue uma falha.</p>
+        <h2>Conexoes da clinica</h2>
+        <p class="zap-subtitle">WhatsApp Web e o canal ativo de envio. Google Agenda fica preparado para configuracao futura, sem interferir na operacao.</p>
       </div>
       <div class="integration-status-row">
         <span class="status-pill {% if whatsapp.is_connected %}is-success{% else %}is-muted{% endif %}">
           WhatsApp {{ whatsapp_status.label }}
         </span>
-        <span class="status-pill {% if google.is_connected %}is-success{% else %}is-muted{% endif %}">
-          Google {% if google.is_connected %}conectado{% else %}pendente{% endif %}
+        <span class="status-pill is-muted">
+          Google em preparacao
         </span>
       </div>
     </div>
 
     <nav class="zap-tabs" aria-label="Abas de integracoes">
-      <a class="{% if active_tab == 'panel' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=panel">Visao geral</a>
-      <a class="{% if active_tab == 'connections' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=connections">Conexoes</a>
-      <a class="{% if active_tab == 'messages' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages">Mensagens</a>
-      <a class="{% if active_tab == 'diagnostics' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=diagnostics">Diagnostico</a>
+      <a class="{% if active_tab == 'connections' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=connections">WhatsApp</a>
+      <a class="{% if active_tab == 'messages' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages">Mensagens e automacoes</a>
+      <a class="{% if active_tab == 'panel' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=panel">Fila</a>
+      <a class="{% if active_tab == 'diagnostics' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=diagnostics">Suporte</a>
     </nav>
-
-    <div class="workflow-strip" aria-label="Etapas de configuracao">
-      <a class="workflow-step {% if active_tab == 'connections' %}is-current{% endif %}" href="{% url 'integrations' %}?tab=connections">
-        <span>1</span>
-        <div><strong>Conectar</strong><small>WhatsApp e Google Agenda</small></div>
-      </a>
-      <a class="workflow-step {% if active_tab == 'messages' %}is-current{% endif %}" href="{% url 'integrations' %}?tab=messages">
-        <span>2</span>
-        <div><strong>Preparar</strong><small>Modelos e automacoes</small></div>
-      </a>
-      <a class="workflow-step {% if active_tab == 'panel' %}is-current{% endif %}" href="{% url 'integrations' %}?tab=panel">
-        <span>3</span>
-        <div><strong>Acompanhar</strong><small>Status e proximos envios</small></div>
-      </a>
-    </div>
 
     {% if active_tab == "panel" %}
       <div class="zap-panel-body">
@@ -340,180 +400,56 @@
         </section>
       </div>
     {% elif active_tab == "connections" %}
-      <div class="zap-connections connection-grid connection-grid-flow connection-redesign-grid">
-        <section class="panel connection-card connection-card-feature integration-wizard-card connection-hero-card google-connection-card">
-          <div class="connection-hero-top">
-            <div>
-              <p class="eyebrow">Google Agenda</p>
-              <h3>{% if google.is_connected %}Agenda conectada e pronta para sincronizar{% elif google_configured %}Pronto para conectar com Google{% else %}Configurar credenciais do Google{% endif %}</h3>
-              <p>Na VPS online, o caminho ideal e conectar a conta Google da clinica por autorizacao. Depois disso, o Lume sincroniza os atendimentos com a agenda escolhida.</p>
-            </div>
-            <span class="status-pill {% if google.is_connected %}is-success{% elif google_configured %}is-warning{% else %}is-muted{% endif %}">
-              {% if google.is_connected %}Conectado{% elif google_configured %}Pronto para conectar{% else %}Configurar credenciais{% endif %}
-            </span>
-          </div>
-
-          <div class="connection-next-step">
-            <span>Proximo passo</span>
-            {% if google.is_connected %}
-              <strong>Sincronize agora ou troque a conta se necessario.</strong>
-              <p>Conta conectada: {{ google.connected_email|default:"conta Google autorizada" }}.</p>
-            {% elif google_configured %}
-              <strong>Clique em conectar e escolha a conta Google da clinica.</strong>
-              <p>A tela do Google vai pedir permissao para criar e atualizar eventos da agenda.</p>
-            {% else %}
-              <strong>Adicione Client ID e Client Secret no `.env` da VPS.</strong>
-              <p>Esses dados nao sao e-mail e senha. Eles vem do Google Cloud Console.</p>
-            {% endif %}
-          </div>
-
-          <div class="connection-main-actions">
-            {% if google_configured %}
-              <a class="button primary" href="{% url 'integrations_google_connect' %}">
-                {% if google.is_connected %}Trocar conta Google{% else %}Conectar com Google{% endif %}
-              </a>
-            {% else %}
-              <button class="button primary" type="button" disabled>Conectar com Google</button>
-            {% endif %}
-            <form method="post" action="{% url 'integrations_google_sync' %}">
-              {% csrf_token %}
-              <button class="button secondary" type="submit" {% if not google.is_connected %}disabled{% endif %}>Sincronizar agora</button>
-            </form>
-            {% if google.is_connected %}
-              <form method="post">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="disconnect_google">
-                <input type="hidden" name="tab" value="connections">
-                <button class="button ghost" type="submit">Desconectar Google</button>
-              </form>
-            {% endif %}
-          </div>
-
-          <div class="connection-summary-strip">
-            <div>
-              <span>Agenda</span>
-              <strong>{{ google.calendar_id|default:"primary" }}</strong>
-            </div>
-            <div>
-              <span>Sincronizacao</span>
-              <strong>{{ google.last_sync_at|date:"d/m/Y H:i"|default:"Ainda nao sincronizou" }}</strong>
-            </div>
-            <div>
-              <span>Conta</span>
-              <strong>{{ google.connected_email|default:"Nao conectada" }}</strong>
-            </div>
-          </div>
-
-          <div class="connection-expectation">
-            <strong>Quando esta tela estiver certa</strong>
-            <p>Voce ve a conta Google autorizada, a agenda escolhida e consegue sincronizar atendimentos sem voltar para configuracoes tecnicas.</p>
-          </div>
-
-          <div class="callback-box">
-            <div>
-              <strong>URL autorizada para Google Cloud</strong>
-              <span>Use exatamente esta URL na credencial OAuth do Google.</span>
-            </div>
-            <code>{{ google_callback_url }}</code>
-          </div>
-
-          {% if google.last_error %}
-            <div class="connection-alert">
-              <strong>Ultimo erro Google</strong>
-              <span>{{ google.last_error }}</span>
-            </div>
-          {% endif %}
-
-          <details class="template-advanced connection-advanced slim-advanced">
-            <summary>Configuracao tecnica do Google</summary>
-            <div class="setup-note">
-              Cadastre no Google Cloud a URL de retorno <code>{{ google_callback_url }}</code>. Se as credenciais estiverem no `.env`, deixe os campos Client ID e Secret vazios aqui.
-            </div>
-            <form method="post" class="integration-body compact-integration-body">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="save_google">
-              <input type="hidden" name="tab" value="connections">
-              <div class="form-grid compact-form-grid">
-                {% for field in google_form %}
-                  <label class="form-field">
-                    <span>{{ field.label }}</span>
-                    {{ field }}
-                    {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
-                    {% for error in field.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
-                  </label>
-                {% endfor %}
-              </div>
-              <div class="form-actions compact-actions">
-                <button class="button secondary" type="submit">Salvar configuracao Google</button>
-              </div>
-            </form>
-          </details>
-        </section>
-
-        <section class="panel connection-card connection-card-feature integration-wizard-card embedded-signup-card connection-hero-card">
+      <div class="zap-connections connection-simple-grid">
+        <section class="panel connection-card connection-card-feature integration-wizard-card embedded-signup-card connection-hero-card whatsapp-focus-card">
           <div class="connection-hero-top">
             <div>
               <p class="eyebrow">WhatsApp Web</p>
-              <h3>{{ whatsapp_status.label }}</h3>
-              <p>Conecte o WhatsApp Business da clinica pelo QR para liberar os disparos automáticos desta instalação.</p>
+              <h3>{% if whatsapp_web_gateway.ready %}WhatsApp conectado{% elif whatsapp_web_gateway.hasQr %}Escaneie o QR Code{% else %}Aguardando QR Code{% endif %}</h3>
+              <p>Use o WhatsApp Business da clinica para ler o QR. Depois de conectado, os lembretes e cobrancas seguem usando esta sessao.</p>
             </div>
-            <span class="status-pill {% if whatsapp_status.code == 'web_gateway_ready' %}is-success{% elif whatsapp_status.code == 'web_gateway_setup' %}is-warning{% else %}is-muted{% endif %}">
-              {{ whatsapp_status.label }}
+            <span class="status-pill {% if whatsapp_web_gateway.ready %}is-success{% elif whatsapp_web_gateway.hasQr %}is-warning{% else %}is-muted{% endif %}">
+              {% if whatsapp_web_gateway.ready %}Conectado{% elif whatsapp_web_gateway.hasQr %}QR disponivel{% else %}Aguardando{% endif %}
             </span>
           </div>
 
-          <div class="connection-next-step">
-            <span>Proximo passo</span>
-            <strong>{{ whatsapp_status.next_step }}</strong>
-            <p>{{ whatsapp_status.detail }}</p>
-          </div>
-
-          <div class="connection-checklist" aria-label="Checklist da conexao do WhatsApp">
-            <article class="check-item is-done">
-              <span>1</span>
-              <div>
-                <strong>Canal preparado</strong>
-                <p>O Lume usa uma sessao isolada do WhatsApp Web para os avisos automáticos.</p>
-              </div>
-            </article>
-            <article class="check-item {% if whatsapp_web_gateway.ready %}is-done{% endif %}">
-              <span>2</span>
-              <div>
-                <strong>Sessao pareada</strong>
-                <p>{% if whatsapp_web_gateway.ready %}O WhatsApp Web está conectado e pronto para enviar.{% else %}Escaneie o QR abaixo com o WhatsApp Business da clinica.{% endif %}</p>
-              </div>
-            </article>
-            <article class="check-item {% if whatsapp_web_gateway.ready and not whatsapp_status.dry_run %}is-done{% endif %}">
-              <span>3</span>
-              <div>
-                <strong>Disparo automatico</strong>
-                <p>{% if whatsapp_status.dry_run %}Faça um teste controlado antes de liberar os avisos automáticos.{% else %}O Lume envia os avisos pela sessão pareada, sem confirmação no celular.{% endif %}</p>
-              </div>
-            </article>
-          </div>
-
-          <div class="setup-note">
-            <strong>Como conectar</strong>
-            <span>1. Abra o WhatsApp Business da clínica.</span>
-            <span>2. Acesse aparelhos conectados e escolha conectar aparelho.</span>
-            <span>3. Escaneie o QR exibido abaixo e aguarde o status mudar para conectado.</span>
-          </div>
-
-          <div class="connection-main-actions">
-            <a class="button primary" href="{% url 'integrations' %}?tab=messages">Ver mensagens e automacoes</a>
-            {% if whatsapp.enabled %}
-              <form method="post">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="disconnect_whatsapp">
-                <input type="hidden" name="tab" value="connections">
-                <button class="button ghost" type="submit">Desconectar WhatsApp</button>
-              </form>
-            {% endif %}
+          <div class="whatsapp-qr-stage">
+            <div class="whatsapp-web-qr" data-whatsapp-web-qr>
+              {% if whatsapp_web_gateway.ready %}
+                <strong>Sessao WhatsApp Web conectada.</strong>
+                <span>O QR desaparece quando a sessao esta pronta para envio.</span>
+              {% elif whatsapp_web_gateway.hasQr %}
+                <span>Carregando QR...</span>
+              {% elif whatsapp_web_gateway.error or whatsapp_web_gateway.lastError %}
+                <strong>Nao foi possivel gerar o QR agora.</strong>
+                <span>{{ whatsapp_web_gateway.error|default:whatsapp_web_gateway.lastError }}</span>
+              {% else %}
+                <span>O QR aparecera aqui quando o gateway estiver pronto.</span>
+              {% endif %}
+            </div>
+            <div class="whatsapp-qr-aside">
+              <span data-whatsapp-web-status>
+                {% if whatsapp_web_gateway.ready %}
+                  Sessao conectada.
+                {% elif whatsapp_web_gateway.hasQr %}
+                  Escaneie o QR com o WhatsApp Business da clinica.
+                {% elif whatsapp_web_gateway.error or whatsapp_web_gateway.lastError %}
+                  {{ whatsapp_web_gateway.error|default:whatsapp_web_gateway.lastError }}
+                {% else %}
+                  Aguardando QR do gateway.
+                {% endif %}
+              </span>
+              <ol>
+                <li>Abra o WhatsApp Business da clinica.</li>
+                <li>Entre em aparelhos conectados.</li>
+                <li>Escaneie o QR e aguarde o status conectado.</li>
+              </ol>
+            </div>
           </div>
 
           <div class="connection-summary-strip">
             <div>
-              <span>Numero conectado</span>
+              <span>Numero da clinica</span>
               <strong>{{ whatsapp.clinic_whatsapp_number|default:"Nao informado" }}</strong>
             </div>
             <div>
@@ -530,44 +466,34 @@
             </div>
           </div>
 
-          <div class="connection-expectation">
-            <strong>Quando esta tela estiver certa</strong>
-            <p>A sessão aparece conectada, o QR some e o teste controlado envia uma mensagem real pelo WhatsApp Web da clínica.</p>
+          <div class="connection-main-actions">
+            <a class="button primary" href="{% url 'integrations' %}?tab=messages">Editar mensagens e automacoes</a>
+            {% if whatsapp.enabled %}
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="disconnect_whatsapp">
+                <input type="hidden" name="tab" value="connections">
+                <button class="button ghost" type="submit">Desconectar</button>
+              </form>
+            {% else %}
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="select_whatsapp_web_gateway">
+                <input type="hidden" name="tab" value="connections">
+                <button class="button secondary" type="submit">Ativar WhatsApp Web</button>
+              </form>
+            {% endif %}
           </div>
 
-          <div class="whatsapp-web-box">
-              <strong>Status do WhatsApp Web</strong>
-              <span data-whatsapp-web-status>
-                {% if whatsapp_web_gateway.ready %}
-                  Sessao conectada.
-                {% elif whatsapp_web_gateway.hasQr %}
-                  QR disponivel para pareamento.
-                {% elif whatsapp_web_gateway.error or whatsapp_web_gateway.lastError %}
-                  {{ whatsapp_web_gateway.error|default:whatsapp_web_gateway.lastError }}
-                {% else %}
-                  Aguardando QR do gateway.
-                {% endif %}
-              </span>
-              <div class="whatsapp-web-qr" data-whatsapp-web-qr>
-                {% if whatsapp_web_gateway.ready %}
-                  <strong>Sessao WhatsApp Web conectada.</strong>
-                {% else %}
-                  <span>O QR aparecera aqui quando o gateway estiver pronto.</span>
-                {% endif %}
-              </div>
-              <small>Esta conexão é provisória: poderá pedir novo pareamento caso o WhatsApp encerre a sessão.</small>
-            </div>
-
           {% if whatsapp.last_error %}
-            <div class="setup-note">
-              Ultimo erro: {{ whatsapp.last_error }}
+            <div class="connection-alert">
+              <strong>Ultimo erro registrado</strong>
+              <span>{{ whatsapp.last_error }}</span>
             </div>
           {% endif %}
-          <details class="template-advanced connection-advanced slim-advanced" open>
-            <summary>Configuracao do WhatsApp</summary>
-            <div class="setup-note">
-              Informe o número do WhatsApp Business que será pareado pelo QR. Os envios automáticos usam somente esta sessão.
-            </div>
+
+          <details class="template-advanced connection-advanced slim-advanced">
+            <summary>Configuracao do numero</summary>
             <form method="post" class="integration-body compact-integration-body">
               {% csrf_token %}
               <input type="hidden" name="action" value="save_whatsapp">
@@ -594,60 +520,13 @@
           </details>
         </section>
 
-        <section class="panel connection-card connection-card-feature integration-wizard-card connection-hero-card">
-          <div class="connection-hero-top">
-            <div>
-              <p class="eyebrow">Google Agenda simples</p>
-              <h3>Assinar calendario por link seguro</h3>
-              <p>Use esta opcao quando a clinica quiser apenas visualizar os atendimentos no Google Agenda, sem liberar acesso OAuth.</p>
-            </div>
-            <span class="status-pill {% if google.has_calendar_feed %}is-success{% else %}is-muted{% endif %}">
-              {% if google.has_calendar_feed %}Link ativo{% else %}Sem link{% endif %}
-            </span>
-          </div>
-          <div class="connection-next-step">
-            <span>Privacidade</span>
-            <strong>O feed nao inclui prontuario, observacoes ou detalhes clinicos.</strong>
-            <p>O Google pode demorar alguns minutos para atualizar assinaturas `.ics`.</p>
-          </div>
-          {% if google_ics_url %}
-            <div class="callback-box">
-              <div>
-                <strong>Link de assinatura</strong>
-                <span>Copie ou abra para adicionar ao Google Agenda.</span>
-              </div>
-              <code>{{ google_ics_url }}</code>
-            </div>
-          {% endif %}
-          <div class="connection-main-actions">
-            {% if google_ics_url %}
-              <a class="button primary" href="https://calendar.google.com/calendar/render?cid={{ google_ics_url|urlencode }}" target="_blank" rel="noopener">Adicionar ao Google Agenda</a>
-              <button class="button secondary" type="button" data-copy-text="{{ google_ics_url }}">Copiar link</button>
-            {% endif %}
-            <form method="post">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="regenerate_google_ics">
-              <input type="hidden" name="tab" value="connections">
-              <button class="button secondary" type="submit">{% if google.has_calendar_feed %}Regenerar link{% else %}Gerar link seguro{% endif %}</button>
-            </form>
-            {% if google.has_calendar_feed %}
-              <form method="post">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="revoke_google_ics">
-                <input type="hidden" name="tab" value="connections">
-                <button class="button ghost" type="submit">Revogar link</button>
-              </form>
-            {% endif %}
-          </div>
-        </section>
-
         {% if whatsapp.is_connected %}
-          <section class="panel connection-card test-card">
+          <section class="panel connection-card test-card connection-side-card">
             <div class="connection-card-head">
               <div>
                 <p class="eyebrow">Teste rapido</p>
                 <h3>Enviar mensagem de teste</h3>
-                <p>Valide se o numero e a sessão do WhatsApp Web estao respondendo antes de usar com pacientes.</p>
+                <p>Valide a sessão antes de deixar a fila trabalhar com pacientes.</p>
               </div>
             </div>
             <form method="post" class="integration-body compact-integration-body">
@@ -676,6 +555,60 @@
             </form>
           </section>
         {% endif %}
+
+        <section class="panel connection-card connection-side-card google-connection-card">
+          <div class="connection-hero-top">
+            <div>
+              <p class="eyebrow">Google Agenda</p>
+              <h3>Em preparacao</h3>
+              <p>Esta integracao fica visivel para configuracao futura, mas ainda nao faz parte da rotina operacional da clinica.</p>
+            </div>
+            <span class="status-pill is-muted">
+              Nao utilizado
+            </span>
+          </div>
+
+          <details class="template-advanced connection-advanced slim-advanced">
+            <summary>Opcoes futuras do Google</summary>
+            <div class="connection-summary-strip">
+              <div>
+                <span>OAuth</span>
+                <strong>{% if google_configured %}Configurado{% else %}Pendente{% endif %}</strong>
+              </div>
+              <div>
+                <span>Link .ics</span>
+                <strong>{% if google.has_calendar_feed %}Ativo{% else %}Inativo{% endif %}</strong>
+              </div>
+              <div>
+                <span>Conta</span>
+                <strong>{{ google.connected_email|default:"Nao conectada" }}</strong>
+              </div>
+            </div>
+            <div class="connection-main-actions">
+              {% if google_configured %}
+                <a class="button secondary" href="{% url 'integrations_google_connect' %}">
+                  {% if google.is_connected %}Trocar conta Google{% else %}Conectar com Google{% endif %}
+                </a>
+              {% else %}
+                <button class="button secondary" type="button" disabled>Conectar com Google</button>
+              {% endif %}
+              <form method="post" action="{% url 'integrations_google_sync' %}">
+                {% csrf_token %}
+                <button class="button ghost" type="submit" {% if not google.is_connected %}disabled{% endif %}>Sincronizar agora</button>
+              </form>
+              {% if google_ics_url %}
+                <button class="button ghost" type="button" data-copy-text="{{ google_ics_url }}">Copiar link .ics</button>
+              {% endif %}
+            </div>
+            <div class="callback-box">
+              <div>
+                <strong>URL OAuth futura</strong>
+                <span>Use somente quando a integracao Google for ativada.</span>
+              </div>
+              <code>{{ google_callback_url }}</code>
+            </div>
+          </details>
+        </section>
       </div>
     {% elif active_tab == "diagnostics" %}
       <div class="zap-panel-body settings-diagnostics-page">
@@ -903,260 +836,6 @@
     {% endif %}
   </article>
 </section>
-{% if False %}
-  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/pt_BR/sdk.js"></script>
-  <script>
-    var whatsappSignupState = {
-      code: "",
-      phoneNumberId: "",
-      businessAccountId: "",
-      clinicNumber: "",
-      authStatus: "",
-      eventName: "",
-      eventType: "",
-      eventOrigin: "",
-      eventKeys: "",
-      errorCode: "",
-      errorMessage: "",
-      accessTokenPresent: false,
-      lastStep: "",
-      submitted: false
-    };
-
-    function setWhatsAppSignupStatus(message) {
-      var status = document.getElementById("whatsapp-embedded-status");
-      if (!status) {
-        return;
-      }
-      status.hidden = !message;
-      status.textContent = message || "";
-    }
-
-    function maskWhatsAppSignupValue(value) {
-      if (!value) {
-        return "nao";
-      }
-      var text = String(value);
-      if (text.length <= 8) {
-        return "sim (" + text.replace(/./g, "*") + ")";
-      }
-      return "sim (" + text.slice(0, 4) + "..." + text.slice(-4) + ")";
-    }
-
-    function setWhatsAppSignupDiagnostics(step) {
-      var debug = document.getElementById("whatsapp-embedded-debug");
-      var panel = document.getElementById("whatsapp-embedded-debug-panel");
-      if (!debug) {
-        return;
-      }
-      if (panel) {
-        panel.hidden = false;
-      }
-      whatsappSignupState.lastStep = step || whatsappSignupState.lastStep;
-      debug.replaceChildren();
-      [
-        "Etapa: " + (whatsappSignupState.lastStep || "-"),
-        "OAuth code recebido: " + (whatsappSignupState.code ? "sim" : "nao"),
-        "Evento Embedded Signup: " + (whatsappSignupState.eventName || "nao recebido"),
-        "Tipo do evento: " + (whatsappSignupState.eventType || "-"),
-        "WABA ID: " + maskWhatsAppSignupValue(whatsappSignupState.businessAccountId),
-        "Phone Number ID: " + maskWhatsAppSignupValue(whatsappSignupState.phoneNumberId),
-        "Numero retornado: " + maskWhatsAppSignupValue(whatsappSignupState.clinicNumber),
-        "Status do login: " + (whatsappSignupState.authStatus || "-"),
-        "Access token recebido no navegador: " + (whatsappSignupState.accessTokenPresent ? "sim" : "nao"),
-        "Origem do evento: " + (whatsappSignupState.eventOrigin || "-"),
-        "Campos recebidos: " + (whatsappSignupState.eventKeys || "-"),
-        "Erro Meta: " + (whatsappSignupState.errorMessage || whatsappSignupState.errorCode || "-")
-      ].forEach(function(line) {
-        var item = document.createElement("span");
-        item.textContent = line;
-        debug.appendChild(item);
-      });
-    }
-
-    function parseWhatsAppSignupData(rawData) {
-      if (!rawData) {
-        return null;
-      }
-      if (typeof rawData === "object") {
-        return rawData;
-      }
-      if (typeof rawData !== "string") {
-        return null;
-      }
-      try {
-        return JSON.parse(rawData);
-      } catch (error) {
-        return null;
-      }
-    }
-
-    function parseWhatsAppSignupUrlData(rawData) {
-      if (typeof rawData !== "string" || !rawData) {
-        return null;
-      }
-      var candidates = [rawData];
-      try {
-        var params = new URLSearchParams(rawData);
-        var nestedData = params.get("data");
-        if (nestedData) {
-          candidates.push(nestedData);
-        }
-        if (params.get("code")) {
-          return {
-            type: "FACEBOOK_LOGIN_CODE",
-            event: "CODE",
-            data: { code: params.get("code") },
-            keys: Array.from(params.keys()).sort().join(", ")
-          };
-        }
-      } catch (error) {
-        // Continua para a tentativa de JSON abaixo.
-      }
-      for (var index = 0; index < candidates.length; index += 1) {
-        try {
-          return JSON.parse(candidates[index]);
-        } catch (error) {
-          continue;
-        }
-      }
-      return {
-        type: "FACEBOOK_MESSAGE",
-        event: "NON_JSON",
-        data: {},
-        keys: rawData.slice(0, 80)
-      };
-    }
-
-    function submitWhatsAppSignupWhenReady() {
-      if (whatsappSignupState.submitted) {
-        return;
-      }
-      if (!whatsappSignupState.code && !whatsappSignupState.accessToken) {
-        setWhatsAppSignupStatus("Aguardando autorizacao da Meta para continuar a conexao oficial.");
-        setWhatsAppSignupDiagnostics("aguardando OAuth code ou token");
-        return;
-      }
-      if (!whatsappSignupState.businessAccountId || !whatsappSignupState.phoneNumberId) {
-        setWhatsAppSignupStatus("A Meta ainda esta finalizando os dados do numero conectado.");
-        setWhatsAppSignupDiagnostics("aguardando WABA e Phone Number ID");
-        return;
-      }
-
-      whatsappSignupState.submitted = true;
-      document.getElementById("embedded-code").value = whatsappSignupState.code;
-      document.getElementById("embedded-access-token").value = whatsappSignupState.accessToken || "";
-      document.getElementById("embedded-phone-number-id").value = whatsappSignupState.phoneNumberId;
-      document.getElementById("embedded-business-account-id").value = whatsappSignupState.businessAccountId;
-      document.getElementById("embedded-clinic-number").value = whatsappSignupState.clinicNumber;
-      setWhatsAppSignupStatus("Finalizando conexao oficial do WhatsApp.");
-      setWhatsAppSignupDiagnostics("enviando dados ao backend");
-      document.getElementById("whatsapp-embedded-form").submit();
-    }
-
-    window.fbAsyncInit = function() {
-      FB.init({
-        appId: "{{ whatsapp_embedded_app_id|escapejs }}",
-        autoLogAppEvents: true,
-        xfbml: true,
-        version: "v23.0"
-      });
-    };
-
-    window.addEventListener("message", function(event) {
-      if (!event.origin || !event.origin.endsWith("facebook.com")) {
-        return;
-      }
-      var data = parseWhatsAppSignupData(event.data);
-      if (!data || data.type !== "WA_EMBEDDED_SIGNUP") {
-        data = parseWhatsAppSignupUrlData(event.data);
-      }
-      if (!data) {
-        return;
-      }
-      whatsappSignupState.eventOrigin = event.origin;
-      whatsappSignupState.eventType = data.type || "";
-      whatsappSignupState.eventName = data.event || "";
-      whatsappSignupState.eventKeys = data.keys || (data.data ? Object.keys(data.data).sort().join(", ") : "");
-      if (data.data && data.data.code) {
-        whatsappSignupState.code = data.data.code;
-      }
-      if (data.event === "FINISH" || data.event === "FINISH_ONLY_WABA") {
-        var payload = data.data || {};
-        whatsappSignupState.phoneNumberId = payload.phone_number_id || whatsappSignupState.phoneNumberId;
-        whatsappSignupState.businessAccountId = payload.waba_id || whatsappSignupState.businessAccountId;
-        whatsappSignupState.clinicNumber = payload.phone_number || whatsappSignupState.clinicNumber;
-        setWhatsAppSignupDiagnostics("evento de conclusao recebido");
-        submitWhatsAppSignupWhenReady();
-      } else if (data.event === "CODE") {
-        setWhatsAppSignupDiagnostics("OAuth code recebido por mensagem Facebook");
-        submitWhatsAppSignupWhenReady();
-      } else {
-        whatsappSignupState.errorCode = data.error_code || (data.data && data.data.error_code) || "";
-        whatsappSignupState.errorMessage = data.error_message || data.message || (data.data && data.data.error_message) || "";
-        setWhatsAppSignupStatus("A Meta nao concluiu a conexao. Se precisar, abra o diagnostico tecnico para conferir o retorno.");
-        setWhatsAppSignupDiagnostics(data.event === "NON_JSON" ? "mensagem Facebook sem JSON recebida" : "evento sem conclusao recebido");
-      }
-    });
-
-    function launchWhatsAppSignup() {
-      var button = document.getElementById("whatsapp-connect-button");
-      whatsappSignupState = {
-        code: "",
-        phoneNumberId: "",
-        businessAccountId: "",
-        clinicNumber: "",
-        authStatus: "",
-        eventName: "",
-        eventType: "",
-        eventOrigin: "",
-        eventKeys: "",
-        errorCode: "",
-        errorMessage: "",
-        accessToken: "",
-        accessTokenPresent: false,
-        lastStep: "",
-        submitted: false
-      };
-      if (button) {
-        button.disabled = true;
-      }
-      setWhatsAppSignupStatus("Abrindo a Meta para conectar o WhatsApp oficial.");
-      setWhatsAppSignupDiagnostics("fluxo iniciado");
-      FB.login(function(response) {
-        whatsappSignupState.authStatus = response.status || "";
-        whatsappSignupState.accessToken = response.authResponse && response.authResponse.accessToken ? response.authResponse.accessToken : "";
-        whatsappSignupState.accessTokenPresent = Boolean(whatsappSignupState.accessToken);
-        if (!response.authResponse || (!response.authResponse.code && !whatsappSignupState.accessToken)) {
-          if (button) {
-            button.disabled = false;
-          }
-          whatsappSignupState.errorCode = response.error_code || "";
-          whatsappSignupState.errorMessage = response.error_message || "";
-          setWhatsAppSignupStatus("A conexao nao foi concluida na Meta.");
-          setWhatsAppSignupDiagnostics("OAuth sem code");
-          return;
-        }
-        whatsappSignupState.code = response.authResponse.code || "";
-        setWhatsAppSignupDiagnostics(whatsappSignupState.code ? "OAuth code recebido" : "OAuth token recebido");
-        submitWhatsAppSignupWhenReady();
-      }, {
-        config_id: "{{ whatsapp_embedded_config_id|escapejs }}",
-        response_type: "code",
-        override_default_response_type: true,
-        extras: {
-          setup: {},
-          sessionInfoVersion: "3"
-        }
-      });
-      window.setTimeout(function() {
-        if (!whatsappSignupState.submitted && button) {
-          button.disabled = false;
-        }
-      }, 45000);
-    }
-  </script>
-{% endif %}
 {% if active_tab == "connections" %}
   <script>
     document.querySelectorAll("[data-copy-text]").forEach(function(button) {

@@ -5,7 +5,7 @@
   </a>
   <a class="{% if request.resolver_match.url_name == 'integrations' and active_tab == 'connections' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=connections">
     <strong>Conexoes</strong>
-    <span>WhatsApp e Google Agenda</span>
+    <span>QR do WhatsApp e status</span>
   </a>
   <a class="{% if request.resolver_match.url_name == 'integrations' and active_tab == 'messages' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages">
     <strong>Mensagens</strong>

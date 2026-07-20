@@ -597,8 +597,8 @@ class IntegrationsView(FinanceAccessMixin, TemplateView):
     }
 
     def get_active_tab(self):
-        selected = self.request.GET.get("tab") or self.request.POST.get("tab") or "panel"
-        return selected if selected in self.WHATSAPP_TABS else "panel"
+        selected = self.request.GET.get("tab") or self.request.POST.get("tab") or "connections"
+        return selected if selected in self.WHATSAPP_TABS else "connections"
 
     def get_whatsapp_templates(self):
         WhatsAppMessageTemplate.ensure_defaults()

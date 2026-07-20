@@ -570,7 +570,7 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Como conectar")
+        self.assertContains(response, "WhatsApp Web")
         self.assertNotContains(response, "Conectar WhatsApp oficial")
 
     def test_management_can_select_whatsapp_web_gateway_mode(self):
@@ -610,7 +610,7 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Desconectar WhatsApp")
+        self.assertContains(response, "Desconectar")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="meta-app-id-real-fake",
@@ -631,8 +631,8 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Como conectar")
-        self.assertContains(response, "Sessao pareada")
+        self.assertContains(response, "WhatsApp Web")
+        self.assertContains(response, "Sessao conectada")
         self.assertNotContains(response, "Diagnostico tecnico da conexao Meta")
 
     @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local", WHATSAPP_DRY_RUN=False)
@@ -655,7 +655,7 @@ class IntegrationsTests(TestCase):
 
         self.assertTrue(integration.is_connected)
         self.assertContains(response, "WhatsApp Web")
-        self.assertContains(response, "Ver mensagens e automacoes")
+        self.assertContains(response, "Editar mensagens e automacoes")
         self.assertContains(response, "Escaneie o QR")
 
     def test_management_can_disconnect_whatsapp(self):
@@ -698,7 +698,7 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertTrue(integration.is_connected)
-        self.assertContains(response, "Status do WhatsApp Web")
+        self.assertContains(response, "WhatsApp Web ativo")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",
@@ -710,7 +710,7 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Status do WhatsApp Web")
+        self.assertContains(response, "WhatsApp Web")
         self.assertNotContains(response, "Aguardando conexao Meta")
         self.assertNotContains(response, "Conectar WhatsApp oficial")
 
@@ -734,7 +734,7 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Status do WhatsApp Web")
+        self.assertContains(response, "WhatsApp Web")
         self.assertNotContains(response, "A Meta ainda nao liberou esse numero para envio real.")
         self.assertContains(response, "Ultimo erro")
 
@@ -788,8 +788,8 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Configurar credenciais")
-        self.assertContains(response, "Status do WhatsApp Web")
+        self.assertContains(response, "Em preparacao")
+        self.assertContains(response, "WhatsApp Web")
         self.assertContains(response, "Conectar com Google")
         self.assertNotContains(response, "Conectar WhatsApp oficial")
 

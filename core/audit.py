@@ -32,3 +32,11 @@ def instance_snapshot(instance):
         key: "***" if is_sensitive_field(key) and value else serialize_value(value)
         for key, value in data.items()
     }
+
+
+def instance_sensitive_values(instance):
+    return {
+        key: value
+        for key, value in model_to_dict(instance).items()
+        if is_sensitive_field(key)
+    }

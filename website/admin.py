@@ -1,5 +1,7 @@
+from django import forms
 from django.contrib import admin
 
+from core.validators import validate_image_upload
 from website.models import (
     WebsiteFAQ,
     WebsiteGalleryItem,
@@ -8,6 +10,14 @@ from website.models import (
     WebsiteSettings,
     WebsiteTestimonial,
 )
+
+
+class WebsiteGalleryItemAdminForm(forms.ModelForm):
+    image = forms.ImageField(validators=[validate_image_upload])
+
+    class Meta:
+        model = WebsiteGalleryItem
+        fields = "__all__"
 
 
 @admin.register(WebsiteSettings)
@@ -38,6 +48,7 @@ class WebsiteServiceAdmin(admin.ModelAdmin):
 
 @admin.register(WebsiteGalleryItem)
 class WebsiteGalleryItemAdmin(admin.ModelAdmin):
+    form = WebsiteGalleryItemAdminForm
     list_display = ("title", "display_order", "active", "updated_at")
     list_filter = ("active",)
     search_fields = ("title", "alt_text")

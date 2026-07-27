@@ -89,7 +89,7 @@
     </label>
     <button class="button primary" type="submit">Atualizar</button>
   </form>
-  <div class="table-wrap">
+  <div class="table-wrap phase6-responsive-table">
     <table>
       <thead>
         <tr>
@@ -103,11 +103,11 @@
       <tbody>
         {% for log in logs %}
           <tr>
-            <td>{{ log.created_at|date:"d/m/Y H:i" }}</td>
-            <td>{{ log.actor_display }}</td>
-            <td><span class="badge {{ log.action }}">{{ log.get_action_display }}</span></td>
-            <td><strong>{{ log.model_name }}</strong><small>{{ log.app_label }} #{{ log.object_id }} | {{ log.object_repr }}</small></td>
-            <td>
+            <td data-label="Data">{{ log.created_at|date:"d/m/Y H:i" }}</td>
+            <td data-label="Usuario">{{ log.actor_display }}</td>
+            <td data-label="Acao"><span class="badge {{ log.action }}">{{ log.get_action_display }}</span></td>
+            <td data-label="Objeto"><strong>{{ log.model_name }}</strong><small>{{ log.app_label }} #{{ log.object_id }} | {{ log.object_repr }}</small></td>
+            <td data-label="Alteracoes">
               <div class="audit-changes">
                 {% for change in log.display_changes %}
                   <div>
@@ -121,7 +121,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="empty">Nenhum registro de auditoria encontrado.</td></tr>
+          <tr><td colspan="5" class="empty"><div class="phase6-empty"><strong>Nenhuma alteração corresponde aos filtros.</strong><span>Revise usuário, ação ou período para recuperar o histórico administrativo.</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

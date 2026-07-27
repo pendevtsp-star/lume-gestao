@@ -1,38 +1,44 @@
 from django.urls import path
 
-from scheduling.views import (
-    AgendaSettingsUpdateView,
-    AppointmentAbsenceView,
-    AppointmentCompleteView,
-    AppointmentCancelView,
+from scheduling.web.agenda_creation import (
     AppointmentCalendarExportView,
+    AppointmentCancelView,
     AppointmentConfirmView,
     AppointmentCreateView,
     AppointmentListView,
-    AppointmentRescheduleView,
     AppointmentUpdateView,
+)
+from scheduling.web.availability_configuration_packages import (
+    AgendaSettingsUpdateView,
+    ProfessionalAvailabilityCreateView,
+    ProfessionalAvailabilityDeleteView,
+    ProfessionalAvailabilityListView,
+    ProfessionalAvailabilityUpdateView,
+    ServicePackageAdjustmentListView,
+    ServicePackageCreateView,
+    ServicePackageDeleteView,
+    ServicePackageListView,
+    ServicePackageUpdateView,
+)
+from scheduling.web.notifications_events import (
     GenerateNotificationsView,
     NotificationCenterView,
     OperationalCalendarEventCreateView,
     OperationalCalendarEventListView,
     OperationalCalendarEventUpdateView,
+    PatientNotificationPreferenceUpdateView,
+    RetryNotificationView,
+)
+from scheduling.web.rescheduling_attendance import (
+    AppointmentAbsenceView,
+    AppointmentCompleteView,
+    AppointmentRescheduleView,
     PatientCheckInCreateView,
     PatientGoalCreateView,
-    PatientNotificationPreferenceUpdateView,
     PatientProgressView,
-    ProfessionalAvailabilityCreateView,
-    ProfessionalAvailabilityDeleteView,
-    ProfessionalAvailabilityListView,
-    ProfessionalAvailabilityUpdateView,
     RescheduleRequestCreateView,
     RescheduleRequestDecisionView,
     RescheduleRequestListView,
-    RetryNotificationView,
-    ServicePackageCreateView,
-    ServicePackageAdjustmentListView,
-    ServicePackageDeleteView,
-    ServicePackageListView,
-    ServicePackageUpdateView,
 )
 
 app_name = "scheduling"

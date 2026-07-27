@@ -13,6 +13,7 @@ from checkout.models import CheckoutOrder, CheckoutPaymentEvent
 from checkout.providers import get_active_merchant_account
 from core.integrations.credentials import first_configured_value
 from core.integrations.http import IntegrationError, post_json
+from core.integrations.webhooks import parse_json_webhook
 from core.models import ClinicSettings
 from patients.models import Patient
 from scheduling.models import ServicePackage
@@ -29,20 +30,13 @@ TERMINAL_ORDER_STATUSES = {
 
 
 def parse_asaas_payload(request):
-    configured_token = first_configured_value(settings.ASAAS_WEBHOOK_TOKEN)
     received_token = request.headers.get("asaas-access-token") or request.META.get("HTTP_ASAAS_ACCESS_TOKEN", "")
-    token_valid = bool(configured_token and received_token and received_token == configured_token)
-    if not configured_token and not settings.DEBUG:
-        raise IntegrationError("Configure ASAAS_WEBHOOK_TOKEN antes de receber webhooks em producao.")
-    if configured_token and not token_valid:
-        raise IntegrationError("Token do webhook Asaas invalido.")
-    try:
-        import json
-
-        payload = json.loads(request.body.decode("utf-8") or "{}")
-    except ValueError as exc:
-        raise IntegrationError("Payload de webhook Asaas invalido.") from exc
-    return payload, token_valid
+    return parse_json_webhook(
+        request,
+        configured_token=settings.ASAAS_WEBHOOK_TOKEN,
+        received_token=received_token,
+        provider_name="Asaas",
+    )
 
 
 class AsaasCheckoutProvider:
@@ -274,11 +268,14 @@ def apply_checkout_event(event):
         process_paid_order(event.order_id, event.raw_payload)
         return True
     if event.event_type in FAILED_EVENTS:
-        CheckoutOrder.objects.filter(pk=event.order_id, status=CheckoutOrder.Status.PENDING).update(
-            status=CheckoutOrder.Status.FAILED,
-            raw_payload=event.raw_payload,
-            updated_at=timezone.now(),
-        )
+        order = CheckoutOrder.objects.filter(
+            pk=event.order_id,
+            status=CheckoutOrder.Status.PENDING,
+        ).first()
+        if order:
+            order.status = CheckoutOrder.Status.FAILED
+            order.raw_payload = event.raw_payload
+            order.save(update_fields=["status", "raw_payload", "updated_at"])
         return True
     return False
 

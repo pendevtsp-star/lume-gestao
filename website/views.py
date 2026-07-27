@@ -13,7 +13,7 @@ from django.views.generic import CreateView, DeleteView, ListView, TemplateView,
 
 from accounts.permissions import ManagementAccessMixin
 from billing.models import ServicePlan
-from core.views import FormContextMixin, SearchableListView
+from core.web.mixins import FormContextMixin, SearchableListView
 from core.models import ClinicSettings
 from website.content import INSTAGRAM_HIGHLIGHTS, REEL_FEATURES
 from website.brevo import sync_newsletter_contact

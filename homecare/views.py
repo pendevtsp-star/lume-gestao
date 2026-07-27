@@ -19,7 +19,8 @@ from django.views.generic import CreateView, DetailView, ListView, TemplateView,
 
 from accounts.permissions import get_profile
 from core.integrations.http import IntegrationError
-from core.views import FormContextMixin, SearchableListView
+from core.web.mixins import FormContextMixin, SearchableListView
+from core.web.throttling import FixedWindowRateLimitMixin
 from homecare.features import homecare_checkout_enabled, homecare_public_enabled, homecare_webhook_enabled
 from homecare.forms import (
     HomecareCategoryForm,
@@ -197,7 +198,10 @@ class HomecareVideoListView(HomecareContentAccessMixin, SearchableListView, List
         return context
 
 
-class HomecareVideoCreateView(FormContextMixin, HomecareContentAccessMixin, CreateView):
+class HomecareVideoCreateView(FixedWindowRateLimitMixin, FormContextMixin, HomecareContentAccessMixin, CreateView):
+    rate_limit = 20
+    rate_period = 3600
+    rate_scope = "homecare-video-upload"
     model = HomecareVideo
     form_class = HomecareVideoForm
     template_name = "homecare/video_form.html"
@@ -220,7 +224,10 @@ class HomecareVideoCreateView(FormContextMixin, HomecareContentAccessMixin, Crea
         return response
 
 
-class HomecareVideoUpdateView(FormContextMixin, HomecareContentAccessMixin, UpdateView):
+class HomecareVideoUpdateView(FixedWindowRateLimitMixin, FormContextMixin, HomecareContentAccessMixin, UpdateView):
+    rate_limit = 20
+    rate_period = 3600
+    rate_scope = "homecare-video-upload"
     model = HomecareVideo
     form_class = HomecareVideoForm
     template_name = "homecare/video_form.html"
@@ -749,7 +756,11 @@ class HomecareSubscriptionStatusView(HomecarePublicEnabledMixin, LoginRequiredMi
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class HomecareAsaasWebhookView(View):
+class HomecareAsaasWebhookView(FixedWindowRateLimitMixin, View):
+    rate_limit = 120
+    rate_period = 60
+    rate_scope = "homecare-asaas-webhook"
+    rate_limit_json = True
     def post(self, request):
         if not homecare_webhook_enabled():
             return JsonResponse({"ok": False, "detail": "Modulo indisponivel."}, status=404)

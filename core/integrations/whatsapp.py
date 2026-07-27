@@ -330,6 +330,7 @@ def provider_reference_from_response(result):
 
 MAX_DELIVERY_ATTEMPTS = 4
 RETRY_DELAYS_MINUTES = (2, 5, 15)
+DELIVERY_CLAIM_MINUTES = 10
 
 
 def transient_whatsapp_delivery_error(message):
@@ -345,6 +346,14 @@ def transient_whatsapp_delivery_error(message):
         "no lid for user",
     )
     return any(marker in normalized for marker in transient_markers)
+
+
+def whatsapp_delivery_completed_despite_error(message):
+    normalized = str(message or "").lower()
+    return (
+        "cannot read properties of undefined" in normalized
+        and "reading 'id'" in normalized
+    )
 
 
 def process_scheduled_whatsapp_messages(limit=50, now=None):
@@ -388,12 +397,51 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
         )
 
     for log in due_logs:
+        claimed = (
+            WhatsAppMessageLog.objects.filter(
+                pk=log.pk,
+                status=WhatsAppMessageLog.Status.SCHEDULED,
+                scheduled_for__isnull=False,
+                scheduled_for__lte=now,
+            )
+            .filter(Q(next_attempt_at__isnull=True) | Q(next_attempt_at__lte=now))
+            .update(next_attempt_at=now + timedelta(minutes=DELIVERY_CLAIM_MINUTES))
+        )
+        if not claimed:
+            continue
+        log.refresh_from_db()
         integration = log.integration or WhatsAppIntegration.load()
         log.attempt_count += 1
         try:
             result = send_whatsapp_text(log.recipient_number, log.rendered_message, integration=integration)
         except IntegrationError as exc:
             error_message = str(exc)
+            if whatsapp_delivery_completed_despite_error(error_message):
+                log.status = WhatsAppMessageLog.Status.SENT
+                log.sent_at = timezone.now()
+                log.next_attempt_at = None
+                log.error_message = error_message
+                log.provider_reference = ""
+                log.response_payload = {
+                    "delivery_assumed": True,
+                    "warning": error_message,
+                }
+                log.save(
+                    update_fields=[
+                        "status",
+                        "sent_at",
+                        "next_attempt_at",
+                        "attempt_count",
+                        "error_message",
+                        "provider_reference",
+                        "response_payload",
+                        "updated_at",
+                    ]
+                )
+                sync_notification_delivery(log, status=log.status)
+                summary["sent"] += 1
+                summary["processed"] += 1
+                continue
             can_retry = transient_whatsapp_delivery_error(error_message) and log.attempt_count < MAX_DELIVERY_ATTEMPTS
             if can_retry:
                 delay_index = min(log.attempt_count - 1, len(RETRY_DELAYS_MINUTES) - 1)

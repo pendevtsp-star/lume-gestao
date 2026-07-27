@@ -6,13 +6,13 @@ from accounts.onboarding import ensure_patient_user
 from accounts.permissions import get_profile
 from core.api_permissions import ClinicApiPermission, FinanceApiPermission, ProfessionalApiPermission
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
+from patients.selectors import patients_visible_to_user
 from patients.serializers import (
     PatientSerializer,
     ProfessionalNoteSerializer,
     ProfessionalPatientAssignmentSerializer,
 )
 from patients.services import deactivate_patient_relationships, patient_professional_link_exists
-from patients.views import patients_for_user
 
 
 class PatientViewSet(ModelViewSet):
@@ -24,7 +24,7 @@ class PatientViewSet(ModelViewSet):
     ordering_fields = ["full_name", "created_at"]
 
     def get_queryset(self):
-        return patients_for_user(self.request.user)
+        return patients_visible_to_user(self.request.user)
 
     def require_administration(self):
         if self.request.user.is_superuser:

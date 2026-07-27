@@ -187,7 +187,6 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
     for rule in appointment_rules:
         reminder_start = now + timedelta(hours=rule.hours_before)
         reminder_end = reminder_start + timedelta(minutes=60)
-        recovery_start = now + timedelta(minutes=10)
         kind = (
             PatientNotification.Kind.APPOINTMENT_DAY
             if rule.hours_before <= 3
@@ -200,8 +199,8 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                 patient__phone__gt="",
             )
             .filter(
-                Q(starts_at__gte=reminder_start, starts_at__lt=reminder_end)
-                | Q(starts_at__gte=recovery_start, starts_at__lt=reminder_start)
+                starts_at__gte=reminder_start,
+                starts_at__lt=reminder_end,
             )
             .order_by("starts_at")[:limit]
         )

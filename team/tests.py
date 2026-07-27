@@ -80,3 +80,14 @@ class TeamDeleteTests(TestCase):
             ProfessionalPatientAssignment.objects.filter(professional=professional, active=True).count(),
             2,
         )
+
+    def test_team_lists_render_responsive_guided_empty_states(self):
+        professionals = self.client.get(reverse("team:professionals"), {"q": "inexistente"})
+        employees = self.client.get(reverse("team:employees"), {"q": "inexistente"})
+
+        self.assertEqual(professionals.status_code, 200)
+        self.assertContains(professionals, "phase6-responsive-table")
+        self.assertContains(professionals, "Nenhum profissional corresponde à busca")
+        self.assertEqual(employees.status_code, 200)
+        self.assertContains(employees, "phase6-responsive-table")
+        self.assertContains(employees, "Nenhum funcionário corresponde à busca")

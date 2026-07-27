@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Dashboard | Lume Gestao{% endblock %}
 
 {% block content %}
+<style>@import url("{% static 'css/operations.css' %}");</style>
+<div class="operations-page dashboard-operations">
 <section class="page-heading">
   <div>
     <p class="eyebrow">Visao geral</p>
@@ -14,22 +17,25 @@
   {% endif %}
 </section>
 
-<section class="dashboard-command-panel" aria-label="Resumo operacional">
-  <article>
-    <span>Agenda em foco</span>
+<section class="operations-priority-grid" aria-label="Prioridades do dia">
+  <article class="operations-priority-card">
+    <span>Agenda de hoje</span>
     <strong>{{ next_appointments|length }} proximo{{ next_appointments|length|pluralize }} atendimento{{ next_appointments|length|pluralize }}</strong>
-    <a href="{% url 'scheduling:appointments' %}">Ver agenda</a>
+    <p>Abra a agenda para confirmar presencas, reagendar ou concluir sessoes.</p>
+    <a href="{% url 'scheduling:appointments' %}">Abrir agenda</a>
   </article>
   {% if finance_visible %}
-    <article>
-      <span>Financeiro</span>
-      <strong>{{ overdue_payments|length }} vencido{{ overdue_payments|length|pluralize }} · {{ upcoming_payments|length }} a vencer</strong>
-      <a href="{% url 'billing:payments' %}">Acompanhar pagamentos</a>
+    <article class="operations-priority-card{% if overdue_payments %} is-urgent{% endif %}">
+      <span>Financeiro pendente</span>
+      <strong>{{ overdue_payments|length }} vencido{{ overdue_payments|length|pluralize }} e {{ upcoming_payments|length }} a vencer</strong>
+      <p>Priorize os vencidos e registre os recebimentos diretamente na fila.</p>
+      <a href="{% url 'billing:payments' %}?q=overdue">Revisar pendencias</a>
     </article>
   {% endif %}
-  <article>
-    <span>Relacionamento</span>
-    <strong>{{ birthday_patients|length }} aniversario{{ birthday_patients|length|pluralize }} na semana</strong>
+  <article class="operations-priority-card">
+    <span>Relacionamento da semana</span>
+    <strong>{{ birthday_patients|length }} aniversario{{ birthday_patients|length|pluralize }}</strong>
+    <p>Confira os contatos antes de enviar uma mensagem personalizada.</p>
     {% if birthday_whatsapp_visible %}
       <a href="{% url 'integrations' %}?tab=messages">Revisar mensagem</a>
     {% else %}
@@ -38,64 +44,34 @@
   </article>
 </section>
 
-<section class="metric-grid">
-  <article class="metric">
-    <span>Pacientes ativos</span>
-    <strong>{{ active_patients }}</strong>
-  </article>
-  {% if finance_visible %}
-    <article class="metric">
-      <span>Mensalidades ativas</span>
-      <strong>{{ active_memberships }}</strong>
-    </article>
-    <article class="metric">
-      <span>Profissionais</span>
-      <strong>{{ active_professionals }}</strong>
-    </article>
-    <article class="metric">
-      <span>Planos ativos</span>
-      <strong>{{ active_plans }}</strong>
-    </article>
-  {% else %}
-    <article class="metric">
-      <span>Proximos atendimentos</span>
-      <strong>{{ next_appointments|length }}</strong>
-    </article>
-  {% endif %}
-</section>
-
 {% if finance_visible %}
-<section class="panel quick-actions-panel stacked-panel">
+<section class="panel quick-actions-panel">
   <header class="panel-header">
     <div>
       <h2>Rotinas frequentes</h2>
       <p>Atalhos para as acoes que costumam iniciar ou fechar o atendimento do dia.</p>
     </div>
   </header>
-  <div class="quick-actions-grid">
-    <a class="quick-action-card highlight" href="{% url 'billing:payment_quick_receive' %}">
-      <span>Cobrancas em aberto</span>
-      <strong>Baixar pagamento</strong>
-      <small>Buscar paciente e registrar recebimento presencial.</small>
-    </a>
-    <a class="quick-action-card" href="{% url 'scheduling:appointment_create' %}">
-      <span>Agenda</span>
-      <strong>Novo agendamento</strong>
-      <small>Criar sessao avulsa, recorrente ou compartilhada.</small>
-    </a>
-    <a class="quick-action-card" href="{% url 'patients:create' %}">
-      <span>Paciente</span>
-      <strong>Cadastrar paciente</strong>
-      <small>Iniciar cadastro com dados essenciais.</small>
-    </a>
-    <a class="quick-action-card" href="{% url 'billing:membership_create' %}">
-      <span>Adesao</span>
-      <strong>Nova adesao</strong>
-      <small>Vincular plano/servico ativo ao paciente.</small>
-    </a>
+  <div class="operations-actions">
+    <a class="button primary" href="{% url 'billing:payment_quick_receive' %}">Registrar recebimento</a>
+    <a class="button secondary" href="{% url 'scheduling:appointment_create' %}">Novo agendamento</a>
+    <a class="button secondary" href="{% url 'patients:create' %}">Cadastrar paciente</a>
+    <a class="button secondary" href="{% url 'billing:membership_create' %}">Vincular plano</a>
   </div>
 </section>
 {% endif %}
+
+<details class="operations-secondary-summary">
+  <summary>Indicadores cadastrais</summary>
+  <div class="operations-summary-grid">
+    <article class="operations-summary-card"><span>Pacientes ativos</span><strong>{{ active_patients }}</strong></article>
+    {% if finance_visible %}
+      <article class="operations-summary-card"><span>Planos recorrentes ativos</span><strong>{{ active_memberships }}</strong></article>
+      <article class="operations-summary-card"><span>Profissionais ativos</span><strong>{{ active_professionals }}</strong></article>
+      <article class="operations-summary-card"><span>Servicos ativos</span><strong>{{ active_plans }}</strong></article>
+    {% endif %}
+  </div>
+</details>
 
 <section class="panel connect-dashboard-panel stacked-panel">
   <header class="panel-header">
@@ -392,4 +368,5 @@
   </div>
 </section>
 {% endif %}
+</div>
 {% endblock %}

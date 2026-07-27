@@ -182,18 +182,9 @@ textarea {
   text-transform: uppercase;
 }
 
-.mobile-nav-toggle {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
 .mobile-nav-label {
   display: none;
+  font: inherit;
 }
 
 .nav a,
@@ -5526,16 +5517,23 @@ form.is-submitting button[type="submit"] { opacity: .72; }
 }
 
 .homecare-progress {
+  appearance: none;
+  display: block;
   width: 100%;
   height: 8px;
   overflow: hidden;
+  border: 0;
   border-radius: 999px;
   background: var(--sage-soft);
 }
 
-.homecare-progress i {
-  display: block;
-  height: 100%;
+.homecare-progress::-webkit-progress-bar {
+  border-radius: inherit;
+  background: var(--sage-soft);
+}
+
+.homecare-progress::-webkit-progress-value,
+.homecare-progress::-moz-progress-bar {
   border-radius: inherit;
   background: #b86d92;
 }
@@ -6551,6 +6549,7 @@ form.is-submitting button[type="submit"] { opacity: .72; }
     color: #43513a;
     cursor: pointer;
     font-weight: 900;
+    text-align: left;
   }
 
   .mobile-nav-label::after {
@@ -6563,12 +6562,7 @@ form.is-submitting button[type="submit"] { opacity: .72; }
     transition: transform 140ms ease;
   }
 
-  .mobile-nav-toggle:focus-visible + .mobile-nav-label {
-    outline: 3px solid rgba(96, 114, 79, 0.28);
-    outline-offset: 2px;
-  }
-
-  .mobile-nav-toggle:checked + .mobile-nav-label::after {
+  .mobile-nav-label[aria-expanded="true"]::after {
     transform: rotate(225deg) translate(-1px, -1px);
   }
 
@@ -6580,7 +6574,7 @@ form.is-submitting button[type="submit"] { opacity: .72; }
     padding: 2px 0 8px;
   }
 
-  .mobile-nav-toggle:checked + .mobile-nav-label + .nav {
+  .nav.is-open {
     display: grid;
   }
 
@@ -7482,8 +7476,63 @@ form.is-submitting button[type="submit"] { opacity: .72; }
 
 /* Shared operational primitives. Use these classes in list screens before creating page-specific UI. */
 :focus-visible {
-  outline: 3px solid rgba(66, 107, 88, 0.28);
-  outline-offset: 2px;
+  outline: 3px solid #315f4a;
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 10000;
+  top: 10px;
+  left: 10px;
+  padding: 10px 14px;
+  border: 2px solid #315f4a;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #263028;
+  font-weight: 900;
+  transform: translateY(calc(-100% - 20px));
+  transition: transform 120ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.nav a[aria-current="page"] {
+  background: #ffffff;
+  color: #263528;
+  font-weight: 900;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.nav a[aria-current="page"] .nav-icon {
+  background: rgba(96, 114, 79, 0.12);
+  color: #34412f;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .ui-toolbar {

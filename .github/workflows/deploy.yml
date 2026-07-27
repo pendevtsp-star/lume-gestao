@@ -51,14 +51,38 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install bandit pip-audit
+
+      - name: Auditar dependencias e codigo Python
+        run: |
+          pip-audit -r requirements.txt
+          bandit -r accounts billing checkout config core fiscal homecare lume_connect mobile patients reports scheduling team website -x "*/migrations/*,*/tests/*,*/test_*.py" -ll
 
       - name: Validar Django
         run: |
           python manage.py check
           python manage.py check --deploy
+          python manage.py makemigrations --check --dry-run
 
       - name: Rodar testes
+        env:
+          DJANGO_SETTINGS_MODULE: config.test_settings
         run: python manage.py test
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: whatsapp-web-gateway/package-lock.json
+
+      - name: Validar gateway WhatsApp
+        working-directory: whatsapp-web-gateway
+        run: |
+          npm ci --omit=dev --omit=optional
+          node --check src/server.js
+          npm test
+          npm audit --omit=dev --omit=optional --audit-level=high
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -247,6 +271,9 @@ jobs:
             echo "[deploy] Imagem WhatsApp anterior: $PREVIOUS_WHATSAPP_WEB_IMAGE"
             echo "[deploy] Imagem app alvo: $TARGET_APP_IMAGE"
             echo "[deploy] Imagem WhatsApp alvo: $TARGET_WHATSAPP_WEB_IMAGE"
+
+            echo "[deploy] Criando backup antes de migrations..."
+            BACKUP_DIR="$APP_DIR/data/backups" RETENTION_DAYS=30 sh scripts/backup-production.sh
 
             if [ -n "$GHCR_USERNAME" ] && [ -n "$GHCR_TOKEN" ]; then
               echo "[deploy] Autenticando no GHCR para pull privado..."

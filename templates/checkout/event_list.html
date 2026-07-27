@@ -3,6 +3,7 @@
 {% block title %}Eventos de checkout | Lume Gestao{% endblock %}
 
 {% block content %}
+{% include "checkout/_styles.html" %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Checkout</p>
@@ -15,27 +16,27 @@
   </div>
 </section>
 
-<form class="filters" method="get">
-  <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar evento, pagamento ou referencia">
+<form class="phase6-toolbar" method="get">
+  <label class="phase6-search"><span>Localizar evento</span><input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Evento, pagamento ou referencia"></label>
   <button class="button secondary" type="submit">Buscar</button>
 </form>
 
 <section class="panel">
-  <div class="table-wrap">
+  <div class="table-wrap phase6-responsive-table">
     <table>
       <thead><tr><th>Evento</th><th>Pedido</th><th>Pagamento</th><th>Token</th><th>Processado</th><th>Criado em</th></tr></thead>
       <tbody>
         {% for event in events %}
           <tr>
-            <td><strong>{{ event.event_type }}</strong><div class="table-meta">{{ event.event_id }}</div></td>
-            <td>{% if event.order %}{{ event.order.customer_name }}{% else %}-{% endif %}</td>
-            <td>{{ event.provider_payment_id|default:"-" }}</td>
-            <td><span class="badge {% if event.access_token_valid %}active{% else %}canceled{% endif %}">{% if event.access_token_valid %}Valido{% else %}Nao validado{% endif %}</span></td>
-            <td>{% if event.processed_at %}{{ event.processed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
-            <td>{{ event.created_at|date:"d/m/Y H:i" }}</td>
+            <td data-label="Evento"><strong>{{ event.event_type }}</strong><div class="table-meta">{{ event.event_id }}</div></td>
+            <td data-label="Pedido">{% if event.order %}{{ event.order.customer_name }}{% else %}-{% endif %}</td>
+            <td data-label="Pagamento">{{ event.provider_payment_id|default:"-" }}</td>
+            <td data-label="Token"><span class="badge {% if event.access_token_valid %}active{% else %}canceled{% endif %}">{% if event.access_token_valid %}Valido{% else %}Nao validado{% endif %}</span></td>
+            <td data-label="Processado">{% if event.processed_at %}{{ event.processed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+            <td data-label="Criado em">{{ event.created_at|date:"d/m/Y H:i" }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty">Nenhum evento encontrado.</td></tr>
+          <tr><td colspan="6" class="empty"><div class="phase6-empty"><strong>{% if q %}Nenhum evento corresponde à busca.{% else %}Nenhum evento recebido.{% endif %}</strong><span>{% if q %}Revise o termo pesquisado para recuperar o histórico.{% else %}Os retornos do provedor aparecerão aqui depois da configuração do checkout.{% endif %}</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

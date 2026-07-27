@@ -4,6 +4,7 @@ import path from "node:path";
 import QRCode from "qrcode";
 import qrcodeTerminal from "qrcode-terminal";
 import pkg from "whatsapp-web.js";
+import { messageIdFromSendResult } from "./message-result.js";
 
 const { Client, LocalAuth } = pkg;
 
@@ -253,7 +254,7 @@ app.post("/send", requireToken, async (request, response) => {
       ok: true,
       provider: "whatsapp_web",
       to,
-      messageId: sent.id?._serialized || "",
+      messageId: messageIdFromSendResult(sent),
       timestamp: new Date().toISOString()
     });
   } catch (error) {

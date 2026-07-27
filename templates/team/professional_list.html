@@ -3,20 +3,22 @@
 {% block title %}Profissionais | Lume Gestao{% endblock %}
 
 {% block content %}
+{% include "team/_styles.html" %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Equipe</p>
     <h1>Profissionais</h1>
+    <p class="page-subtitle">Organize especialidades, vínculos e disponibilidade da equipe clínica.</p>
   </div>
   <a class="button primary" href="{% url 'team:professional_create' %}">Novo profissional</a>
 </section>
 
-<section class="panel">
-  <form class="toolbar" method="get">
-    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar profissionais">
+<section class="panel phase6-module">
+  <form class="phase6-toolbar" method="get">
+    <label class="phase6-search"><span>Localizar profissional</span><input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Nome, especialidade ou registro"></label>
     <button class="button secondary" type="submit">Buscar</button>
   </form>
-  <div class="table-wrap">
+  <div class="table-wrap phase6-responsive-table">
     <table>
       <thead>
         <tr>
@@ -43,7 +45,7 @@
                   <span>
                     <strong>{{ professional.full_name }}</strong>
                     {% if professional.phone %}<small>{{ professional.phone }}</small>{% endif %}
-                    <small>Clique na foto para ver detalhes</small>
+                    <small>Abra para consultar o resumo profissional</small>
                   </span>
                 </summary>
                 <div class="entity-detail-card">
@@ -64,18 +66,18 @@
                 </div>
               </details>
             </td>
-            <td>{{ professional.get_specialty_display }}</td>
-            <td>{{ professional.registration_number|default:"-" }}</td>
-            <td><span class="badge {% if professional.active %}active{% else %}canceled{% endif %}">{% if professional.active %}Ativo{% else %}Inativo{% endif %}</span></td>
-            <td class="right">
+            <td data-label="Especialidade">{{ professional.get_specialty_display }}</td>
+            <td data-label="Registro">{{ professional.registration_number|default:"-" }}</td>
+            <td data-label="Status"><span class="badge {% if professional.active %}active{% else %}canceled{% endif %}">{% if professional.active %}Ativo{% else %}Inativo{% endif %}</span></td>
+            <td class="right" data-label="Ações"><div class="phase6-row-actions">
               <a class="table-action" href="{% url 'team:professional_update' professional.pk %}">Editar</a>
               {% if professional.active %}
                 <a class="table-action danger-link" href="{% url 'team:professional_delete' professional.pk %}">Excluir</a>
               {% endif %}
-            </td>
+            </div></td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="empty">Nenhum profissional encontrado.</td></tr>
+          <tr><td colspan="5" class="empty"><div class="phase6-empty"><strong>{% if q %}Nenhum profissional corresponde à busca.{% else %}A equipe clínica ainda está vazia.{% endif %}</strong><span>{% if q %}Revise o termo ou limpe a busca para ver todos os profissionais.{% else %}Cadastre o primeiro profissional para liberar agenda e vínculos com pacientes.{% endif %}</span>{% if not q %}<a class="button primary compact" href="{% url 'team:professional_create' %}">Cadastrar profissional</a>{% endif %}</div></td></tr>
         {% endfor %}
       </tbody>
     </table>

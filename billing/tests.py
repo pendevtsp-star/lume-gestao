@@ -316,7 +316,11 @@ class BillingModelTests(TestCase):
 
         response = self.client.get(reverse("billing:payment_quick_receive"), {"q": "Paciente"})
 
-        self.assertContains(response, "Fila de mensalidades")
+        self.assertContains(response, "Fila de recebimentos")
+        self.assertContains(response, "Valores a receber")
+        self.assertContains(response, "Historico financeiro")
+        self.assertContains(response, "Planos recorrentes")
+        self.assertContains(response, "Cobrancas avulsas")
         self.assertContains(response, reverse("billing:payment_receive", args=[pending.pk]))
         self.assertNotContains(response, "Massagem avulsa")
 
@@ -404,6 +408,10 @@ class BillingModelTests(TestCase):
 
         response = self.client.get(reverse("billing:payments"))
 
+        self.assertContains(response, "Historico financeiro")
+        self.assertContains(response, "Recebimentos")
+        self.assertContains(response, "Planos recorrentes")
+        self.assertContains(response, "Cobrancas avulsas")
         self.assertContains(response, "Sessao avulsa duplicada")
         self.assertContains(response, reverse("billing:cash_closing"))
         self.assertContains(response, reverse("billing:payment_delete", args=[payment.pk]))

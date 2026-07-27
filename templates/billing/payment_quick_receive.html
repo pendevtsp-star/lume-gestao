@@ -1,16 +1,20 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Recebimentos | Lume Gestao{% endblock %}
 
 {% block content %}
+<style>@import url("{% static 'css/operations.css' %}");</style>
+<div class="operations-page">
 <section class="page-heading">
   <div>
     <p class="eyebrow">Financeiro</p>
-    <h1>Recebimentos</h1>
+    <h1>Fila de recebimentos</h1>
     <p class="page-subtitle">Uma fila unica para receber mensalidades vencidas, do ciclo atual e dos proximos ciclos.</p>
   </div>
   <a class="button secondary" href="{% url 'billing:payments' %}">Historico financeiro</a>
 </section>
+{% include "billing/_finance_nav.html" with finance_section="receivables" %}
 
 <section class="list-overview-strip finance-work-queue-summary" aria-label="Resumo dos recebimentos">
   <article>
@@ -30,7 +34,7 @@
 <section class="panel quick-receive-panel">
   <header class="panel-header">
     <div>
-      <h2>Fila de mensalidades</h2>
+      <h2>Valores a receber</h2>
       <p>Registre o pagamento no proprio item. Itens vencidos mostram ha quantos dias precisam de acompanhamento.</p>
     </div>
   </header>
@@ -115,4 +119,5 @@
   </div>
   {% include "core/pagination.html" %}
 </section>
+</div>
 {% endblock %}

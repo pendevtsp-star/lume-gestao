@@ -1,3 +1,4 @@
+{% include "reports/_styles.html" %}
 <nav class="report-tabs" aria-label="Navegacao dos relatorios">
   <a class="report-tab {% if report_section == 'overview' %}is-active{% endif %}" href="{% url 'reports:dashboard' %}">Visão geral</a>
   <a class="report-tab {% if report_section == 'financial' %}is-active{% endif %}" href="{% url 'reports:financial' %}">Financeiro</a>

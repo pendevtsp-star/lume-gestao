@@ -7,6 +7,7 @@ from django.utils import timezone
 from accounts.models import LGPD_CONSENT_VERSION, UserProfile
 from accounts.onboarding import generate_unique_username
 from core.forms import StyledModelForm
+from core.validators import validate_image_upload
 from patients.models import Patient
 from patients.services import sync_professional_patient_assignments
 from team.models import Professional
@@ -160,7 +161,7 @@ class UserSelfSettingsForm(forms.Form):
     phone = forms.CharField(label="telefone", max_length=30, required=False)
     whatsapp_number = forms.CharField(label="WhatsApp para avisos", max_length=30, required=False)
     whatsapp_notifications_enabled = forms.BooleanField(label="habilitar avisos futuros por WhatsApp", required=False)
-    photo = forms.ImageField(label="foto pessoal", required=False)
+    photo = forms.ImageField(label="foto pessoal", required=False, validators=[validate_image_upload])
     remove_photo = forms.BooleanField(label="remover foto atual", required=False, widget=forms.HiddenInput)
     current_password = forms.CharField(
         label="senha atual",

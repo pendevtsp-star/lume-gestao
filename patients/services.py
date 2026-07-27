@@ -1,6 +1,7 @@
 from django.db.models import Q
 
 from patients.models import Patient, ProfessionalPatientAssignment
+from patients.selectors import patient_ids_visible_to_professional
 
 
 LINK_APPOINTMENT_STATUSES = ["requested", "scheduled", "completed", "no_show"]
@@ -33,24 +34,8 @@ def patient_professional_link_exists(patient, professional):
 
 
 def patient_ids_for_professional(professional):
-    from scheduling.models import Appointment
-
-    if not professional or not professional.active:
-        return Patient.objects.none().values_list("pk", flat=True)
-
-    assignment_ids = ProfessionalPatientAssignment.objects.filter(
-        professional=professional,
-        professional__active=True,
-        patient__active=True,
-        active=True,
-    ).values_list("patient_id", flat=True)
-    appointment_ids = Appointment.objects.filter(
-        professional=professional,
-        professional__active=True,
-        patient__active=True,
-        status__in=LINK_APPOINTMENT_STATUSES,
-    ).values_list("patient_id", flat=True)
-    return Patient.objects.filter(Q(pk__in=assignment_ids) | Q(pk__in=appointment_ids)).values_list("pk", flat=True)
+    """Backward-compatible alias for the canonical visibility selector."""
+    return patient_ids_visible_to_professional(professional)
 
 
 def professional_ids_for_patient(patient):

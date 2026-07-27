@@ -10,8 +10,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends chromium ca-certificates fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
-COPY whatsapp-web-gateway/package.json ./package.json
-RUN npm install --omit=dev
+COPY whatsapp-web-gateway/package.json whatsapp-web-gateway/package-lock.json ./
+RUN npm ci --omit=dev --omit=optional
 
 COPY whatsapp-web-gateway/src ./src
 

@@ -8,6 +8,7 @@ from django.utils.dateparse import parse_date
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
+from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -17,9 +18,19 @@ from accounts.permissions import get_profile
 from billing.models import Membership, Payment
 from lume_connect.models import ConnectComment, ConnectLike, ConnectNotification, ConnectPost
 from patients.models import Patient, ProfessionalNote, ProfessionalPatientAssignment
-from patients.views import patients_for_user
+from patients.selectors import patients_visible_to_user
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
 from team.models import Employee, Professional
+
+from mobile.throttles import MobileLoginRateThrottle
+
+
+class MobileTokenView(ObtainAuthToken):
+    """Keep the legacy token contract behind the same login throttle."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [MobileLoginRateThrottle]
 
 
 def profile_payload(profile):
@@ -343,6 +354,7 @@ class MobileHealthView(APIView):
 class MobileLoginView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_classes = [MobileLoginRateThrottle]
 
     def post(self, request):
         username = (request.data.get("username") or "").strip()
@@ -451,7 +463,7 @@ class MobilePaymentsView(APIView):
 class MobilePatientsView(APIView):
     def get(self, request):
         query = (request.query_params.get("q") or "").strip()
-        patients = patients_for_user(request.user).filter(active=True)
+        patients = patients_visible_to_user(request.user).filter(active=True)
         if query:
             patients = patients.filter(full_name__icontains=query)
         return Response({"patients": [patient_card_payload(patient) for patient in patients.order_by("full_name")[:100]]})

@@ -5,7 +5,6 @@ from django.utils.cache import add_never_cache_headers
 from django.contrib.auth import views as auth_views
 from django.views.generic import TemplateView
 from django.urls import include, path
-from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.routers import DefaultRouter
 
 from accounts.api import UserProfileViewSet
@@ -26,6 +25,7 @@ from scheduling.api import (
     ServiceUsageViewSet,
 )
 from team.api import EmployeeViewSet, ProfessionalViewSet
+from mobile.views import MobileTokenView
 
 router = DefaultRouter()
 router.register(r"user-profiles", UserProfileViewSet)
@@ -78,7 +78,7 @@ urlpatterns = [
     path("pilates-em-casa/", include("homecare.public_urls")),
     path("checkout/", include("checkout.urls")),
     path("lume-connect/", include("lume_connect.urls")),
-    path("api/v1/mobile/auth/token/", obtain_auth_token, name="mobile_auth_token"),
+    path("api/v1/mobile/auth/token/", MobileTokenView.as_view(), name="mobile_auth_token"),
     path("api/v1/mobile/", include("mobile.urls")),
     path("api/v1/", include(router.urls)),
     path("login/", auth_views.LoginView.as_view(), name="login"),

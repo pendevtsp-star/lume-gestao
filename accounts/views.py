@@ -19,7 +19,7 @@ from accounts.forms import ForcePasswordChangeForm, PasswordRecoveryRequestForm,
 from accounts.onboarding import generate_temporary_password, send_welcome_credentials
 from accounts.permissions import ManagementAccessMixin
 from core.deletion import DeletionDecisionMixin
-from core.views import SearchableListView
+from core.web.mixins import SearchableListView
 
 
 PASSWORD_RECOVERY_LIMIT = 5

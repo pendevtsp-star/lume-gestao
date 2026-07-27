@@ -27,6 +27,7 @@ tmp/
 *.tmp
 *.temp
 desktop/node_modules/
+node_modules/
 desktop/backend-bin/
 apps/**/.dart_tool/
 apps/**/build/

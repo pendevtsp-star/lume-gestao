@@ -12,11 +12,12 @@
   <link rel="manifest" href="{% url 'pwa_manifest' %}">
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'images/lume-favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260714-mobile-shell-fix">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260721-a11y-foundation">
   <link rel="stylesheet" href="{% static 'css/quick-actions.css' %}?v=20260630-quick-actions-compact">
   <script src="{% static 'js/app.js' %}?v=20260714-mobile-shell-fix" defer></script>
 </head>
 <body class="lume-app">
+  <a class="skip-link" href="#main-content">Pular para o conteudo principal</a>
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="{% url 'dashboard' %}" aria-label="Lume Gestao">
@@ -27,13 +28,12 @@
         </span>
       </a>
 
-      <input class="mobile-nav-toggle" type="checkbox" id="mobile-nav-toggle">
-      <label class="mobile-nav-label" for="mobile-nav-toggle">
+      <button class="mobile-nav-label" type="button" aria-expanded="false" aria-controls="primary-navigation">
         <span class="nav-icon icon-menu" aria-hidden="true"></span>
         <span>Menu</span>
-      </label>
+      </button>
 
-      <nav class="nav">
+      <nav class="nav" id="primary-navigation" aria-label="Navegacao principal">
         <a href="{% url 'dashboard' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Dashboard</span></a>
 
         {% if request.user.profile.role == "patient" %}
@@ -204,7 +204,7 @@
       </div>
     </aside>
 
-    <main class="main">
+    <main class="main" id="main-content" tabindex="-1">
       <div class="topbar">
         <div class="topbar-context">
           <span class="topbar-badge">{{ section_label|default:"Sistema" }}</span>
@@ -290,9 +290,52 @@
     </nav>
   {% endif %}
   <script>
+    (function () {
+      const toggle = document.querySelector(".mobile-nav-label");
+      const navigation = document.getElementById("primary-navigation");
+      const mobileQuery = window.matchMedia("(max-width: 860px)");
+
+      if (toggle && navigation) {
+        const firstNavigationTarget = () => navigation.querySelector("a, summary");
+        const setNavigationOpen = (isOpen, moveFocus) => {
+          navigation.classList.toggle("is-open", isOpen);
+          toggle.setAttribute("aria-expanded", String(isOpen));
+          if (isOpen && moveFocus) firstNavigationTarget()?.focus();
+        };
+
+        toggle.addEventListener("click", () => {
+          const isOpening = toggle.getAttribute("aria-expanded") !== "true";
+          setNavigationOpen(isOpening, isOpening);
+        });
+        navigation.addEventListener("click", (event) => {
+          if (mobileQuery.matches && event.target.closest("a")) setNavigationOpen(false, false);
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") {
+            setNavigationOpen(false, false);
+            toggle.focus();
+          }
+        });
+        mobileQuery.addEventListener?.("change", () => setNavigationOpen(false, false));
+      }
+
+      const links = Array.from(document.querySelectorAll("#primary-navigation a[href]"));
+      const currentUrl = new URL(window.location.href);
+      const exactMatch = links.find((link) => {
+        const url = new URL(link.href, currentUrl);
+        return url.pathname === currentUrl.pathname && url.search === currentUrl.search;
+      });
+      const pathMatch = links.find((link) => new URL(link.href, currentUrl).pathname === currentUrl.pathname);
+      const currentLink = exactMatch || pathMatch;
+      if (currentLink) {
+        currentLink.setAttribute("aria-current", "page");
+        currentLink.closest("details")?.setAttribute("open", "");
+      }
+    })();
+
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("{% url 'pwa_service_worker' %}?v=20260713-automation-ux").catch(function () {});
+        navigator.serviceWorker.register("{% url 'pwa_service_worker' %}?v=20260721-pwa-security").catch(function () {});
       });
     }
   </script>

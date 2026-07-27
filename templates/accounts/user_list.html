@@ -3,20 +3,22 @@
 {% block title %}Usuarios | Lume Gestao{% endblock %}
 
 {% block content %}
+{% include "accounts/_styles.html" %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Acessos</p>
     <h1>Usuarios</h1>
+    <p class="page-subtitle">Controle quem entra no sistema, qual perfil utiliza e a qual cadastro está vinculado.</p>
   </div>
   <a class="button primary" href="{% url 'accounts:create' %}">Novo usuario</a>
 </section>
 
-<section class="panel">
-  <form class="toolbar" method="get">
-    <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar usuarios">
+<section class="panel phase6-module">
+  <form class="phase6-toolbar" method="get">
+    <label class="phase6-search"><span>Localizar acesso</span><input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Login, e-mail, perfil ou vínculo"></label>
     <button class="button secondary" type="submit">Buscar</button>
   </form>
-  <div class="table-wrap">
+  <div class="table-wrap phase6-responsive-table">
     <table>
       <thead>
         <tr>
@@ -30,7 +32,7 @@
       <tbody>
         {% for user in users %}
           <tr>
-            <td>
+            <td data-label="Usuário">
               <div class="entity-cell">
                 <span class="avatar">
                   {% if user.profile.avatar_url %}
@@ -42,18 +44,18 @@
                 <span><strong>{{ user.username }}</strong><small>{{ user.email|default:"-" }}</small></span>
               </div>
             </td>
-            <td>{{ user.profile.get_role_display|default:"-" }}</td>
-            <td>
+            <td data-label="Perfil">{{ user.profile.get_role_display|default:"-" }}</td>
+            <td data-label="Vínculo">
               {% if user.profile.patient %}{{ user.profile.patient.full_name }}{% elif user.profile.professional %}{{ user.profile.professional.full_name }}{% else %}-{% endif %}
             </td>
-            <td><span class="badge {% if user.is_active %}active{% else %}canceled{% endif %}">{% if user.is_active %}Ativo{% else %}Inativo{% endif %}</span></td>
-            <td class="right">
+            <td data-label="Status"><span class="badge {% if user.is_active %}active{% else %}canceled{% endif %}">{% if user.is_active %}Ativo{% else %}Inativo{% endif %}</span></td>
+            <td class="right" data-label="Ações"><div class="phase6-row-actions">
               <a class="table-action" href="{% url 'accounts:update' user.pk %}">Editar acesso</a>
               <a class="table-action danger-link" href="{% url 'accounts:delete' user.pk %}">Excluir</a>
-            </td>
+            </div></td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="empty">Nenhum usuario encontrado.</td></tr>
+          <tr><td colspan="5" class="empty"><div class="phase6-empty"><strong>{% if q %}Nenhum acesso corresponde à busca.{% else %}Nenhum acesso adicional cadastrado.{% endif %}</strong><span>{% if q %}Revise o termo ou limpe a busca para ver todos os usuários.{% else %}Crie um usuário somente quando alguém realmente precisar entrar no sistema.{% endif %}</span>{% if not q %}<a class="button primary compact" href="{% url 'accounts:create' %}">Criar acesso</a>{% endif %}</div></td></tr>
         {% endfor %}
       </tbody>
     </table>

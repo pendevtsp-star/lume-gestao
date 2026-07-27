@@ -148,9 +148,77 @@
     background: #f7f8f3;
   }
 
+  .connection-state-copy,
+  .automation-state-copy {
+    display: grid;
+    gap: 4px;
+  }
+
+  .connection-state-copy small,
+  .automation-state-copy small,
+  .automation-telemetry span,
+  .template-variable-item span {
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .automation-rule-main {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .automation-telemetry {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(130px, 1fr));
+    gap: 8px;
+  }
+
+  .automation-telemetry div,
+  .template-variable-item {
+    display: grid;
+    gap: 3px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fbfcf8;
+  }
+
+  .automation-telemetry strong,
+  .template-variable-item code {
+    color: var(--ink);
+    font-size: 13px;
+  }
+
+  .template-variable-guide {
+    display: grid;
+    gap: 12px;
+  }
+
+  .template-variable-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+  }
+
+  .template-variable-list-inline {
+    margin: 10px 0 14px;
+  }
+
+  button.token-chip {
+    appearance: none;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .message-preview [data-whatsapp-template-preview] {
+    white-space: pre-wrap;
+  }
+
   @media (max-width: 980px) {
     .connection-simple-grid,
-    .whatsapp-qr-stage {
+    .whatsapp-qr-stage,
+    .automation-telemetry {
       grid-template-columns: 1fr;
     }
   }
@@ -175,8 +243,8 @@
         <p class="zap-subtitle">WhatsApp Web e o canal ativo de envio. Google Agenda fica preparado para configuracao futura, sem interferir na operacao.</p>
       </div>
       <div class="integration-status-row">
-        <span class="status-pill {% if whatsapp.is_connected %}is-success{% else %}is-muted{% endif %}">
-          WhatsApp {{ whatsapp_status.label }}
+        <span class="status-pill {% if whatsapp_connection_state.code == 'connected' %}is-success{% elif whatsapp_connection_state.code == 'qr_ready' or whatsapp_connection_state.code == 'preparing' %}is-warning{% elif whatsapp_connection_state.code == 'error' %}is-danger{% else %}is-muted{% endif %}">
+          WhatsApp {{ whatsapp_connection_state.label }}
         </span>
         <span class="status-pill is-muted">
           Google em preparacao
@@ -185,9 +253,9 @@
     </div>
 
     <nav class="zap-tabs" aria-label="Abas de integracoes">
-      <a class="{% if active_tab == 'connections' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=connections">WhatsApp</a>
-      <a class="{% if active_tab == 'messages' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages">Mensagens e automacoes</a>
-      <a class="{% if active_tab == 'panel' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=panel">Fila</a>
+      <a class="{% if active_tab == 'connections' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=connections">Conexao</a>
+      <a class="{% if active_tab == 'messages' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages">Modelos e regras</a>
+      <a class="{% if active_tab == 'panel' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=panel">Fila operacional</a>
       <a class="{% if active_tab == 'diagnostics' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=diagnostics">Suporte</a>
     </nav>
 
@@ -254,7 +322,7 @@
           <div class="zap-guide-grid">
             <article>
               <strong>1. Conecte os canais</strong>
-              <p>Cadastre o WhatsApp da clinica e conecte a conta Google que recebera os agendamentos.</p>
+              <p>Ative o WhatsApp Web e leia o QR Code com o aparelho da clinica.</p>
             </article>
             <article>
               <strong>2. Ajuste os modelos</strong>
@@ -262,7 +330,7 @@
             </article>
             <article>
               <strong>3. Envie ou sincronize</strong>
-              <p>Agende mensagens, processe a fila e sincronize os proximos atendimentos com o Google.</p>
+              <p>Agende mensagens e acompanhe processamento, falhas e novas tentativas na fila.</p>
             </article>
           </div>
         </section>
@@ -405,51 +473,44 @@
           <div class="connection-hero-top">
             <div>
               <p class="eyebrow">WhatsApp Web</p>
-              <h3>{% if whatsapp_web_gateway.ready %}WhatsApp conectado{% elif whatsapp_web_gateway.hasQr %}Escaneie o QR Code{% else %}Aguardando QR Code{% endif %}</h3>
-              <p>Use o WhatsApp Business da clinica para ler o QR. Depois de conectado, os lembretes e cobrancas seguem usando esta sessao.</p>
+              <h3 data-whatsapp-web-title>{{ whatsapp_connection_state.title }}</h3>
+              <p data-whatsapp-web-detail>{{ whatsapp_connection_state.detail }}</p>
             </div>
-            <span class="status-pill {% if whatsapp_web_gateway.ready %}is-success{% elif whatsapp_web_gateway.hasQr %}is-warning{% else %}is-muted{% endif %}">
-              {% if whatsapp_web_gateway.ready %}Conectado{% elif whatsapp_web_gateway.hasQr %}QR disponivel{% else %}Aguardando{% endif %}
+            <span class="status-pill {% if whatsapp_connection_state.code == 'connected' %}is-success{% elif whatsapp_connection_state.code == 'qr_ready' or whatsapp_connection_state.code == 'preparing' %}is-warning{% elif whatsapp_connection_state.code == 'error' %}is-danger{% else %}is-muted{% endif %}" data-whatsapp-web-pill>
+              {{ whatsapp_connection_state.label }}
             </span>
           </div>
 
           <div class="whatsapp-qr-stage">
             <div class="whatsapp-web-qr" data-whatsapp-web-qr>
-              {% if whatsapp_web_gateway.ready %}
+              {% if whatsapp_connection_state.code == 'connected' %}
                 <strong>Sessao WhatsApp Web conectada.</strong>
                 <span>O QR desaparece quando a sessao esta pronta para envio.</span>
-              {% elif whatsapp_web_gateway.hasQr %}
+              {% elif whatsapp_connection_state.code == 'qr_ready' %}
                 <span>Carregando QR...</span>
-              {% elif whatsapp_web_gateway.error or whatsapp_web_gateway.lastError %}
+              {% elif whatsapp_connection_state.code == 'error' %}
                 <strong>Nao foi possivel gerar o QR agora.</strong>
-                <span>{{ whatsapp_web_gateway.error|default:whatsapp_web_gateway.lastError }}</span>
+                <span>{{ whatsapp_connection_state.detail }}</span>
               {% else %}
-                <span>O QR aparecera aqui quando o gateway estiver pronto.</span>
+                <span>{{ whatsapp_connection_state.detail }}</span>
               {% endif %}
             </div>
             <div class="whatsapp-qr-aside">
               <span data-whatsapp-web-status>
-                {% if whatsapp_web_gateway.ready %}
-                  Sessao conectada.
-                {% elif whatsapp_web_gateway.hasQr %}
-                  Escaneie o QR com o WhatsApp Business da clinica.
-                {% elif whatsapp_web_gateway.error or whatsapp_web_gateway.lastError %}
-                  {{ whatsapp_web_gateway.error|default:whatsapp_web_gateway.lastError }}
-                {% else %}
-                  Aguardando QR do gateway.
-                {% endif %}
+                {{ whatsapp_connection_state.detail }}
               </span>
               <ol>
                 <li>Abra o WhatsApp Business da clinica.</li>
                 <li>Entre em aparelhos conectados.</li>
                 <li>Escaneie o QR e aguarde o status conectado.</li>
               </ol>
+              <small>O processo terminou quando o painel mostrar <strong>Sessao conectada</strong>.</small>
               <form method="post">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="restart_whatsapp_web_gateway">
                 <input type="hidden" name="tab" value="connections">
                 <button class="button ghost" type="submit">
-                  {% if whatsapp_web_gateway.ready %}Trocar aparelho / gerar novo QR{% else %}Gerar novo QR{% endif %}
+                  {% if whatsapp_connection_state.code == 'connected' %}Trocar aparelho / gerar novo QR{% else %}Gerar novo QR{% endif %}
                 </button>
               </form>
             </div>
@@ -462,7 +523,11 @@
             </div>
             <div>
               <span>Status</span>
-              <strong>{{ whatsapp_status.label }}</strong>
+              <strong>{{ whatsapp_connection_state.label }}</strong>
+            </div>
+            <div>
+              <span>Canal unico de envio</span>
+              <strong>{{ whatsapp_channel_name }}</strong>
             </div>
             <div>
               <span>Envio</span>
@@ -528,7 +593,7 @@
           </details>
         </section>
 
-        {% if whatsapp.is_connected %}
+        {% if whatsapp_connection_state.code == 'connected' %}
           <section class="panel connection-card test-card connection-side-card">
             <div class="connection-card-head">
               <div>
@@ -592,21 +657,9 @@
                 <strong>{{ google.connected_email|default:"Nao conectada" }}</strong>
               </div>
             </div>
-            <div class="connection-main-actions">
-              {% if google_configured %}
-                <a class="button secondary" href="{% url 'integrations_google_connect' %}">
-                  {% if google.is_connected %}Trocar conta Google{% else %}Conectar com Google{% endif %}
-                </a>
-              {% else %}
-                <button class="button secondary" type="button" disabled>Conectar com Google</button>
-              {% endif %}
-              <form method="post" action="{% url 'integrations_google_sync' %}">
-                {% csrf_token %}
-                <button class="button ghost" type="submit" {% if not google.is_connected %}disabled{% endif %}>Sincronizar agora</button>
-              </form>
-              {% if google_ics_url %}
-                <button class="button ghost" type="button" data-copy-text="{{ google_ics_url }}">Copiar link .ics</button>
-              {% endif %}
+            <div class="empty-state soft">
+              <strong>Disponivel futuramente.</strong>
+              <span>Nenhuma acao do Google e necessaria para usar agenda, mensagens ou cobrancas hoje.</span>
             </div>
             <div class="callback-box">
               <div>
@@ -631,7 +684,7 @@
         </section>
         <section class="panel zap-log-panel queue-failures-panel">
           <div class="panel-header"><div><h3>Falhas recentes</h3><p>Corrija a conexao antes de reenviar mensagens que falharam.</p></div><a class="button secondary compact" href="{% url 'integrations' %}?tab=connections">Revisar conexoes</a></div>
-          {% if failed_logs %}<div class="queue-list">{% for item in failed_logs %}<article class="queue-card queue-failure-card"><div><strong>{{ item.template.title|default:"Mensagem automatica" }} para {{ item.recipient_name }}</strong><p>{{ item.error_message|default:"Sem detalhe retornado pelo provedor." }}</p><span>{{ item.updated_at|date:"d/m/Y H:i" }}</span></div></article>{% endfor %}</div>{% else %}<div class="empty-state soft"><strong>Nenhuma falha recente.</strong><span>A fila nao registrou erros nos ultimos sete dias.</span></div>{% endif %}
+          {% if failed_logs %}<div class="queue-list">{% for item in failed_logs %}<article class="queue-card queue-failure-card"><div><strong>{{ item.template.title|default:"Mensagem automatica" }} para {{ item.recipient_name }}</strong><p>{{ item.error_message|default:"Sem detalhe retornado pelo provedor." }}</p><span>{{ item.updated_at|date:"d/m/Y H:i" }} · tentativa {{ item.attempt_count|default:1 }}{% if item.next_attempt_at %} · proxima tentativa {{ item.next_attempt_at|date:"d/m H:i" }}{% endif %}</span></div><form method="post">{% csrf_token %}<input type="hidden" name="action" value="retry_failed:{{ item.pk }}"><button class="button secondary compact" type="submit">Tentar novamente</button></form></article>{% endfor %}</div>{% else %}<div class="empty-state soft"><strong>Nenhuma falha recente.</strong><span>A fila nao registrou erros nos ultimos sete dias.</span></div>{% endif %}
         </section>
       </div>
     {% else %}
@@ -660,6 +713,47 @@
               <strong>Aniversario</strong>
               <span>Parabens automatico</span>
             </a>
+          </div>
+        </section>
+
+        {% if active_message_type == "appointment" %}
+          {% with template=whatsapp_templates.appointment form=template_forms.appointment send_form=send_forms.appointment preview=preview_messages.appointment send_kind="appointment" %}
+            {% include "core/partials/whatsapp_template_card.html" %}
+          {% endwith %}
+        {% elif active_message_type == "session_soon" %}
+          {% with template=whatsapp_templates.session_soon form=template_forms.session_soon send_form=send_forms.session_soon preview=preview_messages.session_soon send_kind="appointment" %}
+            {% include "core/partials/whatsapp_template_card.html" %}
+          {% endwith %}
+        {% elif active_message_type == "charge" %}
+          {% with template=whatsapp_templates.charge form=template_forms.charge send_form=send_forms.charge preview=preview_messages.charge send_kind="charge" %}
+            {% include "core/partials/whatsapp_template_card.html" %}
+          {% endwith %}
+        {% else %}
+          {% with template=whatsapp_templates.birthday form=template_forms.birthday send_form=send_forms.birthday preview=preview_messages.birthday send_kind="birthday" %}
+            {% include "core/partials/whatsapp_template_card.html" %}
+          {% endwith %}
+        {% endif %}
+
+        <section class="panel template-variable-guide" aria-labelledby="template-variable-guide-title">
+          <div class="panel-header">
+            <div>
+              <h3 id="template-variable-guide-title">Variaveis deste modelo</h3>
+              <p>Use os campos abaixo no texto. O Lume substitui cada variavel pelos dados da sessao antes do envio.</p>
+            </div>
+          </div>
+          <div class="template-variable-list">
+            {% for variable in active_template_variable_docs %}
+              <article class="template-variable-item">
+                <code>{{ variable.token }}</code>
+                <span>{{ variable.description }}</span>
+                <small>Exemplo: {{ variable.example }}</small>
+              </article>
+            {% empty %}
+              <div class="empty-state soft">
+                <strong>Este modelo nao usa variaveis.</strong>
+                <span>O texto sera enviado exatamente como foi salvo.</span>
+              </div>
+            {% endfor %}
           </div>
         </section>
 
@@ -706,11 +800,20 @@
             <span class="status-pill is-success">{{ automation_rules|length }} regra{{ automation_rules|length|pluralize:"s" }}</span>
           </div>
           <div class="automation-rule-list">
-            {% for rule in automation_rules %}
+            {% for state in automation_rule_states %}
+              {% with rule=state.rule %}
               <article class="automation-rule-row {% if not rule.active %}is-paused{% endif %}">
-                <div>
-                  <strong>{{ rule.name }}</strong>
-                  <span>{{ rule.template.title }} · {% if rule.trigger == "appointment_before" %}{{ rule.hours_before }}h antes da sessao{% else %}Somente manual{% endif %}</span>
+                <div class="automation-rule-main">
+                  <div class="automation-state-copy">
+                    <strong>{{ rule.name }}</strong>
+                    <span>{{ rule.template.title }} · {% if rule.trigger == "appointment_before" %}{{ rule.hours_before }}h antes da sessao{% else %}Somente manual{% endif %}</span>
+                    <small><strong>{{ state.label }}.</strong> {{ state.detail }}</small>
+                  </div>
+                  <div class="automation-telemetry">
+                    <div><span>Proxima execucao</span><strong>{{ state.next_execution_at|date:"d/m/Y H:i"|default:"Sem sessao elegivel" }}</strong></div>
+                    <div><span>Ultimo envio</span><strong>{{ state.last_sent_at|date:"d/m/Y H:i"|default:"Ainda nao enviado" }}</strong></div>
+                    <div><span>Retries</span><strong>{% if state.next_retry_at %}{{ state.failure_count }} falha(s) · {{ state.next_retry_at|date:"d/m H:i" }}{% elif state.failure_count %}{{ state.failure_count }} falha(s) aguardando acao{% else %}Sem falhas pendentes{% endif %}</strong></div>
+                  </div>
                 </div>
                 <div class="form-actions compact-actions">
                   {% if rule.template.template_type != "custom" %}
@@ -724,6 +827,7 @@
                   </form>
                 </div>
               </article>
+              {% endwith %}
             {% empty %}
               <div class="empty-state soft"><strong>Nenhuma automacao ativa.</strong><span>Crie uma regra para iniciar os disparos automaticos.</span></div>
             {% endfor %}
@@ -823,23 +927,6 @@
           </div>
         </section>
 
-        {% if active_message_type == "appointment" %}
-          {% with template=whatsapp_templates.appointment form=template_forms.appointment send_form=send_forms.appointment preview=preview_messages.appointment send_kind="appointment" %}
-          {% include "core/partials/whatsapp_template_card.html" %}
-          {% endwith %}
-        {% elif active_message_type == "session_soon" %}
-          {% with template=whatsapp_templates.session_soon form=template_forms.session_soon send_form=send_forms.session_soon preview=preview_messages.session_soon send_kind="appointment" %}
-            {% include "core/partials/whatsapp_template_card.html" %}
-          {% endwith %}
-        {% elif active_message_type == "charge" %}
-          {% with template=whatsapp_templates.charge form=template_forms.charge send_form=send_forms.charge preview=preview_messages.charge send_kind="charge" %}
-            {% include "core/partials/whatsapp_template_card.html" %}
-          {% endwith %}
-        {% else %}
-          {% with template=whatsapp_templates.birthday form=template_forms.birthday send_form=send_forms.birthday preview=preview_messages.birthday send_kind="birthday" %}
-            {% include "core/partials/whatsapp_template_card.html" %}
-          {% endwith %}
-        {% endif %}
       </div>
     {% endif %}
   </article>
@@ -862,20 +949,43 @@
     function setWhatsAppWebQr(data) {
       var qrTarget = document.querySelector("[data-whatsapp-web-qr]");
       var statusTarget = document.querySelector("[data-whatsapp-web-status]");
+      var titleTarget = document.querySelector("[data-whatsapp-web-title]");
+      var detailTarget = document.querySelector("[data-whatsapp-web-detail]");
+      var pillTarget = document.querySelector("[data-whatsapp-web-pill]");
       if (!qrTarget) {
         return;
       }
+      var state = data.ready ? {
+        title: "WhatsApp conectado",
+        detail: "A sessao esta pronta para os envios e automacoes da clinica.",
+        label: "Conectado",
+        cssClass: "is-success"
+      } : data.hasQr || data.qrDataUrl ? {
+        title: "Escaneie o QR Code",
+        detail: "Abra os aparelhos conectados no WhatsApp Business e leia o codigo.",
+        label: "QR disponivel",
+        cssClass: "is-warning"
+      } : data.error || data.lastError || data.ok === false ? {
+        title: "Nao foi possivel preparar o WhatsApp",
+        detail: data.error || data.lastError || "O gateway nao respondeu. Gere um novo QR e tente novamente.",
+        label: "Precisa de atencao",
+        cssClass: "is-danger"
+      } : {
+        title: "Preparando QR Code",
+        detail: "Aguarde alguns segundos enquanto a sessao e iniciada.",
+        label: "Conectando",
+        cssClass: "is-warning"
+      };
+      if (titleTarget) titleTarget.textContent = state.title;
+      if (detailTarget) detailTarget.textContent = state.detail;
+      if (pillTarget) {
+        pillTarget.textContent = state.label;
+        pillTarget.classList.remove("is-success", "is-warning", "is-danger", "is-muted");
+        pillTarget.classList.add(state.cssClass);
+      }
       qrTarget.replaceChildren();
       if (statusTarget) {
-        if (data.ready) {
-          statusTarget.textContent = "Sessao conectada.";
-        } else if (data.error || data.lastError) {
-          statusTarget.textContent = data.error || data.lastError;
-        } else if (data.hasQr) {
-          statusTarget.textContent = "Escaneie o QR com o WhatsApp Business da clinica.";
-        } else {
-          statusTarget.textContent = "Aguardando QR do gateway.";
-        }
+        statusTarget.textContent = state.detail;
       }
       if (data.qrDataUrl) {
         var image = document.createElement("img");
@@ -885,7 +995,7 @@
         return;
       }
       var message = document.createElement("strong");
-      message.textContent = data.ready ? "Sessao WhatsApp Web conectada." : "QR ainda nao disponivel.";
+      message.textContent = data.ready ? "Sessao WhatsApp Web conectada." : state.detail;
       qrTarget.appendChild(message);
     }
 

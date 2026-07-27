@@ -12,12 +12,15 @@ from core.models import (
 )
 from patients.models import Patient
 from scheduling.models import Appointment
+from core.validators import validate_image_upload
 
 
 class StyledModelForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
+            if isinstance(field, forms.ImageField) and validate_image_upload not in field.validators:
+                field.validators.append(validate_image_upload)
             widget = field.widget
             if isinstance(widget, forms.CheckboxInput):
                 widget.attrs.setdefault("class", "checkbox")
@@ -37,6 +40,11 @@ class StyledForm(forms.Form):
 
 
 class ClinicSettingsForm(StyledModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if validate_image_upload not in self.fields["logo"].validators:
+            self.fields["logo"].validators.append(validate_image_upload)
+
     class Meta:
         model = ClinicSettings
         fields = [
@@ -105,7 +113,30 @@ class WhatsAppIntegrationForm(StyledModelForm):
         ]
 
 
-class WhatsAppMessageTemplateForm(StyledModelForm):
+class WhatsAppTemplateBodyValidationMixin:
+    def clean_body(self):
+        from core.services.whatsapp_configuration import validate_template_body
+
+        template_type = (
+            getattr(self.instance, "template_type", "")
+            or WhatsAppMessageTemplate.TemplateType.CUSTOM
+        )
+        return validate_template_body(template_type, self.cleaned_data.get("body"))
+
+
+class WhatsAppMessageTemplateForm(WhatsAppTemplateBodyValidationMixin, StyledModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["body"].help_text = (
+            "Use somente as variaveis documentadas. A previa ao lado mostra o texto preenchido."
+        )
+        self.fields["body"].widget.attrs.update(
+            {
+                "data-whatsapp-template-body": "",
+                "data-template-type": getattr(self.instance, "template_type", ""),
+            }
+        )
+
     class Meta:
         model = WhatsAppMessageTemplate
         fields = [
@@ -121,7 +152,11 @@ class WhatsAppMessageTemplateForm(StyledModelForm):
         }
 
 
-class CustomWhatsAppMessageTemplateForm(StyledModelForm):
+class CustomWhatsAppMessageTemplateForm(WhatsAppTemplateBodyValidationMixin, StyledModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["body"].help_text = "Use somente as variaveis documentadas abaixo."
+
     class Meta:
         model = WhatsAppMessageTemplate
         fields = ["title", "description", "body", "active"]
@@ -156,6 +191,17 @@ class WhatsAppAutomationSettingsForm(StyledModelForm):
 
 
 class WhatsAppAutomationRuleForm(StyledModelForm):
+    AUTOMATIC_TEMPLATE_TYPES = {
+        WhatsAppMessageTemplate.TemplateType.APPOINTMENT,
+        WhatsAppMessageTemplate.TemplateType.SESSION_SOON,
+        WhatsAppMessageTemplate.TemplateType.CUSTOM,
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["template"].queryset = WhatsAppMessageTemplate.objects.filter(active=True).order_by("title")
+        self.fields["hours_before"].help_text = "Informe quantas horas antes da sessao a fila deve criar o envio."
+
     class Meta:
         model = WhatsAppAutomationRule
         fields = ["name", "template", "trigger", "hours_before", "active"]
@@ -165,8 +211,18 @@ class WhatsAppAutomationRuleForm(StyledModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        if cleaned_data.get("trigger") == WhatsAppAutomationRule.Trigger.MANUAL:
+        trigger = cleaned_data.get("trigger")
+        template = cleaned_data.get("template")
+        if trigger == WhatsAppAutomationRule.Trigger.MANUAL:
             cleaned_data["hours_before"] = 0
+        elif trigger == WhatsAppAutomationRule.Trigger.APPOINTMENT_BEFORE:
+            if template and template.template_type not in self.AUTOMATIC_TEMPLATE_TYPES:
+                self.add_error(
+                    "template",
+                    "Escolha um modelo de agenda, sessao proxima ou personalizado para esta rotina.",
+                )
+            if not cleaned_data.get("hours_before"):
+                self.add_error("hours_before", "Informe quantas horas antes da sessao o envio deve ocorrer.")
         return cleaned_data
 
 

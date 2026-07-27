@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Agenda | Lume Gestao{% endblock %}
 
 {% block content %}
+<style>@import url("{% static 'css/operations.css' %}");</style>
 <style>
   .agenda-modal-trigger {
     width: 100%;
@@ -13,15 +15,15 @@
 
   .agenda-action-modal {
     position: fixed;
-    inset: 0 0 0 auto;
-    width: min(720px, 100vw);
-    height: 100dvh;
-    max-height: none;
-    margin: 0;
-    overflow-y: auto;
+    inset: 0;
+    width: min(820px, calc(100vw - 32px));
+    height: auto;
+    max-height: min(860px, calc(100dvh - 32px));
+    margin: auto;
+    overflow: hidden;
     overscroll-behavior: contain;
     border: 0;
-    border-radius: 14px 0 0 14px;
+    border-radius: 14px;
     padding: 0;
     color: var(--ink);
     box-shadow: 0 24px 80px rgba(35, 46, 36, 0.26);
@@ -34,21 +36,21 @@
 
   .agenda-modal-card {
     display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
     gap: 16px;
-    min-height: 100%;
+    min-height: 0;
+    max-height: min(860px, calc(100dvh - 32px));
+    overflow: hidden;
     padding: 24px;
     background: var(--panel);
   }
 
   .agenda-modal-head {
-    position: sticky;
-    top: -24px;
-    z-index: 2;
     display: flex;
     gap: 12px;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 16px 0 12px;
+    padding: 0 0 12px;
     background: var(--panel);
     border-bottom: 1px solid var(--line);
   }
@@ -121,48 +123,39 @@
   }
 
   .agenda-modal-patients {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: var(--muted-panel);
     overflow: hidden;
   }
 
-  .agenda-modal-patients summary {
+  .agenda-modal-patients-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     padding: 12px 14px;
     color: var(--ink);
-    cursor: pointer;
     font-weight: 900;
-    list-style: none;
   }
 
-  .agenda-modal-patients summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .agenda-modal-patients summary::after {
-    content: "Ver mais";
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: rgba(96, 114, 79, 0.12);
+  .agenda-modal-patients-head span {
+    display: block;
+    margin-top: 2px;
     color: var(--muted);
-    font-size: 12px;
-    text-transform: uppercase;
-  }
-
-  .agenda-modal-patients[open] summary::after {
-    content: "Ver menos";
+    font-size: 13px;
   }
 
   .agenda-modal-patient-list {
     display: grid;
     gap: 8px;
     padding: 0 12px 12px;
-    max-height: 48vh;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .agenda-modal-patient-row {
@@ -255,15 +248,13 @@
   @media (max-width: 680px) {
     .agenda-action-modal {
       width: 100vw;
+      max-height: 100dvh;
       border-radius: 0;
     }
 
     .agenda-modal-card {
-      padding: 18px;
-    }
-
-    .agenda-modal-head {
-      top: -18px;
+      max-height: 100dvh;
+      padding: 16px;
     }
 
     .agenda-modal-facts {
@@ -280,7 +271,7 @@
 
   }
 </style>
-<div class="agenda-page">
+<div class="agenda-page operations-page">
 <section class="page-heading agenda-page-heading">
   <div>
     <p class="eyebrow">Agenda</p>
@@ -299,46 +290,17 @@
   </div>
 </section>
 
-<section class="agenda-overview-strip" aria-label="Resumo operacional da agenda">
-  <article>
-    <span>Semana exibida</span>
-    <strong>{{ week_start|date:"d/m" }} ate {{ week_end|date:"d/m/Y" }}</strong>
-  </article>
-  <article>
-    <span>Dia em foco</span>
-    <strong>{{ selected_day|date:"d/m/Y" }}</strong>
-  </article>
-  <article>
-    <span>Busca atual</span>
-    <strong>{% if q %}{{ q }}{% else %}Sem filtro aplicado{% endif %}</strong>
-  </article>
-  <article>
-    <span>Itens na lista</span>
-    <strong>{{ appointments|length }} registro{{ appointments|length|pluralize }}</strong>
-  </article>
-</section>
-
-<section class="metric-grid agenda-metrics">
-  <article class="metric">
-    <span>Atendimentos hoje</span>
-    <strong>{{ today_total }}</strong>
-  </article>
-  <article class="metric">
-    <span>Aguardando confirmacao</span>
-    <strong>{{ pending_total }}</strong>
-  </article>
-  <article class="metric">
-    <span>Remarcacoes abertas</span>
-    <strong>{{ reschedule_request_total }}</strong>
-  </article>
-  <article class="metric">
-    <span>Avisos pendentes</span>
-    <strong>{{ notification_total }}</strong>
-  </article>
+<section class="operations-compact-strip" aria-label="Resumo operacional da agenda">
+  <span>Semana <strong>{{ week_start|date:"d/m" }} a {{ week_end|date:"d/m/Y" }}</strong></span>
+  <span>Hoje <strong>{{ today_total }}</strong></span>
+  <span>Confirmacoes <strong>{{ pending_total }}</strong></span>
+  <span>Remarcacoes abertas <strong>{{ reschedule_request_total }}</strong></span>
+  <span>Avisos pendentes <strong>{{ notification_total }}</strong></span>
+  <span>Lista <strong>{{ appointments|length }}</strong></span>
 </section>
 
 <section class="panel agenda-hero-panel">
-  <form class="agenda-filter-bar" method="get" data-persist-filters="agenda">
+  <form class="agenda-filter-bar operations-filter-bar" method="get" data-persist-filters="agenda">
     <div class="agenda-toolbar-search">
       <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por paciente, profissional, status ou observacao">
       <small>Use a busca para localizar sessoes da semana inteira sem sair da visao principal.</small>
@@ -424,11 +386,11 @@
                       {% if session.is_recurring %}<span>Recorrente</span>{% endif %}
                     </small>
                   </button>
-                  <dialog class="agenda-action-modal" id="appointment-modal-{{ session.appointment.pk }}">
+                  <dialog class="agenda-action-modal" id="appointment-modal-{{ session.appointment.pk }}" aria-labelledby="appointment-modal-title-{{ session.appointment.pk }}">
                     <article class="agenda-modal-card">
                       <header class="agenda-modal-head">
                         <div>
-                          <h3>{{ session.title }}</h3>
+                          <h3 id="appointment-modal-title-{{ session.appointment.pk }}">{{ session.title }}</h3>
                           <p>{{ session.professional.full_name }} &middot; {{ session.status_display }}</p>
                         </div>
                         <button class="agenda-modal-close" type="button" data-close-dialog aria-label="Fechar">×</button>
@@ -746,29 +708,5 @@
   {% include "core/pagination.html" %}
 </section>
 </div>
-<script>
-  (() => {
-    document.querySelectorAll("[data-open-appointment]").forEach((trigger) => {
-      trigger.addEventListener("click", () => {
-        const dialog = document.getElementById(trigger.dataset.openAppointment);
-        if (dialog && typeof dialog.showModal === "function") {
-          dialog.showModal();
-        }
-      });
-    });
-
-    document.querySelectorAll("[data-close-dialog]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const dialog = button.closest("dialog");
-        if (dialog) dialog.close();
-      });
-    });
-
-    document.querySelectorAll(".agenda-action-modal").forEach((dialog) => {
-      dialog.addEventListener("click", (event) => {
-        if (event.target === dialog) dialog.close();
-      });
-    });
-  })();
-</script>
+<script src="{% static 'js/operations.js' %}"></script>
 {% endblock %}

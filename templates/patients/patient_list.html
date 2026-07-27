@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Pacientes | Lume Gestao{% endblock %}
 
 {% block content %}
+<style>@import url("{% static 'css/operations.css' %}");</style>
+<div class="operations-page">
 <section class="page-heading">
   <div>
     <p class="eyebrow">Cadastro</p>
@@ -43,11 +46,11 @@
 
   <div class="surface-summary-bar">
     <span>Resumo da consulta</span>
-    <strong>{{ patients|length }} registro{{ patients|length|pluralize }} disponivel{{ patients|length|pluralize:"s," }} para leitura</strong>
+    <strong>{{ patients|length }} {% if patients|length == 1 %}registro disponivel{% else %}registros disponiveis{% endif %} para leitura</strong>
   </div>
 
   <div class="table-wrap">
-    <table>
+    <table class="patient-directory-table">
       <thead>
         <tr>
           <th>Nome</th>
@@ -60,7 +63,7 @@
       <tbody>
         {% for patient in patients %}
           <tr>
-            <td>
+            <td data-label="Paciente">
               <details class="entity-cascade">
                 <summary class="entity-cell entity-summary">
                   <span class="avatar" title="Ver detalhes de {{ patient.full_name }}">
@@ -84,7 +87,7 @@
                     <div><dt>Contato emergencia</dt><dd>{{ patient.emergency_contact|default:"-" }}</dd></div>
                   </dl>
                   <div class="detail-block">
-                    <strong>Adesoes ativas</strong>
+                    <strong>Pacotes de sessoes</strong>
                     {% if patient.detail_packages %}
                       {% for package in patient.detail_packages %}
                         <p>{{ package.membership.plan.name }}: {{ package.used_sessions }}/{{ package.total_sessions }} usados, {{ package.remaining_sessions }} restantes. Status: {{ package.get_status_display }}.</p>
@@ -94,20 +97,20 @@
                     {% endif %}
                   </div>
                   <div class="detail-block">
-                    <strong>Mensalidade / plano-servico</strong>
+                    <strong>Planos recorrentes</strong>
                     {% if patient.detail_memberships %}
                       {% for membership in patient.detail_memberships %}
                         <p>
                           {{ membership.plan.name }}: {{ membership.get_status_display }} desde {{ membership.start_date|date:"d/m/Y" }}.
                           {% if membership.status == "active" %}
-                            <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}&plan={{ membership.plan.pk }}">Adicionar adesao</a>
+                            <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}&plan={{ membership.plan.pk }}">Adicionar pacote</a>
                           {% endif %}
                         </p>
                       {% endfor %}
                     {% else %}
                       <p>
-                        Nenhuma mensalidade cadastrada.
-                        <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}">Adicionar plano/servico</a>
+                        Nenhum plano recorrente cadastrado.
+                        <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ patient.pk }}">Adicionar plano ou pacote</a>
                       </p>
                     {% endif %}
                   </div>
@@ -134,14 +137,14 @@
                 </div>
               </details>
             </td>
-            <td>{{ patient.phone|default:"-" }}</td>
-            <td>{{ patient.email|default:"-" }}</td>
-            <td><span class="badge {% if patient.active %}active{% else %}canceled{% endif %}">{% if patient.active %}Ativo{% else %}Inativo{% endif %}</span></td>
-            <td class="right">
-              <div class="table-actions">
-                <a class="table-action" href="{% url 'patients:update' patient.pk %}">Editar</a>
+            <td data-label="Telefone">{{ patient.phone|default:"-" }}</td>
+            <td data-label="E-mail">{{ patient.email|default:"-" }}</td>
+            <td data-label="Status"><span class="badge {% if patient.active %}active{% else %}canceled{% endif %}">{% if patient.active %}Ativo{% else %}Inativo{% endif %}</span></td>
+            <td class="right" data-label="Acoes">
+              <div class="patient-row-actions">
+                <a class="table-action" href="{% url 'patients:update' patient.pk %}">Editar cadastro</a>
                 {% if patient.active %}
-                  <a class="table-action danger-link" href="{% url 'patients:delete' patient.pk %}">Excluir</a>
+                  <a class="table-action danger-link" href="{% url 'patients:delete' patient.pk %}">Desativar</a>
                 {% endif %}
               </div>
             </td>
@@ -161,6 +164,7 @@
   </div>
   {% include "core/pagination.html" %}
 </section>
+</div>
 <script>
   (() => {
     const form = document.querySelector("[data-live-search-form]");

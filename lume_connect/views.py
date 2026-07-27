@@ -9,11 +9,13 @@ from django.db.models import Count, Prefetch, Q
 from django.http import FileResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.generic import CreateView, ListView, TemplateView, UpdateView
 
 from accounts.models import UserProfile
 from accounts.permissions import get_profile
+from core.web.throttling import FixedWindowRateLimitMixin
 from lume_connect.forms import ConnectCommentForm, ConnectPostForm
 from lume_connect.models import ConnectComment, ConnectLike, ConnectNotification, ConnectPost, ConnectShareLog
 from lume_connect.services.caption_generator import generate_caption
@@ -26,6 +28,17 @@ def is_connect_moderator(user):
         return True
     profile = get_profile(user)
     return bool(profile and profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT})
+
+
+def safe_post_redirect(request, fallback="lume_connect:feed"):
+    target = (request.POST.get("next") or "").strip()
+    if target and url_has_allowed_host_and_scheme(
+        target,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(target)
+    return redirect(fallback)
 
 
 class ActiveUserRequiredMixin(LoginRequiredMixin):
@@ -146,7 +159,10 @@ class ProfilePostsView(ActiveUserRequiredMixin, ConnectFeedMixin, ListView):
         return self.decorate_posts(context)
 
 
-class PostCreateView(ActiveUserRequiredMixin, CreateView):
+class PostCreateView(FixedWindowRateLimitMixin, ActiveUserRequiredMixin, CreateView):
+    rate_limit = 30
+    rate_period = 3600
+    rate_scope = "lume-connect-post-write"
     model = ConnectPost
     form_class = ConnectPostForm
     template_name = "lume_connect/post_form.html"
@@ -168,7 +184,10 @@ class PostCreateView(ActiveUserRequiredMixin, CreateView):
         return context
 
 
-class PostEditView(ActiveUserRequiredMixin, UpdateView):
+class PostEditView(FixedWindowRateLimitMixin, ActiveUserRequiredMixin, UpdateView):
+    rate_limit = 30
+    rate_period = 3600
+    rate_scope = "lume-connect-post-write"
     model = ConnectPost
     form_class = ConnectPostForm
     template_name = "lume_connect/post_form.html"
@@ -350,7 +369,7 @@ class ToggleLikeView(ActiveUserRequiredMixin, View):
         )
         if wants_json:
             return JsonResponse({"liked": liked, "likes_count": likes_count})
-        return redirect(request.POST.get("next") or "lume_connect:feed")
+        return safe_post_redirect(request)
 
 
 class AddCommentView(ActiveUserRequiredMixin, View):
@@ -373,7 +392,7 @@ class AddCommentView(ActiveUserRequiredMixin, View):
                 notification_type=ConnectNotification.NotificationType.COMMENT,
             )
         messages.success(request, "Comentario publicado.")
-        return redirect(request.POST.get("next") or "lume_connect:feed")
+        return safe_post_redirect(request)
 
 
 class CommentEditView(ActiveUserRequiredMixin, UpdateView):

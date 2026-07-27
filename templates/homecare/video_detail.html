@@ -5,10 +5,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ video.title }} | Fisioterapia em Casa</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260629-checkout-asaas">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260721-a11y-foundation">
 </head>
 <body class="homecare-public">
-  <main class="homecare-shell">
+  <a class="skip-link" href="#main-content">Pular para o conteudo principal</a>
+  <main class="homecare-shell" id="main-content" tabindex="-1">
     {% include "homecare/_public_nav.html" %}
 
     <header class="homecare-library-head">
@@ -21,7 +22,7 @@
 
     <section class="homecare-player-panel">
       {% if is_local_player %}
-        <video class="homecare-local-player" controls preload="metadata" controlsList="nodownload" {% if video.thumbnail %}poster="{{ video.thumbnail.url }}"{% endif %}>
+        <video class="homecare-local-player" controls preload="metadata" controlsList="nodownload" aria-label="Video: {{ video.title }}" {% if video.thumbnail %}poster="{{ video.thumbnail.url }}"{% endif %}>
           <source src="{{ local_video_url }}">
           Seu navegador nao conseguiu reproduzir este video.
         </video>
@@ -35,7 +36,7 @@
           </div>
         </div>
       {% elif embed_url %}
-        <iframe src="{{ embed_url }}" loading="lazy" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen></iframe>
+        <iframe src="{{ embed_url }}" title="Video: {{ video.title }}" loading="lazy" allow="accelerometer; gyroscope; encrypted-media; picture-in-picture" allowfullscreen></iframe>
       {% else %}
         <div class="empty">Video indisponivel no provedor.</div>
       {% endif %}

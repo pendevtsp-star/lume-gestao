@@ -18,6 +18,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/website.css' %}?v=20260714-redesign">
+  <link rel="stylesheet" href="{% static 'css/website-home-phase6.css' %}?v=20260721">
   <script type="application/ld+json">{{ structured_data_json|safe }}</script>
 </head>
 <body>
@@ -83,6 +84,8 @@
             <h3>{{ service.title }}</h3>
             <p>{{ service.description }}</p>
           </article>
+        {% empty %}
+          <div class="site-guided-empty"><strong>Os atendimentos estão sendo atualizados.</strong><span>Enquanto isso, a equipe pode orientar você pelo WhatsApp.</span><a class="button button-quiet" href="{{ whatsapp_services_url }}">Pedir orientação</a></div>
         {% endfor %}
       </div>
       <div class="inline-guidance">
@@ -215,7 +218,7 @@
   <footer class="site-footer">
     <div class="content-width footer-grid">
       <div class="footer-brand"><img src="{% static 'images/website/lume-logo.jpg' %}" alt=""><strong>{{ website_settings.resolved_clinic_name }}</strong><p>{{ website_settings.footer_text }}</p></div>
-      <nav aria-label="Links do rodapé"><strong>Navegação</strong><a href="#servicos">Atendimentos</a><a href="#planos">Planos</a><a href="#lume-em-casa">Lume em casa</a><a href="{% url 'website_system_redirect' %}">{{ website_settings.system_cta_text }}</a></nav>
+      <nav aria-label="Links do rodapé"><strong>Navegação</strong><a href="#servicos">Atendimentos</a>{% if plans %}<a href="#planos">Planos</a>{% endif %}<a href="#lume-em-casa">Lume em casa</a><a href="{% url 'website_system_redirect' %}">{{ website_settings.system_cta_text }}</a></nav>
       <div class="footer-contact"><strong>Contato</strong><span>{{ website_settings.resolved_address }}</span><span>{{ website_settings.city_name }}</span><span>{{ website_settings.resolved_business_hours }}</span><a href="{% url 'website_instagram_redirect' %}" target="_blank" rel="noopener noreferrer">Instagram</a></div>
       <div class="newsletter" id="newsletter">
         <strong>{{ website_settings.newsletter_title }}</strong><p>{{ website_settings.newsletter_text }}</p>

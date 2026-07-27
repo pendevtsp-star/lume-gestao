@@ -67,5 +67,8 @@
       </article>
     {% endif %}
   {% endfor %}
+  {% if not overview_cards %}
+    <div class="panel phase6-empty"><strong>Não há relatórios disponíveis para este perfil.</strong><span>Solicite ao administrador a permissão necessária para consultar indicadores.</span></div>
+  {% endif %}
 </section>
 {% endblock %}

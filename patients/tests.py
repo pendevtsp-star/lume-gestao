@@ -458,8 +458,12 @@ class PatientAccessTests(TestCase):
 
         response = self.client.get(reverse("patients:list"))
 
-        self.assertContains(response, "Adesoes ativas")
+        self.assertContains(response, "Abrir resumo completo")
         self.assertContains(response, "Pilates Detalhado")
+        self.assertContains(response, "Pacotes de sessoes")
+        self.assertContains(response, "Planos recorrentes")
+        self.assertContains(response, "Profissionais por atendimento")
+        self.assertContains(response, "Editar cadastro")
 
     def test_patient_search_matches_partial_patient_context(self):
         matched = Patient.objects.create(full_name="Mariana Contexto")

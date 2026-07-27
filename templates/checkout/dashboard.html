@@ -3,11 +3,12 @@
 {% block title %}Checkout | Lume Gestao{% endblock %}
 
 {% block content %}
+{% include "checkout/_styles.html" %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Pagamentos</p>
-    <h1>Checkout Asaas</h1>
-    <p class="page-subtitle">Centro operacional para vendas de planos e pagamento online de mensalidades.</p>
+    <h1>Pagamentos online</h1>
+    <p class="page-subtitle">Acompanhe pedidos e prepare a integração de cobrança da clínica.</p>
   </div>
   <div class="panel-actions">
     <a class="button secondary" href="{% url 'checkout:merchant_onboarding' %}">Conta recebedora</a>
@@ -15,6 +16,17 @@
     <a class="button secondary" href="{% url 'checkout:events' %}">Eventos</a>
   </div>
 </section>
+
+{% if not gateway.api_key_configured and not gateway.dry_run %}
+<section class="phase6-callout" role="status">
+  <div><strong>Asaas indisponível para cobranças reais</strong><span>As credenciais ainda não foram configuradas. Nenhum pagamento remoto pode ser criado neste modo.</span></div>
+  <a class="button secondary compact" href="{% url 'checkout:merchant_onboarding' %}">Ver preparação</a>
+</section>
+{% elif gateway.readiness == 'ready' %}
+<section class="phase6-callout is-ready" role="status">
+  <div><strong>Asaas pronto para operação</strong><span>A integração possui os requisitos técnicos necessários para processar cobranças.</span></div>
+</section>
+{% endif %}
 
 <section class="metric-grid">
   <article class="metric"><span>Pedidos</span><strong>{{ order_count }}</strong></article>
@@ -26,14 +38,14 @@
 <section class="panel checkout-health-panel">
   <div class="panel-header">
     <div>
-      <h2>Status do provedor</h2>
-      <p>Diagnostico seguro da integracao. Chaves e tokens nunca aparecem nesta tela.</p>
+      <h2>Disponibilidade do checkout</h2>
+      <p>Resumo dos requisitos para cobrar. Chaves e tokens nunca aparecem nesta tela.</p>
     </div>
     <span class="storage-status {% if gateway.readiness == 'ready' %}ok{% elif gateway.readiness == 'dry_run' %}warning{% else %}critical{% endif %}">
       {{ gateway.mode_label }}
     </span>
   </div>
-  <div class="checkout-health-grid">
+  <div class="phase6-status-list">
     <article>
       <span>Provedor ativo</span>
       <strong>{% if gateway.provider %}{{ gateway.provider.name }}{% else %}{{ gateway.provider_code }}{% endif %}</strong>
@@ -55,6 +67,8 @@
       <small>Token: {{ gateway.webhook_token_configured|yesno:"configurado,pendente" }}</small>
     </article>
   </div>
+  <details class="phase6-technical-details">
+    <summary>Ver detalhes técnicos e webhook</summary>
   <div class="checkout-webhook-box">
     <div>
       <strong>Homologacao local sem credenciais</strong>
@@ -91,6 +105,7 @@
       <a class="button secondary compact" href="{% url 'checkout:merchant_onboarding' %}">Editar cadastro</a>
     </div>
   </div>
+  </details>
 </section>
 
 <section class="split-grid">
@@ -134,18 +149,18 @@
       </div>
       <a class="button secondary compact" href="{% url 'checkout:orders' %}">Ver pedidos</a>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap phase6-responsive-table">
       <table>
         <thead><tr><th>Cliente</th><th>Status</th><th class="right">Valor</th></tr></thead>
         <tbody>
           {% for order in recent_orders %}
             <tr>
-              <td><strong>{{ order.customer_name }}</strong><div class="table-meta">{{ order.get_kind_display }}</div></td>
-              <td><span class="badge {{ order.status }}">{{ order.get_status_display }}</span></td>
-              <td class="right">R$ {{ order.amount|floatformat:2 }}</td>
+              <td data-label="Cliente"><strong>{{ order.customer_name }}</strong><div class="table-meta">{{ order.get_kind_display }}</div></td>
+              <td data-label="Status"><span class="badge {{ order.status }}">{{ order.get_status_display }}</span></td>
+              <td class="right" data-label="Valor">R$ {{ order.amount|floatformat:2 }}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="3" class="empty">Nenhum pedido registrado.</td></tr>
+            <tr><td colspan="3" class="empty"><div class="phase6-empty"><strong>Nenhum pedido registrado.</strong><span>Os pedidos aparecerão aqui quando o checkout estiver disponível e uma cobrança for iniciada.</span></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -160,18 +175,18 @@
       </div>
       <a class="button secondary compact" href="{% url 'checkout:events' %}">Ver eventos</a>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap phase6-responsive-table">
       <table>
         <thead><tr><th>Evento</th><th>Token</th><th>Processado</th></tr></thead>
         <tbody>
           {% for event in recent_events %}
             <tr>
-              <td><strong>{{ event.event_type }}</strong><div class="table-meta">{{ event.provider_payment_id|default:event.external_reference|default:"-" }}</div></td>
-              <td><span class="badge {% if event.access_token_valid %}active{% else %}canceled{% endif %}">{% if event.access_token_valid %}Valido{% else %}Nao validado{% endif %}</span></td>
-              <td>{% if event.processed_at %}{{ event.processed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+              <td data-label="Evento"><strong>{{ event.event_type }}</strong><div class="table-meta">{{ event.provider_payment_id|default:event.external_reference|default:"-" }}</div></td>
+              <td data-label="Token"><span class="badge {% if event.access_token_valid %}active{% else %}canceled{% endif %}">{% if event.access_token_valid %}Valido{% else %}Nao validado{% endif %}</span></td>
+              <td data-label="Processado">{% if event.processed_at %}{{ event.processed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="3" class="empty">Nenhum webhook recebido.</td></tr>
+            <tr><td colspan="3" class="empty"><div class="phase6-empty"><strong>Nenhum evento recebido.</strong><span>Os retornos do provedor aparecerão aqui depois que a integração estiver configurada.</span></div></td></tr>
           {% endfor %}
         </tbody>
       </table>

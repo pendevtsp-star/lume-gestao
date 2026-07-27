@@ -47,8 +47,11 @@ def get_json(url, headers=None, timeout=15):
 
 
 def _open_json(req, timeout):
+    parsed_url = parse.urlparse(req.full_url)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.hostname:
+        raise IntegrationError("A integracao aceita apenas URLs HTTP ou HTTPS validas.")
     try:
-        with request.urlopen(req, timeout=timeout) as response:
+        with request.urlopen(req, timeout=timeout) as response:  # nosec B310 - scheme and hostname validated above
             body = response.read().decode("utf-8")
     except error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")

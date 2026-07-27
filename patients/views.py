@@ -15,7 +15,7 @@ from accounts.permissions import RoleRequiredMixin, get_profile
 from billing.models import Membership
 from core.deletion import DeletionDecisionMixin, hard_delete_patient, mark_active_object_for_deletion, set_patient_user_active
 from core.exports import pdf_response, xlsx_response
-from core.views import FormContextMixin, SearchableListView
+from core.web.mixins import FormContextMixin, SearchableListView
 from patients.forms import (
     PatientForm,
     PatientReferralForm,
@@ -25,7 +25,8 @@ from patients.forms import (
     note_type_options,
 )
 from patients.models import Patient, PatientReferral, ProfessionalNote, ProfessionalPatientAssignment
-from patients.services import deactivate_patient_relationships, patient_ids_for_professional
+from patients.selectors import patients_visible_to_user
+from patients.services import deactivate_patient_relationships
 from scheduling.models import Appointment, ServicePackage
 from scheduling.services import create_service_package_for_plan
 
@@ -40,19 +41,8 @@ class PatientAccessMixin(RoleRequiredMixin):
 
 
 def patients_for_user(user):
-    queryset = Patient.objects.all()
-    if user.is_superuser:
-        return queryset
-    profile = get_profile(user)
-    if not profile:
-        return queryset.none()
-    if profile.role in {UserProfile.Role.ADMINISTRATION, UserProfile.Role.MANAGEMENT, UserProfile.Role.VIEWER}:
-        return queryset
-    if profile.is_patient and profile.patient_id:
-        return queryset.filter(pk=profile.patient_id)
-    if profile.is_professional and profile.professional_id:
-        return queryset.filter(pk__in=patient_ids_for_professional(profile.professional))
-    return queryset.none()
+    """Backward-compatible alias for callers outside the selector layer."""
+    return patients_visible_to_user(user)
 
 
 class PatientListView(PatientAccessMixin, SearchableListView, ListView):
@@ -76,7 +66,7 @@ class PatientListView(PatientAccessMixin, SearchableListView, ListView):
     ]
 
     def get_queryset(self):
-        queryset = patients_for_user(self.request.user)
+        queryset = patients_visible_to_user(self.request.user)
         query = self.request.GET.get("q", "").strip()
         if not query:
             return queryset
@@ -183,7 +173,7 @@ class PatientUpdateView(FormContextMixin, PatientAccessMixin, UpdateView):
     back_url_name = "patients:list"
 
     def get_queryset(self):
-        return patients_for_user(self.request.user)
+        return patients_visible_to_user(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -404,7 +394,7 @@ class ProfessionalRecordPatientListView(ProfessionalRecordAccessMixin, Searchabl
         professional = self.get_professional()
         if not professional:
             return Patient.objects.none()
-        queryset = patients_for_user(self.request.user).annotate(
+        queryset = patients_visible_to_user(self.request.user).annotate(
             record_count=Count("professional_notes", filter=Q(professional_notes__professional=professional))
         )
         query = self.request.GET.get("q", "").strip()
@@ -424,7 +414,7 @@ class ProfessionalNoteListView(ProfessionalRecordAccessMixin, SearchableListView
     search_fields = ["title", "body", "objective", "record_type", "session_focus", "clinical_status", "conduct"]
 
     def dispatch(self, request, *args, **kwargs):
-        self.patient = get_object_or_404(patients_for_user(request.user), pk=kwargs["patient_pk"])
+        self.patient = get_object_or_404(patients_visible_to_user(request.user), pk=kwargs["patient_pk"])
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
@@ -474,7 +464,7 @@ class ProfessionalNoteFormMixin(ProfessionalRecordAccessMixin):
     section_label = "Prontuario"
 
     def dispatch(self, request, *args, **kwargs):
-        self.patient = get_object_or_404(patients_for_user(request.user), pk=kwargs["patient_pk"])
+        self.patient = get_object_or_404(patients_visible_to_user(request.user), pk=kwargs["patient_pk"])
         return super().dispatch(request, *args, **kwargs)
 
     def get_form(self, form_class=None):
@@ -544,7 +534,7 @@ class ProfessionalNoteUpdateView(ProfessionalNoteFormMixin, UpdateView):
 
 class ProfessionalRecordExportView(ProfessionalRecordAccessMixin, View):
     def dispatch(self, request, *args, **kwargs):
-        self.patient = get_object_or_404(patients_for_user(request.user), pk=kwargs["patient_pk"])
+        self.patient = get_object_or_404(patients_visible_to_user(request.user), pk=kwargs["patient_pk"])
         return super().dispatch(request, *args, **kwargs)
 
     def get_notes(self):
@@ -693,7 +683,7 @@ class ProfessionalRecordPdfPreviewView(ProfessionalRecordExportView):
     template_name = "reports/pdf_preview.html"
 
     def get(self, request, *args, **kwargs):
-        self.patient = get_object_or_404(patients_for_user(request.user), pk=kwargs["patient_pk"])
+        self.patient = get_object_or_404(patients_visible_to_user(request.user), pk=kwargs["patient_pk"])
         export_url = reverse("patients:note_export", args=[self.patient.pk, "pdf"])
         return TemplateResponse(
             request,

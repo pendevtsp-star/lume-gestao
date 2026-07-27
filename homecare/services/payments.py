@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from core.integrations.credentials import first_configured_value
 from core.integrations.http import IntegrationError, post_json
+from core.integrations.webhooks import parse_json_webhook
 from billing.models import Charge
 from homecare.models import HomecarePaymentEvent, HomecareSubscription
 
@@ -77,20 +78,13 @@ class AsaasProvider(PaymentProvider):
         return post_json(f"{self.base_url}/subscriptions", payload, headers=self.headers, timeout=settings.ASAAS_TIMEOUT)
 
     def parse_webhook(self, request):
-        configured_token = first_configured_value(settings.ASAAS_WEBHOOK_TOKEN)
         received_token = request.headers.get("asaas-access-token") or request.META.get("HTTP_ASAAS_ACCESS_TOKEN", "")
-        token_valid = bool(configured_token and received_token and received_token == configured_token)
-        if not configured_token and not settings.DEBUG:
-            raise IntegrationError("Configure ASAAS_WEBHOOK_TOKEN antes de receber webhooks em producao.")
-        if configured_token and not token_valid:
-            raise IntegrationError("Token do webhook Asaas invalido.")
-        try:
-            import json
-
-            payload = json.loads(request.body.decode("utf-8") or "{}")
-        except ValueError as exc:
-            raise IntegrationError("Payload de webhook Asaas invalido.") from exc
-        return payload, token_valid
+        return parse_json_webhook(
+            request,
+            configured_token=settings.ASAAS_WEBHOOK_TOKEN,
+            received_token=received_token,
+            provider_name="Asaas",
+        )
 
 
 def get_payment_provider():

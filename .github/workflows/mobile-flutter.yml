@@ -1,0 +1,46 @@
+name: Mobile - Flutter
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/lume_app/**"
+      - ".github/workflows/mobile-flutter.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/lume_app/**"
+      - ".github/workflows/mobile-flutter.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    name: Analyze and test paused mobile app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/lume_app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test

@@ -8,7 +8,7 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 from accounts.models import UserProfile
 from accounts.permissions import RoleRequiredMixin
 from core.deletion import DeletionDecisionMixin, hard_delete_professional, mark_active_object_for_deletion
-from core.views import FormContextMixin, SearchableListView
+from core.web.mixins import FormContextMixin, SearchableListView
 from patients.services import deactivate_professional_relationships
 from scheduling.models import Appointment
 from team.forms import EmployeeForm, ProfessionalForm

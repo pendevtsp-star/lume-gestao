@@ -87,6 +87,21 @@ class ReportsAccessTests(TestCase):
         self.assertContains(clinic_response, "Dra. Relatorio")
         self.assertContains(audit_response, "ClinicSettings")
 
+    def test_report_surfaces_load_the_phase_six_responsive_contract(self):
+        self.seed_report_data()
+        self.client.force_login(self.user)
+
+        dashboard = self.client.get(reverse("reports:dashboard"))
+        clinic = self.client.get(
+            reverse("reports:clinic"),
+            {"preset": "custom", "start": "2026-06-01", "end": "2026-06-30"},
+        )
+
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertContains(dashboard, "phase6-modules.css")
+        self.assertEqual(clinic.status_code, 200)
+        self.assertContains(clinic, "phase6-responsive-table")
+
     def test_management_can_export_all_report_types(self):
         self.seed_report_data()
         self.client.force_login(self.user)

@@ -1,0 +1,79 @@
+html { scroll-padding-top: 5.5rem; }
+
+body { overflow-x: hidden; }
+
+.site-guided-empty {
+  grid-column: 1 / -1;
+  display: grid;
+  justify-items: center;
+  gap: .65rem;
+  padding: 2rem;
+  border: 1px solid rgba(76, 91, 67, .18);
+  border-radius: 1rem;
+  background: #fbfcf8;
+  text-align: center;
+}
+
+.site-guided-empty span {
+  max-width: 34rem;
+  color: #687269;
+}
+
+.hero-actions .button,
+.button-row .button,
+.contact-actions .button { min-height: 2.85rem; }
+
+.gallery-track {
+  scroll-snap-type: x proximity;
+  overscroll-behavior-inline: contain;
+}
+
+.gallery-item { scroll-snap-align: start; }
+
+.plan-card,
+.service-card,
+.testimonial-grid blockquote { min-width: 0; }
+
+.site-footer a:focus-visible,
+.site-nav a:focus-visible,
+.gallery-controls button:focus-visible,
+.floating-whatsapp:focus-visible {
+  outline: 3px solid #a8ba91;
+  outline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  html { scroll-padding-top: 4.5rem; }
+
+  .site-nav.is-open {
+    max-height: calc(100dvh - 4.5rem);
+    overflow-y: auto;
+  }
+
+  .hero-actions,
+  .button-row { display: grid; grid-template-columns: 1fr; }
+
+  .hero-actions .button,
+  .button-row .button,
+  .contact-actions .button { width: 100%; }
+
+  .gallery-track {
+    grid-auto-columns: minmax(82vw, 1fr);
+    padding-inline: max(1rem, env(safe-area-inset-left));
+    scroll-padding-inline: max(1rem, env(safe-area-inset-left));
+  }
+
+  .plan-grid,
+  .service-grid,
+  .testimonial-grid { grid-template-columns: 1fr; }
+
+  .contact-actions > span {
+    align-items: flex-start;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

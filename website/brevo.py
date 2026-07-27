@@ -25,7 +25,8 @@ def sync_newsletter_contact(email, list_id=None):
         method="POST",
     )
     try:
-        with urlopen(request, timeout=10) as response:
+        # Fixed Brevo HTTPS endpoint; no user-controlled scheme or host.
+        with urlopen(request, timeout=10) as response:  # nosec B310
             return response.status in {200, 201, 204}, ""
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")

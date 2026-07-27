@@ -58,7 +58,8 @@ def upload_bunny_video_file(video, provider_video_id):
         with file_path.open("rb") as file_handle:
             headers = {"Content-Type": "application/octet-stream", **bunny_headers()}
             req = request.Request(url, data=file_handle, headers=headers, method="PUT")
-            with request.urlopen(req, timeout=settings.BUNNY_STREAM_TIMEOUT) as response:
+            # Fixed Bunny HTTPS endpoint assembled above; no user-controlled scheme or host.
+            with request.urlopen(req, timeout=settings.BUNNY_STREAM_TIMEOUT) as response:  # nosec B310
                 body = response.read().decode("utf-8", errors="replace")
     except error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")

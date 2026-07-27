@@ -1,19 +1,21 @@
 from django.urls import path
 
-from core.views import (
+from core.web.dashboard import DashboardView
+from core.web.integrations import (
     BirthdayWhatsAppSendView,
-    BrevoTransactionalWebhookView,
-    ClinicSettingsUpdateView,
-    DashboardView,
     GoogleCalendarCallbackView,
     GoogleCalendarConnectView,
     GoogleCalendarIcsFeedView,
     GoogleCalendarSyncView,
-    HealthCheckView,
     IntegrationsView,
-    LegalDocumentView,
     WhatsAppWebGatewayQrView,
     WhatsAppWebGatewayStatusView,
+)
+from core.web.settings import (
+    BrevoTransactionalWebhookView,
+    ClinicSettingsUpdateView,
+    HealthCheckView,
+    LegalDocumentView,
 )
 from reports.views import AuditReportView
 

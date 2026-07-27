@@ -1,16 +1,20 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Planos mensais | Lume Gestao{% endblock %}
+{% block title %}Planos recorrentes | Lume Gestao{% endblock %}
 
 {% block content %}
+<style>@import url("{% static 'css/operations.css' %}");</style>
+<div class="operations-page">
 <section class="page-heading">
   <div>
     <p class="eyebrow">Financeiro</p>
-    <h1>Planos mensais</h1>
-    <p class="page-subtitle">Acompanhe as adesoes recorrentes, vencimentos e valores mensais dos pacientes.</p>
+    <h1>Planos recorrentes</h1>
+    <p class="page-subtitle">Acompanhe os vinculos recorrentes, vencimentos e valores mensais dos pacientes.</p>
   </div>
-  <a class="button primary" href="{% url 'billing:membership_create' %}">Nova adesao mensal</a>
+  <a class="button primary" href="{% url 'billing:membership_create' %}">Vincular plano</a>
 </section>
+{% include "billing/_finance_nav.html" with finance_section="memberships" %}
 
 <section class="panel">
   <form class="toolbar" method="get" data-persist-filters="memberships">
@@ -40,17 +44,18 @@
             <td class="right table-actions" data-label="Acoes">
               <a class="table-action" href="{% url 'billing:membership_update' membership.pk %}">Editar</a>
               {% if membership.status == "active" %}
-                <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ membership.patient.pk }}&plan={{ membership.plan.pk }}">Criar adesao</a>
+                <a class="table-action" href="{% url 'scheduling:package_create' %}?patient={{ membership.patient.pk }}&plan={{ membership.plan.pk }}">Adicionar pacote de sessoes</a>
               {% endif %}
-              <a class="table-action danger-link" href="{% url 'billing:membership_delete' membership.pk %}">Excluir</a>
+              <a class="table-action danger-link" href="{% url 'billing:membership_delete' membership.pk %}">Encerrar</a>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="empty"><div class="empty-state soft"><strong>Nenhuma adesao mensal encontrada.</strong><span>Crie uma adesao para acompanhar plano, vencimento e valor.</span></div></td></tr>
+          <tr><td colspan="6" class="empty"><div class="empty-state soft"><strong>Nenhum plano recorrente encontrado.</strong><span>Vincule um plano para acompanhar vencimento e valor mensal.</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% include "core/pagination.html" %}
 </section>
+</div>
 {% endblock %}

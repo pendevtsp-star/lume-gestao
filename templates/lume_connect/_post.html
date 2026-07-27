@@ -34,10 +34,11 @@
           playsinline
           muted
           loop
+          aria-label="Video curto publicado por {{ post.author_name }}"
         ></video>
         <div class="connect-video-overlay">
-          <button class="connect-video-control" type="button" data-video-toggle>Reproduzir</button>
-          <button class="connect-video-control" type="button" data-video-sound>Som</button>
+          <button class="connect-video-control" type="button" data-video-toggle aria-pressed="false">Reproduzir</button>
+          <button class="connect-video-control" type="button" data-video-sound aria-pressed="false">Som</button>
         </div>
         <div class="connect-video-caption">
           <strong>{{ post.author_name }}</strong>
@@ -50,7 +51,7 @@
     </div>
   {% elif post.video %}
     <div class="connect-video-standard">
-      <video src="{{ post.video.url }}" {% if post.video_thumbnail %}poster="{{ post.video_thumbnail.url }}"{% endif %} controls preload="metadata" playsinline></video>
+      <video src="{{ post.video.url }}" {% if post.video_thumbnail %}poster="{{ post.video_thumbnail.url }}"{% endif %} controls preload="metadata" playsinline aria-label="Video publicado por {{ post.author_name }}"></video>
     </div>
   {% elif post.image %}
     <img class="connect-post-image" src="{{ post.image.url }}" alt="Imagem publicada por {{ post.author_name }}">
@@ -60,10 +61,11 @@
     <form class="connect-like-form" method="post" action="{% url 'lume_connect:toggle_like' post.pk %}">
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ request.get_full_path }}">
-      <button class="button secondary compact connect-like-button{% if post.user_has_liked %} is-liked{% endif %}" type="submit" data-liked-label="Curtido" data-unliked-label="Curtir">
+      <button class="button secondary compact connect-like-button{% if post.user_has_liked %} is-liked{% endif %}" type="submit" aria-pressed="{% if post.user_has_liked %}true{% else %}false{% endif %}" data-liked-label="Curtido" data-unliked-label="Curtir">
         {% if post.user_has_liked %}Curtido{% else %}Curtir{% endif %}
       </button>
-      <span class="connect-like-count">{{ post.likes_total }}</span>
+      <span class="connect-like-count" aria-live="polite" aria-atomic="true">{{ post.likes_total }}</span>
+      <span class="sr-only connect-like-status" role="status" aria-live="polite"></span>
     </form>
     <span>{{ post.comments_total }} comentario{{ post.comments_total|pluralize }}</span>
     <span class="connect-post-manage">

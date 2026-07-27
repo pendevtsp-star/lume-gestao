@@ -28,7 +28,7 @@ from scheduling.models import (
     ServiceUsage,
 )
 from scheduling.forms import ServicePackageForm
-from scheduling.services import generate_operational_notifications
+from scheduling.services import generate_operational_notifications, lock_professional_schedule
 from scheduling.slots import generate_available_slots, slot_is_available
 from team.models import Professional
 
@@ -646,6 +646,9 @@ class SchedulingTests(TestCase):
 
         self.assertContains(response, "3 confirmada(s) de 6 vaga(s)")
         self.assertContains(response, "Cada acao abaixo vale apenas para a paciente escolhida")
+        self.assertContains(response, 'class="agenda-modal-patient-list"', html=False)
+        self.assertContains(response, "Mais acoes")
+        self.assertContains(response, "Solicitar remarcacao")
         for appointment in group_appointments:
             self.assertContains(response, appointment.patient.full_name)
             self.assertContains(response, reverse("scheduling:appointment_reschedule", args=[appointment.pk]))
@@ -731,6 +734,20 @@ class SchedulingTests(TestCase):
         self.assertIsNotNone(target_slot)
         self.assertTrue(target_slot["group_slot"])
         self.assertEqual(target_slot["remaining_capacity"], 1)
+
+        page_response = self.client.get(
+            reverse("scheduling:appointment_reschedule", args=[source.pk]),
+            {
+                "professional": self.professional.pk,
+                "appointment_date": day.isoformat(),
+                "duration_minutes": "60",
+            },
+        )
+        self.assertContains(page_response, source.patient.full_name)
+        self.assertContains(page_response, "Origem")
+        self.assertContains(page_response, "Destino")
+        self.assertContains(page_response, "07:00 - 08:00")
+        self.assertContains(page_response, "1 de 4 vagas livres")
 
         response = self.client.post(
             reverse("scheduling:appointment_reschedule", args=[source.pk]),
@@ -1342,6 +1359,69 @@ class SchedulingTests(TestCase):
         )
         self.assertEqual(PatientNotification.objects.count(), 3)
 
+    def test_professional_notification_center_only_lists_visible_patients(self):
+        hidden_patient = Patient.objects.create(full_name="Paciente fora da carteira")
+        visible_notification = PatientNotification.objects.create(
+            patient=self.patient,
+            kind=PatientNotification.Kind.APPOINTMENT_DAY,
+            due_at=timezone.now(),
+            idempotency_key="visible-professional-notification",
+            message="Aviso visivel",
+        )
+        hidden_notification = PatientNotification.objects.create(
+            patient=hidden_patient,
+            kind=PatientNotification.Kind.APPOINTMENT_DAY,
+            due_at=timezone.now(),
+            idempotency_key="hidden-professional-notification",
+            message="Aviso oculto",
+        )
+        user = get_user_model().objects.create_user(username="prof-notifications", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("scheduling:notifications"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, visible_notification.message)
+        self.assertNotContains(response, hidden_notification.message)
+        self.assertEqual(response.context["notification_summary"]["pending"], 1)
+
+    def test_professional_cannot_retry_notification_for_hidden_patient(self):
+        hidden_patient = Patient.objects.create(full_name="Paciente protegida")
+        hidden_notification = PatientNotification.objects.create(
+            patient=hidden_patient,
+            kind=PatientNotification.Kind.APPOINTMENT_DAY,
+            due_at=timezone.now(),
+            idempotency_key="hidden-retry-notification",
+            message="Aviso protegido",
+        )
+        user = get_user_model().objects.create_user(username="prof-retry-notification", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("scheduling:notification_retry", args=[hidden_notification.pk]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_professional_cannot_trigger_global_notification_generation(self):
+        user = get_user_model().objects.create_user(username="prof-generate-notification", password="Senha@123")
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.PROFESSIONAL, "professional": self.professional},
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("scheduling:generate_notifications"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("dashboard"))
+
     def test_operational_event_blocks_new_scheduled_appointments_and_creates_patient_notice(self):
         target_date = timezone.localdate() + timedelta(days=3)
         existing_start = timezone.make_aware(datetime.combine(target_date, time(11, 0)))
@@ -1450,6 +1530,17 @@ class SchedulingTests(TestCase):
 
 
 @skipUnlessDBFeature("has_select_for_update")
+class ScheduleLockTests(TransactionTestCase):
+    def test_lock_professional_schedule_requires_atomic_transaction(self):
+        professional = Professional.objects.create(
+            full_name="Profissional sem transacao",
+            specialty=Professional.Specialty.PILATES,
+        )
+
+        with self.assertRaisesMessage(RuntimeError, "exige uma transacao ativa"):
+            lock_professional_schedule(professional)
+
+
 class SchedulingTransactionTests(TransactionTestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="gestao-transacao", password="Senha@123")

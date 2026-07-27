@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import F, Q
 from django.db.models import ProtectedError
 from django.shortcuts import redirect
@@ -175,6 +176,7 @@ def membership_has_pending_obligations(membership):
     ).exists()
 
 
+@transaction.atomic
 def mark_membership_for_deletion(membership):
     from billing.models import Payment
     from scheduling.models import ServicePackage
@@ -183,15 +185,23 @@ def mark_membership_for_deletion(membership):
     membership.notes = append_deletion_note(membership.notes)
     membership.full_clean()
     membership.save(update_fields=["status", "notes", "updated_at"])
-    Payment.objects.filter(
+    payments = Payment.objects.filter(
         membership=membership,
         status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
-    ).update(status=Payment.Status.CANCELED, paid_at=None, updated_at=_now())
-    ServicePackage.objects.filter(membership=membership, status=ServicePackage.Status.ACTIVE).update(
-        status=ServicePackage.Status.CANCELED,
-        deletion_requested_at=_now(),
-        updated_at=_now(),
     )
+    for payment in payments:
+        payment.status = Payment.Status.CANCELED
+        payment.paid_at = None
+        payment.save(update_fields=["status", "paid_at", "updated_at"])
+
+    packages = ServicePackage.objects.filter(
+        membership=membership,
+        status=ServicePackage.Status.ACTIVE,
+    )
+    for package in packages:
+        package.status = ServicePackage.Status.CANCELED
+        package.deletion_requested_at = _now()
+        package.save(update_fields=["status", "deletion_requested_at", "updated_at"])
 
 
 def mark_expense_for_deletion(expense):

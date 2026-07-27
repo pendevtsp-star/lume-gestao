@@ -1,4 +1,4 @@
-<article class="message-template-card message-template-card-compact">
+<article class="message-template-card message-template-card-compact" data-whatsapp-template-editor>
   <div class="message-template-main">
     <div class="message-template-head">
       <div>
@@ -15,9 +15,29 @@
         <strong>Texto enviado ao paciente</strong>
         <span>Edite este texto e salve antes de usar a regra automatica.</span>
       </div>
+      <strong class="template-variable-title">Variaveis deste modelo</strong>
       <div class="token-row">
-        {% for token in template.variable_tokens %}
-          <span class="token-chip">{{ token }}</span>
+        {% for variable in active_template_variable_docs %}
+          <button
+            class="token-chip"
+            type="button"
+            data-template-token="{{ variable.token }}"
+            title="Inserir {{ variable.description }}"
+          >{{ variable.token }}</button>
+        {% endfor %}
+      </div>
+      <div class="template-variable-list template-variable-list-inline" aria-label="Variaveis disponiveis">
+        {% for variable in active_template_variable_docs %}
+          <article
+            class="template-variable-item"
+            data-template-variable
+            data-token="{{ variable.token }}"
+            data-example="{{ variable.example }}"
+          >
+            <code>{{ variable.token }}</code>
+            <strong>{{ variable.description }}</strong>
+            <span>Exemplo: {{ variable.example }}</span>
+          </article>
         {% endfor %}
       </div>
       <form method="post">
@@ -92,9 +112,49 @@
   </div>
 
   <aside class="message-template-side">
-    <div class="message-preview">
+    <div class="message-preview" aria-live="polite">
       <span class="message-preview-label">Previa</span>
-      <p>{{ preview|linebreaksbr }}</p>
+      <p data-whatsapp-template-preview>{{ preview }}</p>
     </div>
   </aside>
 </article>
+
+<script>
+  (function() {
+    var editor = document.currentScript.previousElementSibling;
+    if (!editor || !editor.matches("[data-whatsapp-template-editor]")) return;
+
+    var textarea = editor.querySelector("[data-whatsapp-template-body]");
+    var preview = editor.querySelector("[data-whatsapp-template-preview]");
+    if (!textarea || !preview) return;
+
+    var variables = Array.from(editor.querySelectorAll("[data-template-variable]")).map(function(item) {
+      return {
+        token: item.getAttribute("data-token") || "",
+        example: item.getAttribute("data-example") || ""
+      };
+    });
+
+    function updatePreview() {
+      var rendered = textarea.value;
+      variables.forEach(function(variable) {
+        rendered = rendered.split(variable.token).join(variable.example);
+      });
+      preview.textContent = rendered || "A previa aparece aqui conforme voce escreve.";
+    }
+
+    editor.querySelectorAll("[data-template-token]").forEach(function(button) {
+      button.addEventListener("click", function() {
+        var token = button.getAttribute("data-template-token") || "";
+        var start = textarea.selectionStart;
+        var end = textarea.selectionEnd;
+        textarea.setRangeText(token, start, end, "end");
+        textarea.focus();
+        updatePreview();
+      });
+    });
+
+    textarea.addEventListener("input", updatePreview);
+    updatePreview();
+  })();
+</script>

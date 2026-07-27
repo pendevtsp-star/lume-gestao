@@ -1,13 +1,21 @@
-const LUME_CACHE = "lume-shell-v20260713-automation-ux";
+const LUME_CACHE = "lume-static-v20260721-pwa-security";
 const STATIC_ASSETS = [
-  "/static/css/app.css?v=20260713-automation-ux",
-  "/static/css/quick-actions.css?v=20260630-quick-actions-compact",
-  "/static/js/app.js?v=20260713-automation-ux",
-  "/static/images/pwa/lume-192.png",
-  "/static/images/pwa/lume-512.png",
-  "/static/images/lume-favicon.svg",
-  "/static/images/website/lume-logo.jpg"
+  "/static/css/app.css?v=20260721-pwa-security",
+  "/static/css/quick-actions.css?v=20260721-pwa-security",
+  "/static/js/app.js?v=20260721-pwa-security",
+  "/static/images/pwa/lume-192.png?v=20260721-pwa-security",
+  "/static/images/pwa/lume-512.png?v=20260721-pwa-security",
+  "/static/images/lume-favicon.svg?v=20260721-pwa-security",
+  "/static/images/website/lume-logo.jpg?v=20260721-pwa-security"
 ];
+
+function isVersionedStaticAsset(url) {
+  return (
+    url.origin === self.location.origin
+    && url.pathname.startsWith("/static/")
+    && url.searchParams.has("v")
+  );
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -38,13 +46,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/static/")) {
+  if (isVersionedStaticAsset(url)) {
     event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-        const clone = response.clone();
-        caches.open(LUME_CACHE).then((cache) => cache.put(request, clone));
-        return response;
-      }))
+      caches.match(request).then((cached) => cached || fetch(request))
     );
     return;
   }

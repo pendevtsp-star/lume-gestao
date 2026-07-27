@@ -1,0 +1,6 @@
+<nav class="operations-subnav" aria-label="Navegacao financeira">
+  <a href="{% url 'billing:payment_quick_receive' %}" {% if finance_section == "receivables" %}aria-current="page"{% endif %}>Recebimentos</a>
+  <a href="{% url 'billing:payments' %}" {% if finance_section == "history" %}aria-current="page"{% endif %}>Historico financeiro</a>
+  <a href="{% url 'billing:memberships' %}" {% if finance_section == "memberships" %}aria-current="page"{% endif %}>Planos recorrentes</a>
+  <a href="{% url 'billing:charges' %}" {% if finance_section == "charges" %}aria-current="page"{% endif %}>Cobrancas avulsas</a>
+</nav>

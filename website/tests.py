@@ -56,6 +56,15 @@ class WebsitePublicTests(TestCase):
         self.assertContains(response, "Agendar")
         self.assertContains(response, "Plano Pilates Essencial")
         self.assertNotContains(response, "Plano Oculto")
+        self.assertContains(response, "website-home-phase6.css")
+
+    def test_footer_does_not_link_to_an_empty_plans_section(self):
+        ServicePlan.objects.all().delete()
+
+        response = self.client.get("/", HTTP_HOST="clinicafisiolume.com.br")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'href="#planos"')
 
     def test_system_host_keeps_backoffice_behavior(self):
         response = self.client.get("/", HTTP_HOST="sistema.clinicafisiolume.com.br")

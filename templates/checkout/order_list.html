@@ -3,6 +3,7 @@
 {% block title %}Pedidos de checkout | Lume Gestao{% endblock %}
 
 {% block content %}
+{% include "checkout/_styles.html" %}
 <section class="page-heading">
   <div>
     <p class="eyebrow">Checkout</p>
@@ -15,32 +16,32 @@
   </div>
 </section>
 
-<form class="filters" method="get">
-  <input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Buscar por cliente, e-mail, telefone ou referencia">
-  <select class="field-control" name="status">
+<form class="phase6-toolbar" method="get">
+  <label class="phase6-search"><span>Localizar pedido</span><input class="search-input" type="search" name="q" value="{{ q }}" placeholder="Cliente, e-mail, telefone ou referencia"></label>
+  <label class="phase6-search"><span>Status</span><select class="field-control" name="status">
     <option value="">Todos os status</option>
     {% for value,label in status_choices %}
       <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
     {% endfor %}
-  </select>
+  </select></label>
   <button class="button secondary" type="submit">Filtrar</button>
 </form>
 
 <section class="panel">
-  <div class="table-wrap">
+  <div class="table-wrap phase6-responsive-table">
     <table>
       <thead><tr><th>Cliente</th><th>Tipo</th><th>Status</th><th>Recebedor</th><th>Referencia</th><th class="right">Valor</th><th>Criado em</th><th class="right">Acoes</th></tr></thead>
       <tbody>
         {% for order in orders %}
           <tr>
-            <td><strong>{{ order.customer_name }}</strong><div class="table-meta">{{ order.customer_email|default:order.customer_phone|default:"Sem contato" }}</div></td>
-            <td>{{ order.get_kind_display }}</td>
-            <td><span class="badge {{ order.status }}">{{ order.get_status_display }}</span></td>
-            <td>{{ order.merchant_account.public_receiver_label|default:"-" }}</td>
-            <td>{{ order.external_reference }}</td>
-            <td class="right">R$ {{ order.amount|floatformat:2 }}</td>
-            <td>{{ order.created_at|date:"d/m/Y H:i" }}</td>
-            <td class="right table-actions">
+            <td data-label="Cliente"><strong>{{ order.customer_name }}</strong><div class="table-meta">{{ order.customer_email|default:order.customer_phone|default:"Sem contato" }}</div></td>
+            <td data-label="Tipo">{{ order.get_kind_display }}</td>
+            <td data-label="Status"><span class="badge {{ order.status }}">{{ order.get_status_display }}</span></td>
+            <td data-label="Recebedor">{{ order.merchant_account.public_receiver_label|default:"-" }}</td>
+            <td data-label="Referencia">{{ order.external_reference }}</td>
+            <td class="right" data-label="Valor">R$ {{ order.amount|floatformat:2 }}</td>
+            <td data-label="Criado em">{{ order.created_at|date:"d/m/Y H:i" }}</td>
+            <td class="right" data-label="Acoes"><div class="phase6-row-actions">
               {% if order.checkout_url and not order.is_paid %}
                 <a class="table-action" href="{{ order.checkout_url }}" target="_blank" rel="noopener">Abrir link</a>
               {% endif %}
@@ -62,10 +63,10 @@
                   <button class="table-action" type="submit">Expirar</button>
                 </form>
               {% endif %}
-            </td>
+            </div></td>
           </tr>
         {% empty %}
-          <tr><td colspan="8" class="empty">Nenhum pedido encontrado.</td></tr>
+          <tr><td colspan="8" class="empty"><div class="phase6-empty"><strong>{% if q or selected_status %}Nenhum pedido corresponde aos filtros.{% else %}Nenhum pedido registrado.{% endif %}</strong><span>{% if q or selected_status %}Revise a busca ou o status selecionado.{% else %}Os pedidos aparecerão aqui quando um checkout for iniciado.{% endif %}</span></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

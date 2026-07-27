@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ page_title }} | Lume Gestao{% endblock %}
 
 {% block content %}
+<style>@import url("{% static 'css/operations.css' %}");</style>
+<div class="operations-page">
 <section class="page-heading">
   <div>
     <p class="eyebrow">{{ section_label }}</p>
@@ -12,29 +15,27 @@
 </section>
 
 {% if original_appointment %}
-  <section class="panel reschedule-context" aria-label="Sessao selecionada para reagendamento">
-    <div class="reschedule-context-copy">
-      <p class="eyebrow">Paciente selecionada para reagendamento</p>
-      <h2>{{ original_appointment.patient.full_name }}</h2>
-      <p>{{ original_appointment.service_plan.name|default:"Atendimento sem plano vinculado" }}</p>
+  <section class="reschedule-journey" aria-label="Resumo do reagendamento">
+    <div class="reschedule-step">
+      <span>Paciente</span>
+      <strong>{{ original_appointment.patient.full_name }}</strong>
+      <small>{{ original_appointment.service_plan.name|default:"Atendimento sem plano" }}</small>
     </div>
-    <dl class="reschedule-context-meta">
-      <div>
-        <dt>Origem</dt>
-        <dd>{{ original_appointment.starts_at|date:"d/m/Y H:i" }} ate {{ original_appointment.ends_at|date:"H:i" }}</dd>
-      </div>
-      <div>
-        <dt>Profissional</dt>
-        <dd>{{ original_appointment.professional.full_name }}</dd>
-      </div>
-      <div>
-        <dt>Tipo da sessao</dt>
-        <dd>{% if original_appointment.slot_capacity > 1 %}Grupo {{ original_appointment.slot_capacity }} vagas{% else %}Individual{% endif %}</dd>
-      </div>
-    </dl>
-    <p class="reschedule-context-note">
-      {% if has_future_series %}Escolha se esta sessao ou tambem as proximas serao reagendadas.{% else %}A alteracao sera aplicada apenas a esta sessao.{% endif %}
-    </p>
+    <div class="reschedule-step">
+      <span>Origem</span>
+      <strong>{{ original_appointment.starts_at|date:"d/m/Y H:i" }} ate {{ original_appointment.ends_at|date:"H:i" }}</strong>
+      <small>{{ original_appointment.professional.full_name }}</small>
+    </div>
+    <div class="reschedule-step">
+      <span>Destino</span>
+      <strong data-reschedule-destination-time aria-live="polite">{% if searched %}Escolha um dos horarios abaixo{% else %}Informe a nova data{% endif %}</strong>
+      <small data-reschedule-destination-capacity aria-live="polite">A capacidade sera confirmada antes de salvar.</small>
+    </div>
+  </section>
+  <section class="panel reschedule-scope-note" aria-label="Escopo do reagendamento">
+    <p class="eyebrow">Escopo do reagendamento</p>
+    <strong>{% if has_future_series %}Escolha se deseja mover apenas esta sessao ou tambem as proximas.{% else %}A alteracao sera aplicada apenas a esta sessao.{% endif %}</strong>
+    <span>{% if original_appointment.slot_capacity > 1 %}A origem e uma turma de {{ original_appointment.slot_capacity }} vagas.{% else %}A origem e um atendimento individual.{% endif %}</span>
   </section>
 {% endif %}
 
@@ -111,17 +112,13 @@
           <div class="slot-grid">
           {% for slot in slots %}
             <label class="slot-button">
-              <input type="radio" name="selected_start" value="{{ slot.start_value }}" required>
+              <input type="radio" name="selected_start" value="{{ slot.start_value }}" required data-reschedule-slot data-slot-label="{{ slot.label }}" data-slot-capacity="{% if slot.capacity > 1 %}{{ slot.remaining_capacity }} de {{ slot.capacity }} vagas livres{% else %}Atendimento individual{% endif %}">
               <span class="slot-choice-copy">
                 <strong>{{ slot.label }}</strong>
                 <span>
                   {% if slot.group_slot %}Entrar nesta turma{% else %}Reservar este horario{% endif %}
-                  {% if slot.capacity > 1 %}
-                    &middot; {{ slot.remaining_capacity }} vaga(s) disponivel(is) de {{ slot.capacity }}
-                  {% else %}
-                    &middot; Atendimento individual
-                  {% endif %}
                 </span>
+                <span class="slot-vacancy">{% if slot.capacity > 1 %}{{ slot.remaining_capacity }} de {{ slot.capacity }} vagas livres{% else %}Atendimento individual{% endif %}</span>
               </span>
             </label>
           {% endfor %}
@@ -143,4 +140,6 @@
     {% endif %}
   </section>
 {% endif %}
+</div>
+<script src="{% static 'js/operations.js' %}"></script>
 {% endblock %}

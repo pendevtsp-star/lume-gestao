@@ -1,271 +1,120 @@
 # Lume Gestao
 
-Sistema local de gestao para uma clinica de fisioterapia e pilates.
+Sistema de gestao clinica para fisioterapia e pilates. O backend Django e a
+fonte da verdade para agenda, pacientes, prontuarios, financeiro, relatorios,
+conteudo e automacoes. A producao roda em Docker Compose na VPS e recebe
+imagens imutaveis publicadas no GHCR pelo GitHub Actions.
 
-## Fase 1
+## Estado do produto
 
-- Login local com permissao administrativa.
-- Cadastro de pacientes.
-- Cadastro de funcionarios e profissionais.
-- Planos, mensalidades e pagamentos manuais.
-- Dashboard financeiro inicial.
-- API autenticada em `/api/v1/` para evolucao futura do app mobile.
-- Testes automatizados para regras sensiveis de cadastro e financeiro.
+- **Ativo:** aplicacao web Django, PostgreSQL, worker de automacoes, WhatsApp
+  Web, landing publica, PWA, Lume em Casa, Lume Connect e checkout preparado
+  para Asaas.
+- **Pausado:** cliente Flutter em `apps/lume_app/` e shell Electron em
+  `desktop/`. Eles permanecem versionados, mas nao participam do deploy web.
+- **Condicionado a credenciais:** Asaas, Google Agenda e SMTP/Brevo.
+- **Legado sem uso operacional:** integracao oficial Meta/WhatsApp. O provedor
+  ativo e somente o gateway WhatsApp Web.
 
-## Fase 2
+O inventario completo esta em [docs/FEATURE_INVENTORY.md](docs/FEATURE_INVENTORY.md).
 
-- Perfis de acesso: paciente, profissional, administracao e gerencia.
-- Vinculo de pacientes a um ou mais profissionais.
-- Prontuario individualizado por paciente, visivel apenas ao profissional autor da evolucao.
-- Agenda com solicitacao, agendamento, cancelamento, falta e baixa de atendimento.
-- Reagendamento e cancelamento sem consumo de creditos do pacote.
-- Disponibilidade recorrente por profissional para orientar os horarios possiveis.
-- Criacao e reagendamento guiados por horarios livres, sem entrada manual de data/hora pelo usuario.
-- Exportacao de relatorios e prontuarios em PDF e Excel.
-- Pacotes de atendimentos com contador de aulas/sessoes restantes.
-- Despesas e cobrancas avulsas no painel financeiro.
-- Categorias editaveis de despesas, com controle de tipo fixo ou variavel.
-- Relatorios gerenciais por periodo para pacientes, atendimentos, receitas, despesas e alertas comerciais.
-- Lembrete configuravel de mensalidades proximas do vencimento.
-- Painel de inadimplentes.
-- Auditoria automatica com filtros por periodo, acao, modelo e detalhamento de campos alterados.
-- API com filtragem por perfil e permissao por objeto para dados clinicos, agenda e financeiro.
+## Inicio rapido local
 
-## Checkout online
-
-- Compra publica de planos exibidos no site e pagamento de mensalidades pelo paciente logado.
-- Provider inicial: Asaas, sempre atras de feature flags e webhook idempotente.
-- O sistema nao armazena dados de cartao; dados clinicos/cadastrais so sao efetivados apos confirmacao do pagamento.
-
-Detalhes de homologacao:
-
-```text
-docs/CHECKOUT_ONLINE.md
-```
-
-## Lume Connect
-
-- Rede social interna em `/lume-connect/`, disponivel para usuarios autenticados e ativos.
-- Posts com texto e imagem, curtidas, comentarios, busca, filtros por avisos/fotos e pagina simples de perfil.
-- Moderacao por administracao, gerencia ou superusuario; exclusoes removem itens do feed sem apagar os registros fisicos.
-- Uploads usam `MEDIA_ROOT`/`MEDIA_URL` existentes e aceitam JPG, JPEG, PNG e WEBP. O limite padrao e `LUME_CONNECT_MAX_IMAGE_MB=8`.
-- Videos curtos ficam em `MEDIA_ROOT/lume_connect/videos/`, aceitam MP4/MOV/WEBM, usam autoplay controlado no feed e respeitam `LUME_CONNECT_MAX_SHORT_VIDEO_SECONDS=60` e `LUME_CONNECT_MAX_VIDEO_MB=80`.
-- A validacao de duracao usa `ffprobe`; o upload e otimizado para MP4/H.264 com `ffmpeg` e gera capa automaticamente quando o usuario nao envia uma capa.
-- Submodulo "Compartilhar nas redes" para posts com imagem do proprio autor: gerar legenda, editar, copiar, baixar imagem e usar compartilhamento nativo do celular.
-- Instagram nesta versao e manual: baixe a imagem, copie a legenda e publique pelo app. Publicacao direta via API Meta/Instagram fica para uma etapa futura com OAuth, conta profissional e permissoes oficiais.
-- A legenda funciona sem IA externa. Para preparar uma integracao futura, configure `AI_CAPTION_ENABLED`, `AI_PROVIDER`, `AI_API_KEY` e `AI_CAPTION_MODEL`; chaves reais devem ficar apenas no `.env`.
-
-Para ativar em ambientes existentes, aplique apenas migrations incrementais:
-
-```bash
-python manage.py migrate
-```
-
-Com Docker, use o container atual sem apagar volumes:
-
-```bash
-docker compose exec web python manage.py migrate
-docker compose exec web python manage.py collectstatic --noinput
-```
-
-## Rodando localmente no Windows
+### Windows com ambiente Python
 
 ```powershell
+Copy-Item .env.example .env
 .\scripts\dev.ps1
 ```
 
-Depois acesse:
-
-```text
-http://127.0.0.1:8000
-```
-
-Credenciais de desenvolvimento:
-
-```text
-Usuario: admin
-Senha: Lume@12345
-```
-
-Usuarios demonstrativos:
-
-```text
-Gerencia: admin / Lume@12345
-Administracao: recepcao / Recepcao@123
-Profissional: helena / Helena@123
-Paciente: marina / Marina@123
-```
-
-Para encerrar o servidor local iniciado em segundo plano:
+Acesse `http://127.0.0.1:8000`. Para encerrar o processo iniciado pelo script:
 
 ```powershell
 .\scripts\stop-dev.ps1
 ```
 
-## Rodando com Docker
-
-Docker e uma boa escolha para este projeto porque padroniza ambiente, facilita backup/deploy e prepara a transicao futura para servidor. Ele nao substitui boas regras de backend, mas reduz problemas de instalacao entre Windows, Linux e macOS.
-
-O ambiente Docker usa PostgreSQL local. Nao e necessario criar conta externa no PostgreSQL: o proprio `docker compose` cria um container de banco com usuario, senha e base configurados no arquivo `.env`.
-Tambem sobe um servico `worker` para processar mensagens WhatsApp agendadas em segundo plano.
-
-Quando Docker Desktop estiver instalado:
+### Docker Compose
 
 ```bash
-docker compose up --build
-```
-
-Para parar o container:
-
-```bash
-docker compose down
-```
-
-Os dados do PostgreSQL ficam no volume Docker `postgres_data`, entao continuam salvos apos `docker compose down`. Para reiniciar do zero durante desenvolvimento, use apenas quando tiver certeza de que pode apagar os dados:
-
-```bash
-docker compose down -v
-```
-
-## Rodando em outra maquina Linux
-
-Em uma maquina Linux com Docker e Docker Compose instalados:
-
-```bash
-git clone https://github.com/pendevtsp-star/lume-gestao.git
-cd lume-gestao
 cp .env.example .env
+docker compose up -d --build
+docker compose ps
 ```
 
-Edite o `.env` e inclua o IP da maquina Linux em `ALLOWED_HOSTS`, por exemplo:
+O ambiente local sobe `db`, `web`, `worker` e `whatsapp-web`. Nunca use
+`docker compose down -v` em um ambiente que contenha dados que devam ser
+preservados.
+
+Mais comandos e verificacoes: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+## Arquitetura
 
 ```text
-ENVIRONMENT=production
-ALLOWED_HOSTS=127.0.0.1,localhost,192.168.0.50
-CSRF_TRUSTED_ORIGINS=http://127.0.0.1:8000,http://192.168.0.50:8000
-DEBUG=False
-DB_ENGINE=postgres
-POSTGRES_DB=lume
-POSTGRES_USER=lume
-POSTGRES_PASSWORD=troque-esta-senha
-POSTGRES_HOST=db
-POSTGRES_PORT=5432
+Navegador/PWA
+    |
+    v
+Django web/API ---- PostgreSQL
+    |                   ^
+    v                   |
+worker de automacoes ---+
+    |
+    v
+gateway WhatsApp Web
 ```
 
-Depois suba o sistema:
+- A aplicacao Django concentra autenticacao, autorizacao e regras de negocio.
+- O worker usa a mesma imagem da aplicacao e processa automacoes em segundo
+  plano.
+- O gateway Node mantem a sessao pareada do WhatsApp em volume proprio.
+- Midia, backups, arquivos estaticos coletados, sessao WhatsApp e banco sao
+  persistentes e nao pertencem ao repositorio Git.
 
-```bash
-docker compose up --build
-```
+Detalhes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Na propria maquina Linux, acesse:
+## Qualidade e seguranca
 
-```text
-http://127.0.0.1:8000
-```
+Os workflows ativos estao em `.github/workflows/`:
 
-Em outro computador da mesma rede, acesse pelo IP da maquina Linux:
+| Workflow | Responsabilidade |
+| --- | --- |
+| `ci.yml` | checks Django, drift de migrations, testes com cobertura, Compose e gateway WhatsApp |
+| `mobile-flutter.yml` | analise e testes Flutter somente quando `apps/lume_app/**` mudar |
+| `security-codeql.yml` | analise semantica Python e JavaScript/TypeScript |
+| `security-semgrep.yml` | regras OWASP, Django, JavaScript e segredos |
+| `security-trivy.yml` | dependencias, filesystem, Docker e Compose |
+| `deploy.yml` | build de imagens, GHCR, migrations, healthchecks, deploy e rollback na VPS |
 
-```text
-http://192.168.0.50:8000
-```
+O deploy parte de `main`. Secrets, `.env`, banco, volumes, midia e backups nao
+sao modificados pelos workflows.
 
-Se o navegador de outra maquina nao abrir, verifique firewall/liberacao da porta `8000` na maquina Linux. Para testar com dados demonstrativos, basta iniciar o container.
+## Integracoes
 
-Roteiro completo, incluindo copia via `.zip` e build desktop Linux:
+O panorama atual e os gates de ativacao estao em
+[docs/INTEGRATIONS.md](docs/INTEGRATIONS.md). Guias detalhados:
 
-```text
-docs/INSTALACAO_LINUX.md
-```
+- [WhatsApp Web](docs/WHATSAPP.md)
+- [Google Agenda](docs/GOOGLE_AGENDA.md)
+- [E-mail e Brevo](docs/EMAIL_SMTP.md)
+- [Checkout Asaas](docs/PAGAMENTOS_CHECKOUT_ASAAS.md)
+- [Lume Connect](docs/LUME_CONNECT.md)
 
-## App desktop
+## Producao, backup e recuperacao
 
-O projeto agora possui um shell desktop em Electron em `desktop/`. Ele abre a interface Django existente e inicia um backend local na propria maquina, usando SQLite e salvando dados na pasta de dados do usuario do app.
-Quando ha mensagens WhatsApp agendadas, o desktop processa a fila localmente enquanto o app estiver aberto.
+- Deploy: [docs/DEPLOY_VPS.md](docs/DEPLOY_VPS.md)
+- Atualizacao e rollback: [docs/UPDATE_PRODUCTION.md](docs/UPDATE_PRODUCTION.md)
+- Backup e recuperacao: [docs/BACKUP_AND_RECOVERY.md](docs/BACKUP_AND_RECOVERY.md)
+- Checklist de seguranca: [docs/SECURITY_PRODUCTION_CHECKLIST.md](docs/SECURITY_PRODUCTION_CHECKLIST.md)
 
-Durante desenvolvimento:
+Regra central: nao editar nem versionar `.env`, `data/`, `media/`, backups,
+`db.sqlite3`, `staticfiles/` ou volumes Docker. Toda restauracao deve ser
+ensaiada e validada antes de substituir dados reais.
 
-```powershell
-cd desktop
-npm install
-npm start
-```
+## Documentacao
 
-Para gerar instalador Windows:
-
-```powershell
-.\scripts\build-desktop.ps1
-```
-
-Mais detalhes, incluindo macOS, Linux e caminho futuro para VPS, estao em `docs/APP_DESKTOP.md`.
-
-Guias curtos por sistema operacional:
-
-```text
-docs/INSTALACAO_RESUMIDA.md
-docs/INSTALACAO_WINDOWS.md
-docs/INSTALACAO_MACOS.md
-docs/INSTALACAO_LINUX.md
-```
-
-## Instalacao de teste na clinica
-
-Para instalar em uma maquina da clinica na rede local, siga o roteiro em:
-
-```text
-docs/INSTALACAO_CLINICA.md
-```
-
-## E-mail e recuperacao de senha
-
-O fluxo de recuperacao de senha fica em `/recuperar-senha/`. Em desenvolvimento, os e-mails aparecem no console do Docker. Para envio real por SMTP, siga:
-
-```text
-docs/EMAIL_SMTP.md
-```
-
-Para testar a configuracao SMTP:
-
-```bash
-docker compose exec web python manage.py send_test_email destino@exemplo.com
-```
-
-## Versionamento
-
-O projeto esta em Git local na branch `main`. Para enviar ao GitHub, crie um repositorio privado e conecte o remoto:
-
-```bash
-git remote add origin https://github.com/SEU_USUARIO/lume-gestao.git
-git push -u origin main
-```
-
-## Proximas fases sugeridas
-
-1. Agenda de atendimentos e presencas.
-2. Auditoria detalhada de alteracoes.
-3. PostgreSQL e deploy em servidor.
-4. Integracao Pix via provedor com webhooks.
-5. App do cliente usando a API.
-6. Assistente virtual com acesso controlado apenas a dados permitidos.
-
-O roadmap atualizado dos itens 3 a 7 esta salvo em:
-
-```text
-docs/PROXIMOS_PASSOS.md
-```
-
-Documentacao das integracoes:
-
-```text
-docs/LUME_CONNECT.md
-docs/GOOGLE_AGENDA.md
-docs/WHATSAPP.md
-```
-
-Deploy em VPS Linux com Docker Compose, PostgreSQL, Nginx, HTTPS e Cloudflare:
-
-```text
-docs/DEPLOY_VPS.md
-docs/UPDATE_PRODUCTION.md
-docs/SECURITY_PRODUCTION_CHECKLIST.md
-```
+- [Desenvolvimento local](docs/DEVELOPMENT.md)
+- [Arquitetura](docs/ARCHITECTURE.md)
+- [Integracoes](docs/INTEGRATIONS.md)
+- [Backup e recuperacao](docs/BACKUP_AND_RECOVERY.md)
+- [Inventario do produto](docs/FEATURE_INVENTORY.md)
+- [Organizacao GitHub](docs/GITHUB_ORGANIZATION.md)
+- [Hardening, PWA e CI](docs/HARDENING_PWA_CI.md)

@@ -76,6 +76,28 @@ class UserProfileTests(TestCase):
         self.assertEqual(user.username, "login-novo")
         self.assertTrue(user.check_password("NovaSenha@123"))
 
+    def test_self_settings_groups_identity_and_security_fields(self):
+        user = get_user_model().objects.create_user(username="conta-organizada", password="Senha@123")
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("accounts:self_settings"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Dados pessoais")
+        self.assertContains(response, "Alterar senha")
+        self.assertContains(response, "phase6-modules.css")
+
+    def test_management_user_list_is_responsive_and_explains_empty_search(self):
+        user = get_user_model().objects.create_user(username="gestor-lista", password="Senha@123")
+        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("accounts:list"), {"q": "usuario-inexistente"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "phase6-responsive-table")
+        self.assertContains(response, "Nenhum acesso corresponde à busca")
+
     def test_user_cannot_reuse_existing_login(self):
         get_user_model().objects.create_user(username="login-existente", password="Senha@123")
         user = get_user_model().objects.create_user(username="login-proprio", password="Senha@123")
@@ -120,7 +142,7 @@ class UserProfileTests(TestCase):
         get_response = self.client.get(reverse("accounts:self_settings"))
 
         self.assertContains(get_response, "Remover foto")
-        self.assertContains(get_response, "voce tem certeza que deseja excluir sua foto do perfil")
+        self.assertContains(get_response, "Tem certeza de que deseja remover a foto do seu perfil?")
 
         response = self.client.post(
             reverse("accounts:self_settings"),

@@ -11,11 +11,12 @@
   <meta name="apple-mobile-web-app-title" content="Lume em casa">
   <link rel="manifest" href="{% url 'pwa_manifest' %}">
   <link rel="icon" type="image/svg+xml" href="{% static 'images/lume-favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260713-block8">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260721-a11y-foundation">
   <script src="{% static 'js/app.js' %}?v=20260713-block8" defer></script>
 </head>
 <body class="homecare-public">
-  <main class="homecare-shell">
+  <a class="skip-link" href="#main-content">Pular para o conteudo principal</a>
+  <main class="homecare-shell" id="main-content" tabindex="-1">
     {% include "homecare/_public_nav.html" %}
 
     <header class="homecare-library-head">
@@ -160,10 +161,10 @@
       </section>
     {% endif %}
 
-    <nav class="homecare-category-tabs">
-      <a {% if not selected_category %}class="is-active"{% endif %} href="{% url 'homecare_public:library' %}">Todos</a>
+    <nav class="homecare-category-tabs" aria-label="Categorias de videos">
+      <a {% if not selected_category %}class="is-active" aria-current="page"{% endif %} href="{% url 'homecare_public:library' %}">Todos</a>
       {% for category in categories %}
-        <a {% if selected_category == category.slug %}class="is-active"{% endif %} href="{% url 'homecare_public:category' category.slug %}">{{ category.name }} <small>{{ category.video_total }}</small></a>
+        <a {% if selected_category == category.slug %}class="is-active" aria-current="page"{% endif %} href="{% url 'homecare_public:category' category.slug %}">{{ category.name }} <small>{{ category.video_total }}</small></a>
       {% endfor %}
     </nav>
 
@@ -207,7 +208,7 @@
             <a class="homecare-continue-card" href="{% url 'homecare_public:video_detail' item.video.slug %}">
               <span>{{ item.video.category.name }}</span>
               <strong>{{ item.video.title }}</strong>
-              <div class="homecare-progress" aria-hidden="true"><i style="width: {{ item.progress_percent }}%"></i></div>
+              <progress class="homecare-progress" value="{{ item.progress_percent }}" max="100" aria-label="Progresso de visualizacao de {{ item.video.title }}: {{ item.progress_percent }}%">{{ item.progress_percent }}%</progress>
               <small>{{ item.video.duration_label }}</small>
             </a>
           {% endfor %}
@@ -232,9 +233,7 @@
           <strong>{{ video.title }}</strong>
           <p>{{ video.description|truncatechars:120 }}</p>
           {% if video.viewer_progress %}
-            <div class="homecare-progress" aria-label="Progresso de visualizacao">
-              <i style="width: {{ video.viewer_progress_percent }}%"></i>
-            </div>
+            <progress class="homecare-progress" value="{{ video.viewer_progress_percent }}" max="100" aria-label="Progresso de visualizacao de {{ video.title }}: {{ video.viewer_progress_percent }}%">{{ video.viewer_progress_percent }}%</progress>
           {% endif %}
           <small>{{ video.author.full_name }} - {{ video.duration_label }}</small>
         </a>

@@ -27,7 +27,8 @@ from checkout.services import (
     start_checkout_order,
 )
 from core.integrations.http import IntegrationError
-from core.views import SearchableListView
+from core.web.mixins import SearchableListView
+from core.web.throttling import FixedWindowRateLimitMixin
 from scheduling.models import Appointment, ServicePackage, ServiceUsage
 
 
@@ -129,10 +130,13 @@ class CheckoutMerchantAccountOnboardingView(FinanceAccessMixin, FormView):
         return context
 
 
-class PublicPlanCheckoutView(CheckoutFeatureMixin, FormView):
+class PublicPlanCheckoutView(FixedWindowRateLimitMixin, CheckoutFeatureMixin, FormView):
     template_name = "checkout/public_plan_checkout.html"
     form_class = PublicPlanCheckoutForm
     required_feature = "public"
+    rate_limit = 10
+    rate_period = 60
+    rate_scope = "checkout-public"
 
     def dispatch(self, request, *args, **kwargs):
         self.plan = get_object_or_404(
@@ -186,6 +190,12 @@ class CheckoutStatusView(DetailView):
     context_object_name = "order"
     slug_field = "external_reference"
     slug_url_kwarg = "reference"
+
+    def dispatch(self, request, *args, **kwargs):
+        response = super().dispatch(request, *args, **kwargs)
+        response["Cache-Control"] = "no-store, private"
+        response["Referrer-Policy"] = "no-referrer"
+        return response
 
 
 class PatientPaymentListView(CheckoutFeatureMixin, LoginRequiredMixin, ListView):
@@ -345,7 +355,11 @@ class CheckoutOrderActionView(FinanceAccessMixin, View):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class AsaasCheckoutWebhookView(View):
+class AsaasCheckoutWebhookView(FixedWindowRateLimitMixin, View):
+    rate_limit = 120
+    rate_period = 60
+    rate_scope = "checkout-asaas-webhook"
+    rate_limit_json = True
     def post(self, request):
         if not checkout_webhook_enabled():
             return JsonResponse({"ok": False, "detail": "Webhook de checkout desativado."}, status=403)

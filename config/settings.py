@@ -88,7 +88,8 @@ def _looks_like_placeholder(value):
 
 
 def _has_public_host(hosts):
-    local_hosts = {"127.0.0.1", "localhost", "testserver", "0.0.0.0"}
+    # Host classification only; this does not bind a listening socket.
+    local_hosts = {"127.0.0.1", "localhost", "testserver", "0.0.0.0"}  # nosec B104
     return any(host not in local_hosts and not host.startswith("127.") for host in hosts)
 
 
@@ -303,6 +304,8 @@ ASAAS_BASE_URL = config("ASAAS_BASE_URL", default="https://api-sandbox.asaas.com
 ASAAS_API_KEY = config("ASAAS_API_KEY", default="")
 ASAAS_WEBHOOK_TOKEN = config("ASAAS_WEBHOOK_TOKEN", default="")
 ASAAS_TIMEOUT = config("ASAAS_TIMEOUT", default=20, cast=int)
+LUME_WEBHOOK_MAX_BODY_BYTES = config("LUME_WEBHOOK_MAX_BODY_BYTES", default=262144, cast=int)
+LUME_RATE_LIMIT_ENABLED = config("LUME_RATE_LIMIT_ENABLED", default=True, cast=bool)
 CHECKOUT_ENABLED = config("CHECKOUT_ENABLED", default=False, cast=bool)
 CHECKOUT_PUBLIC_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_PUBLIC_ENABLED", default=False, cast=bool)
 CHECKOUT_PATIENT_ENABLED = CHECKOUT_ENABLED and config("CHECKOUT_PATIENT_ENABLED", default=False, cast=bool)
@@ -366,10 +369,14 @@ REST_ENABLE_BASIC_AUTH = config("REST_ENABLE_BASIC_AUTH", default=False, cast=bo
 REST_ENABLE_TOKEN_AUTH = config("REST_ENABLE_TOKEN_AUTH", default=True, cast=bool)
 REST_ENABLE_THROTTLING = config("REST_ENABLE_THROTTLING", default=False, cast=bool)
 REST_ANON_THROTTLE_RATE = config("REST_ANON_THROTTLE_RATE", default="30/min")
+MOBILE_LOGIN_THROTTLE_RATE = config("MOBILE_LOGIN_THROTTLE_RATE", default="10/min")
 REST_USER_THROTTLE_RATE = config("REST_USER_THROTTLE_RATE", default="1000/hour")
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=IS_PRODUCTION, cast=bool)
 SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=IS_PRODUCTION, cast=bool)
 CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=IS_PRODUCTION, cast=bool)
+SESSION_COOKIE_HTTPONLY = config("SESSION_COOKIE_HTTPONLY", default=True, cast=bool)
+SESSION_COOKIE_SAMESITE = config("SESSION_COOKIE_SAMESITE", default="Lax")
+CSRF_COOKIE_SAMESITE = config("CSRF_COOKIE_SAMESITE", default="Lax")
 SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=31536000 if IS_PRODUCTION else 0, cast=int)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = config(
     "SECURE_HSTS_INCLUDE_SUBDOMAINS",
@@ -430,6 +437,7 @@ if REST_ENABLE_THROTTLING:
 
 LOG_LEVEL = config("LOG_LEVEL", default="INFO")
 DJANGO_LOG_LEVEL = config("DJANGO_LOG_LEVEL", default=LOG_LEVEL)
+LUME_MAX_IMAGE_UPLOAD_MB = config("LUME_MAX_IMAGE_UPLOAD_MB", default=5, cast=int)
 
 LOGGING = {
     "version": 1,

@@ -1,16 +1,20 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Cobrancas | Lume Gestao{% endblock %}
+{% block title %}Cobrancas avulsas | Lume Gestao{% endblock %}
 
 {% block content %}
+<style>@import url("{% static 'css/operations.css' %}");</style>
+<div class="operations-page">
 <section class="page-heading">
   <div>
     <p class="eyebrow">Financeiro</p>
-    <h1>Cobrancas</h1>
+    <h1>Cobrancas avulsas</h1>
     <p class="page-subtitle">Organize cobrancas avulsas e pendencias para contato com o paciente.</p>
   </div>
-  <a class="button primary" href="{% url 'billing:charge_create' %}">Nova cobranca</a>
+  <a class="button primary" href="{% url 'billing:charge_create' %}">Nova cobranca avulsa</a>
 </section>
+{% include "billing/_finance_nav.html" with finance_section="charges" %}
 
 <section class="list-overview-strip" aria-label="Resumo de cobrancas">
   <article><span>Busca atual</span><strong>{% if q %}{{ q }}{% else %}Sem filtro aplicado{% endif %}</strong></article>
@@ -53,4 +57,5 @@
   </div>
   {% include "core/pagination.html" %}
 </section>
+</div>
 {% endblock %}

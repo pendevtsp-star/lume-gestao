@@ -3,6 +3,7 @@
 {% block title %}Minha conta | Lume Gestao{% endblock %}
 
 {% block content %}
+{% include "accounts/_styles.html" %}
 <section class="page-heading">
   <div class="heading-identity">
     <span class="avatar avatar-lg">
@@ -15,6 +16,7 @@
     <div>
       <p class="eyebrow">Configuracao</p>
       <h1>Minha conta</h1>
+      <p class="page-subtitle">Atualize seus dados de contato, foto e senha de acesso.</p>
     </div>
   </div>
   <a class="button secondary" href="{{ back_url }}">Voltar</a>
@@ -51,7 +53,9 @@
     </div>
   </section>
 
-  <div class="form-grid">
+  <section class="checkout-form-section">
+    <div><p class="eyebrow">Identificação</p><h2>Dados pessoais</h2></div>
+    <div class="form-grid">
     <label class="form-field">
       <span>{{ form.username.label }}</span>
       {{ form.username }}
@@ -77,7 +81,12 @@
       {{ form.phone }}
       {% for error in form.phone.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
     </label>
-    {% if show_whatsapp_settings %}
+    </div>
+  </section>
+  {% if show_whatsapp_settings %}
+  <section class="checkout-form-section">
+    <div><p class="eyebrow">Comunicação</p><h2>Preferências de WhatsApp</h2></div>
+    <div class="form-grid">
       <label class="form-field">
         <span>{{ form.whatsapp_number.label }}</span>
         {{ form.whatsapp_number }}
@@ -89,7 +98,12 @@
         <span>{{ form.whatsapp_notifications_enabled.label }}</span>
         {% for error in form.whatsapp_notifications_enabled.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
       </label>
-    {% endif %}
+    </div>
+  </section>
+  {% endif %}
+  <section class="checkout-form-section">
+    <div><p class="eyebrow">Segurança</p><h2>Alterar senha</h2><p class="page-subtitle">Preencha apenas quando desejar trocar a senha atual.</p></div>
+    <div class="form-grid">
     <label class="form-field">
       <span>{{ form.current_password.label }}</span>
       {{ form.current_password }}
@@ -106,7 +120,8 @@
       {{ form.new_password2 }}
       {% for error in form.new_password2.errors %}<strong class="field-error">{{ error }}</strong>{% endfor %}
     </label>
-  </div>
+    </div>
+  </section>
 
   <div class="form-actions">
     <a class="button secondary" href="{{ back_url }}">Cancelar</a>
@@ -117,7 +132,7 @@
 <dialog class="confirm-dialog" id="photo-remove-dialog">
   <form method="dialog">
     <h2>Excluir foto</h2>
-    <p>voce tem certeza que deseja excluir sua foto do perfil</p>
+    <p>Tem certeza de que deseja remover a foto do seu perfil?</p>
     <div class="dialog-actions">
       <button class="button secondary" type="button" data-cancel-photo-dialog>Cancelar</button>
       <button class="button danger" type="button" data-confirm-photo-remove>Continuar</button>

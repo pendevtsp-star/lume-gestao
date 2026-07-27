@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import F
 
 from billing.models import Membership, Payment
@@ -18,6 +19,14 @@ from scheduling.models import PatientNotificationPreference
 from scheduling.models import OperationalCalendarEvent
 from scheduling.models import ServicePackage
 from scheduling.models import ServicePackageAdjustment
+from team.models import Professional
+
+
+def lock_professional_schedule(professional):
+    """Serialize booking decisions for one professional inside a transaction."""
+    if not transaction.get_connection().in_atomic_block:
+        raise RuntimeError("O bloqueio da agenda exige uma transacao ativa.")
+    return Professional.objects.select_for_update().get(pk=professional.pk)
 
 
 def resolve_membership_for_plan(patient, plan, starts_on=None):

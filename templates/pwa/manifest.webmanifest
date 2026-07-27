@@ -1,6 +1,8 @@
 {
   "name": "Lume Gestao",
   "short_name": "Lume",
+  "id": "/",
+  "lang": "pt-BR",
   "description": "Gestao clinica, agenda, financeiro e Lume em casa.",
   "start_url": "/",
   "scope": "/",

@@ -61,14 +61,14 @@ class LumeConnectTests(TestCase):
     def test_user_creates_text_post(self):
         self.client.force_login(self.user)
         response = self.client.post(reverse("lume_connect:create_post"), {"content": "Hoje foi um treino leve."})
-        self.assertRedirects(response, reverse("lume_connect:feed"))
+        self.assertEqual(response.url, reverse("lume_connect:feed"))
         self.assertTrue(ConnectPost.objects.filter(author=self.user, content__icontains="treino leve").exists())
 
     def test_user_creates_post_with_image(self):
         self.client.force_login(self.user)
         image = SimpleUploadedFile("foto.png", tiny_png(), content_type="image/png")
         response = self.client.post(reverse("lume_connect:create_post"), {"content": "Foto do studio", "image": image})
-        self.assertRedirects(response, reverse("lume_connect:feed"))
+        self.assertEqual(response.url, reverse("lume_connect:feed"))
         post = ConnectPost.objects.get(author=self.user)
         self.assertTrue(post.image.name.startswith("lume_connect/posts/"))
 
@@ -182,6 +182,9 @@ class LumeConnectTests(TestCase):
         self.assertContains(response, "playsinline")
         self.assertContains(response, "muted")
         self.assertContains(response, "loop")
+        self.assertContains(response, 'aria-label="Video curto publicado por', html=False)
+        self.assertContains(response, 'data-video-toggle aria-pressed="false"', html=False)
+        self.assertContains(response, 'class="connect-like-count" aria-live="polite"', html=False)
 
     def test_legacy_text_post_still_renders(self):
         ConnectPost.objects.create(author=self.user, content="Post antigo sem midia")
@@ -307,12 +310,34 @@ class LumeConnectTests(TestCase):
         self.assertEqual(response.json()["liked"], False)
         self.assertFalse(ConnectLike.objects.filter(post=post, user=self.user).exists())
 
+    def test_like_redirect_rejects_external_next_url(self):
+        post = ConnectPost.objects.create(author=self.other, content="Novidade")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("lume_connect:toggle_like", args=[post.pk]),
+            {"next": "https://example.invalid/phishing"},
+        )
+
+        self.assertRedirects(response, reverse("lume_connect:feed"))
+
     def test_user_comments(self):
         post = ConnectPost.objects.create(author=self.other, content="Comunicado")
         self.client.force_login(self.user)
         response = self.client.post(reverse("lume_connect:add_comment", args=[post.pk]), {"content": "Adorei!"})
         self.assertRedirects(response, reverse("lume_connect:feed"))
         self.assertTrue(ConnectComment.objects.filter(post=post, author=self.user, content="Adorei!").exists())
+
+    def test_comment_redirect_rejects_external_next_url(self):
+        post = ConnectPost.objects.create(author=self.other, content="Comunicado")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("lume_connect:add_comment", args=[post.pk]),
+            {"content": "Adorei!", "next": "https://example.invalid/phishing"},
+        )
+
+        self.assertRedirects(response, reverse("lume_connect:feed"))
 
     def test_author_edits_and_deletes_own_post(self):
         post = ConnectPost.objects.create(author=self.user, content="Texto inicial")

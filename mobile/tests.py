@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -109,6 +110,34 @@ class MobileBootstrapTests(TestCase):
         self.assertIn("token", payload)
         self.assertEqual(payload["profile"]["role"], UserProfile.Role.PATIENT)
         self.assertIn("meus_pagamentos", payload["features"])
+
+    @override_settings(MOBILE_LOGIN_THROTTLE_RATE="2/min")
+    def test_mobile_login_rate_limits_repeated_failures(self):
+        cache.clear()
+        payload = {"username": "usuario-inexistente", "password": "senha-incorreta"}
+
+        first = self.client.post("/api/v1/mobile/auth/login/", payload)
+        second = self.client.post("/api/v1/mobile/auth/login/", payload)
+        blocked = self.client.post("/api/v1/mobile/auth/login/", payload)
+
+        self.assertEqual(first.status_code, 400)
+        self.assertEqual(second.status_code, 400)
+        self.assertEqual(blocked.status_code, 429)
+        cache.clear()
+
+    @override_settings(MOBILE_LOGIN_THROTTLE_RATE="2/min")
+    def test_legacy_mobile_token_endpoint_rate_limits_repeated_failures(self):
+        cache.clear()
+        payload = {"username": "usuario-inexistente", "password": "senha-incorreta"}
+
+        first = self.client.post("/api/v1/mobile/auth/token/", payload)
+        second = self.client.post("/api/v1/mobile/auth/token/", payload)
+        blocked = self.client.post("/api/v1/mobile/auth/token/", payload)
+
+        self.assertEqual(first.status_code, 400)
+        self.assertEqual(second.status_code, 400)
+        self.assertEqual(blocked.status_code, 429)
+        cache.clear()
 
     def test_mobile_bootstrap_accepts_token_authentication(self):
         user, _patient = self.create_patient_user(username="token-bootstrap")

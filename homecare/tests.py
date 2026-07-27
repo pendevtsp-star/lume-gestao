@@ -432,6 +432,8 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, video.title)
         self.assertContains(response, "iframe.mediadelivery.net")
+        self.assertContains(response, f'title="Video: {video.title}"')
+        self.assertNotContains(response, "gyroscope; autoplay")
 
     def test_future_scheduled_video_is_hidden_from_patient(self):
         user = self.create_user("paciente-agendado-futuro", UserProfile.Role.PATIENT, patient=self.patient)
@@ -495,6 +497,9 @@ class HomecarePortalTests(HomecareTestMixin, TestCase):
 
         self.assertContains(response, "Continuar assistindo")
         self.assertContains(response, video.title)
+        self.assertContains(response, '<progress class="homecare-progress"', html=False)
+        self.assertContains(response, 'max="100"', html=False)
+        self.assertContains(response, "Progresso de visualizacao de Rotina de continuidade")
 
     def test_dry_run_video_uses_preview_placeholder(self):
         user = self.create_user("paciente-preview", UserProfile.Role.PATIENT, patient=self.patient)

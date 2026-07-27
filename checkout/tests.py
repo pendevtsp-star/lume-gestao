@@ -41,6 +41,12 @@ CHECKOUT_SANDBOX_TEST_SETTINGS = {
     "CHECKOUT_REQUIRE_MERCHANT_ACCOUNT": True,
 }
 
+CHECKOUT_UNAVAILABLE_SETTINGS = {
+    **CHECKOUT_TEST_SETTINGS,
+    "ASAAS_DRY_RUN": False,
+    "ASAAS_API_KEY": "",
+}
+
 
 @override_settings(**CHECKOUT_TEST_SETTINGS, ASAAS_API_KEY="sk_test_segura", ASAAS_BASE_URL="https://api-sandbox.asaas.com/v3")
 class CheckoutDashboardTests(TestCase):
@@ -58,7 +64,7 @@ class CheckoutDashboardTests(TestCase):
         response = self.client.get(reverse("checkout:dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Checkout Asaas")
+        self.assertContains(response, "Pagamentos online")
         self.assertContains(response, "Dry-run local")
         self.assertContains(response, "API Asaas")
         self.assertContains(response, reverse("checkout:asaas_webhook"))
@@ -86,6 +92,28 @@ class CheckoutDashboardTests(TestCase):
         self.assertContains(response, "Subconta comercial")
         self.assertContains(response, "Recebimento: configurado")
         self.assertNotContains(response, "wallet_sandbox_123")
+
+
+@override_settings(**CHECKOUT_UNAVAILABLE_SETTINGS)
+class CheckoutUnavailableStateTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="gestao-sem-asaas", password="Senha@123")
+        UserProfile.objects.update_or_create(user=self.user, defaults={"role": UserProfile.Role.MANAGEMENT})
+        self.client.force_login(self.user)
+
+    def test_dashboard_explains_that_real_asaas_charges_are_unavailable(self):
+        response = self.client.get(reverse("checkout:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Asaas indisponível para cobranças reais")
+        self.assertContains(response, "Nenhum pagamento remoto pode ser criado neste modo")
+
+    def test_onboarding_can_be_prepared_without_implying_asaas_is_active(self):
+        response = self.client.get(reverse("checkout:merchant_onboarding"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Integração Asaas ainda indisponível")
+        self.assertContains(response, "a ativação e as cobranças reais dependem das credenciais")
 
 
 @override_settings(**CHECKOUT_TEST_SETTINGS)

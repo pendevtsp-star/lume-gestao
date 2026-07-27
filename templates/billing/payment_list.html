@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Historico financeiro | Lume Gestao{% endblock %}
 
 {% block content %}
+<style>@import url("{% static 'css/operations.css' %}");</style>
+<div class="operations-page">
 <section class="page-heading">
   <div>
     <p class="eyebrow">Financeiro</p>
@@ -11,10 +14,11 @@
   </div>
   <div class="panel-actions">
     <a class="button secondary" href="{% url 'billing:cash_closing' %}">Caixa do dia</a>
-    <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Recebimentos</a>
-    <a class="button primary" href="{% url 'billing:payment_create' %}">Novo pagamento</a>
+    <a class="button secondary" href="{% url 'billing:payment_quick_receive' %}">Abrir fila de recebimentos</a>
+    <a class="button primary" href="{% url 'billing:payment_create' %}">Lancar pagamento</a>
   </div>
 </section>
+{% include "billing/_finance_nav.html" with finance_section="history" %}
 
 <section class="list-overview-strip" aria-label="Resumo financeiro da lista">
   <article>
@@ -101,4 +105,5 @@
   </div>
   {% include "core/pagination.html" %}
 </section>
+</div>
 {% endblock %}

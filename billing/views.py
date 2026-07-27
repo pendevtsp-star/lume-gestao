@@ -44,7 +44,7 @@ from core.deletion import (
     membership_has_pending_obligations,
     service_plan_has_pending_obligations,
 )
-from core.views import FormContextMixin, SearchableListView
+from core.web.mixins import FormContextMixin, SearchableListView
 
 
 class ServicePlanListView(FinanceAccessMixin, SearchableListView, ListView):

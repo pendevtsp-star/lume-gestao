@@ -3,7 +3,7 @@ from django.db import transaction
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
-from core.audit import get_current_user, instance_snapshot
+from core.audit import get_current_user, instance_sensitive_values, instance_snapshot, is_sensitive_field
 from core.integrations.google_calendar import delete_google_event, sync_appointment_to_google
 from core.integrations.http import IntegrationError
 from core.models import AuditLog
@@ -16,7 +16,7 @@ from patients.services import (
 from scheduling.models import Appointment
 from team.models import Professional
 
-TRACKED_APPS = {"accounts", "patients", "team", "billing", "scheduling", "core"}
+TRACKED_APPS = {"accounts", "auth", "patients", "team", "billing", "checkout", "scheduling", "core"}
 IGNORED_MODELS = {"AuditLog"}
 
 
@@ -34,6 +34,7 @@ def capture_previous_state(sender, instance, **kwargs):
     except sender.DoesNotExist:
         return
     instance._audit_previous = instance_snapshot(previous)
+    instance._audit_previous_sensitive = instance_sensitive_values(previous)
 
 
 @receiver(post_save)
@@ -43,6 +44,8 @@ def write_save_audit(sender, instance, created, **kwargs):
 
     current = instance_snapshot(instance)
     previous = getattr(instance, "_audit_previous", {})
+    current_sensitive = instance_sensitive_values(instance)
+    previous_sensitive = getattr(instance, "_audit_previous_sensitive", {})
     changes = {}
 
     if created:
@@ -50,7 +53,11 @@ def write_save_audit(sender, instance, created, **kwargs):
     else:
         for field, value in current.items():
             old_value = previous.get(field)
-            if old_value != value:
+            if is_sensitive_field(field):
+                changed = previous_sensitive.get(field) != current_sensitive.get(field)
+            else:
+                changed = old_value != value
+            if changed:
                 changes[field] = {"old": old_value, "new": value}
 
     if not changes and not created:

@@ -1,0 +1,156 @@
+.phase6-intro {
+  display: grid;
+  gap: .35rem;
+}
+
+.phase6-toolbar {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) auto;
+  gap: .75rem;
+  align-items: end;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color, #dce2d7);
+}
+
+.phase6-search {
+  display: grid;
+  gap: .4rem;
+}
+
+.phase6-search > span,
+.phase6-kicker {
+  color: var(--muted-color, #687269);
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.phase6-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .45rem;
+}
+
+.phase6-empty {
+  display: grid;
+  justify-items: center;
+  gap: .45rem;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.phase6-empty strong { font-size: 1rem; }
+.phase6-empty span { max-width: 34rem; color: var(--muted-color, #687269); }
+
+.phase6-callout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #d8b46b;
+  background: #fff8e8;
+  border-radius: .75rem;
+}
+
+.phase6-callout strong,
+.phase6-callout span { display: block; }
+.phase6-callout span { margin-top: .2rem; color: #665c48; }
+.phase6-callout.is-ready { border-color: #abc59f; background: #f1f7ee; }
+
+.phase6-status-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.phase6-status-list article {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #dce2d7);
+  border-radius: .65rem;
+  background: var(--surface-color, #fff);
+}
+
+.phase6-status-list span,
+.phase6-status-list small,
+.phase6-status-list strong { display: block; overflow-wrap: anywhere; }
+.phase6-status-list span { color: var(--muted-color, #687269); font-size: .78rem; font-weight: 700; text-transform: uppercase; }
+.phase6-status-list strong { margin: .35rem 0; }
+
+.phase6-technical-details { margin-top: 1rem; }
+.phase6-technical-details > summary { cursor: pointer; font-weight: 700; }
+.phase6-technical-details[open] > summary { margin-bottom: 1rem; }
+
+.account-settings-panel .checkout-form-section {
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem 0;
+  border-bottom: 1px solid var(--border-color, #dce2d7);
+}
+
+.account-settings-panel .checkout-form-section h2 { margin: .15rem 0 0; }
+
+.phase6-toolbar:has(select) {
+  grid-template-columns: minmax(16rem, 1fr) minmax(11rem, .35fr) auto;
+}
+
+.report-tabs {
+  display: flex;
+  gap: .35rem;
+  overflow-x: auto;
+  padding-bottom: .35rem;
+  scrollbar-width: thin;
+}
+.report-tab { flex: 0 0 auto; }
+
+@media (max-width: 900px) {
+  .phase6-status-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .phase6-toolbar,
+  .phase6-callout { grid-template-columns: 1fr; }
+  .phase6-toolbar .button,
+  .phase6-callout .button { width: 100%; }
+  .phase6-status-list { grid-template-columns: 1fr; }
+  .phase6-row-actions { justify-content: flex-start; }
+
+  .phase6-responsive-table table,
+  .phase6-responsive-table tbody,
+  .phase6-responsive-table tr,
+  .phase6-responsive-table td { display: block; width: 100%; }
+  .phase6-responsive-table thead { display: none; }
+  .phase6-responsive-table tbody { display: grid; gap: .75rem; padding: .75rem; }
+  .phase6-responsive-table tr {
+    padding: .85rem;
+    border: 1px solid var(--border-color, #dce2d7);
+    border-radius: .7rem;
+    background: var(--surface-color, #fff);
+  }
+  .phase6-responsive-table td {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, .42fr) minmax(0, 1fr);
+    gap: .75rem;
+    padding: .45rem 0;
+    border: 0;
+    text-align: left !important;
+  }
+  .phase6-responsive-table td::before {
+    content: attr(data-label);
+    color: var(--muted-color, #687269);
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .phase6-responsive-table td:first-child { padding-top: 0; }
+  .phase6-responsive-table td:last-child { padding-bottom: 0; }
+  .phase6-responsive-table td.empty { display: block; }
+  .phase6-responsive-table td.empty::before { content: none; }
+}
+
+@media (max-width: 420px) {
+  .phase6-responsive-table td { grid-template-columns: 1fr; gap: .2rem; }
+}

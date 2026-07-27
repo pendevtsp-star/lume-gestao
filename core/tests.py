@@ -15,6 +15,8 @@ from django.utils import timezone
 
 from accounts.models import UserProfile
 from billing.models import Charge, Expense, ExpenseCategory, Membership, Payment, ServicePlan
+from checkout.models import CheckoutOrder
+from core.deletion import mark_membership_for_deletion
 from core.models import (
     AuditLog,
     ClinicSettings,
@@ -55,6 +57,10 @@ class DashboardAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Dashboard")
+        self.assertContains(response, "Painel do dia")
+        self.assertContains(response, "Prioridades do dia")
+        self.assertContains(response, reverse("scheduling:appointments"))
+        self.assertContains(response, reverse("billing:payment_quick_receive"))
 
     def test_dashboard_financial_notification_uses_existing_payment_route(self):
         user = get_user_model().objects.create_superuser(username="gestor-financeiro", password="Lume@12345")
@@ -72,6 +78,8 @@ class DashboardAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f"{reverse('billing:payments')}?q=overdue")
+        self.assertContains(response, "Financeiro pendente")
+        self.assertContains(response, "Registrar recebimento")
 
     def test_dashboard_lists_unmaterialized_overdue_membership(self):
         user = get_user_model().objects.create_superuser(username="gestor-ciclo-vencido", password="Lume@12345")
@@ -182,6 +190,64 @@ class AuditLogTests(TestCase):
 
         self.assertTrue(
             AuditLog.objects.filter(model_name="ClinicSettings", action=AuditLog.Action.UPDATED).exists()
+        )
+
+    def test_checkout_order_changes_are_audited(self):
+        order = CheckoutOrder.objects.create(
+            kind=CheckoutOrder.Kind.SERVICE_PLAN,
+            customer_name="Paciente checkout",
+            amount=Decimal("150.00"),
+        )
+
+        self.assertTrue(
+            AuditLog.objects.filter(
+                app_label="checkout",
+                model_name="CheckoutOrder",
+                object_id=str(order.pk),
+                action=AuditLog.Action.CREATED,
+            ).exists()
+        )
+
+    def test_user_password_change_is_audited_without_exposing_hash(self):
+        user = get_user_model().objects.create_user(username="audit-user", password="Senha@123")
+        AuditLog.objects.filter(app_label="auth", model_name="User", object_id=str(user.pk)).delete()
+
+        user.set_password("OutraSenha@456")
+        user.save(update_fields=["password"])
+
+        audit = AuditLog.objects.get(
+            app_label="auth",
+            model_name="User",
+            object_id=str(user.pk),
+            action=AuditLog.Action.UPDATED,
+        )
+        self.assertEqual(audit.changes["password"]["old"], "***")
+        self.assertEqual(audit.changes["password"]["new"], "***")
+
+    def test_membership_cancellation_audits_related_payment_and_package(self):
+        patient = Patient.objects.create(full_name="Paciente auditoria")
+        plan = ServicePlan.objects.create(name="Plano auditoria", monthly_price=Decimal("200.00"))
+        membership = Membership.objects.create(patient=patient, plan=plan, due_day=10)
+        payment = Payment.objects.create(
+            membership=membership,
+            reference_month=date(2026, 7, 1),
+            due_date=date(2026, 7, 10),
+            amount=Decimal("200.00"),
+        )
+        package = ServicePackage.objects.create(membership=membership, total_sessions=4)
+        AuditLog.objects.all().delete()
+
+        mark_membership_for_deletion(membership)
+
+        self.assertTrue(
+            AuditLog.objects.filter(model_name="Payment", object_id=str(payment.pk), action=AuditLog.Action.UPDATED).exists()
+        )
+        self.assertTrue(
+            AuditLog.objects.filter(
+                model_name="ServicePackage",
+                object_id=str(package.pk),
+                action=AuditLog.Action.UPDATED,
+            ).exists()
         )
 
 
@@ -698,7 +764,8 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertTrue(integration.is_connected)
-        self.assertContains(response, "WhatsApp Web ativo")
+        self.assertContains(response, "WhatsApp conectado")
+        self.assertContains(response, "Sessao WhatsApp Web conectada")
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",
@@ -790,7 +857,8 @@ class IntegrationsTests(TestCase):
 
         self.assertContains(response, "Em preparacao")
         self.assertContains(response, "WhatsApp Web")
-        self.assertContains(response, "Conectar com Google")
+        self.assertContains(response, "Opcoes futuras do Google")
+        self.assertNotContains(response, "Conectar com Google")
         self.assertNotContains(response, "Conectar WhatsApp oficial")
 
     @override_settings(
@@ -1176,6 +1244,74 @@ class IntegrationsTests(TestCase):
         self.assertEqual(notification.status, PatientNotification.Status.SENT)
         self.assertEqual(notification.attempts, 1)
 
+    def test_appointment_reminder_rules_do_not_overlap_their_delivery_windows(self):
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "enabled": True,
+                "dry_run": True,
+                "phone_number_id": "123",
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )
+        WhatsAppMessageTemplate.ensure_defaults()
+        WhatsAppAutomationRule.ensure_defaults()
+        start = timezone.now() + timedelta(hours=1, minutes=10)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            professional=self.professional,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            status=Appointment.Status.SCHEDULED,
+        )
+
+        enqueue_automatic_whatsapp_messages(now=timezone.now())
+
+        logs = WhatsAppMessageLog.objects.filter(appointment=appointment)
+        self.assertEqual(logs.count(), 1)
+        self.assertEqual(logs.get().template.template_type, WhatsAppMessageTemplate.TemplateType.SESSION_SOON)
+
+    @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local", WHATSAPP_DRY_RUN=False)
+    @patch("core.integrations.whatsapp.send_whatsapp_text")
+    def test_queue_claims_a_message_before_sending_it(self, send_whatsapp_text_mock):
+        integration = WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "provider": WhatsAppIntegration.Provider.WEB_GATEWAY,
+                "enabled": True,
+                "dry_run": False,
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )[0]
+        template = WhatsAppMessageTemplate.ensure_defaults()[0]
+        now = timezone.now()
+        log = WhatsAppMessageLog.objects.create(
+            integration=integration,
+            template=template,
+            patient=self.patient,
+            recipient_name=self.patient.full_name,
+            recipient_number=self.patient.phone,
+            rendered_message="Teste de concorrencia",
+            status=WhatsAppMessageLog.Status.SCHEDULED,
+            scheduled_for=now,
+        )
+        nested_summaries = []
+
+        def send_with_competing_worker(*args, **kwargs):
+            if not nested_summaries:
+                nested_summaries.append(process_scheduled_whatsapp_messages(now=now))
+            return {"ok": True, "messageId": "single-send"}
+
+        send_whatsapp_text_mock.side_effect = send_with_competing_worker
+
+        summary = process_scheduled_whatsapp_messages(now=now)
+        log.refresh_from_db()
+
+        self.assertEqual(send_whatsapp_text_mock.call_count, 1)
+        self.assertEqual(nested_summaries[0]["processed"], 0)
+        self.assertEqual(summary["sent"], 1)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.SENT)
+
     @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local", WHATSAPP_DRY_RUN=False)
     @patch("core.integrations.whatsapp.send_whatsapp_text")
     def test_queue_retries_transient_web_gateway_failure(self, send_whatsapp_text_mock):
@@ -1219,6 +1355,47 @@ class IntegrationsTests(TestCase):
         self.assertEqual(second_summary["sent"], 1)
         self.assertEqual(log.status, WhatsAppMessageLog.Status.SENT)
         self.assertEqual(log.attempt_count, 2)
+
+    @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local", WHATSAPP_DRY_RUN=False)
+    @patch("core.integrations.whatsapp.send_whatsapp_text")
+    def test_queue_does_not_retry_when_gateway_fails_after_delivery(self, send_whatsapp_text_mock):
+        integration = WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "provider": WhatsAppIntegration.Provider.WEB_GATEWAY,
+                "enabled": True,
+                "dry_run": False,
+                "clinic_whatsapp_number": "5511999990000",
+            },
+        )[0]
+        template = WhatsAppMessageTemplate.ensure_defaults()[0]
+        now = timezone.now()
+        log = WhatsAppMessageLog.objects.create(
+            integration=integration,
+            template=template,
+            patient=self.patient,
+            recipient_name=self.patient.full_name,
+            recipient_number=self.patient.phone,
+            rendered_message="Teste de entrega sem retorno",
+            status=WhatsAppMessageLog.Status.SCHEDULED,
+            scheduled_for=now,
+        )
+        send_whatsapp_text_mock.side_effect = IntegrationError(
+            'HTTP 502: {"ok":false,"error":"Cannot read properties of undefined (reading \'id\')"}'
+        )
+
+        first_summary = process_scheduled_whatsapp_messages(now=now)
+        second_summary = process_scheduled_whatsapp_messages(now=now + timedelta(minutes=2))
+        log.refresh_from_db()
+
+        self.assertEqual(send_whatsapp_text_mock.call_count, 1)
+        self.assertEqual(first_summary["sent"], 1)
+        self.assertEqual(first_summary["retried"], 0)
+        self.assertEqual(second_summary["processed"], 0)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.SENT)
+        self.assertEqual(log.attempt_count, 1)
+        self.assertIsNone(log.next_attempt_at)
+        self.assertTrue(log.response_payload["delivery_assumed"])
 
     def test_management_can_send_birthday_message_from_dashboard(self):
         self.client.force_login(self.management)

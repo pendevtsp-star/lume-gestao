@@ -138,7 +138,7 @@
         <p>Volume geral do periodo filtrado.</p>
       </div>
     </header>
-    <div class="table-wrap">
+    <div class="table-wrap phase6-responsive-table">
       <table class="compact-table">
         <thead>
           <tr>
@@ -149,11 +149,11 @@
         <tbody>
           {% for row in appointments_by_month %}
             <tr>
-              <td>{{ row.month|date:"m/Y" }}</td>
-              <td class="right">{{ row.total }}</td>
+              <td data-label="Mes">{{ row.month|date:"m/Y" }}</td>
+              <td class="right" data-label="Atendimentos">{{ row.total }}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="2" class="empty">Nenhum atendimento no periodo selecionado.</td></tr>
+            <tr><td colspan="2" class="empty"><div class="phase6-empty"><strong>Nenhum atendimento no período.</strong><span>Amplie o intervalo ou revise os filtros para recuperar a produção clínica.</span></div></td></tr>
           {% endfor %}
         </tbody>
       </table>

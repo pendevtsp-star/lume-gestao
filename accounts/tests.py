@@ -506,7 +506,7 @@ class ReadOnlyViewerAccessTests(TestCase):
             reverse("reports:dashboard"),
             reverse("fiscal:dashboard"),
             reverse("accounts:list"),
-            reverse("integrations"),
+            reverse("relationships:overview"),
         ]
 
         for url in urls:

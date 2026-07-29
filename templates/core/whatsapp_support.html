@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="relationship-page">
+  <header class="relationship-hero">
+    <div>
+      <span class="eyebrow">Acesso restrito</span>
+      <h1>Suporte técnico do WhatsApp</h1>
+      <p>Diagnóstico operacional sem exibir credenciais ou conteúdo sensível.</p>
+    </div>
+    <a class="button button-secondary" href="{% url 'whatsapp_settings' %}">Voltar ao WhatsApp</a>
+  </header>
+
+  <div class="relationship-kpi-grid">
+    <div class="relationship-kpi"><strong>{{ scheduled_count }} agendadas</strong><small>Itens aguardando processamento</small></div>
+    <div class="relationship-kpi"><strong>{{ failed_count }} falhas</strong><small>Itens que exigem análise</small></div>
+    <div class="relationship-kpi"><strong>{{ expired_count }} expiradas</strong><small>Itens encerrados por validade</small></div>
+    <div class="relationship-kpi"><strong>{% if gateway.ready %}Pronto{% else %}Indisponível{% endif %}</strong><small>Estado informado pelo gateway</small></div>
+  </div>
+
+  <article class="relationship-panel">
+    <div class="panel-heading">
+      <div><span class="eyebrow">Ação controlada</span><h2>Processar fila</h2></div>
+    </div>
+    <p>Executa uma rodada limitada de até 50 itens, respeitando validade, trava e retentativas.</p>
+    <form method="post">
+      {% csrf_token %}
+      <button class="button button-primary" name="action" value="process_queue" type="submit">Processar fila agora</button>
+    </form>
+  </article>
+</section>
+{% endblock %}

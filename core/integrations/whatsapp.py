@@ -1,13 +1,22 @@
 from datetime import timedelta
 from decimal import Decimal
+from uuid import uuid4
 
 from django.db.models import Q
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.utils import timezone
 
 from core.integrations.credentials import first_configured_value
 from core.integrations.http import IntegrationError, get_json, post_form, post_json
+from core.integrations.whatsapp_gateway_provider import get_whatsapp_provider
+from core.integrations.whatsapp_provider import WhatsAppProviderError
 from core.models import WhatsAppIntegration, WhatsAppMessageLog, WhatsAppMessageTemplate
+from core.services.whatsapp_delivery_policy import (
+    RETRY_DELAYS_MINUTES,
+    calculate_next_retry,
+    evaluate_delivery,
+)
 
 
 def normalize_whatsapp_number(number, default_country_code="55"):
@@ -170,80 +179,67 @@ def whatsapp_web_gateway_headers():
 
 
 def whatsapp_web_gateway_status():
-    if not settings.WHATSAPP_WEB_GATEWAY_URL:
+    try:
+        return get_whatsapp_provider().status().as_gateway_payload()
+    except (ImproperlyConfigured, WhatsAppProviderError) as exc:
         return {
             "ok": False,
+            "state": "error",
             "ready": False,
-            "error": "WHATSAPP_WEB_GATEWAY_URL ausente.",
-            "lastError": "",
+            "hasQr": False,
+            "error": str(exc),
+            "lastError": str(exc),
         }
-    try:
-        status = get_json(
-            f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/healthz",
-            headers=whatsapp_web_gateway_headers(),
-            timeout=min(settings.WHATSAPP_TIMEOUT, 5),
-        )
-        if not isinstance(status, dict):
-            return {
-                "ok": False,
-                "ready": False,
-                "error": "Resposta invalida do gateway WhatsApp Web.",
-                "lastError": "",
-            }
-        status.setdefault("error", "")
-        status.setdefault("lastError", "")
-        status.setdefault("hasQr", bool(status.get("qr")))
-        return status
-    except IntegrationError as exc:
-        return {"ok": False, "ready": False, "error": str(exc), "lastError": ""}
 
 
 def whatsapp_web_gateway_qr():
-    if not settings.WHATSAPP_WEB_GATEWAY_URL:
-        raise IntegrationError("WHATSAPP_WEB_GATEWAY_URL ausente.")
-    return get_json(
-        f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/qr",
-        headers=whatsapp_web_gateway_headers(),
-        timeout=min(settings.WHATSAPP_TIMEOUT, 5),
-    )
+    return get_whatsapp_provider().qr().as_gateway_payload()
 
 
 def whatsapp_web_gateway_restart():
-    if not settings.WHATSAPP_WEB_GATEWAY_URL:
-        raise IntegrationError("WHATSAPP_WEB_GATEWAY_URL ausente.")
-    return post_json(
-        f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/restart",
-        {},
-        headers=whatsapp_web_gateway_headers(),
-        timeout=max(settings.WHATSAPP_TIMEOUT, 20),
-    )
+    return get_whatsapp_provider().restart().as_gateway_payload()
 
 
-def send_whatsapp_text(to_number, message, integration=None):
+def whatsapp_web_gateway_logout():
+    return get_whatsapp_provider().logout()
+
+
+def send_whatsapp_text(to_number, message, integration=None, *, request_id=None):
     integration = integration or WhatsAppIntegration.load()
     target = normalize_whatsapp_number(to_number, integration.default_country_code)
     if integration.provider != WhatsAppIntegration.Provider.WEB_GATEWAY:
         integration.provider = WhatsAppIntegration.Provider.WEB_GATEWAY
         integration.save(update_fields=["provider", "updated_at"])
     if not integration.enabled:
-        raise IntegrationError("Integracao WhatsApp esta desativada.")
+        raise WhatsAppProviderError(
+            "Integracao WhatsApp esta desativada.",
+            code="INTEGRATION_DISABLED",
+            retryable=True,
+        )
     if integration.dry_run or settings.WHATSAPP_DRY_RUN:
         integration.last_test_at = timezone.now()
         integration.last_error = ""
         integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
-        return {"dry_run": True, "to": target, "message": message}
-    if not settings.WHATSAPP_WEB_GATEWAY_URL:
-        raise IntegrationError("O gateway do WhatsApp Web ainda nao esta configurado.")
-    response = post_json(
-        f"{settings.WHATSAPP_WEB_GATEWAY_URL.rstrip('/')}/send",
-        {"to": target, "message": message},
-        headers=whatsapp_web_gateway_headers(),
-        timeout=settings.WHATSAPP_TIMEOUT,
+        return {
+            "dry_run": True,
+            "to": target,
+            "message": message,
+            "requestId": request_id or str(uuid4()),
+        }
+    result = get_whatsapp_provider().send_text(
+        to=target,
+        message=message,
+        request_id=request_id or str(uuid4()),
     )
     integration.last_test_at = timezone.now()
     integration.last_error = ""
     integration.save(update_fields=["last_test_at", "last_error", "updated_at"])
-    return response
+    return {
+        "ok": True,
+        "provider": result.provider,
+        "requestId": result.request_id,
+        "messageId": result.message_id,
+    }
 
 
 def send_whatsapp_template(to_number, template, parameters, integration=None):
@@ -328,62 +324,62 @@ def provider_reference_from_response(result):
     return messages_data[0].get("id", "")
 
 
-MAX_DELIVERY_ATTEMPTS = 4
-RETRY_DELAYS_MINUTES = (2, 5, 15)
 DELIVERY_CLAIM_MINUTES = 10
-
-
-def transient_whatsapp_delivery_error(message):
-    normalized = str(message or "").lower()
-    transient_markers = (
-        "http 502",
-        "http 503",
-        "http 504",
-        "session not connected",
-        "sessao whatsapp web",
-        "sessao nao conectada",
-        "gateway",
-        "no lid for user",
-    )
-    return any(marker in normalized for marker in transient_markers)
-
-
-def whatsapp_delivery_completed_despite_error(message):
-    normalized = str(message or "").lower()
-    return (
-        "cannot read properties of undefined" in normalized
-        and "reading 'id'" in normalized
-    )
 
 
 def process_scheduled_whatsapp_messages(limit=50, now=None):
     now = now or timezone.now()
     due_logs = list(
-        WhatsAppMessageLog.objects.select_related("integration", "template")
+        WhatsAppMessageLog.objects.select_related(
+            "integration",
+            "template",
+            "patient",
+            "appointment",
+            "payment",
+            "charge",
+        )
         .filter(
             status=WhatsAppMessageLog.Status.SCHEDULED,
             scheduled_for__isnull=False,
             scheduled_for__lte=now,
         )
         .filter(Q(next_attempt_at__isnull=True) | Q(next_attempt_at__lte=now))
+        .filter(Q(lease_until__isnull=True) | Q(lease_until__lte=now))
         .order_by("scheduled_for", "created_at")[:limit]
     )
-    summary = {"processed": 0, "sent": 0, "dry_run": 0, "failed": 0, "retried": 0}
+    summary = {
+        "processed": 0,
+        "sent": 0,
+        "dry_run": 0,
+        "failed": 0,
+        "retried": 0,
+        "expired": 0,
+        "uncertain": 0,
+    }
 
-    def sync_notification_delivery(log, *, status, error_message="", reference=""):
+    def sync_notification_delivery(log, *, status, error_message="", reference="", attempted=False):
         try:
             notification = log.delivery_notification
         except Exception:
             return
-        notification.attempts += 1
-        notification.last_attempt_at = timezone.now()
+        if attempted:
+            notification.attempts += 1
+            notification.last_attempt_at = now
         notification.error_message = error_message
         notification.provider_reference = reference
         if status == WhatsAppMessageLog.Status.FAILED:
             notification.status = "failed"
+        elif status == WhatsAppMessageLog.Status.EXPIRED:
+            notification.status = "skipped"
+        elif status == WhatsAppMessageLog.Status.DELIVERY_UNCERTAIN:
+            notification.status = "failed"
+            notification.metadata = {
+                **(notification.metadata or {}),
+                "delivery_uncertain": True,
+            }
         elif status in {WhatsAppMessageLog.Status.SENT, WhatsAppMessageLog.Status.DRY_RUN}:
             notification.status = "sent"
-            notification.sent_at = timezone.now()
+            notification.sent_at = now
         notification.save(
             update_fields=[
                 "attempts",
@@ -392,6 +388,7 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
                 "provider_reference",
                 "status",
                 "sent_at",
+                "metadata",
                 "updated_at",
             ]
         )
@@ -405,73 +402,163 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
                 scheduled_for__lte=now,
             )
             .filter(Q(next_attempt_at__isnull=True) | Q(next_attempt_at__lte=now))
-            .update(next_attempt_at=now + timedelta(minutes=DELIVERY_CLAIM_MINUTES))
+            .filter(Q(lease_until__isnull=True) | Q(lease_until__lte=now))
+            .update(lease_until=now + timedelta(minutes=DELIVERY_CLAIM_MINUTES))
         )
         if not claimed:
             continue
         log.refresh_from_db()
-        integration = log.integration or WhatsAppIntegration.load()
-        log.attempt_count += 1
-        try:
-            result = send_whatsapp_text(log.recipient_number, log.rendered_message, integration=integration)
-        except IntegrationError as exc:
-            error_message = str(exc)
-            if whatsapp_delivery_completed_despite_error(error_message):
-                log.status = WhatsAppMessageLog.Status.SENT
-                log.sent_at = timezone.now()
-                log.next_attempt_at = None
-                log.error_message = error_message
-                log.provider_reference = ""
-                log.response_payload = {
-                    "delivery_assumed": True,
-                    "warning": error_message,
-                }
-                log.save(
-                    update_fields=[
-                        "status",
-                        "sent_at",
-                        "next_attempt_at",
-                        "attempt_count",
-                        "error_message",
-                        "provider_reference",
-                        "response_payload",
-                        "updated_at",
-                    ]
-                )
-                sync_notification_delivery(log, status=log.status)
-                summary["sent"] += 1
-                summary["processed"] += 1
-                continue
-            can_retry = transient_whatsapp_delivery_error(error_message) and log.attempt_count < MAX_DELIVERY_ATTEMPTS
-            if can_retry:
-                delay_index = min(log.attempt_count - 1, len(RETRY_DELAYS_MINUTES) - 1)
-                log.status = WhatsAppMessageLog.Status.SCHEDULED
-                log.next_attempt_at = now + timedelta(minutes=RETRY_DELAYS_MINUTES[delay_index])
-                log.scheduled_for = log.next_attempt_at
-                log.error_message = (
-                    f"{error_message} Nova tentativa automatica em "
-                    f"{RETRY_DELAYS_MINUTES[delay_index]} minuto(s)."
-                )
-                summary["retried"] += 1
-            else:
-                log.status = WhatsAppMessageLog.Status.FAILED
-                log.next_attempt_at = None
-                log.error_message = error_message
-            log.response_payload = {}
+
+        decision = evaluate_delivery(log, now=now)
+        if not decision.allowed:
+            log.status = decision.terminal_status
+            log.next_attempt_at = None
+            log.lease_until = None
+            log.terminal_reason = decision.reason_code
+            log.error_message = decision.user_message
+            log.response_payload = {"terminal_reason": decision.reason_code}
             log.save(
                 update_fields=[
                     "status",
-                    "scheduled_for",
                     "next_attempt_at",
-                    "attempt_count",
+                    "lease_until",
+                    "terminal_reason",
                     "error_message",
                     "response_payload",
                     "updated_at",
                 ]
             )
-            sync_notification_delivery(log, status=log.status, error_message=error_message)
-            if not can_retry:
-                summary["failed"] += 1
+            sync_notification_delivery(log, status=log.status, error_message=decision.user_message)
+            summary["expired" if log.status == WhatsAppMessageLog.Status.EXPIRED else "failed"] += 1
+            summary["processed"] += 1
+            continue
+
+        integration = log.integration or WhatsAppIntegration.load()
+        log.attempt_count += 1
+        try:
+            result = send_whatsapp_text(
+                log.recipient_number,
+                log.rendered_message,
+                integration=integration,
+                request_id=str(log.delivery_request_id),
+            )
+        except IntegrationError as exc:
+            error_message = str(exc)
+            retryable = isinstance(exc, WhatsAppProviderError) and exc.retryable
+            delivery_uncertain = (
+                isinstance(exc, WhatsAppProviderError)
+                and exc.delivery_uncertain
+            )
+            error_code = (
+                exc.code if isinstance(exc, WhatsAppProviderError) else "UNSTRUCTURED_ERROR"
+            )
+            if delivery_uncertain:
+                log.status = WhatsAppMessageLog.Status.DELIVERY_UNCERTAIN
+                log.next_attempt_at = None
+                log.lease_until = None
+                log.error_message = error_message
+                log.provider_reference = ""
+                log.terminal_reason = "provider_result_unknown"
+                log.response_payload = {
+                    "delivery_uncertain": True,
+                    "code": error_code,
+                    "error": error_message,
+                }
+                log.save(
+                    update_fields=[
+                        "status",
+                        "next_attempt_at",
+                        "lease_until",
+                        "attempt_count",
+                        "error_message",
+                        "provider_reference",
+                        "terminal_reason",
+                        "response_payload",
+                        "updated_at",
+                    ]
+                )
+                sync_notification_delivery(
+                    log,
+                    status=log.status,
+                    error_message=(
+                        "Nao foi possivel confirmar o resultado do envio. "
+                        "A mensagem nao sera repetida automaticamente."
+                    ),
+                    attempted=True,
+                )
+                summary["uncertain"] += 1
+                summary["processed"] += 1
+                continue
+
+            retry_at = calculate_next_retry(
+                log,
+                now=now,
+                retryable=retryable,
+                delivery_uncertain=delivery_uncertain,
+            )
+            if retry_at:
+                log.status = WhatsAppMessageLog.Status.SCHEDULED
+                log.next_attempt_at = retry_at
+                log.lease_until = None
+                delay_minutes = int((retry_at - now).total_seconds() // 60)
+                log.error_message = (
+                    f"{error_message} Nova tentativa automatica em "
+                    f"{delay_minutes} minuto(s)."
+                )
+                log.terminal_reason = ""
+                summary["retried"] += 1
+            else:
+                retryable_before_limit = (
+                    retryable
+                    and log.retry_policy != WhatsAppMessageLog.RetryPolicy.NONE
+                    and log.attempt_count < log.max_attempts
+                )
+                delay_index = min(max(log.attempt_count - 1, 0), len(RETRY_DELAYS_MINUTES) - 1)
+                candidate_retry = now + timedelta(minutes=RETRY_DELAYS_MINUTES[delay_index])
+                expired_before_retry = bool(
+                    retryable_before_limit
+                    and log.expires_at
+                    and candidate_retry >= log.expires_at
+                )
+                log.status = (
+                    WhatsAppMessageLog.Status.EXPIRED
+                    if expired_before_retry
+                    else WhatsAppMessageLog.Status.FAILED
+                )
+                log.next_attempt_at = None
+                log.lease_until = None
+                log.error_message = error_message
+                log.terminal_reason = (
+                    "retry_after_expiry"
+                    if expired_before_retry
+                    else (
+                        "attempts_exhausted"
+                        if retryable
+                        and log.attempt_count >= log.max_attempts
+                        else "permanent_failure"
+                    )
+                )
+            log.response_payload = {"code": error_code}
+            log.save(
+                update_fields=[
+                    "status",
+                    "next_attempt_at",
+                    "lease_until",
+                    "attempt_count",
+                    "error_message",
+                    "terminal_reason",
+                    "response_payload",
+                    "updated_at",
+                ]
+            )
+            sync_notification_delivery(
+                log,
+                status=log.status,
+                error_message=error_message,
+                attempted=True,
+            )
+            if not retry_at:
+                summary["expired" if log.status == WhatsAppMessageLog.Status.EXPIRED else "failed"] += 1
             summary["processed"] += 1
             continue
 
@@ -480,9 +567,11 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
             if isinstance(result, dict) and result.get("dry_run")
             else WhatsAppMessageLog.Status.SENT
         )
-        log.sent_at = timezone.now()
+        log.sent_at = now
         log.next_attempt_at = None
+        log.lease_until = None
         log.error_message = ""
+        log.terminal_reason = ""
         log.provider_reference = provider_reference_from_response(result)
         log.response_payload = result if isinstance(result, dict) else {}
         log.save(
@@ -490,14 +579,21 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
                 "status",
                 "sent_at",
                 "next_attempt_at",
+                "lease_until",
                 "attempt_count",
                 "error_message",
+                "terminal_reason",
                 "provider_reference",
                 "response_payload",
                 "updated_at",
             ]
         )
-        sync_notification_delivery(log, status=log.status, reference=log.provider_reference)
+        sync_notification_delivery(
+            log,
+            status=log.status,
+            reference=log.provider_reference,
+            attempted=True,
+        )
         key = "dry_run" if log.status == WhatsAppMessageLog.Status.DRY_RUN else "sent"
         summary[key] += 1
         summary["processed"] += 1

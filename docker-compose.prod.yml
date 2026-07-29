@@ -73,5 +73,26 @@ services:
       timeout: 10s
       retries: 5
 
+  whatsapp-baileys:
+    profiles: ["baileys-candidate"]
+    image: ${LUME_WHATSAPP_BAILEYS_IMAGE:-ghcr.io/pendevtsp-star/lume-gestao/whatsapp-baileys:candidate}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "3030"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      WHATSAPP_GATEWAY_TOKEN: ${WHATSAPP_BAILEYS_GATEWAY_TOKEN}
+      WHATSAPP_AUTH_ENCRYPTION_KEY: ${WHATSAPP_AUTH_ENCRYPTION_KEY}
+      WHATSAPP_SESSION_ID: clinic-primary
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3030/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
 volumes:
   postgres_data:

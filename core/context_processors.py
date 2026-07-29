@@ -3,7 +3,7 @@ from django.utils import timezone
 
 from accounts.models import UserProfile
 from billing.models import Charge, Payment
-from core.models import GoogleCalendarIntegration, WhatsAppIntegration
+from core.models import WhatsAppIntegration
 from patients.models import Patient
 from scheduling.models import Appointment
 
@@ -76,19 +76,13 @@ def operational_notifications(request):
         )
 
     whatsapp = WhatsAppIntegration.objects.order_by("pk").first()
-    google = GoogleCalendarIntegration.objects.order_by("pk").first()
-    disconnected = []
     if not whatsapp or not whatsapp.is_connected:
-        disconnected.append("WhatsApp")
-    if not google or not google.is_connected:
-        disconnected.append("Google Agenda")
-    if disconnected:
         notifications.append(
             {
                 "tone": "neutral",
-                "title": "Integracao pede atencao",
-                "detail": ", ".join(disconnected) + " nao esta pronto para operar.",
-                "url": reverse("integrations"),
+                "title": "WhatsApp pede atencao",
+                "detail": "O aparelho da clinica ainda nao esta pronto para enviar mensagens.",
+                "url": reverse("whatsapp_settings"),
             }
         )
 

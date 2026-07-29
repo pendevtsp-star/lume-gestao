@@ -30,6 +30,8 @@ class Command(BaseCommand):
                     f"{summary['sent']} enviado(s), "
                     f"{summary['dry_run']} simulado(s), "
                     f"{summary['retried']} reenfileirado(s), "
-                    f"{summary['failed']} falha(s)."
+                    f"{summary['failed']} falha(s), "
+                    f"{summary['expired']} expirado(s), "
+                    f"{summary['uncertain']} entrega(s) incerta(s)."
                 )
             )

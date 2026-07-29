@@ -37,7 +37,7 @@
     <strong>{{ birthday_patients|length }} aniversario{{ birthday_patients|length|pluralize }}</strong>
     <p>Confira os contatos antes de enviar uma mensagem personalizada.</p>
     {% if birthday_whatsapp_visible %}
-      <a href="{% url 'integrations' %}?tab=messages">Revisar mensagem</a>
+      <a href="{% url 'relationships:automations' %}">Revisar mensagem</a>
     {% else %}
       <a href="{% url 'patients:list' %}">Ver pacientes</a>
     {% endif %}
@@ -112,7 +112,7 @@
       <p>{{ birthday_week_start|date:"d/m" }} a {{ birthday_week_end|date:"d/m" }} - datas de aniversario dos pacientes ativos.</p>
     </div>
     {% if birthday_whatsapp_visible %}
-      <a class="button secondary" href="{% url 'integrations' %}?tab=messages">Editar mensagem</a>
+      <a class="button secondary" href="{% url 'relationships:automations' %}">Editar mensagem</a>
     {% endif %}
   </header>
 

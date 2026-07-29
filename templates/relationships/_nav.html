@@ -1,0 +1,6 @@
+<nav class="relationship-tabs" aria-label="Áreas de relacionamento">
+  <a class="{% if request.resolver_match.url_name == 'overview' %}is-active{% endif %}" href="{% url 'relationships:overview' %}">Hoje</a>
+  <a class="{% if request.resolver_match.url_name == 'automations' %}is-active{% endif %}" href="{% url 'relationships:automations' %}">Automações</a>
+  <a class="{% if request.resolver_match.url_name == 'history' or request.resolver_match.url_name == 'history_retry' %}is-active{% endif %}" href="{% url 'relationships:history' %}">Histórico</a>
+  <a class="{% if request.resolver_match.url_name == 'whatsapp_settings' %}is-active{% endif %}" href="{% url 'whatsapp_settings' %}">WhatsApp</a>
+</nav>

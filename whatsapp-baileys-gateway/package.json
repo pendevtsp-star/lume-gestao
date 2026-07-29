@@ -1,0 +1,20 @@
+{
+  "name": "lume-whatsapp-baileys-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "baileys": "7.0.0-rc14",
+    "express": "5.1.0",
+    "pg": "8.16.3",
+    "pino": "9.9.0",
+    "qrcode": "1.5.4"
+  }
+}

@@ -43,7 +43,7 @@ jobs:
         run: pip-audit -r requirements.txt
 
       - name: Static Python security scan
-        run: bandit -r accounts billing checkout config core fiscal homecare lume_connect mobile patients reports scheduling team website -x "*/migrations/*,*/tests/*,*/test_*.py" -ll
+        run: bandit -r accounts billing checkout config core fiscal homecare lume_connect mobile patients relationships reports scheduling team website -x "*/migrations/*,*/tests/*,*/test_*.py" -ll
 
       - name: Django checks
         run: python manage.py check
@@ -64,7 +64,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: config.test_settings
         run: |
           coverage run \
-            --source=accounts,billing,checkout,core,fiscal,homecare,lume_connect,mobile,patients,reports,scheduling,team,website \
+            --source=accounts,billing,checkout,core,fiscal,homecare,lume_connect,mobile,patients,relationships,reports,scheduling,team,website \
             manage.py test
           coverage report --fail-under=1
           coverage xml -o coverage.xml
@@ -116,3 +116,39 @@ jobs:
 
       - name: Production dependency audit
         run: npm audit --omit=dev --omit=optional --audit-level=high
+
+  whatsapp-baileys:
+    name: WhatsApp Baileys candidate build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: whatsapp-baileys-gateway
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: whatsapp-baileys-gateway/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --omit=dev
+
+      - name: Syntax checks
+        run: |
+          node --check src/server.js
+          node --check src/connection.js
+          node --check src/auth-store.js
+          node --check src/outbound-store.js
+
+      - name: Gateway tests
+        run: npm test
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Container install test
+        run: docker build --tag lume-whatsapp-baileys:test .

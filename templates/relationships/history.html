@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="relationship-page">
+  <header class="relationship-hero">
+    <div>
+      <span class="eyebrow">Relacionamento</span>
+      <h1>Histórico de mensagens</h1>
+      <p>Uma leitura simples do que foi enviado, do que está aguardando e do que perdeu o momento.</p>
+    </div>
+  </header>
+
+  {% include "relationships/_nav.html" %}
+
+  <div class="history-list">
+    {% for entry in history_entries %}
+      <article class="history-item">
+        <span class="history-marker is-{{ entry.tone }}"></span>
+        <div class="history-main">
+          <div class="history-heading">
+            <div>
+              <strong>{{ entry.log.recipient_name }}</strong>
+              <span>{{ entry.log.created_at|date:"d/m/Y · H:i" }}</span>
+            </div>
+            <span class="friendly-status is-{{ entry.tone }}">{{ entry.label }}</span>
+          </div>
+          <p>{{ entry.detail }}</p>
+          <small>{{ entry.log.get_message_purpose_display }}</small>
+        </div>
+        {% if entry.can_retry %}
+          <form method="post" action="{% url 'relationships:history_retry' entry.log.pk %}">
+            {% csrf_token %}
+            <button class="button button-secondary" type="submit">Tentar novamente</button>
+          </form>
+        {% endif %}
+      </article>
+    {% empty %}
+      <div class="relationship-panel empty-state-compact">
+        <strong>Nenhuma mensagem registrada.</strong>
+        <span>Os próximos contatos aparecerão aqui.</span>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -29,6 +29,7 @@ from core.models import (
 )
 from core.integrations.http import IntegrationError
 from core.integrations.whatsapp import process_scheduled_whatsapp_messages
+from core.integrations.whatsapp_provider import WhatsAppProviderError
 from core.services.whatsapp_automation import enqueue_automatic_whatsapp_messages
 from patients.models import Patient, ProfessionalPatientAssignment
 from scheduling.models import (
@@ -382,7 +383,7 @@ class FunctionalRoleFlowTests(TestCase):
                 "accounts:list",
                 "audit",
                 "settings",
-                "integrations",
+                "relationships:overview",
             ],
         )
 
@@ -557,18 +558,29 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(reverse("integrations"))
 
-        self.assertContains(response, "Google Agenda")
-        self.assertContains(response, "Central de integracoes")
+        self.assertRedirects(
+            response,
+            reverse("relationships:overview"),
+            fetch_redirect_response=False,
+        )
 
     def test_management_can_open_integration_tabs(self):
         self.client.force_login(self.management)
 
-        for tab in ["connections", "messages", "diagnostics"]:
+        destinations = {
+            "connections": reverse("whatsapp_settings"),
+            "messages": reverse("relationships:automations"),
+            "diagnostics": reverse("whatsapp_settings"),
+        }
+        for tab, destination in destinations.items():
             with self.subTest(tab=tab):
                 response = self.client.get(f"{reverse('integrations')}?tab={tab}")
 
-                self.assertEqual(response.status_code, 200)
-                self.assertContains(response, "Integracoes")
+                self.assertRedirects(
+                    response,
+                    destination,
+                    fetch_redirect_response=False,
+                )
 
     def test_whatsapp_load_forces_web_gateway_provider(self):
         WhatsAppIntegration.objects.update_or_create(
@@ -616,9 +628,11 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=diagnostics")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Verificacao dos canais")
-        self.assertContains(response, "Falhas recentes")
+        self.assertRedirects(
+            response,
+            reverse("whatsapp_settings"),
+            fetch_redirect_response=False,
+        )
 
     def test_connections_tab_prioritizes_qr_flow_when_meta_credentials_exist(self):
         self.client.force_login(self.management)
@@ -636,8 +650,11 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "WhatsApp Web")
-        self.assertNotContains(response, "Conectar WhatsApp oficial")
+        self.assertRedirects(
+            response,
+            reverse("whatsapp_settings"),
+            fetch_redirect_response=False,
+        )
 
     def test_management_can_select_whatsapp_web_gateway_mode(self):
         self.client.force_login(self.management)
@@ -676,7 +693,11 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Desconectar")
+        self.assertRedirects(
+            response,
+            reverse("whatsapp_settings"),
+            fetch_redirect_response=False,
+        )
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="meta-app-id-real-fake",
@@ -697,9 +718,11 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "WhatsApp Web")
-        self.assertContains(response, "Sessao conectada")
-        self.assertNotContains(response, "Diagnostico tecnico da conexao Meta")
+        self.assertRedirects(
+            response,
+            reverse("whatsapp_settings"),
+            fetch_redirect_response=False,
+        )
 
     @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local", WHATSAPP_DRY_RUN=False)
     @patch("core.views.whatsapp_web_gateway_status")
@@ -720,9 +743,11 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertTrue(integration.is_connected)
-        self.assertContains(response, "WhatsApp Web")
-        self.assertContains(response, "Editar mensagens e automacoes")
-        self.assertContains(response, "Escaneie o QR")
+        self.assertRedirects(
+            response,
+            reverse("whatsapp_settings"),
+            fetch_redirect_response=False,
+        )
 
     def test_management_can_disconnect_whatsapp(self):
         self.client.force_login(self.management)
@@ -764,8 +789,11 @@ class IntegrationsTests(TestCase):
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
         self.assertTrue(integration.is_connected)
-        self.assertContains(response, "WhatsApp conectado")
-        self.assertContains(response, "Sessao WhatsApp Web conectada")
+        self.assertRedirects(
+            response,
+            reverse("whatsapp_settings"),
+            fetch_redirect_response=False,
+        )
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",
@@ -777,9 +805,11 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "WhatsApp Web")
-        self.assertNotContains(response, "Aguardando conexao Meta")
-        self.assertNotContains(response, "Conectar WhatsApp oficial")
+        self.assertRedirects(
+            response,
+            reverse("whatsapp_settings"),
+            fetch_redirect_response=False,
+        )
 
     @override_settings(
         WHATSAPP_EMBEDDED_APP_ID="env-app-id",
@@ -801,9 +831,11 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "WhatsApp Web")
-        self.assertNotContains(response, "A Meta ainda nao liberou esse numero para envio real.")
-        self.assertContains(response, "Ultimo erro")
+        self.assertRedirects(
+            response,
+            reverse("whatsapp_settings"),
+            fetch_redirect_response=False,
+        )
 
     @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
     def test_connections_tab_shows_public_google_callback(self):
@@ -811,9 +843,10 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(
+        self.assertRedirects(
             response,
-            "https://sistema.clinicafisiolume.com.br/integracoes/google/callback/",
+            reverse("whatsapp_settings"),
+            fetch_redirect_response=False,
         )
 
     @override_settings(PUBLIC_BASE_URL="https://sistema.clinicafisiolume.com.br")
@@ -855,11 +888,11 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=connections")
 
-        self.assertContains(response, "Em preparacao")
-        self.assertContains(response, "WhatsApp Web")
-        self.assertContains(response, "Opcoes futuras do Google")
-        self.assertNotContains(response, "Conectar com Google")
-        self.assertNotContains(response, "Conectar WhatsApp oficial")
+        self.assertRedirects(
+            response,
+            reverse("whatsapp_settings"),
+            fetch_redirect_response=False,
+        )
 
     @override_settings(
         GOOGLE_CALENDAR_CLIENT_ID="cole-o-client-id-google",
@@ -940,19 +973,22 @@ class IntegrationsTests(TestCase):
 
         response = self.client.get(f"{reverse('integrations')}?tab=messages&message=charge")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Mensagem de Cobranca")
-        self.assertContains(response, 'value="send_template:charge"')
-        self.assertNotContains(response, 'value="send_template:appointment"')
-        self.assertNotContains(response, 'value="send_template:birthday"')
+        self.assertRedirects(
+            response,
+            reverse("relationships:automations"),
+            fetch_redirect_response=False,
+        )
 
     def test_administration_can_open_integrations(self):
         self.client.force_login(self.administration)
 
         response = self.client.get(reverse("integrations"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Conexoes")
+        self.assertRedirects(
+            response,
+            reverse("relationships:overview"),
+            fetch_redirect_response=False,
+        )
 
     def test_patient_cannot_open_integrations(self):
         self.client.force_login(self.patient_user)
@@ -1330,14 +1366,23 @@ class IntegrationsTests(TestCase):
             integration=integration,
             template=template,
             patient=self.patient,
+            appointment=self.appointment,
             recipient_name=self.patient.full_name,
             recipient_number=self.patient.phone,
             rendered_message="Teste de retentativa",
             status=WhatsAppMessageLog.Status.SCHEDULED,
             scheduled_for=now,
+            message_purpose=WhatsAppMessageLog.MessagePurpose.APPOINTMENT_CONFIRMATION,
+            retry_policy=WhatsAppMessageLog.RetryPolicy.UNTIL_EXPIRY,
+            expires_at=self.appointment.starts_at,
+            max_attempts=4,
         )
         send_whatsapp_text_mock.side_effect = [
-            IntegrationError("HTTP 503: sessao WhatsApp Web nao conectada."),
+            WhatsAppProviderError(
+                "Sessao WhatsApp ainda nao conectada.",
+                code="SESSION_NOT_READY",
+                retryable=True,
+            ),
             {"ok": True, "messageId": "retry-ok"},
         ]
 
@@ -1374,14 +1419,21 @@ class IntegrationsTests(TestCase):
             integration=integration,
             template=template,
             patient=self.patient,
+            appointment=self.appointment,
             recipient_name=self.patient.full_name,
             recipient_number=self.patient.phone,
             rendered_message="Teste de entrega sem retorno",
             status=WhatsAppMessageLog.Status.SCHEDULED,
             scheduled_for=now,
+            message_purpose=WhatsAppMessageLog.MessagePurpose.APPOINTMENT_CONFIRMATION,
+            retry_policy=WhatsAppMessageLog.RetryPolicy.UNTIL_EXPIRY,
+            expires_at=self.appointment.starts_at,
+            max_attempts=4,
         )
-        send_whatsapp_text_mock.side_effect = IntegrationError(
-            'HTTP 502: {"ok":false,"error":"Cannot read properties of undefined (reading \'id\')"}'
+        send_whatsapp_text_mock.side_effect = WhatsAppProviderError(
+            "O resultado do envio nao pode ser confirmado.",
+            code="DELIVERY_RESULT_UNKNOWN",
+            delivery_uncertain=True,
         )
 
         first_summary = process_scheduled_whatsapp_messages(now=now)
@@ -1389,13 +1441,14 @@ class IntegrationsTests(TestCase):
         log.refresh_from_db()
 
         self.assertEqual(send_whatsapp_text_mock.call_count, 1)
-        self.assertEqual(first_summary["sent"], 1)
+        self.assertEqual(first_summary["sent"], 0)
+        self.assertEqual(first_summary["uncertain"], 1)
         self.assertEqual(first_summary["retried"], 0)
         self.assertEqual(second_summary["processed"], 0)
-        self.assertEqual(log.status, WhatsAppMessageLog.Status.SENT)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.DELIVERY_UNCERTAIN)
         self.assertEqual(log.attempt_count, 1)
         self.assertIsNone(log.next_attempt_at)
-        self.assertTrue(log.response_payload["delivery_assumed"])
+        self.assertTrue(log.response_payload["delivery_uncertain"])
 
     def test_management_can_send_birthday_message_from_dashboard(self):
         self.client.force_login(self.management)
@@ -1525,6 +1578,46 @@ class IntegrationsTests(TestCase):
         self.assertIsNotNone(log.scheduled_for)
         self.assertEqual(log.attempt_count, 0)
 
+    def test_management_cannot_retry_message_after_appointment_started(self):
+        self.client.force_login(self.management)
+        integration = WhatsAppIntegration.load()
+        template = WhatsAppMessageTemplate.ensure_defaults()[0]
+        self.appointment.starts_at = timezone.now() - timedelta(minutes=5)
+        self.appointment.ends_at = timezone.now() + timedelta(minutes=55)
+        self.appointment.save(update_fields=["starts_at", "ends_at", "updated_at"])
+        original_schedule = timezone.now() - timedelta(minutes=10)
+        log = WhatsAppMessageLog.objects.create(
+            integration=integration,
+            template=template,
+            patient=self.patient,
+            appointment=self.appointment,
+            recipient_name=self.patient.full_name,
+            recipient_number="5511999990000",
+            rendered_message="Lembrete vencido",
+            status=WhatsAppMessageLog.Status.FAILED,
+            scheduled_for=original_schedule,
+            message_purpose=WhatsAppMessageLog.MessagePurpose.MANUAL,
+            retry_policy=WhatsAppMessageLog.RetryPolicy.NONE,
+            expires_at=self.appointment.starts_at,
+            max_attempts=1,
+            error_message="Falha anterior",
+        )
+
+        response = self.client.post(
+            reverse("integrations"),
+            {
+                "action": f"retry_failed:{log.pk}",
+                "tab": "panel",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log.refresh_from_db()
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.EXPIRED)
+        self.assertEqual(log.terminal_reason, "appointment_started")
+        self.assertEqual(log.scheduled_for, original_schedule)
+        self.assertIsNone(log.next_attempt_at)
+
     @override_settings(
         GOOGLE_CALENDAR_CLIENT_ID="client-id",
         GOOGLE_CALENDAR_CLIENT_SECRET="client-secret",
@@ -1587,7 +1680,7 @@ class IntegrationsTests(TestCase):
             defaults={"embedded_app_id": "app-id", "embedded_config_id": "config-id", "embedded_app_secret": "super-secret-meta"},
         )
 
-        response = self.client.get(f"{reverse('integrations')}?tab=connections")
+        response = self.client.get(reverse("whatsapp_settings"))
 
         self.assertNotContains(response, "super-secret-google")
         self.assertNotContains(response, "super-secret-meta")

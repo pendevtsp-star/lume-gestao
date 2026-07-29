@@ -1,6 +1,7 @@
 from datetime import time
 
 import secrets
+import uuid
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -210,6 +211,10 @@ class WhatsAppMessageTemplate(TimeStampedModel):
         APPOINTMENT = "appointment", "Mensagem de agendamento"
         SESSION_SOON = "session_soon", "Sessao proxima"
         CHARGE = "charge", "Mensagem de cobranca"
+        MEMBERSHIP_DUE = "membership_due", "Mensalidade a vencer"
+        MEMBERSHIP_DUE_DATE = "membership_due_date", "Mensalidade no vencimento"
+        MEMBERSHIP_OVERDUE = "membership_overdue", "Mensalidade vencida"
+        CHARGE_OVERDUE = "charge_overdue", "Cobranca avulsa vencida"
         BIRTHDAY = "birthday", "Mensagem de aniversario"
         CUSTOM = "custom", "Modelo personalizado"
 
@@ -268,6 +273,42 @@ class WhatsAppMessageTemplate(TimeStampedModel):
                 "body": (
                     "Ola, [Paciente]! Passando para lembrar do valor de [Valor] com vencimento em "
                     "[DataVencimento]. Qualquer duvida, [Profissional] e a equipe da [Clinica] estao a disposicao."
+                ),
+                "tokens": ["[Paciente]", "[Valor]", "[DataVencimento]", "[Profissional]", "[Clinica]"],
+            },
+            cls.TemplateType.MEMBERSHIP_DUE: {
+                "title": "Mensalidade a vencer",
+                "description": "Aviso enviado antes do vencimento da mensalidade.",
+                "body": (
+                    "Ola, [Paciente]! Sua mensalidade de [Valor] vence em "
+                    "[DataVencimento]. A equipe da [Clinica] esta a disposicao."
+                ),
+                "tokens": ["[Paciente]", "[Valor]", "[DataVencimento]", "[Profissional]", "[Clinica]"],
+            },
+            cls.TemplateType.MEMBERSHIP_DUE_DATE: {
+                "title": "Mensalidade no vencimento",
+                "description": "Aviso enviado no proprio dia do vencimento.",
+                "body": (
+                    "Ola, [Paciente]! Sua mensalidade de [Valor] vence hoje, "
+                    "[DataVencimento]. A equipe da [Clinica] esta a disposicao."
+                ),
+                "tokens": ["[Paciente]", "[Valor]", "[DataVencimento]", "[Profissional]", "[Clinica]"],
+            },
+            cls.TemplateType.MEMBERSHIP_OVERDUE: {
+                "title": "Mensalidade vencida",
+                "description": "Aviso enviado quando a mensalidade continua pendente.",
+                "body": (
+                    "Ola, [Paciente]! A mensalidade de [Valor], com vencimento em "
+                    "[DataVencimento], continua pendente. Fale com a equipe da [Clinica]."
+                ),
+                "tokens": ["[Paciente]", "[Valor]", "[DataVencimento]", "[Profissional]", "[Clinica]"],
+            },
+            cls.TemplateType.CHARGE_OVERDUE: {
+                "title": "Cobranca avulsa vencida",
+                "description": "Aviso de cobranca avulsa que continua em aberto.",
+                "body": (
+                    "Ola, [Paciente]! A cobranca de [Valor], com vencimento em "
+                    "[DataVencimento], continua em aberto. Fale com a equipe da [Clinica]."
                 ),
                 "tokens": ["[Paciente]", "[Valor]", "[DataVencimento]", "[Profissional]", "[Clinica]"],
             },
@@ -434,6 +475,22 @@ class WhatsAppMessageLog(TimeStampedModel):
         DRY_RUN = "dry_run", "Simulada"
         FAILED = "failed", "Falhou"
         CANCELED = "canceled", "Cancelada"
+        EXPIRED = "expired", "Prazo encerrado"
+        DELIVERY_UNCERTAIN = "delivery_uncertain", "Entrega incerta"
+
+    class MessagePurpose(models.TextChoices):
+        MANUAL = "manual", "Envio manual"
+        APPOINTMENT_CONFIRMATION = "appointment_confirmation", "Confirmacao de sessao"
+        APPOINTMENT_SOON = "appointment_soon", "Sessao proxima"
+        BIRTHDAY = "birthday", "Aniversario"
+        MEMBERSHIP_DUE = "membership_due", "Mensalidade a vencer"
+        MEMBERSHIP_OVERDUE = "membership_overdue", "Mensalidade vencida"
+        CHARGE_OVERDUE = "charge_overdue", "Cobranca avulsa vencida"
+
+    class RetryPolicy(models.TextChoices):
+        NONE = "none", "Sem tentativa automatica"
+        UNTIL_EXPIRY = "until_expiry", "Tentar somente enquanto for util"
+        BOUNDED = "bounded", "Tentativas limitadas"
 
     integration = models.ForeignKey(
         WhatsAppIntegration,
@@ -481,9 +538,26 @@ class WhatsAppMessageLog(TimeStampedModel):
     recipient_number = models.CharField("numero", max_length=30)
     rendered_message = models.TextField("mensagem enviada")
     status = models.CharField("status", max_length=20, choices=Status.choices, default=Status.DRY_RUN)
+    message_purpose = models.CharField(
+        "finalidade",
+        max_length=40,
+        choices=MessagePurpose.choices,
+        default=MessagePurpose.MANUAL,
+    )
+    retry_policy = models.CharField(
+        "politica de retentativa",
+        max_length=20,
+        choices=RetryPolicy.choices,
+        default=RetryPolicy.NONE,
+    )
     scheduled_for = models.DateTimeField("agendada para", null=True, blank=True, db_index=True)
     next_attempt_at = models.DateTimeField("proxima tentativa", null=True, blank=True, db_index=True)
+    expires_at = models.DateTimeField("expira em", null=True, blank=True, db_index=True)
+    lease_until = models.DateTimeField("reservada ate", null=True, blank=True, db_index=True)
+    max_attempts = models.PositiveSmallIntegerField("limite de tentativas", default=1)
     attempt_count = models.PositiveSmallIntegerField("tentativas", default=0)
+    delivery_request_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    terminal_reason = models.CharField("motivo terminal", max_length=60, blank=True)
     sent_at = models.DateTimeField("enviada em", null=True, blank=True)
     provider_reference = models.CharField("referencia do provedor", max_length=120, blank=True)
     error_message = models.TextField("erro", blank=True)

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -266,6 +266,24 @@ class RelationshipsAccessAndExperienceTests(TestCase):
         self.assertNotContains(response, "Pacote perto da validade")
         self.assertNotContains(response, "Saldo baixo")
         self.assertNotContains(response, "Criar automação")
+
+    def test_automation_rejects_blank_required_timing_without_server_error(self):
+        self.login(self.management)
+
+        response = self.client.post(
+            reverse("relationships:automations"),
+            {
+                "automation_key": "appointment_confirmation",
+                "appointment_confirmation-enabled": "on",
+                "appointment_confirmation-timing": "",
+                "appointment_confirmation-body": (
+                    "Olá, [Paciente]! Sua sessão será em [Data], às [Horario]."
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Este campo é obrigatório.")
 
     def test_history_uses_friendly_expired_copy_and_hides_retry(self):
         WhatsAppMessageLog.objects.create(

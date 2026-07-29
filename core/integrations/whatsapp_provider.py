@@ -50,13 +50,17 @@ class WhatsAppProviderError(IntegrationError):
 
 
 class WhatsAppProvider(Protocol):
-    def status(self) -> WhatsAppConnectionStatus: ...
+    def status(self) -> WhatsAppConnectionStatus:
+        raise NotImplementedError
 
-    def qr(self) -> WhatsAppConnectionStatus: ...
+    def qr(self) -> WhatsAppConnectionStatus:
+        raise NotImplementedError
 
-    def restart(self) -> WhatsAppConnectionStatus: ...
+    def restart(self) -> WhatsAppConnectionStatus:
+        raise NotImplementedError
 
-    def logout(self) -> None: ...
+    def logout(self) -> None:
+        raise NotImplementedError
 
     def send_text(
         self,
@@ -64,4 +68,5 @@ class WhatsAppProvider(Protocol):
         to: str,
         message: str,
         request_id: str,
-    ) -> WhatsAppSendResult: ...
+    ) -> WhatsAppSendResult:
+        raise NotImplementedError

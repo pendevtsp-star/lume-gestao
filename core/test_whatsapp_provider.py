@@ -1,5 +1,5 @@
 from io import BytesIO
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 from urllib.error import HTTPError, URLError
 from uuid import UUID
 
@@ -127,6 +127,54 @@ class WhatsAppProviderFactoryTests(SimpleTestCase):
 
         self.assertFalse(raised.exception.retryable)
         self.assertTrue(raised.exception.delivery_uncertain)
+
+    @patch("core.integrations.whatsapp_gateway_provider.request.urlopen")
+    def test_known_session_not_ready_response_remains_retryable(self, urlopen):
+        from core.integrations.whatsapp_gateway_provider import GatewayWhatsAppProvider
+
+        urlopen.side_effect = HTTPError(
+            "http://legacy:3020/send",
+            503,
+            "Service Unavailable",
+            {},
+            BytesIO(
+                b'{"ok":false,"ready":false,'
+                b'"error":"Sessao WhatsApp Web ainda nao conectada."}'
+            ),
+        )
+        provider = GatewayWhatsAppProvider(
+            transport="legacy",
+            base_url="http://legacy:3020",
+            token="token",
+        )
+
+        with self.assertRaises(WhatsAppProviderError) as raised:
+            provider.send_text(
+                to="5511999990000",
+                message="Teste",
+                request_id="16dfce54-69f3-46ec-bf33-f353486f9197",
+            )
+
+        self.assertTrue(raised.exception.retryable)
+        self.assertFalse(raised.exception.delivery_uncertain)
+
+    @patch("core.integrations.whatsapp_gateway_provider.request.urlopen")
+    def test_successful_non_object_response_is_rejected(self, urlopen):
+        from core.integrations.whatsapp_gateway_provider import GatewayWhatsAppProvider
+
+        response = MagicMock()
+        response.read.return_value = b"[]"
+        urlopen.return_value.__enter__.return_value = response
+        provider = GatewayWhatsAppProvider(
+            transport="legacy",
+            base_url="http://legacy:3020",
+            token="token",
+        )
+
+        with self.assertRaises(WhatsAppProviderError) as raised:
+            provider.status()
+
+        self.assertEqual(raised.exception.code, "INVALID_TRANSPORT_RESPONSE")
 
     @patch(
         "core.integrations.whatsapp_gateway_provider.GatewayWhatsAppProvider.logout"

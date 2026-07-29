@@ -170,9 +170,11 @@ class RelationshipAutomationForm(StyledForm):
         super().__init__(*args, **kwargs)
         if timing_kind == "time":
             self.fields.pop("timing")
+            self.fields["send_time"].required = True
         elif timing_kind in {"hours", "days"}:
             self.fields.pop("send_time")
             self.fields["timing"].label = timing_label
+            self.fields["timing"].required = True
         else:
             self.fields.pop("timing")
             self.fields.pop("send_time")

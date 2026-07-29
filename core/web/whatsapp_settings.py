@@ -2,7 +2,6 @@ from django.contrib import messages
 from django.core.management import call_command
 from django.shortcuts import redirect
 from django.utils import timezone
-from django.views import View
 from django.views.generic import TemplateView
 
 from accounts.permissions import FinanceAccessMixin

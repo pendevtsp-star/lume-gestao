@@ -71,13 +71,23 @@ class GatewayWhatsAppProvider:
             if not isinstance(response_payload, dict):
                 response_payload = {}
             sending = path == "/send"
+            known_pre_send_failure = (
+                sending
+                and exc.code == 503
+                and response_payload.get("ok") is False
+                and response_payload.get("ready") is False
+            )
             response_payload.setdefault("ok", False)
             response_payload.setdefault("code", f"TRANSPORT_HTTP_{exc.code}")
             response_payload.setdefault(
                 "retryable",
-                exc.code in {503, 504} and not sending,
+                known_pre_send_failure
+                or (exc.code in {503, 504} and not sending),
             )
-            response_payload.setdefault("deliveryUncertain", sending)
+            response_payload.setdefault(
+                "deliveryUncertain",
+                sending and not known_pre_send_failure,
+            )
             response_payload.setdefault(
                 "error",
                 "O transportador WhatsApp não concluiu a solicitação.",
@@ -95,13 +105,20 @@ class GatewayWhatsAppProvider:
         if not raw_body:
             return {}
         try:
-            return json.loads(raw_body)
+            response_payload = json.loads(raw_body)
         except json.JSONDecodeError as exc:
             raise WhatsAppProviderError(
                 "O transportador WhatsApp devolveu uma resposta inválida.",
                 code="INVALID_TRANSPORT_RESPONSE",
                 delivery_uncertain=path == "/send",
             ) from exc
+        if not isinstance(response_payload, dict):
+            raise WhatsAppProviderError(
+                "O transportador WhatsApp devolveu uma resposta inválida.",
+                code="INVALID_TRANSPORT_RESPONSE",
+                delivery_uncertain=path == "/send",
+            )
+        return response_payload
 
     def _raise_for_error(self, payload):
         if payload.get("ok") is not False:

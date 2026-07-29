@@ -128,7 +128,6 @@ class RelationshipAutomationsView(RelationshipAccessMixin, TemplateView):
             WhatsAppMessageLog.MessagePurpose.APPOINTMENT_CONFIRMATION,
             WhatsAppMessageLog.MessagePurpose.APPOINTMENT_SOON,
         }:
-            hours = getattr(settings_object, definition.timing_field)
             return (
                 Appointment.objects.select_related("patient")
                 .filter(

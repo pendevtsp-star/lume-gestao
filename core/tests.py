@@ -591,6 +591,7 @@ class IntegrationsTests(TestCase):
                 "dry_run": False,
                 "phone_number_id": "meta-phone-id",
                 "clinic_whatsapp_number": "5511999990000",
+                "connected_at": timezone.now(),
             },
         )
 
@@ -736,6 +737,7 @@ class IntegrationsTests(TestCase):
                 "enabled": True,
                 "dry_run": False,
                 "clinic_whatsapp_number": "5511999990000",
+                "connected_at": timezone.now(),
             },
         )
 
@@ -773,7 +775,7 @@ class IntegrationsTests(TestCase):
 
     @override_settings(WHATSAPP_WEB_GATEWAY_URL="http://gateway.local")
     @patch("core.views.whatsapp_web_gateway_status")
-    def test_whatsapp_number_and_enabled_count_as_web_connected(self, gateway_status):
+    def test_whatsapp_number_enabled_and_timestamp_count_as_web_connected(self, gateway_status):
         gateway_status.return_value = {"ok": True, "ready": True, "hasQr": False}
         self.client.force_login(self.management)
         WhatsAppIntegration.objects.update_or_create(
@@ -782,6 +784,7 @@ class IntegrationsTests(TestCase):
                 "enabled": True,
                 "dry_run": True,
                 "clinic_whatsapp_number": "11999990000",
+                "connected_at": timezone.now(),
             },
         )
 

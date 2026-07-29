@@ -8,7 +8,7 @@ export function normalizeConnectionUpdate(update) {
   if (update.connection === "close") {
     return { state: "reconnecting", ready: false, hasQr: false };
   }
-  return { state: "connecting", ready: false, hasQr: false };
+  return null;
 }
 
 function disconnectStatusCode(update) {
@@ -70,6 +70,7 @@ export class ConnectionManager {
     this.sendChain = Promise.resolve();
     this.reconnectTimer = null;
     this.startPromise = null;
+    this.connectionGeneration = 0;
   }
 
   publicStatus() {
@@ -100,6 +101,7 @@ export class ConnectionManager {
       proto
     });
     this.status = { state: "connecting", ready: false, hasQr: false };
+    this.connectionGeneration += 1;
     this.socket = this.makeWASocket({
       auth: state,
       logger: this.baileysLogger,
@@ -111,14 +113,28 @@ export class ConnectionManager {
     });
     this.socket.ev.on("creds.update", saveCreds);
     this.socket.ev.on("connection.update", (update) => {
-      return this.#handleConnectionUpdate(update);
+      void this.#handleConnectionUpdate(update).catch(() => {
+        this.qrDataUrl = null;
+        this.status = {
+          state: "error",
+          ready: false,
+          hasQr: false,
+          lastErrorCode: "CONNECTION_UPDATE_FAILED",
+          lastError: ""
+        };
+        this.logger.error(
+          { event: "whatsapp_connection_update_failed" },
+          "Falha ao processar atualização da conexão WhatsApp."
+        );
+      });
     });
   }
 
   async #handleConnectionUpdate(update) {
-    if (update.connection !== "close") {
+    const normalized = normalizeConnectionUpdate(update);
+    if (update.connection !== "close" && normalized) {
       this.status = {
-        ...normalizeConnectionUpdate(update),
+        ...normalized,
         lastErrorCode: "",
         lastError: ""
       };
@@ -214,6 +230,7 @@ export class ConnectionManager {
 
   async restart() {
     this.#cancelReconnect();
+    this.status = { state: "connecting", ready: false, hasQr: false };
     this.#detachSocket();
     if (this.socket?.ws) this.socket.ws.close();
     this.socket = null;
@@ -222,6 +239,7 @@ export class ConnectionManager {
   }
 
   async logout() {
+    this.status = { state: "logged_out", ready: false, hasQr: false };
     try {
       this.#cancelReconnect();
       this.#detachSocket();
@@ -241,6 +259,46 @@ export class ConnectionManager {
   }
 
   async sendText({ requestId, recipient, message }) {
+    this.#assertReady();
+    return this.#serializeSend(() => {
+      this.#assertReady();
+      const socket = this.socket;
+      const generation = this.connectionGeneration;
+      return this.outboundCoordinator.send({
+        requestId,
+        recipient,
+        message,
+        deliver: async () => {
+          if (
+            generation !== this.connectionGeneration
+            || socket !== this.socket
+            || !this.status.ready
+          ) {
+            throw new ProviderError("A sessão ainda não está pronta.", {
+              code: "SESSION_NOT_READY",
+              retryable: true,
+              httpStatus: 503
+            });
+          }
+          const response = await socket.sendMessage(
+            `${recipient}@s.whatsapp.net`,
+            { text: message }
+          );
+          const messageId = response?.key?.id;
+          if (!messageId) {
+            throw new ProviderError("O provedor não retornou a confirmação do envio.", {
+              code: "DELIVERY_RESULT_UNKNOWN",
+              deliveryUncertain: true,
+              httpStatus: 502
+            });
+          }
+          return { messageId };
+        }
+      });
+    });
+  }
+
+  #assertReady() {
     if (!this.status.ready || !this.socket) {
       throw new ProviderError("A sessão ainda não está pronta.", {
         code: "SESSION_NOT_READY",
@@ -248,26 +306,6 @@ export class ConnectionManager {
         httpStatus: 503
       });
     }
-    return this.#serializeSend(() => this.outboundCoordinator.send({
-      requestId,
-      recipient,
-      message,
-      deliver: async () => {
-        const response = await this.socket.sendMessage(
-          `${recipient}@s.whatsapp.net`,
-          { text: message }
-        );
-        const messageId = response?.key?.id;
-        if (!messageId) {
-          throw new ProviderError("O provedor não retornou a confirmação do envio.", {
-            code: "DELIVERY_RESULT_UNKNOWN",
-            deliveryUncertain: true,
-            httpStatus: 502
-          });
-        }
-        return { messageId };
-      }
-    }));
   }
 
   #serializeSend(operation) {

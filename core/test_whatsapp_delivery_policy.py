@@ -271,6 +271,38 @@ class WhatsAppDeliveryPolicyTests(TestCase):
         self.assertEqual(log.terminal_reason, "appointment_started")
         self.assertEqual(notification.status, PatientNotification.Status.SKIPPED)
 
+    def test_retry_action_does_not_reclassify_successful_notification(self):
+        user = get_user_model().objects.create_user(
+            username="gestor-sucesso",
+            password="Senha@123",
+        )
+        UserProfile.objects.update_or_create(
+            user=user,
+            defaults={"role": UserProfile.Role.MANAGEMENT},
+        )
+        log = self.create_log(status=WhatsAppMessageLog.Status.SENT)
+        notification = PatientNotification.objects.create(
+            patient=self.patient,
+            appointment=self.appointment,
+            delivery_log=log,
+            kind=PatientNotification.Kind.SESSION_CONFIRMATION,
+            channel=PatientNotification.Channel.WHATSAPP,
+            due_at=self.now,
+            idempotency_key="sent-retry-action",
+            message="Lembrete",
+            status=PatientNotification.Status.SENT,
+        )
+        self.client.force_login(user)
+
+        self.client.post(
+            reverse("scheduling:notification_retry", args=[notification.pk])
+        )
+        log.refresh_from_db()
+        notification.refresh_from_db()
+
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.SENT)
+        self.assertEqual(notification.status, PatientNotification.Status.SENT)
+
     def test_retry_is_calculated_only_before_expiry(self):
         log = self.create_log(attempt_count=1)
 

@@ -1,5 +1,4 @@
 from django.contrib import messages
-from django.core.management import call_command
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.generic import TemplateView
@@ -136,11 +135,3 @@ class WhatsAppSupportView(FinanceAccessMixin, TemplateView):
             }
         )
         return context
-
-    def post(self, request):
-        if not request.user.is_superuser:
-            return redirect("whatsapp_settings")
-        if request.POST.get("action") == "process_queue":
-            call_command("process_whatsapp_queue", limit=50, verbosity=0)
-            messages.success(request, "Fila processada com o limite de segurança.")
-        return redirect("whatsapp_support")

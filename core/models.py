@@ -195,7 +195,7 @@ class WhatsAppIntegration(TimeStampedModel):
     def is_connected(self):
         if not self.enabled:
             return False
-        return bool(self.clinic_whatsapp_number)
+        return bool(self.clinic_whatsapp_number and self.connected_at)
 
     @classmethod
     def load(cls):

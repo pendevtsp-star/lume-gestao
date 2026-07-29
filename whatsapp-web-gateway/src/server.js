@@ -102,6 +102,7 @@ async function deliverMessage(number, message) {
 }
 
 async function restartClientSession() {
+  const wasReady = ready;
   latestQr = "";
   ready = false;
   connectedNumber = "";
@@ -112,10 +113,10 @@ async function restartClientSession() {
     reconnectTimer = null;
   }
 
-  try {
+  if (wasReady) {
     await client.logout();
-  } catch (error) {
-    console.warn("[whatsapp-web] Sessao nao estava autenticada para logout:", error.message || error);
+  } else {
+    console.warn("[whatsapp-web] Sessao ja estava desconectada; limpando somente o estado local.");
   }
 
   try {

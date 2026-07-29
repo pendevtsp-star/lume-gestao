@@ -259,3 +259,22 @@ class WhatsAppQueueProviderContractTests(TestCase):
         self.assertEqual(first["uncertain"], 1)
         self.assertEqual(second["processed"], 0)
         self.assertEqual(log.status, WhatsAppMessageLog.Status.DELIVERY_UNCERTAIN)
+
+    @override_settings(WHATSAPP_TRANSPORT="both", WHATSAPP_DRY_RUN=False)
+    def test_invalid_transport_configuration_finishes_log_without_held_lease(self):
+        log = self.create_log()
+
+        summary = process_scheduled_whatsapp_messages(now=self.now)
+        log.refresh_from_db()
+
+        self.assertEqual(summary["failed"], 1)
+        self.assertEqual(log.status, WhatsAppMessageLog.Status.FAILED)
+        self.assertIsNone(log.lease_until)
+
+    @override_settings(WHATSAPP_TRANSPORT="both")
+    def test_qr_wrapper_normalizes_invalid_transport_configuration(self):
+        from core.integrations.http import IntegrationError
+        from core.integrations.whatsapp import whatsapp_web_gateway_qr
+
+        with self.assertRaises(IntegrationError):
+            whatsapp_web_gateway_qr()

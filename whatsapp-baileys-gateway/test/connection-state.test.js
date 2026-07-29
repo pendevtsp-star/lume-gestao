@@ -212,3 +212,130 @@ test("logout clears only the selected session and prepares a fresh QR socket", a
   assert.equal(status.state, "connecting");
   assert.equal(status.ready, false);
 });
+
+test("partial connection updates preserve the ready state", async () => {
+  let connectionUpdate;
+  const manager = new ConnectionManager({
+    makeWASocket: () => ({
+      user: { id: "5511999990000:1@s.whatsapp.net" },
+      ev: {
+        on(event, callback) {
+          if (event === "connection.update") connectionUpdate = callback;
+        },
+        removeAllListeners() {}
+      }
+    }),
+    authStore: {
+      loadState: async () => ({ state: {}, saveCreds: async () => {} })
+    },
+    outboundCoordinator: {},
+    baileys: {
+      initAuthCreds() {},
+      BufferJSON: {},
+      proto: {},
+      DisconnectReason: {}
+    },
+    qrCode: {},
+    logger: { info() {}, warn() {}, error() {} },
+    baileysLogger: { level: "silent" }
+  });
+  await manager.start();
+
+  await connectionUpdate({ connection: "open" });
+  await connectionUpdate({ receivedPendingNotifications: true });
+
+  assert.equal(manager.publicStatus().state, "ready");
+  assert.equal(manager.publicStatus().ready, true);
+});
+
+test("connection update failures are contained in the public error state", async () => {
+  let connectionUpdate;
+  let errorLogs = 0;
+  const manager = new ConnectionManager({
+    makeWASocket: () => ({
+      ev: {
+        on(event, callback) {
+          if (event === "connection.update") connectionUpdate = callback;
+        },
+        removeAllListeners() {}
+      }
+    }),
+    authStore: {
+      loadState: async () => ({ state: {}, saveCreds: async () => {} })
+    },
+    outboundCoordinator: {},
+    baileys: {
+      initAuthCreds() {},
+      BufferJSON: {},
+      proto: {},
+      DisconnectReason: {}
+    },
+    qrCode: {
+      toDataURL: async () => {
+        throw new Error("synthetic QR failure");
+      }
+    },
+    logger: {
+      info() {},
+      warn() {},
+      error() {
+        errorLogs += 1;
+      }
+    },
+    baileysLogger: { level: "silent" }
+  });
+  await manager.start();
+
+  connectionUpdate({ qr: "secret-qr" });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(manager.publicStatus().state, "error");
+  assert.equal(manager.publicStatus().lastErrorCode, "CONNECTION_UPDATE_FAILED");
+  assert.equal(errorLogs, 1);
+});
+
+test("queued sends revalidate readiness after a session reset", async () => {
+  let releaseQueue;
+  let coordinatorCalls = 0;
+  const manager = new ConnectionManager({
+    makeWASocket: () => ({
+      ev: { on() {}, removeAllListeners() {} }
+    }),
+    authStore: {
+      loadState: async () => ({ state: {}, saveCreds: async () => {} })
+    },
+    outboundCoordinator: {
+      send: async () => {
+        coordinatorCalls += 1;
+        return { messageId: "unexpected" };
+      }
+    },
+    baileys: {
+      initAuthCreds() {},
+      BufferJSON: {},
+      proto: {},
+      DisconnectReason: {}
+    },
+    qrCode: {},
+    logger: { info() {}, warn() {}, error() {} },
+    baileysLogger: { level: "silent" },
+    minSendIntervalMs: 0
+  });
+  await manager.start();
+  manager.status = { state: "ready", ready: true, hasQr: false };
+  manager.sendChain = new Promise((resolve) => {
+    releaseQueue = resolve;
+  });
+
+  const pending = manager.sendText({
+    requestId: "16dfce54-69f3-46ec-bf33-f353486f9197",
+    recipient: "5511999990000",
+    message: "Mensagem"
+  });
+  manager.status = { state: "connecting", ready: false, hasQr: false };
+  manager.socket = null;
+  releaseQueue();
+
+  await assert.rejects(pending, (error) => error.code === "SESSION_NOT_READY");
+  assert.equal(coordinatorCalls, 0);
+});

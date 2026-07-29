@@ -20,13 +20,9 @@
 
   <article class="relationship-panel">
     <div class="panel-heading">
-      <div><span class="eyebrow">Ação controlada</span><h2>Processar fila</h2></div>
+      <div><span class="eyebrow">Processamento seguro</span><h2>Fila automática</h2></div>
     </div>
-    <p>Executa uma rodada limitada de até 50 itens, respeitando validade, trava e retentativas.</p>
-    <form method="post">
-      {% csrf_token %}
-      <button class="button button-primary" name="action" value="process_queue" type="submit">Processar fila agora</button>
-    </form>
+    <p>O worker processa a fila fora da requisição web, respeitando validade, trava e retentativas.</p>
   </article>
 </section>
 {% endblock %}

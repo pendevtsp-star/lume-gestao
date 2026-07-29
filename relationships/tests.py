@@ -194,6 +194,7 @@ class RelationshipsAccessAndExperienceTests(TestCase):
             self.integration.clinic_whatsapp_number,
             original_number,
         )
+        self.assertFalse(self.integration.is_connected)
 
     @patch("core.web.whatsapp_settings.whatsapp_web_gateway_status")
     def test_normal_whatsapp_screen_hides_technical_concepts(self, gateway_status):
@@ -227,6 +228,24 @@ class RelationshipsAccessAndExperienceTests(TestCase):
         self.assertContains(
             response,
             f'data-status-url="{reverse("integrations_whatsapp_web_status")}"',
+        )
+
+    @override_settings(STATIC_URL="/assets/")
+    @patch("core.web.whatsapp_settings.whatsapp_web_gateway_status")
+    def test_qr_polling_script_uses_configured_static_url(self, gateway_status):
+        self.login(self.management)
+        gateway_status.return_value = {
+            "ok": True,
+            "state": "connecting",
+            "ready": False,
+            "hasQr": False,
+        }
+
+        response = self.client.get(reverse("whatsapp_settings"))
+
+        self.assertContains(
+            response,
+            '/assets/js/whatsapp-connection.js?v=20260729-qr-polling',
         )
 
     @patch("core.web.integrations.whatsapp_web_gateway_qr")

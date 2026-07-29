@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+from datetime import timedelta
 
 from django.contrib import messages
+from django.db import transaction
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.generic import TemplateView
@@ -123,23 +125,30 @@ class RelationshipAutomationsView(RelationshipAccessMixin, TemplateView):
 
     def _next_case(self, definition, settings_object):
         now = timezone.now()
-        today = timezone.localdate(now)
+        local_now = timezone.localtime(now)
+        today = local_now.date()
         if definition.purpose in {
             WhatsAppMessageLog.MessagePurpose.APPOINTMENT_CONFIRMATION,
             WhatsAppMessageLog.MessagePurpose.APPOINTMENT_SOON,
         }:
+            hours = getattr(settings_object, definition.timing_field)
+            reminder_start = now + timedelta(hours=hours)
+            reminder_end = reminder_start + timedelta(minutes=60)
             return (
                 Appointment.objects.select_related("patient")
                 .filter(
                     status=Appointment.Status.SCHEDULED,
                     patient__active=True,
                     patient__phone__gt="",
-                    starts_at__gte=now,
+                    starts_at__gte=reminder_start,
+                    starts_at__lt=reminder_end,
                 )
                 .order_by("starts_at")
                 .first()
             )
         if definition.purpose == WhatsAppMessageLog.MessagePurpose.BIRTHDAY:
+            if local_now.time() < settings_object.birthday_send_time:
+                return None
             return (
                 Patient.objects.filter(
                     active=True,
@@ -154,15 +163,38 @@ class RelationshipAutomationsView(RelationshipAccessMixin, TemplateView):
             WhatsAppMessageLog.MessagePurpose.MEMBERSHIP_DUE,
             WhatsAppMessageLog.MessagePurpose.MEMBERSHIP_OVERDUE,
         }:
+            if definition.key == "membership_due":
+                due_date = today + timedelta(
+                    days=settings_object.membership_due_days_before
+                )
+            elif definition.key == "membership_due_date":
+                due_date = today
+            else:
+                due_date = today - timedelta(
+                    days=settings_object.membership_overdue_days_after
+                )
             return (
-                Payment.objects.select_related("patient", "membership__patient")
-                .filter(status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE])
+                Payment.objects.select_related("membership__patient")
+                .filter(
+                    status__in=[Payment.Status.PENDING, Payment.Status.OVERDUE],
+                    due_date=due_date,
+                    membership__patient__active=True,
+                    membership__patient__phone__gt="",
+                )
                 .order_by("due_date")
                 .first()
             )
+        charge_due_date = today - timedelta(
+            days=settings_object.charge_overdue_days_after
+        )
         return (
             Charge.objects.select_related("patient")
-            .filter(status__in=[Charge.Status.OPEN, Charge.Status.OVERDUE])
+            .filter(
+                status__in=[Charge.Status.OPEN, Charge.Status.OVERDUE],
+                due_date=charge_due_date,
+                patient__active=True,
+                patient__phone__gt="",
+            )
             .order_by("due_date")
             .first()
         )
@@ -280,32 +312,33 @@ class RelationshipAutomationsView(RelationshipAccessMixin, TemplateView):
                 self.get_context_data(bound_key=definition.key, bound_form=form)
             )
 
-        settings_object = WhatsAppAutomationSettings.load()
-        setattr(
-            settings_object,
-            definition.enabled_field,
-            form.cleaned_data["enabled"],
-        )
-        update_fields = [definition.enabled_field]
-        if definition.timing_field:
-            value = (
-                form.cleaned_data["send_time"]
-                if definition.timing_kind == "time"
-                else form.cleaned_data["timing"]
+        with transaction.atomic():
+            settings_object = WhatsAppAutomationSettings.load()
+            setattr(
+                settings_object,
+                definition.enabled_field,
+                form.cleaned_data["enabled"],
             )
-            setattr(settings_object, definition.timing_field, value)
-            update_fields.append(definition.timing_field)
-        settings_object.save(update_fields=[*update_fields, "updated_at"])
+            update_fields = [definition.enabled_field]
+            if definition.timing_field:
+                value = (
+                    form.cleaned_data["send_time"]
+                    if definition.timing_kind == "time"
+                    else form.cleaned_data["timing"]
+                )
+                setattr(settings_object, definition.timing_field, value)
+                update_fields.append(definition.timing_field)
+            settings_object.save(update_fields=[*update_fields, "updated_at"])
 
-        template = WhatsAppMessageTemplate.objects.get(
-            template_type=definition.template_type
-        )
-        template.body = form.cleaned_data["body"]
-        if form.cleaned_data["enabled"]:
-            template.active = True
-            template.save(update_fields=["body", "active", "updated_at"])
-        else:
-            template.save(update_fields=["body", "updated_at"])
-        WhatsAppAutomationRule.sync_system_rules(settings_object)
+            template = WhatsAppMessageTemplate.objects.get(
+                template_type=definition.template_type
+            )
+            template.body = form.cleaned_data["body"]
+            if form.cleaned_data["enabled"]:
+                template.active = True
+                template.save(update_fields=["body", "active", "updated_at"])
+            else:
+                template.save(update_fields=["body", "updated_at"])
+            WhatsAppAutomationRule.sync_system_rules(settings_object)
         messages.success(request, f"{definition.title} atualizada.")
         return redirect("relationships:automations")

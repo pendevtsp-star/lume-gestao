@@ -1,12 +1,24 @@
+from datetime import date, datetime, time
+from decimal import Decimal
 from importlib import import_module
+from unittest.mock import patch
 
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import UserProfile
-from core.models import WhatsAppMessageTemplate
+from billing.models import Membership, Payment, ServicePlan
+from core.models import (
+    WhatsAppAutomationSettings,
+    WhatsAppIntegration,
+    WhatsAppMessageLog,
+    WhatsAppMessageTemplate,
+)
+from core.services.whatsapp_automation import enqueue_automatic_whatsapp_messages
+from patients.models import Patient
 
 
 class FinancialWhatsAppTemplateTests(TestCase):
@@ -112,3 +124,85 @@ class FinancialWhatsAppTemplateTests(TestCase):
         self.assertTrue(
             WhatsAppMessageTemplate.objects.filter(pk=legacy.pk).exists()
         )
+
+    def test_due_date_message_has_distinct_idempotency_from_advance_reminder(self):
+        patient = Patient.objects.create(
+            full_name="Paciente Vencimento",
+            phone="11999990000",
+        )
+        plan = ServicePlan.objects.create(
+            name="Plano Vencimento",
+            category=ServicePlan.Category.PILATES,
+            monthly_price=Decimal("250.00"),
+        )
+        membership = Membership.objects.create(
+            patient=patient,
+            plan=plan,
+            due_day=29,
+        )
+        today = date(2026, 7, 29)
+        Payment.objects.create(
+            membership=membership,
+            reference_month=today.replace(day=1),
+            due_date=today,
+            amount=Decimal("250.00"),
+            status=Payment.Status.PENDING,
+        )
+        WhatsAppIntegration.objects.update_or_create(
+            pk=1,
+            defaults={"enabled": True, "dry_run": True},
+        )
+        automation = WhatsAppAutomationSettings.load()
+        automation.membership_due_reminders_enabled = True
+        automation.membership_due_days_before = 0
+        automation.membership_due_on_date = True
+        automation.membership_overdue_enabled = False
+        automation.charge_overdue_enabled = False
+        automation.birthday_messages_enabled = False
+        automation.save()
+        now = timezone.make_aware(datetime.combine(today, time(12, 0)))
+
+        enqueue_automatic_whatsapp_messages(now=now)
+
+        logs = WhatsAppMessageLog.objects.filter(payment__isnull=False)
+        self.assertEqual(logs.count(), 2)
+        self.assertEqual(
+            set(logs.values_list("template__template_type", flat=True)),
+            {
+                WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_DUE,
+                WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_DUE_DATE,
+            },
+        )
+
+    @patch(
+        "relationships.web.automations.WhatsAppAutomationRule.sync_system_rules",
+        side_effect=RuntimeError("synthetic rule failure"),
+    )
+    def test_automation_settings_and_template_update_atomically(self, _sync_rules):
+        settings_object = WhatsAppAutomationSettings.load()
+        original_hours = settings_object.appointment_reminder_hours_before
+        template = WhatsAppMessageTemplate.objects.get(
+            template_type=WhatsAppMessageTemplate.TemplateType.APPOINTMENT
+        )
+        original_body = template.body
+
+        with self.assertRaises(RuntimeError):
+            self.client.post(
+                reverse("relationships:automations"),
+                {
+                    "automation_key": "appointment_confirmation",
+                    "appointment_confirmation-enabled": "on",
+                    "appointment_confirmation-timing": "48",
+                    "appointment_confirmation-body": (
+                        "Olá, [Paciente]! Sessão em [Data], às [Horario]."
+                    ),
+                },
+            )
+
+        settings_object.refresh_from_db()
+        template.refresh_from_db()
+        self.assertEqual(
+            settings_object.appointment_reminder_hours_before,
+            original_hours,
+        )
+        self.assertEqual(template.body, original_body)

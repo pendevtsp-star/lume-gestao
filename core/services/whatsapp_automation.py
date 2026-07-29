@@ -329,6 +329,7 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     today + timedelta(days=settings.membership_due_days_before),
                     "membership_due",
                     WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_DUE,
+                    "membership_due",
                 )
             )
         if settings.membership_due_on_date:
@@ -337,6 +338,7 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     today,
                     "membership_due",
                     WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_DUE_DATE,
+                    "membership_due_date",
                 )
             )
         if settings.membership_overdue_enabled:
@@ -345,10 +347,11 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     today - timedelta(days=settings.membership_overdue_days_after),
                     "membership_overdue",
                     WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_OVERDUE,
+                    "membership_overdue",
                 )
             )
 
-        for due_date, counter_key, template_type in due_dates:
+        for due_date, counter_key, template_type, automation_identity in due_dates:
             charge_template = financial_templates[template_type]
             if not charge_template.active:
                 continue
@@ -364,7 +367,9 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
             )
             for payment in payments:
                 patient = payment.membership.patient
-                automation_key = f"payment:{payment.pk}:{counter_key}:{today.isoformat()}"
+                automation_key = (
+                    f"payment:{payment.pk}:{automation_identity}:{today.isoformat()}"
+                )
                 exists = WhatsAppMessageLog.objects.filter(automation_key=automation_key).exclude(
                     status=WhatsAppMessageLog.Status.CANCELED
                 ).exists()
@@ -398,7 +403,7 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     continue
                 automation_key = (
                     f"membership-receivable:{receivable.membership.pk}:"
-                    f"{receivable.reference_month.isoformat()}:{counter_key}"
+                    f"{receivable.reference_month.isoformat()}:{automation_identity}"
                 )
                 exists = WhatsAppMessageLog.objects.filter(automation_key=automation_key).exclude(
                     status=WhatsAppMessageLog.Status.CANCELED

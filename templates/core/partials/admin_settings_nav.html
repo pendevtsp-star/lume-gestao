@@ -1,18 +1,18 @@
 <nav class="admin-settings-nav" aria-label="Areas de configuracao">
-  <a class="{% if request.resolver_match.url_name == 'settings' %}is-active{% endif %}" href="{% url 'settings' %}">
+  <a class="{% if request.resolver_match.url_name == 'settings' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'settings' %}aria-current="page"{% endif %} href="{% url 'settings' %}">
     <strong>Clinica</strong>
     <span>Identidade, horarios e politicas</span>
   </a>
-  <a class="{% if request.resolver_match.url_name == 'whatsapp_settings' %}is-active{% endif %}" href="{% url 'whatsapp_settings' %}">
+  <a class="{% if request.resolver_match.url_name == 'whatsapp_settings' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'whatsapp_settings' %}aria-current="page"{% endif %} href="{% url 'whatsapp_settings' %}">
     <strong>WhatsApp</strong>
     <span>Conexão e aparelho da clínica</span>
   </a>
-  <a href="{% url 'relationships:automations' %}">
+  <a class="{% if request.resolver_match.url_name == 'automations' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'automations' %}aria-current="page"{% endif %} href="{% url 'relationships:automations' %}">
     <strong>Automações</strong>
     <span>Momentos e textos das mensagens</span>
   </a>
   {% if request.user.is_superuser %}
-    <a class="{% if request.resolver_match.url_name == 'whatsapp_support' %}is-active{% endif %}" href="{% url 'whatsapp_support' %}">
+    <a class="{% if request.resolver_match.url_name == 'whatsapp_support' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'whatsapp_support' %}aria-current="page"{% endif %} href="{% url 'whatsapp_support' %}">
       <strong>Suporte</strong>
       <span>Diagnóstico técnico restrito</span>
     </a>

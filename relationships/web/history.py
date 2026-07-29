@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.views import View
@@ -65,6 +66,20 @@ def sync_retry_notification(log):
     notification.save(update_fields=["status", "error_message", "updated_at"])
 
 
+def sync_terminal_notification(log, decision):
+    try:
+        notification = log.delivery_notification
+    except PatientNotification.DoesNotExist:
+        return
+    notification.status = (
+        PatientNotification.Status.SKIPPED
+        if decision.terminal_status == WhatsAppMessageLog.Status.EXPIRED
+        else PatientNotification.Status.FAILED
+    )
+    notification.error_message = decision.user_message
+    notification.save(update_fields=["status", "error_message", "updated_at"])
+
+
 class RelationshipHistoryView(RelationshipAccessMixin, TemplateView):
     template_name = "relationships/history.html"
 
@@ -112,14 +127,31 @@ class RelationshipHistoryView(RelationshipAccessMixin, TemplateView):
 
 
 class RelationshipHistoryRetryView(RelationshipAccessMixin, View):
+    @transaction.atomic
     def post(self, request, pk):
         log = get_object_or_404(
-            WhatsAppMessageLog,
+            WhatsAppMessageLog.objects.select_for_update(),
             pk=pk,
             status=WhatsAppMessageLog.Status.FAILED,
         )
         decision = can_retry_manually(log, now=timezone.now())
         if not decision.allowed:
+            log.status = decision.terminal_status
+            log.next_attempt_at = None
+            log.lease_until = None
+            log.terminal_reason = decision.reason_code
+            log.error_message = decision.user_message
+            log.save(
+                update_fields=[
+                    "status",
+                    "next_attempt_at",
+                    "lease_until",
+                    "terminal_reason",
+                    "error_message",
+                    "updated_at",
+                ]
+            )
+            sync_terminal_notification(log, decision)
             messages.info(request, decision.user_message)
             return redirect("relationships:history")
         now = timezone.now()

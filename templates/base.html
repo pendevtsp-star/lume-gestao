@@ -72,7 +72,7 @@
               {% endif %}
             </div>
           </details>
-          {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+          {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.profile.role == "viewer" %}
             <span class="nav-section-label">Relacionamento</span>
             <details class="nav-menu" {% if request.resolver_match.app_name == "relationships" or request.resolver_match.url_name == "whatsapp_settings" or request.resolver_match.url_name == "whatsapp_support" %}open{% endif %}>
               <summary>

@@ -69,7 +69,11 @@ services:
       - .env
     environment:
       PORT: "3030"
-      DATABASE_URL: postgresql://${POSTGRES_USER:-lume}:${POSTGRES_PASSWORD:-lume_dev_password}@db:5432/${POSTGRES_DB:-lume}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-lume}
+      POSTGRES_USER: ${POSTGRES_USER:-lume}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lume_dev_password}
       WHATSAPP_GATEWAY_TOKEN: ${WHATSAPP_BAILEYS_GATEWAY_TOKEN:-}
       WHATSAPP_AUTH_ENCRYPTION_KEY: ${WHATSAPP_AUTH_ENCRYPTION_KEY:-}
       WHATSAPP_SESSION_ID: clinic-primary

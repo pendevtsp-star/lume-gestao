@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from django.db.models import Q
 from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.utils import timezone
 
 from core.integrations.credentials import first_configured_value
@@ -180,8 +180,8 @@ def whatsapp_web_gateway_headers():
 
 def whatsapp_web_gateway_status():
     try:
-        return get_whatsapp_provider().status().as_gateway_payload()
-    except (ImproperlyConfigured, WhatsAppProviderError) as exc:
+        return _whatsapp_provider().status().as_gateway_payload()
+    except (IntegrationError, WhatsAppProviderError) as exc:
         return {
             "ok": False,
             "state": "error",
@@ -192,16 +192,25 @@ def whatsapp_web_gateway_status():
         }
 
 
+def _whatsapp_provider():
+    try:
+        return get_whatsapp_provider()
+    except ImproperlyConfigured as exc:
+        raise IntegrationError(
+            "O transporte do WhatsApp está configurado de forma inválida."
+        ) from exc
+
+
 def whatsapp_web_gateway_qr():
-    return get_whatsapp_provider().qr().as_gateway_payload()
+    return _whatsapp_provider().qr().as_gateway_payload()
 
 
 def whatsapp_web_gateway_restart():
-    return get_whatsapp_provider().restart().as_gateway_payload()
+    return _whatsapp_provider().restart().as_gateway_payload()
 
 
 def whatsapp_web_gateway_logout():
-    return get_whatsapp_provider().logout()
+    return _whatsapp_provider().logout()
 
 
 def send_whatsapp_text(to_number, message, integration=None, *, request_id=None):
@@ -226,7 +235,7 @@ def send_whatsapp_text(to_number, message, integration=None, *, request_id=None)
             "message": message,
             "requestId": request_id or str(uuid4()),
         }
-    result = get_whatsapp_provider().send_text(
+    result = _whatsapp_provider().send_text(
         to=target,
         message=message,
         request_id=request_id or str(uuid4()),
@@ -360,13 +369,24 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
     def sync_notification_delivery(log, *, status, error_message="", reference="", attempted=False):
         try:
             notification = log.delivery_notification
-        except Exception:
+        except ObjectDoesNotExist:
             return
         if attempted:
             notification.attempts += 1
             notification.last_attempt_at = now
         notification.error_message = error_message
-        notification.provider_reference = reference
+        update_fields = [
+            "attempts",
+            "last_attempt_at",
+            "error_message",
+            "status",
+            "sent_at",
+            "metadata",
+            "updated_at",
+        ]
+        if reference:
+            notification.provider_reference = reference
+            update_fields.append("provider_reference")
         if status == WhatsAppMessageLog.Status.FAILED:
             notification.status = "failed"
         elif status == WhatsAppMessageLog.Status.EXPIRED:
@@ -380,18 +400,7 @@ def process_scheduled_whatsapp_messages(limit=50, now=None):
         elif status in {WhatsAppMessageLog.Status.SENT, WhatsAppMessageLog.Status.DRY_RUN}:
             notification.status = "sent"
             notification.sent_at = now
-        notification.save(
-            update_fields=[
-                "attempts",
-                "last_attempt_at",
-                "error_message",
-                "provider_reference",
-                "status",
-                "sent_at",
-                "metadata",
-                "updated_at",
-            ]
-        )
+        notification.save(update_fields=update_fields)
 
     for log in due_logs:
         claimed = (

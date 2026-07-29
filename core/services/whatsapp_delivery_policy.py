@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from django.utils import timezone
 
-from billing.models import Membership, Payment
+from billing.models import Charge, Membership, Payment
 from core.models import WhatsAppMessageLog
 from scheduling.models import Appointment, PatientNotificationPreference
 
@@ -241,7 +241,7 @@ def evaluate_delivery(log, *, now: datetime) -> DeliveryDecision:
                 "charge_missing",
                 "Esta mensagem nao foi enviada porque a cobranca nao existe mais.",
             )
-        if log.charge.status not in {"open", "overdue"}:
+        if log.charge.status not in {Charge.Status.OPEN, Charge.Status.OVERDUE}:
             return _blocked(
                 WhatsAppMessageLog.Status.EXPIRED,
                 "charge_settled",

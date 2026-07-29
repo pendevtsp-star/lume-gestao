@@ -1,6 +1,7 @@
 """Notification center and operational calendar event views."""
 
 from scheduling.web.common import *  # noqa: F401,F403
+from django.db import transaction
 from core.web.throttling import FixedWindowRateLimitMixin
 from core.services.whatsapp_delivery_policy import can_retry_manually
 
@@ -63,11 +64,24 @@ class GenerateNotificationsView(FixedWindowRateLimitMixin, NotificationGeneratio
 
 
 class RetryNotificationView(AgendaOperationalAccessMixin, View):
+    @transaction.atomic
     def post(self, request, pk):
-        notification = get_object_or_404(notifications_visible_to_user(request.user), pk=pk)
-        delivery_log = notification.delivery_log
-        if not delivery_log:
+        notification = get_object_or_404(
+            notifications_visible_to_user(request.user).select_for_update(),
+            pk=pk,
+        )
+        if not notification.delivery_log_id:
             messages.info(request, "Este aviso ainda nao possui tentativa de envio para reenfileirar.")
+            return redirect("scheduling:notifications")
+        delivery_log = get_object_or_404(
+            WhatsAppMessageLog.objects.select_for_update(),
+            pk=notification.delivery_log_id,
+        )
+        if delivery_log.status != WhatsAppMessageLog.Status.FAILED:
+            messages.info(
+                request,
+                "Este aviso não está mais em um estado que permita nova tentativa.",
+            )
             return redirect("scheduling:notifications")
         decision = can_retry_manually(delivery_log, now=timezone.now())
         if not decision.allowed:

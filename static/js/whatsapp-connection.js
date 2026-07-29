@@ -8,6 +8,7 @@
   const image = poller.querySelector("[data-qr-image]");
   const placeholder = poller.querySelector("[data-qr-placeholder]");
   const message = poller.querySelector("[data-qr-message]");
+  if (!qrUrl || !statusUrl || !frame || !image || !placeholder) return;
   let stopped = false;
   let pollDelay = 2000;
   let pollTimer = null;

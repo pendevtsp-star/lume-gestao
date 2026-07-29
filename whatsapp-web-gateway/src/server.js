@@ -2,7 +2,6 @@ import express from "express";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import QRCode from "qrcode";
-import qrcodeTerminal from "qrcode-terminal";
 import pkg from "whatsapp-web.js";
 import { messageIdFromSendResult } from "./message-result.js";
 
@@ -103,6 +102,7 @@ async function deliverMessage(number, message) {
 }
 
 async function restartClientSession() {
+  const wasReady = ready;
   latestQr = "";
   ready = false;
   connectedNumber = "";
@@ -113,10 +113,10 @@ async function restartClientSession() {
     reconnectTimer = null;
   }
 
-  try {
+  if (wasReady) {
     await client.logout();
-  } catch (error) {
-    console.warn("[whatsapp-web] Sessao nao estava autenticada para logout:", error.message || error);
+  } else {
+    console.warn("[whatsapp-web] Sessao ja estava desconectada; limpando somente o estado local.");
   }
 
   try {
@@ -159,7 +159,6 @@ client.on("qr", (qr) => {
   ready = false;
   lastError = "";
   console.log("[whatsapp-web] QR recebido. Escaneie pela tela de integracoes do Lume.");
-  qrcodeTerminal.generate(qr, { small: true });
 });
 
 client.on("authenticated", () => {
@@ -216,7 +215,6 @@ app.get("/qr", requireToken, async (_request, response) => {
     ok: true,
     ready,
     hasQr: Boolean(latestQr),
-    qr: latestQr,
     qrDataUrl,
     connectedNumber,
     lastError
@@ -231,6 +229,22 @@ app.post("/restart", requireToken, async (_request, response) => {
   } catch (error) {
     lastError = error.message || String(error);
     response.status(502).json({ ok: false, ready: false, hasQr: false, error: lastError });
+  }
+});
+
+app.post("/logout", requireToken, async (_request, response) => {
+  restartQueue = restartQueue.then(restartClientSession, restartClientSession);
+  try {
+    await restartQueue;
+    response.json({ ok: true, ready, hasQr: Boolean(latestQr), lastError });
+  } catch (error) {
+    lastError = error.message || String(error);
+    response.status(502).json({
+      ok: false,
+      ready: false,
+      hasQr: false,
+      error: lastError
+    });
   }
 });
 

@@ -60,6 +60,7 @@ from core.services.whatsapp_configuration import (
     template_variable_documentation,
     whatsapp_web_connection_state,
 )
+from core.services.whatsapp_delivery_policy import can_retry_manually
 from patients.models import Patient, ProfessionalPatientAssignment
 from patients.services import professional_ids_for_patient
 from scheduling.models import Appointment
@@ -199,6 +200,20 @@ class IntegrationsView(FixedWindowRateLimitMixin, FinanceAccessMixin, TemplateVi
         WhatsAppMessageTemplate.TemplateType.CHARGE,
         WhatsAppMessageTemplate.TemplateType.BIRTHDAY,
     }
+
+    def get(self, request, *args, **kwargs):
+        tab = request.GET.get("tab", "")
+        if tab == "messages":
+            return redirect("relationships:automations")
+        if tab == "panel":
+            return redirect("relationships:history")
+        if tab == "connections":
+            return redirect("whatsapp_settings")
+        if tab == "diagnostics":
+            if request.user.is_superuser:
+                return redirect("whatsapp_support")
+            return redirect("whatsapp_settings")
+        return redirect("relationships:overview")
 
     def get_active_tab(self):
         selected = self.request.GET.get("tab") or self.request.POST.get("tab") or "connections"
@@ -494,6 +509,7 @@ class IntegrationsView(FixedWindowRateLimitMixin, FinanceAccessMixin, TemplateVi
         scheduled_for=None,
         sent_at=None,
     ):
+        appointment = related["appointment"]
         return WhatsAppMessageLog.objects.create(
             integration=integration,
             template=template,
@@ -510,6 +526,10 @@ class IntegrationsView(FixedWindowRateLimitMixin, FinanceAccessMixin, TemplateVi
             error_message=error_message,
             scheduled_for=scheduled_for,
             sent_at=sent_at,
+            message_purpose=WhatsAppMessageLog.MessagePurpose.MANUAL,
+            retry_policy=WhatsAppMessageLog.RetryPolicy.NONE,
+            expires_at=appointment.starts_at if appointment else None,
+            max_attempts=1,
         )
 
     def handle_save_template(self, request, template_type):
@@ -658,12 +678,42 @@ class IntegrationsView(FixedWindowRateLimitMixin, FinanceAccessMixin, TemplateVi
 
     def retry_failed_message(self, request, log_id):
         failed_log = get_object_or_404(WhatsAppMessageLog, pk=log_id, status=WhatsAppMessageLog.Status.FAILED)
+        decision = can_retry_manually(failed_log, now=timezone.now())
+        if not decision.allowed:
+            failed_log.status = decision.terminal_status
+            failed_log.next_attempt_at = None
+            failed_log.lease_until = None
+            failed_log.terminal_reason = decision.reason_code
+            failed_log.error_message = decision.user_message
+            failed_log.save(
+                update_fields=[
+                    "status",
+                    "next_attempt_at",
+                    "lease_until",
+                    "terminal_reason",
+                    "error_message",
+                    "updated_at",
+                ]
+            )
+            messages.info(request, decision.user_message)
+            return redirect(f"{reverse('integrations')}?tab=panel")
         failed_log.status = WhatsAppMessageLog.Status.SCHEDULED
-        failed_log.scheduled_for = timezone.now()
-        failed_log.next_attempt_at = None
+        if not failed_log.scheduled_for:
+            failed_log.scheduled_for = timezone.now()
+        failed_log.next_attempt_at = timezone.now()
+        failed_log.lease_until = None
         failed_log.attempt_count = 0
+        failed_log.terminal_reason = ""
         failed_log.save(
-            update_fields=["status", "scheduled_for", "next_attempt_at", "attempt_count", "updated_at"]
+            update_fields=[
+                "status",
+                "scheduled_for",
+                "next_attempt_at",
+                "lease_until",
+                "attempt_count",
+                "terminal_reason",
+                "updated_at",
+            ]
         )
         messages.success(request, "Mensagem recolocada na fila para uma nova tentativa.")
         return redirect(f"{reverse('integrations')}?tab=panel")

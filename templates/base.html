@@ -72,7 +72,20 @@
               {% endif %}
             </div>
           </details>
-          {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
+          {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" or request.user.profile.role == "viewer" %}
+            <span class="nav-section-label">Relacionamento</span>
+            <details class="nav-menu" {% if request.resolver_match.app_name == "relationships" or request.resolver_match.url_name == "whatsapp_settings" or request.resolver_match.url_name == "whatsapp_support" %}open{% endif %}>
+              <summary>
+                <span class="nav-icon icon-connect" aria-hidden="true"></span>
+                <span>Relacionamento</span>
+              </summary>
+              <div class="nav-submenu">
+                <a href="{% url 'relationships:overview' %}"><span class="nav-icon icon-dashboard" aria-hidden="true"></span><span>Hoje</span></a>
+                <a href="{% url 'relationships:automations' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Automacoes</span></a>
+                <a href="{% url 'relationships:history' %}"><span class="nav-icon icon-audit" aria-hidden="true"></span><span>Historico</span></a>
+                <a href="{% url 'whatsapp_settings' %}"><span class="nav-icon icon-integrations" aria-hidden="true"></span><span>WhatsApp</span></a>
+              </div>
+            </details>
             <span class="nav-section-label">Financeiro</span>
             <details class="nav-menu" {% if request.resolver_match.app_name == "billing" or request.resolver_match.app_name == "checkout" or request.resolver_match.app_name == "fiscal" or request.resolver_match.url_name == "packages" or request.resolver_match.url_name == "package_adjustments" or request.resolver_match.url_name == "package_create" or request.resolver_match.url_name == "package_update" or request.resolver_match.url_name == "package_delete" %}open{% endif %}>
               <summary>
@@ -173,7 +186,7 @@
 
         {% if request.user.is_superuser or request.user.profile.role == "administration" or request.user.profile.role == "management" %}
           <span class="nav-section-label">Administracao</span>
-          <details class="nav-menu" {% if request.resolver_match.app_name == "website" or request.resolver_match.url_name == "settings" or request.resolver_match.url_name == "integrations" or request.resolver_match.url_name == "plans" or request.resolver_match.url_name == "plan_create" or request.resolver_match.url_name == "plan_update" or request.resolver_match.url_name == "plan_delete" %}open{% endif %}>
+          <details class="nav-menu" {% if request.resolver_match.app_name == "website" or request.resolver_match.url_name == "settings" or request.resolver_match.url_name == "plans" or request.resolver_match.url_name == "plan_create" or request.resolver_match.url_name == "plan_update" or request.resolver_match.url_name == "plan_delete" %}open{% endif %}>
             <summary>
               <span class="nav-icon icon-settings" aria-hidden="true"></span>
               <span>Configuracoes</span>
@@ -182,10 +195,6 @@
               <a href="{% url 'billing:plans' %}"><span class="nav-icon icon-plans" aria-hidden="true"></span><span>Planos/Servicos</span></a>
               {% if request.user.is_superuser or request.user.profile.role == "management" %}
                 <a href="{% url 'settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Clinica e operacao</span></a>
-                <span class="nav-subgroup-label">Canais e comunicacao</span>
-                <a href="{% url 'integrations' %}?tab=connections"><span class="nav-icon icon-integrations" aria-hidden="true"></span><span>Conexoes</span></a>
-                <a href="{% url 'integrations' %}?tab=messages"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>Mensagens automaticas</span></a>
-                <a href="{% url 'integrations' %}?tab=diagnostics"><span class="nav-icon icon-reports" aria-hidden="true"></span><span>Diagnostico</span></a>
                 <a href="{% url 'website:dashboard' %}"><span class="nav-icon icon-links" aria-hidden="true"></span><span>Site</span></a>
                 <a href="{% url 'website:settings' %}"><span class="nav-icon icon-settings" aria-hidden="true"></span><span>Conteudo do site</span></a>
                 <a href="{% url 'website:faqs' %}"><span class="nav-icon icon-notes" aria-hidden="true"></span><span>FAQs</span></a>

@@ -152,6 +152,39 @@ class WhatsAppMessageTemplateForm(WhatsAppTemplateBodyValidationMixin, StyledMod
         }
 
 
+class RelationshipAutomationForm(StyledForm):
+    enabled = forms.BooleanField(label="Automação ativa", required=False)
+    timing = forms.IntegerField(required=False, min_value=0, max_value=168)
+    send_time = forms.TimeField(
+        label="Horário do envio",
+        required=False,
+        widget=forms.TimeInput(attrs={"type": "time"}),
+    )
+    body = forms.CharField(
+        label="Texto da mensagem",
+        widget=forms.Textarea(attrs={"rows": 5}),
+    )
+
+    def __init__(self, *args, template_type, timing_kind="none", timing_label="", **kwargs):
+        self.template_type = template_type
+        super().__init__(*args, **kwargs)
+        if timing_kind == "time":
+            self.fields.pop("timing")
+            self.fields["send_time"].required = True
+        elif timing_kind in {"hours", "days"}:
+            self.fields.pop("send_time")
+            self.fields["timing"].label = timing_label
+            self.fields["timing"].required = True
+        else:
+            self.fields.pop("timing")
+            self.fields.pop("send_time")
+
+    def clean_body(self):
+        from core.services.whatsapp_configuration import validate_template_body
+
+        return validate_template_body(self.template_type, self.cleaned_data.get("body"))
+
+
 class CustomWhatsAppMessageTemplateForm(WhatsAppTemplateBodyValidationMixin, StyledModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -71,6 +71,7 @@ urlpatterns = [
     path("equipe/", include("team.urls")),
     path("financeiro/", include("billing.urls")),
     path("agenda/", include("scheduling.urls")),
+    path("relacionamento/", include("relationships.urls")),
     path("relatorios/", include("reports.urls")),
     path("fiscal/", include("fiscal.urls")),
     path("site/", include("website.urls")),

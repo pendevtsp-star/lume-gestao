@@ -111,6 +111,7 @@ INSTALLED_APPS = [
     'django_filters',
     'accounts',
     'core',
+    'relationships',
     'patients',
     'team',
     'billing',
@@ -287,6 +288,7 @@ GOOGLE_CALENDAR_TIMEOUT = config("GOOGLE_CALENDAR_TIMEOUT", default=15, cast=int
 GOOGLE_CALENDAR_SYNC_ENABLED = config("GOOGLE_CALENDAR_SYNC_ENABLED", default=True, cast=bool)
 
 WHATSAPP_PROVIDER = config("WHATSAPP_PROVIDER", default="web_gateway")
+WHATSAPP_TRANSPORT = config("WHATSAPP_TRANSPORT", default="legacy").strip().lower()
 WHATSAPP_DRY_RUN = config("WHATSAPP_DRY_RUN", default=True, cast=bool)
 WHATSAPP_META_API_VERSION = config("WHATSAPP_META_API_VERSION", default="v23.0")
 WHATSAPP_META_ACCESS_TOKEN = config("WHATSAPP_META_ACCESS_TOKEN", default="")
@@ -297,6 +299,14 @@ WHATSAPP_EMBEDDED_APP_SECRET = config("WHATSAPP_EMBEDDED_APP_SECRET", default=""
 WHATSAPP_WEBHOOK_VERIFY_TOKEN = config("WHATSAPP_WEBHOOK_VERIFY_TOKEN", default="")
 WHATSAPP_WEB_GATEWAY_URL = config("WHATSAPP_WEB_GATEWAY_URL", default="http://whatsapp-web:3020")
 WHATSAPP_WEB_GATEWAY_TOKEN = config("WHATSAPP_WEB_GATEWAY_TOKEN", default="")
+WHATSAPP_BAILEYS_GATEWAY_URL = config(
+    "WHATSAPP_BAILEYS_GATEWAY_URL",
+    default="http://whatsapp-baileys:3030",
+)
+WHATSAPP_BAILEYS_GATEWAY_TOKEN = config(
+    "WHATSAPP_BAILEYS_GATEWAY_TOKEN",
+    default="",
+)
 WHATSAPP_TIMEOUT = config("WHATSAPP_TIMEOUT", default=15, cast=int)
 LUME_FIELD_ENCRYPTION_KEY = config("LUME_FIELD_ENCRYPTION_KEY", default="")
 ASAAS_DRY_RUN = config("ASAAS_DRY_RUN", default=True, cast=bool)

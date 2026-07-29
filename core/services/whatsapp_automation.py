@@ -92,7 +92,13 @@ def whatsapp_preview_context(template_type):
         starts_at=timezone.make_aware(datetime.combine(sample_date, time(9, 0))),
         ends_at=timezone.make_aware(datetime.combine(sample_date, time(10, 0))),
     )
-    if template_type == WhatsAppMessageTemplate.TemplateType.CHARGE:
+    if template_type in {
+        WhatsAppMessageTemplate.TemplateType.CHARGE,
+        WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_DUE,
+        WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_DUE_DATE,
+        WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_OVERDUE,
+        WhatsAppMessageTemplate.TemplateType.CHARGE_OVERDUE,
+    }:
         plan = ServicePlan(name="Pilates", category=ServicePlan.Category.PILATES, monthly_price=0)
         membership = Membership(patient=sample_patient, plan=plan)
         sample_payment = Payment(membership=membership, due_date=timezone.localdate() + timedelta(days=5), amount="320.00")
@@ -112,6 +118,10 @@ def whatsapp_target_number(custom_number, patient=None):
     raise IntegrationError("O destinatario selecionado nao possui telefone cadastrado. Informe um numero manualmente.")
 
 
+def _end_of_local_day(day):
+    return timezone.make_aware(datetime.combine(day, time.max), timezone.get_current_timezone())
+
+
 def _create_scheduled_log(
     *,
     integration,
@@ -123,6 +133,10 @@ def _create_scheduled_log(
     scheduled_for=None,
     automation_key="",
     context_payment=None,
+    message_purpose,
+    retry_policy,
+    expires_at,
+    max_attempts,
 ):
     rendered_message = render_whatsapp_template(
         template.body,
@@ -148,6 +162,10 @@ def _create_scheduled_log(
                 status=WhatsAppMessageLog.Status.SCHEDULED,
                 scheduled_for=scheduled_for,
                 automation_key=automation_key,
+                message_purpose=message_purpose,
+                retry_policy=retry_policy,
+                expires_at=expires_at,
+                max_attempts=max_attempts,
             )
     except IntegrityError:
         if not automation_key:
@@ -175,9 +193,6 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
         "membership_overdue": 0,
         "charge_overdue": 0,
     }
-
-    if not integration.is_connected:
-        return created
 
     appointment_rules = (
         WhatsAppAutomationRule.objects.select_related("template")
@@ -232,6 +247,11 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
             if log and log.status == WhatsAppMessageLog.Status.FAILED:
                 continue
             if not log:
+                purpose = (
+                    WhatsAppMessageLog.MessagePurpose.APPOINTMENT_SOON
+                    if rule.template.template_type == WhatsAppMessageTemplate.TemplateType.SESSION_SOON
+                    else WhatsAppMessageLog.MessagePurpose.APPOINTMENT_CONFIRMATION
+                )
                 log = _create_scheduled_log(
                     integration=integration,
                     template=rule.template,
@@ -239,6 +259,10 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     appointment=appointment,
                     scheduled_for=now,
                     automation_key=automation_key,
+                    message_purpose=purpose,
+                    retry_policy=WhatsAppMessageLog.RetryPolicy.UNTIL_EXPIRY,
+                    expires_at=appointment.starts_at,
+                    max_attempts=4,
                 )
             upsert_patient_notification(
                 patient=appointment.patient,
@@ -278,21 +302,59 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     patient=patient,
                     scheduled_for=now,
                     automation_key=automation_key,
+                    message_purpose=WhatsAppMessageLog.MessagePurpose.BIRTHDAY,
+                    retry_policy=WhatsAppMessageLog.RetryPolicy.UNTIL_EXPIRY,
+                    expires_at=_end_of_local_day(today),
+                    max_attempts=4,
                 )
                 created["birthday"] += 1
 
-    charge_template = WhatsAppMessageTemplate.objects.get(template_type=WhatsAppMessageTemplate.TemplateType.CHARGE)
-    if charge_template.active:
+    financial_templates = {
+        template.template_type: template
+        for template in WhatsAppMessageTemplate.objects.filter(
+            template_type__in=[
+                WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_DUE,
+                WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_DUE_DATE,
+                WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_OVERDUE,
+                WhatsAppMessageTemplate.TemplateType.CHARGE_OVERDUE,
+            ]
+        )
+    }
+    if any(template.active for template in financial_templates.values()):
         today = local_now.date()
         due_dates = []
         if settings.membership_due_reminders_enabled:
-            due_dates.append((today + timedelta(days=settings.membership_due_days_before), "membership_due"))
+            due_dates.append(
+                (
+                    today + timedelta(days=settings.membership_due_days_before),
+                    "membership_due",
+                    WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_DUE,
+                    "membership_due",
+                )
+            )
         if settings.membership_due_on_date:
-            due_dates.append((today, "membership_due"))
+            due_dates.append(
+                (
+                    today,
+                    "membership_due",
+                    WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_DUE_DATE,
+                    "membership_due_date",
+                )
+            )
         if settings.membership_overdue_enabled:
-            due_dates.append((today - timedelta(days=settings.membership_overdue_days_after), "membership_overdue"))
+            due_dates.append(
+                (
+                    today - timedelta(days=settings.membership_overdue_days_after),
+                    "membership_overdue",
+                    WhatsAppMessageTemplate.TemplateType.MEMBERSHIP_OVERDUE,
+                    "membership_overdue",
+                )
+            )
 
-        for due_date, counter_key in due_dates:
+        for due_date, counter_key, template_type, automation_identity in due_dates:
+            charge_template = financial_templates[template_type]
+            if not charge_template.active:
+                continue
             payments = (
                 Payment.objects.select_related("membership__patient")
                 .filter(
@@ -305,7 +367,9 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
             )
             for payment in payments:
                 patient = payment.membership.patient
-                automation_key = f"payment:{payment.pk}:{counter_key}:{today.isoformat()}"
+                automation_key = (
+                    f"payment:{payment.pk}:{automation_identity}:{today.isoformat()}"
+                )
                 exists = WhatsAppMessageLog.objects.filter(automation_key=automation_key).exclude(
                     status=WhatsAppMessageLog.Status.CANCELED
                 ).exists()
@@ -318,6 +382,14 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     payment=payment,
                     scheduled_for=now,
                     automation_key=automation_key,
+                    message_purpose=(
+                        WhatsAppMessageLog.MessagePurpose.MEMBERSHIP_OVERDUE
+                        if counter_key == "membership_overdue"
+                        else WhatsAppMessageLog.MessagePurpose.MEMBERSHIP_DUE
+                    ),
+                    retry_policy=WhatsAppMessageLog.RetryPolicy.BOUNDED,
+                    expires_at=_end_of_local_day(today if counter_key == "membership_overdue" else payment.due_date),
+                    max_attempts=4,
                 )
                 created[counter_key] += 1
 
@@ -331,7 +403,7 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     continue
                 automation_key = (
                     f"membership-receivable:{receivable.membership.pk}:"
-                    f"{receivable.reference_month.isoformat()}:{counter_key}"
+                    f"{receivable.reference_month.isoformat()}:{automation_identity}"
                 )
                 exists = WhatsAppMessageLog.objects.filter(automation_key=automation_key).exclude(
                     status=WhatsAppMessageLog.Status.CANCELED
@@ -354,10 +426,26 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     scheduled_for=now,
                     automation_key=automation_key,
                     context_payment=context_payment,
+                    message_purpose=(
+                        WhatsAppMessageLog.MessagePurpose.MEMBERSHIP_OVERDUE
+                        if counter_key == "membership_overdue"
+                        else WhatsAppMessageLog.MessagePurpose.MEMBERSHIP_DUE
+                    ),
+                    retry_policy=WhatsAppMessageLog.RetryPolicy.BOUNDED,
+                    expires_at=_end_of_local_day(today if counter_key == "membership_overdue" else receivable.due_date),
+                    max_attempts=4,
                 )
                 created[counter_key] += 1
 
-        if settings.charge_overdue_enabled:
+        if (
+            settings.charge_overdue_enabled
+            and financial_templates[
+                WhatsAppMessageTemplate.TemplateType.CHARGE_OVERDUE
+            ].active
+        ):
+            charge_template = financial_templates[
+                WhatsAppMessageTemplate.TemplateType.CHARGE_OVERDUE
+            ]
             charge_due_date = today - timedelta(days=settings.charge_overdue_days_after)
             charges = (
                 Charge.objects.select_related("patient")
@@ -384,6 +472,10 @@ def enqueue_automatic_whatsapp_messages(now=None, limit=100):
                     charge=charge,
                     scheduled_for=now,
                     automation_key=automation_key,
+                    message_purpose=WhatsAppMessageLog.MessagePurpose.CHARGE_OVERDUE,
+                    retry_policy=WhatsAppMessageLog.RetryPolicy.BOUNDED,
+                    expires_at=_end_of_local_day(today),
+                    max_attempts=4,
                 )
                 created["charge_overdue"] += 1
 

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<section class="relationship-page">
+  <header class="relationship-hero">
+    <div>
+      <span class="eyebrow">Canal de relacionamento</span>
+      <h1>WhatsApp da clínica</h1>
+      <p>Conecte o aparelho que será usado para conversar com pacientes.</p>
+    </div>
+  </header>
+
+  {% include "relationships/_nav.html" %}
+
+  <div
+    class="whatsapp-layout"
+    {% if not connected %}
+      data-whatsapp-qr-poller
+      data-qr-url="{% url 'integrations_whatsapp_web_qr' %}"
+      data-status-url="{% url 'integrations_whatsapp_web_status' %}"
+    {% endif %}
+  >
+    <article class="connection-card {% if connected %}is-connected{% endif %}">
+      <div class="connection-orb">
+        <span>{% if connected %}✓{% else %}⌁{% endif %}</span>
+      </div>
+      <div>
+        {% if connected %}
+          <span class="eyebrow">Pronto para conversar</span>
+          <h2>WhatsApp conectado</h2>
+          <p>As automações ativas podem enviar mensagens pelo número <strong>{{ connected_number }}</strong>.</p>
+        {% else %}
+          <span class="eyebrow">Conexão necessária</span>
+          <h2>WhatsApp não conectado</h2>
+          <p>Abra o WhatsApp no celular, acesse <strong>Aparelhos conectados</strong> e leia o código abaixo.</p>
+        {% endif %}
+      </div>
+
+      {% if not connected %}
+        <div class="qr-frame" data-qr-frame {% if not qr_data %}hidden{% endif %}>
+          <img
+            data-qr-image
+            {% if qr_data %}src="{{ qr_data }}"{% endif %}
+            alt="QR Code para conectar o WhatsApp"
+          >
+        </div>
+        <div class="qr-placeholder" data-qr-placeholder {% if qr_data %}hidden{% endif %}>
+          <span>QR</span>
+          <p data-qr-message aria-live="polite">Preparando um código seguro para conexão...</p>
+        </div>
+      {% endif %}
+
+      <form method="post" class="connection-actions">
+        {% csrf_token %}
+        {% if connected %}
+          <button
+            class="button button-secondary"
+            name="action"
+            value="replace_device"
+            type="submit"
+            onclick="return window.confirm('Desconectar o aparelho atual e gerar um QR Code para o novo aparelho?');"
+          >Trocar aparelho</button>
+          <button
+            class="button button-quiet"
+            name="action"
+            value="disconnect"
+            type="submit"
+            onclick="return window.confirm('Desconectar este WhatsApp e gerar um novo QR Code?');"
+          >Desconectar WhatsApp</button>
+        {% else %}
+          <button class="button button-primary" name="action" value="connect" type="submit">Gerar novo QR Code</button>
+        {% endif %}
+      </form>
+    </article>
+
+    <aside class="relationship-panel connection-summary">
+      <span class="eyebrow">Resumo</span>
+      <h2>Comunicação da clínica</h2>
+      <div class="summary-row">
+        <span>Mensagens aguardando</span>
+        <strong>{{ waiting_count }}</strong>
+      </div>
+      <div class="summary-row">
+        <span>Última comunicação</span>
+        <strong>{% if last_communication %}{{ last_communication.updated_at|date:"d/m · H:i" }}{% else %}Ainda não houve envio{% endif %}</strong>
+      </div>
+      <p class="helper-copy">Desconectar o aparelho não apaga mensagens, automações nem configurações da clínica.</p>
+      {% if request.user.is_superuser %}
+        <a class="support-link" href="{% url 'whatsapp_support' %}">Abrir suporte técnico</a>
+      {% endif %}
+    </aside>
+  </div>
+</section>
+{% if not connected %}
+  <script src="{% static 'js/whatsapp-connection.js' %}?v=20260729-qr-polling" defer></script>
+{% endif %}
+{% endblock %}

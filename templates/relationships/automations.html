@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="relationship-page">
+  <header class="relationship-hero">
+    <div>
+      <span class="eyebrow">Relacionamento</span>
+      <h1>Automações com propósito</h1>
+      <p>Escolha quando falar com cada paciente e revise a mensagem antes de ativar.</p>
+    </div>
+  </header>
+
+  {% include "relationships/_nav.html" %}
+
+  <div class="automation-grid">
+    {% for card in automation_cards %}
+      <article class="automation-card {% if card.active %}is-active{% endif %}">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="automation_key" value="{{ card.definition.key }}">
+          <div class="automation-card-heading">
+            <div>
+              <span class="automation-state">{% if card.active %}Ativa{% else %}Pausada{% endif %}</span>
+              <h2>{{ card.definition.title }}</h2>
+            </div>
+            <label class="switch-control">
+              {{ card.form.enabled }}
+              <span aria-hidden="true"></span>
+              <span class="sr-only">Ativar {{ card.definition.title }}</span>
+            </label>
+          </div>
+          <p>{{ card.definition.description }}</p>
+
+          {% if card.timing_display %}
+            <div class="automation-timing">
+              <span>Momento do envio</span>
+              <strong>{{ card.timing_display }}</strong>
+            </div>
+          {% endif %}
+
+          <details class="automation-editor" {% if card.form.errors %}open{% endif %}>
+            <summary>Editar regra e mensagem</summary>
+            <div class="automation-editor-body">
+              {{ card.form.non_field_errors }}
+              {% if card.form.timing %}
+                <label>{{ card.form.timing.label }}{{ card.form.timing }}{{ card.form.timing.errors }}</label>
+              {% endif %}
+              {% if card.form.send_time %}
+                <label>{{ card.form.send_time.label }}{{ card.form.send_time }}{{ card.form.send_time.errors }}</label>
+              {% endif %}
+              <label>{{ card.form.body.label }}{{ card.form.body }}{{ card.form.body.errors }}</label>
+              <div class="message-preview">
+                <span>Prévia</span>
+                <p>{{ card.preview }}</p>
+              </div>
+            </div>
+          </details>
+
+          <div class="automation-footnote">
+            {% if card.next_case %}<span>Próximo caso identificado</span>{% else %}<span>Nenhum caso elegível agora</span>{% endif %}
+            {% if card.last_problem %}<span class="text-warning">Há uma mensagem para revisar</span>{% elif card.last_sent %}<span>Último envio registrado</span>{% endif %}
+          </div>
+          <button class="button button-primary button-block" type="submit">Salvar automação</button>
+        </form>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

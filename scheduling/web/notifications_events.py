@@ -1,7 +1,9 @@
 """Notification center and operational calendar event views."""
 
 from scheduling.web.common import *  # noqa: F401,F403
+from django.db import transaction
 from core.web.throttling import FixedWindowRateLimitMixin
+from core.services.whatsapp_delivery_policy import can_retry_manually
 
 
 def notifications_visible_to_user(user):
@@ -62,24 +64,75 @@ class GenerateNotificationsView(FixedWindowRateLimitMixin, NotificationGeneratio
 
 
 class RetryNotificationView(AgendaOperationalAccessMixin, View):
+    @transaction.atomic
     def post(self, request, pk):
-        notification = get_object_or_404(notifications_visible_to_user(request.user), pk=pk)
-        delivery_log = notification.delivery_log
-        if not delivery_log:
+        notification = get_object_or_404(
+            notifications_visible_to_user(request.user).select_for_update(),
+            pk=pk,
+        )
+        if not notification.delivery_log_id:
             messages.info(request, "Este aviso ainda nao possui tentativa de envio para reenfileirar.")
             return redirect("scheduling:notifications")
+        delivery_log = get_object_or_404(
+            WhatsAppMessageLog.objects.select_for_update(),
+            pk=notification.delivery_log_id,
+        )
+        if delivery_log.status != WhatsAppMessageLog.Status.FAILED:
+            messages.info(
+                request,
+                "Este aviso não está mais em um estado que permita nova tentativa.",
+            )
+            return redirect("scheduling:notifications")
+        decision = can_retry_manually(delivery_log, now=timezone.now())
+        if not decision.allowed:
+            delivery_log.status = decision.terminal_status
+            delivery_log.next_attempt_at = None
+            delivery_log.lease_until = None
+            delivery_log.terminal_reason = decision.reason_code
+            delivery_log.error_message = decision.user_message
+            delivery_log.save(
+                update_fields=[
+                    "status",
+                    "next_attempt_at",
+                    "lease_until",
+                    "terminal_reason",
+                    "error_message",
+                    "updated_at",
+                ]
+            )
+            notification.status = (
+                PatientNotification.Status.SKIPPED
+                if decision.terminal_status == WhatsAppMessageLog.Status.EXPIRED
+                else PatientNotification.Status.FAILED
+            )
+            notification.error_message = decision.user_message
+            if decision.terminal_status == WhatsAppMessageLog.Status.DELIVERY_UNCERTAIN:
+                notification.metadata = {
+                    **(notification.metadata or {}),
+                    "delivery_uncertain": True,
+                }
+            notification.save(
+                update_fields=["status", "error_message", "metadata", "updated_at"]
+            )
+            messages.info(request, decision.user_message)
+            return redirect("scheduling:notifications")
         delivery_log.status = WhatsAppMessageLog.Status.SCHEDULED
-        delivery_log.scheduled_for = timezone.now()
-        delivery_log.next_attempt_at = None
+        if not delivery_log.scheduled_for:
+            delivery_log.scheduled_for = timezone.now()
+        delivery_log.next_attempt_at = timezone.now()
+        delivery_log.lease_until = None
         delivery_log.attempt_count = 0
         delivery_log.error_message = ""
+        delivery_log.terminal_reason = ""
         delivery_log.save(
             update_fields=[
                 "status",
                 "scheduled_for",
                 "next_attempt_at",
+                "lease_until",
                 "attempt_count",
                 "error_message",
+                "terminal_reason",
                 "updated_at",
             ]
         )

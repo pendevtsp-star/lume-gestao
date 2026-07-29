@@ -506,12 +506,15 @@ class ReadOnlyViewerAccessTests(TestCase):
             reverse("reports:dashboard"),
             reverse("fiscal:dashboard"),
             reverse("accounts:list"),
-            reverse("integrations"),
+            reverse("relationships:overview"),
         ]
 
         for url in urls:
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url, secure=True).status_code, 200)
+
+        dashboard = self.client.get(reverse("dashboard"), secure=True)
+        self.assertContains(dashboard, reverse("relationships:overview"))
 
     def test_viewer_cannot_create_patient_from_web(self):
         response = self.client.post(

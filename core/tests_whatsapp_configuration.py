@@ -277,23 +277,23 @@ class WhatsAppOperationalTemplateTests(TestCase):
             active=False,
         )
 
-    @patch("core.views.whatsapp_web_gateway_status")
+    @patch("core.web.whatsapp_settings.whatsapp_web_gateway_status")
     def test_connection_page_renders_the_normalized_gateway_state(self, gateway_status):
-        gateway_status.return_value = {"ok": True, "ready": True}
+        gateway_status.return_value = {
+            "ok": True,
+            "ready": True,
+            "connectedNumber": "5511999990000",
+        }
 
-        response = self.client.get(reverse("integrations"), {"tab": "connections"})
+        response = self.client.get(reverse("whatsapp_settings"))
 
-        self.assertContains(response, "A sessao esta pronta para os envios e automacoes da clinica.")
-        self.assertContains(response, "Canal unico de envio")
+        self.assertContains(response, "WhatsApp conectado")
+        self.assertContains(response, "5511999990000")
 
-    @patch("core.views.whatsapp_web_gateway_status", return_value={"ok": True, "ready": True})
-    def test_messages_page_renders_rule_telemetry_and_variable_documentation(self, _gateway_status):
-        response = self.client.get(
-            reverse("integrations"),
-            {"tab": "messages", "message": "appointment"},
-        )
+    def test_automations_page_renders_operational_summary_and_preview(self):
+        response = self.client.get(reverse("relationships:automations"))
 
-        self.assertContains(response, "Proxima execucao")
-        self.assertContains(response, "Ultimo envio")
-        self.assertContains(response, "Variaveis deste modelo")
+        self.assertContains(response, "Confirmação da sessão")
+        self.assertContains(response, "Nenhum caso elegível agora")
+        self.assertContains(response, "Prévia")
         self.assertContains(response, "[Paciente]")

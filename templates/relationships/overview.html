@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="relationship-page">
+  <header class="relationship-hero">
+    <div>
+      <span class="eyebrow">Relacionamento</span>
+      <h1>O que merece atenção hoje</h1>
+      <p>Acompanhe mensagens, sessões e cuidados com pacientes em um só lugar.</p>
+    </div>
+    <a class="button button-secondary" href="{% url 'whatsapp_settings' %}">
+      <span class="status-dot {% if gateway_ready %}is-ready{% endif %}"></span>
+      {% if gateway_ready %}WhatsApp conectado{% else %}Ver conexão do WhatsApp{% endif %}
+    </a>
+  </header>
+
+  {% include "relationships/_nav.html" %}
+
+  <div class="relationship-kpi-grid">
+    <a class="relationship-kpi" href="{% url 'relationships:history' %}">
+      <span class="kpi-icon">↗</span>
+      <strong>{{ scheduled_count }} aguardando envio</strong>
+      <small>Mensagens que ainda estão dentro do prazo</small>
+    </a>
+    <a class="relationship-kpi" href="{% url 'relationships:history' %}">
+      <span class="kpi-icon is-muted">⌛</span>
+      <strong>{{ expired_count }} prazo encerrado{{ expired_count|pluralize }}</strong>
+      <small>Não foram enviadas depois de perderem a utilidade</small>
+    </a>
+    <a class="relationship-kpi" href="{% url 'relationships:history' %}">
+      <span class="kpi-icon is-warning">!</span>
+      <strong>{{ failed_count }} pedem atenção</strong>
+      <small>Falhas recentes ou resultado ainda não confirmado</small>
+    </a>
+    <a class="relationship-kpi" href="{% url 'relationships:automations' %}">
+      <span class="kpi-icon is-sage">✓</span>
+      <strong>{{ financial_eligible_count }} lembretes financeiros</strong>
+      <small>Pendências elegíveis para contato</small>
+    </a>
+  </div>
+
+  <div class="relationship-columns">
+    <article class="relationship-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Próximas 24 horas</span>
+          <h2>Sessões que estão chegando</h2>
+        </div>
+        <a href="{% url 'scheduling:appointments' %}">Abrir agenda</a>
+      </div>
+      <div class="relationship-list">
+        {% for appointment in upcoming_appointments %}
+          <div class="relationship-list-item">
+            <time>{{ appointment.starts_at|date:"H:i" }}</time>
+            <div>
+              <strong>{{ appointment.patient.full_name }}</strong>
+              <span>{{ appointment.starts_at|date:"d/m" }} · {{ appointment.professional }}</span>
+            </div>
+          </div>
+        {% empty %}
+          <div class="empty-state-compact">
+            <strong>Nenhuma sessão próxima.</strong>
+            <span>A agenda das próximas 24 horas está tranquila.</span>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="relationship-panel relationship-panel-accent">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Carinho no momento certo</span>
+          <h2>Aniversários de hoje</h2>
+        </div>
+      </div>
+      <div class="relationship-list">
+        {% for patient in birthdays %}
+          <div class="relationship-list-item">
+            <span class="patient-monogram">{{ patient.full_name|slice:":1" }}</span>
+            <div>
+              <strong>{{ patient.full_name }}</strong>
+              <span>{% if patient.phone %}Mensagem programada para hoje{% else %}Telefone não informado{% endif %}</span>
+            </div>
+          </div>
+        {% empty %}
+          <div class="empty-state-compact">
+            <strong>Nenhum aniversário hoje.</strong>
+            <span>Os próximos aparecerão aqui automaticamente.</span>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+  </div>
+</section>
+{% endblock %}

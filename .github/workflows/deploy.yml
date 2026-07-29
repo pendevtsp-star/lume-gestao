@@ -18,8 +18,10 @@ env:
   REGISTRY: ghcr.io
   APP_IMAGE: ghcr.io/${{ github.repository }}/app
   WHATSAPP_WEB_IMAGE: ghcr.io/${{ github.repository }}/whatsapp-web
+  WHATSAPP_BAILEYS_IMAGE: ghcr.io/${{ github.repository }}/whatsapp-baileys
   IMAGE_TAG: ${{ github.sha }}
   PRODUCTION_TAG: production
+  BAILEYS_CANDIDATE_TAG: candidate
 
 jobs:
   test-build-publish:
@@ -56,7 +58,7 @@ jobs:
       - name: Auditar dependencias e codigo Python
         run: |
           pip-audit -r requirements.txt
-          bandit -r accounts billing checkout config core fiscal homecare lume_connect mobile patients reports scheduling team website -x "*/migrations/*,*/tests/*,*/test_*.py" -ll
+          bandit -r accounts billing checkout config core fiscal homecare lume_connect mobile patients relationships reports scheduling team website -x "*/migrations/*,*/tests/*,*/test_*.py" -ll
 
       - name: Validar Django
         run: |
@@ -83,6 +85,24 @@ jobs:
           node --check src/server.js
           npm test
           npm audit --omit=dev --omit=optional --audit-level=high
+
+      - name: Set up Node para candidato Baileys
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: whatsapp-baileys-gateway/package-lock.json
+
+      - name: Validar gateway WhatsApp Baileys
+        working-directory: whatsapp-baileys-gateway
+        run: |
+          npm ci --omit=dev
+          node --check src/server.js
+          node --check src/connection.js
+          node --check src/auth-store.js
+          node --check src/outbound-store.js
+          npm test
+          npm audit --omit=dev --audit-level=high
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -115,6 +135,17 @@ jobs:
             ${{ env.WHATSAPP_WEB_IMAGE }}:${{ env.IMAGE_TAG }}
           cache-from: type=gha,scope=lume-whatsapp-web
           cache-to: type=gha,mode=max,scope=lume-whatsapp-web
+
+      - name: Build e push da imagem candidata WhatsApp Baileys
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ./whatsapp-baileys-gateway
+          file: ./whatsapp-baileys-gateway/Dockerfile
+          push: true
+          tags: |
+            ${{ env.WHATSAPP_BAILEYS_IMAGE }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha,scope=lume-whatsapp-baileys
+          cache-to: type=gha,mode=max,scope=lume-whatsapp-baileys
 
   deploy:
     name: Atualizar VPS por imagens imutaveis
@@ -153,6 +184,7 @@ jobs:
 
             TARGET_APP_IMAGE="${{ env.APP_IMAGE }}:${{ env.IMAGE_TAG }}"
             TARGET_WHATSAPP_WEB_IMAGE="${{ env.WHATSAPP_WEB_IMAGE }}:${{ env.IMAGE_TAG }}"
+            TARGET_WHATSAPP_BAILEYS_IMAGE="${{ env.WHATSAPP_BAILEYS_IMAGE }}:${{ env.IMAGE_TAG }}"
             GHCR_USERNAME="pendevtsp-star"
             GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
 
@@ -161,6 +193,7 @@ jobs:
             compose() {
               LUME_APP_IMAGE="$ACTIVE_APP_IMAGE" \
               LUME_WHATSAPP_WEB_IMAGE="$ACTIVE_WHATSAPP_WEB_IMAGE" \
+              LUME_WHATSAPP_BAILEYS_IMAGE="$ACTIVE_WHATSAPP_BAILEYS_IMAGE" \
                 docker compose -f "$COMPOSE_FILE" "$@"
             }
 
@@ -171,7 +204,7 @@ jobs:
 
             current_image_for() {
               service="$1"
-              container="$(LUME_APP_IMAGE="$ACTIVE_APP_IMAGE" LUME_WHATSAPP_WEB_IMAGE="$ACTIVE_WHATSAPP_WEB_IMAGE" docker compose -f "$COMPOSE_FILE" ps -q "$service" || true)"
+              container="$(LUME_APP_IMAGE="$ACTIVE_APP_IMAGE" LUME_WHATSAPP_WEB_IMAGE="$ACTIVE_WHATSAPP_WEB_IMAGE" LUME_WHATSAPP_BAILEYS_IMAGE="$ACTIVE_WHATSAPP_BAILEYS_IMAGE" docker compose -f "$COMPOSE_FILE" ps -q "$service" || true)"
               if [ -n "$container" ]; then
                 docker inspect -f '{{.Config.Image}}' "$container" 2>/dev/null || true
               fi
@@ -240,7 +273,7 @@ jobs:
               echo "[rollback] Restaurando imagens anteriores..."
               ACTIVE_APP_IMAGE="$PREVIOUS_APP_IMAGE"
               ACTIVE_WHATSAPP_WEB_IMAGE="$PREVIOUS_WHATSAPP_WEB_IMAGE"
-              export ACTIVE_APP_IMAGE ACTIVE_WHATSAPP_WEB_IMAGE
+              export ACTIVE_APP_IMAGE ACTIVE_WHATSAPP_WEB_IMAGE ACTIVE_WHATSAPP_BAILEYS_IMAGE
 
               compose up -d --remove-orphans
 
@@ -255,7 +288,8 @@ jobs:
 
             ACTIVE_APP_IMAGE="${LUME_APP_IMAGE:-${{ env.APP_IMAGE }}:${{ env.PRODUCTION_TAG }}}"
             ACTIVE_WHATSAPP_WEB_IMAGE="${LUME_WHATSAPP_WEB_IMAGE:-${{ env.WHATSAPP_WEB_IMAGE }}:${{ env.PRODUCTION_TAG }}}"
-            export ACTIVE_APP_IMAGE ACTIVE_WHATSAPP_WEB_IMAGE
+            ACTIVE_WHATSAPP_BAILEYS_IMAGE="${LUME_WHATSAPP_BAILEYS_IMAGE:-${{ env.WHATSAPP_BAILEYS_IMAGE }}:${{ env.BAILEYS_CANDIDATE_TAG }}}"
+            export ACTIVE_APP_IMAGE ACTIVE_WHATSAPP_WEB_IMAGE ACTIVE_WHATSAPP_BAILEYS_IMAGE
 
             PREVIOUS_APP_IMAGE="$(current_image_for web)"
             PREVIOUS_WHATSAPP_WEB_IMAGE="$(current_image_for whatsapp-web)"
@@ -271,6 +305,7 @@ jobs:
             echo "[deploy] Imagem WhatsApp anterior: $PREVIOUS_WHATSAPP_WEB_IMAGE"
             echo "[deploy] Imagem app alvo: $TARGET_APP_IMAGE"
             echo "[deploy] Imagem WhatsApp alvo: $TARGET_WHATSAPP_WEB_IMAGE"
+            echo "[deploy] Imagem Baileys candidata: $TARGET_WHATSAPP_BAILEYS_IMAGE"
 
             echo "[deploy] Criando backup antes de migrations..."
             BACKUP_DIR="$APP_DIR/data/backups" RETENTION_DAYS=30 sh scripts/backup-production.sh
@@ -284,10 +319,12 @@ jobs:
 
             ACTIVE_APP_IMAGE="$TARGET_APP_IMAGE"
             ACTIVE_WHATSAPP_WEB_IMAGE="$TARGET_WHATSAPP_WEB_IMAGE"
-            export ACTIVE_APP_IMAGE ACTIVE_WHATSAPP_WEB_IMAGE
+            ACTIVE_WHATSAPP_BAILEYS_IMAGE="$TARGET_WHATSAPP_BAILEYS_IMAGE"
+            export ACTIVE_APP_IMAGE ACTIVE_WHATSAPP_WEB_IMAGE ACTIVE_WHATSAPP_BAILEYS_IMAGE
 
             echo "[deploy] Baixando imagens imutaveis..."
             compose pull web worker whatsapp-web
+            compose --profile baileys-candidate pull whatsapp-baileys
 
             if run_migrations && compose up -d --remove-orphans && validate_release; then
               echo "[deploy] Deploy validado com sucesso."
@@ -326,6 +363,10 @@ jobs:
           docker buildx imagetools create \
             -t "${WHATSAPP_WEB_IMAGE}:${PRODUCTION_TAG}" \
             "${WHATSAPP_WEB_IMAGE}:${IMAGE_TAG}"
+
+          docker buildx imagetools create \
+            -t "${WHATSAPP_BAILEYS_IMAGE}:${BAILEYS_CANDIDATE_TAG}" \
+            "${WHATSAPP_BAILEYS_IMAGE}:${IMAGE_TAG}"
 
   notify-telegram:
     name: Notificar resultado no Telegram

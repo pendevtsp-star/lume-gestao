@@ -1,18 +1,20 @@
 <nav class="admin-settings-nav" aria-label="Areas de configuracao">
-  <a class="{% if request.resolver_match.url_name == 'settings' %}is-active{% endif %}" href="{% url 'settings' %}">
+  <a class="{% if request.resolver_match.url_name == 'settings' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'settings' %}aria-current="page"{% endif %} href="{% url 'settings' %}">
     <strong>Clinica</strong>
     <span>Identidade, horarios e politicas</span>
   </a>
-  <a class="{% if request.resolver_match.url_name == 'integrations' and active_tab == 'connections' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=connections">
-    <strong>Conexoes</strong>
-    <span>QR do WhatsApp e status</span>
+  <a class="{% if request.resolver_match.url_name == 'whatsapp_settings' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'whatsapp_settings' %}aria-current="page"{% endif %} href="{% url 'whatsapp_settings' %}">
+    <strong>WhatsApp</strong>
+    <span>Conexão e aparelho da clínica</span>
   </a>
-  <a class="{% if request.resolver_match.url_name == 'integrations' and active_tab == 'messages' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=messages">
-    <strong>Mensagens</strong>
-    <span>Textos e automacoes</span>
+  <a class="{% if request.resolver_match.url_name == 'automations' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'automations' %}aria-current="page"{% endif %} href="{% url 'relationships:automations' %}">
+    <strong>Automações</strong>
+    <span>Momentos e textos das mensagens</span>
   </a>
-  <a class="{% if request.resolver_match.url_name == 'integrations' and active_tab == 'diagnostics' %}is-active{% endif %}" href="{% url 'integrations' %}?tab=diagnostics">
-    <strong>Diagnostico</strong>
-    <span>Fila, falhas e saude dos canais</span>
-  </a>
+  {% if request.user.is_superuser %}
+    <a class="{% if request.resolver_match.url_name == 'whatsapp_support' %}is-active{% endif %}" {% if request.resolver_match.url_name == 'whatsapp_support' %}aria-current="page"{% endif %} href="{% url 'whatsapp_support' %}">
+      <strong>Suporte</strong>
+      <span>Diagnóstico técnico restrito</span>
+    </a>
+  {% endif %}
 </nav>

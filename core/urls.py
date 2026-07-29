@@ -17,6 +17,7 @@ from core.web.settings import (
     HealthCheckView,
     LegalDocumentView,
 )
+from core.web.whatsapp_settings import WhatsAppSettingsView, WhatsAppSupportView
 from reports.views import AuditReportView
 
 urlpatterns = [
@@ -29,6 +30,12 @@ urlpatterns = [
     path("consentimento-lgpd/", LegalDocumentView.as_view(document_key="sensitive"), name="sensitive_data_consent"),
     path("auditoria/", AuditReportView.as_view(), name="audit"),
     path("configuracoes/", ClinicSettingsUpdateView.as_view(), name="settings"),
+    path("configuracoes/whatsapp/", WhatsAppSettingsView.as_view(), name="whatsapp_settings"),
+    path(
+        "configuracoes/whatsapp/suporte/",
+        WhatsAppSupportView.as_view(),
+        name="whatsapp_support",
+    ),
     path("aniversariantes/<int:patient_pk>/whatsapp/", BirthdayWhatsAppSendView.as_view(), name="birthday_whatsapp_send"),
     path("integracoes/", IntegrationsView.as_view(), name="integrations"),
     path("integracoes/whatsapp-web/status/", WhatsAppWebGatewayStatusView.as_view(), name="integrations_whatsapp_web_status"),

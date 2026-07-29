@@ -11,7 +11,12 @@ function validateKey(key) {
 export function encryptJson(value, key, replacer) {
   validateKey(key);
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const cipher = createCipheriv(
+    "aes-256-gcm",
+    key,
+    iv,
+    { authTagLength: 16 }
+  );
   const plaintext = Buffer.from(JSON.stringify(value, replacer), "utf8");
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   return { ciphertext, iv, authTag: cipher.getAuthTag() };
@@ -19,7 +24,15 @@ export function encryptJson(value, key, replacer) {
 
 export function decryptJson(encrypted, key, reviver) {
   validateKey(key);
-  const decipher = createDecipheriv("aes-256-gcm", key, encrypted.iv);
+  if (!Buffer.isBuffer(encrypted.authTag) || encrypted.authTag.length !== 16) {
+    throw new Error("A tag de autenticação deve conter exatamente 16 bytes.");
+  }
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    key,
+    encrypted.iv,
+    { authTagLength: 16 }
+  );
   decipher.setAuthTag(encrypted.authTag);
   const plaintext = Buffer.concat([
     decipher.update(encrypted.ciphertext),

@@ -87,7 +87,7 @@ jobs:
           npm audit --omit=dev --omit=optional --audit-level=high
 
       - name: Set up Node para candidato Baileys
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -137,7 +137,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=lume-whatsapp-web
 
       - name: Build e push da imagem candidata WhatsApp Baileys
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./whatsapp-baileys-gateway
           file: ./whatsapp-baileys-gateway/Dockerfile

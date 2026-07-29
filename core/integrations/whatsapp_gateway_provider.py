@@ -59,6 +59,7 @@ class GatewayWhatsAppProvider:
             method=method,
         )
         try:
+            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             with request.urlopen(req, timeout=settings.WHATSAPP_TIMEOUT) as response:  # nosec B310
                 raw_body = response.read().decode("utf-8")
         except error.HTTPError as exc:

@@ -24,3 +24,13 @@ test("rejects decryption with another key", () => {
 
   assert.throws(() => decryptJson(encrypted, randomBytes(32)));
 });
+
+test("rejects a truncated GCM authentication tag", () => {
+  const key = randomBytes(32);
+  const encrypted = encryptJson({ secret: true }, key);
+
+  assert.throws(() => decryptJson({
+    ...encrypted,
+    authTag: encrypted.authTag.subarray(0, 8)
+  }, key));
+});

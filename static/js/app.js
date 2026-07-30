@@ -38,12 +38,19 @@
   });
 
   document.querySelectorAll("form:not([method='get'])").forEach((form) => {
-    form.addEventListener("submit", () => {
-      if (form.dataset.submitting) return;
+    form.addEventListener("submit", (event) => {
+      if (form.dataset.submitting) {
+        event.preventDefault();
+        return;
+      }
       form.dataset.submitting = "true";
       form.classList.add("is-submitting");
       form.querySelectorAll("button[type='submit']").forEach((button) => {
-        button.disabled = true;
+        if (button.name) {
+          button.setAttribute("aria-disabled", "true");
+        } else {
+          button.disabled = true;
+        }
         button.dataset.label = button.textContent;
         button.setAttribute("aria-busy", "true");
         button.textContent = button.dataset.submittingLabel || "Salvando...";

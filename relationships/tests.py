@@ -197,6 +197,45 @@ class RelationshipsAccessAndExperienceTests(TestCase):
         self.assertFalse(self.integration.is_connected)
 
     @patch("core.web.whatsapp_settings.whatsapp_web_gateway_status")
+    def test_whatsapp_actions_are_preserved_in_hidden_form_fields(
+        self,
+        gateway_status,
+    ):
+        self.login(self.management)
+        gateway_status.return_value = {
+            "ok": True,
+            "ready": True,
+            "hasQr": False,
+            "connectedNumber": "5511988887777",
+        }
+
+        response = self.client.get(reverse("whatsapp_settings"))
+
+        self.assertContains(
+            response,
+            '<input type="hidden" name="action" value="replace_device">',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<input type="hidden" name="action" value="disconnect">',
+            html=True,
+        )
+
+        gateway_status.return_value = {
+            "ok": True,
+            "ready": False,
+            "hasQr": True,
+            "connectedNumber": "",
+        }
+        response = self.client.get(reverse("whatsapp_settings"))
+        self.assertContains(
+            response,
+            '<input type="hidden" name="action" value="connect">',
+            html=True,
+        )
+
+    @patch("core.web.whatsapp_settings.whatsapp_web_gateway_status")
     def test_normal_whatsapp_screen_hides_technical_concepts(self, gateway_status):
         self.login(self.management)
         gateway_status.return_value = {"ok": True, "ready": False, "hasQr": True}

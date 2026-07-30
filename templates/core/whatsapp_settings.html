@@ -51,27 +51,34 @@
         </div>
       {% endif %}
 
-      <form method="post" class="connection-actions">
-        {% csrf_token %}
+      <div class="connection-actions">
         {% if connected %}
-          <button
-            class="button button-secondary"
-            name="action"
-            value="replace_device"
-            type="submit"
-            onclick="return window.confirm('Desconectar o aparelho atual e gerar um QR Code para o novo aparelho?');"
-          >Trocar aparelho</button>
-          <button
-            class="button button-quiet"
-            name="action"
-            value="disconnect"
-            type="submit"
-            onclick="return window.confirm('Desconectar este WhatsApp e gerar um novo QR Code?');"
-          >Desconectar WhatsApp</button>
+          <form method="post" class="connection-action-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="replace_device">
+            <button
+              class="button button-secondary"
+              type="submit"
+              onclick="return window.confirm('Desconectar o aparelho atual e gerar um QR Code para o novo aparelho?');"
+            >Trocar aparelho</button>
+          </form>
+          <form method="post" class="connection-action-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="disconnect">
+            <button
+              class="button button-quiet"
+              type="submit"
+              onclick="return window.confirm('Desconectar este WhatsApp e gerar um novo QR Code?');"
+            >Desconectar WhatsApp</button>
+          </form>
         {% else %}
-          <button class="button button-primary" name="action" value="connect" type="submit">Gerar novo QR Code</button>
+          <form method="post" class="connection-action-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="connect">
+            <button class="button button-primary" type="submit">Gerar novo QR Code</button>
+          </form>
         {% endif %}
-      </form>
+      </div>
     </article>
 
     <aside class="relationship-panel connection-summary">

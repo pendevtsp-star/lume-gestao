@@ -278,6 +278,8 @@ textarea {
 .lume-app .qr-placeholder span { color: #799088; font-size: 48px; font-weight: 900; }
 .lume-app .qr-placeholder p { margin: 0; font-size: 13px; }
 .lume-app .connection-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.lume-app .connection-action-form { display: flex; flex: 1 1 200px; margin: 0; }
+.lume-app .connection-action-form .button { width: 100%; }
 .lume-app .connection-summary { align-self: start; }
 .lume-app .helper-copy { color: #75817d; font-size: 13px; line-height: 1.5; }
 .lume-app .support-link { color: #55716a; font-size: 12px; }
@@ -4644,7 +4646,8 @@ td small {
   white-space: pre-wrap;
 }
 
-.button:disabled {
+.button:disabled,
+.button[aria-disabled="true"] {
   cursor: not-allowed;
   opacity: 0.55;
 }

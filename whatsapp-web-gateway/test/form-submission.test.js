@@ -4,7 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 
-test("preserves the clicked submit action before disabling buttons", async () => {
+test("preserves the browser-provided submit action while blocking duplicates", async () => {
   const source = await readFile(
     new URL("../../static/js/app.js", import.meta.url),
     "utf8"
@@ -67,10 +67,7 @@ test("preserves the clicked submit action before disabling buttons", async () =>
   });
 
   assert.equal(firstPrevented, false);
-  assert.equal(appendedFields.length, 1);
-  assert.equal(appendedFields[0].type, "hidden");
-  assert.equal(appendedFields[0].name, "action");
-  assert.equal(appendedFields[0].value, "disconnect");
+  assert.equal(appendedFields.length, 0);
   assert.equal(button.disabled, false);
   assert.equal(buttonAttributes["aria-disabled"], "true");
 
